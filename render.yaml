@@ -2,11 +2,13 @@ databases:
   - name: dumpring-db
     databaseName: dumpring
     user: dumpring_user
+    plan: free # 명시적으로 무료 디비 지정!
 
 services:
   - type: web
     name: dumpring-api
-    env: python
+    runtime: python
+    plan: free # 명시적으로 무료 웹 서비스 지정!
     buildCommand: "pip install -r requirements.txt"
     startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
@@ -16,3 +18,5 @@ services:
           property: connectionString
       - key: PYTHON_VERSION
         value: "3.11.0"
+      - key: PGOPTIONS
+        value: "-c search_path=dumpring"
