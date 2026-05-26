@@ -1,22 +1,13 @@
-databases:
-  - name: dumpring-db
-    databaseName: dumpring
-    user: dumpring_user
-    plan: free # 명시적으로 무료 디비 지정!
-
 services:
   - type: web
     name: dumpring-api
     runtime: python
-    plan: free # 명시적으로 무료 웹 서비스 지정!
+    plan: free # 100% 무료 웹 서비스 플랜
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    # 수파베이스에 이미 테이블이 다 있으니 alembic upgrade head는 빼고 순수 서버만 켭니다.
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: dumpring-db
-          property: connectionString
+        value: "postgresql://postgres.vvdydhxmwdrrazwyjvvu:crypto.co.kr@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres"
       - key: PYTHON_VERSION
         value: "3.11.0"
-      - key: PGOPTIONS
-        value: "-c search_path=dumpring"
