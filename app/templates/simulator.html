@@ -976,6 +976,10 @@
                             <span style="color: var(--text-muted);">계정이 없으신가요?</span>
                             <a href="javascript:void(0)" onclick="navigateTo('role-selection')" style="color: var(--primary-orange); font-weight: 700; text-decoration: none; margin-left: 5px;">회원가입</a>
                         </div>
+                        
+                        <div style="text-align: center; margin-top: 15px;">
+                            <a href="javascript:void(0)" onclick="bypassAdminLogin()" style="color: #a0aec0; font-weight: bold; text-decoration: underline; font-size: 0.75rem;"><i class="fa-solid fa-code" style="margin-right: 4px;"></i>🔧 디버그: 본사 어드민 화면 바로 진입</a>
+                        </div>
                     </div>
 
                     <!-- [2] 가입 역할 선택 뷰 (View Role Selection) -->
@@ -2441,9 +2445,95 @@
             const radius_meter = radiusVal ? parseFloat(radiusVal) : 200.0;
 
             try {
-                // 새로운 DropOff CRUD API 호출: POST /api/drop-offs
                 const response = await fetch(getApiUrl('/api/drop-offs'), {
-                            async function fetchOpenDropOffRequests() {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        address: address,
+                        latitude: latitude,
+                        longitude: longitude,
+                        radius_meter: radius_meter,
+                        permit_number: permit
+                    })
+                });
+
+                if (response.ok) {
+                    triggerConfetti();
+                    showModal("🎉 하차지 등록 성공", "새로운 하차지가 성공적으로 개설되었습니다.", true);
+                    document.getElementById('dash-new-unloading-name').value = '';
+                    document.getElementById('dash-new-unloading-address').value = '';
+                    document.getElementById('dash-new-unloading-lat').value = '';
+                    document.getElementById('dash-new-unloading-lng').value = '';
+                    document.getElementById('dash-new-unloading-radius').value = '200';
+                    document.getElementById('dash-new-unloading-permit').value = '';
+                    fetchMyUnloadingSites();
+                } else {
+                    const data = await response.json();
+                    showModal("등록 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        async function handleCreateDropOffRequest(dropOffId) {
+            const soil = document.getElementById(`req-soil-${dropOffId}`).value;
+            const truck = document.getElementById(`req-truck-${dropOffId}`).value;
+            const targetQty = parseInt(document.getElementById(`req-cap-${dropOffId}`).value.trim());
+            const price = parseInt(document.getElementById(`req-price-${dropOffId}`).value.trim());
+            const payer = document.getElementById(`req-payer-${dropOffId}`).value;
+            const method = document.getElementById(`req-method-${dropOffId}`).value;
+            const startDateVal = document.getElementById(`req-start-${dropOffId}`).value;
+            const endDateVal = document.getElementById(`req-end-${dropOffId}`).value;
+            const washing = document.getElementById(`req-washing-${dropOffId}`).checked;
+            const night = document.getElementById(`req-night-${dropOffId}`).checked;
+            const rain = document.getElementById(`req-rain-${dropOffId}`).checked;
+
+            if (isNaN(targetQty) || isNaN(price) || !startDateVal || !endDateVal) {
+                showModal("입력 오류", "모든 입력값을 확인해 주세요.", false);
+                return;
+            }
+
+            try {
+                const response = await fetch(getApiUrl(`/api/drop-offs/${dropOffId}/requests`), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        material_type: soil,
+                        truck_type: truck,
+                        target_quantity: targetQty,
+                        unit_price: price,
+                        payer_type: payer,
+                        payment_method: method,
+                        start_date: new Date(startDateVal).toISOString(),
+                        end_date: new Date(endDateVal).toISOString(),
+                        has_washing_facility: washing,
+                        night_work_allowed: night,
+                        rain_work_allowed: rain
+                    })
+                });
+
+                if (response.ok) {
+                    triggerConfetti();
+                    showModal("🎉 수용 공고 등록 성공", "매립 수용 공고가 성공적으로 등록되었습니다.", true);
+                    fetchMyUnloadingSites();
+                } else {
+                    const data = await response.json();
+                    showModal("등록 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        async function fetchOpenDropOffRequests() {
             try {
                 const response = await fetch(getApiUrl('/api/drop-offs/requests'), {
                     headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -2467,7 +2557,6 @@
                     return;
                 }
 
-                // 현장의 ID를 매핑하기 위해 내 현장 데이터 획득
                 const siteResponse = await fetch(getApiUrl('/api/sites/my-mappings'), {
                     headers: { 'Authorization': `Bearer ${accessToken}` }
                 });
@@ -2480,14 +2569,12 @@
                 }
 
                 requests.forEach(r => {
-                    // 환경 조건 태그 작성
                     let envTags = '';
                     if (r.has_washing_facility) envTags += `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.58rem; font-weight: bold; margin-right: 3px;">세륜기</span>`;
                     if (r.night_work_allowed) envTags += `<span style="background: #faf5ff; color: #6b21a8; padding: 2px 6px; border-radius: 4px; font-size: 0.58rem; font-weight: bold; margin-right: 3px;">야간</span>`;
                     if (r.rain_work_allowed) envTags += `<span style="background: #f0fdf4; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 0.58rem; font-weight: bold;">우천</span>`;
                     if (!envTags) envTags = '<span style="font-size: 0.6rem; color: var(--text-muted);">조건 없음</span>';
 
-                    // 매칭률 계산
                     const matchPercent = Math.min(100, Math.round((r.current_quantity / r.target_quantity) * 100));
 
                     container.innerHTML += `
@@ -2508,7 +2595,6 @@
                                     </div>
                                 </div>
 
-                                <!-- 매칭률 게이지 바 -->
                                 <div style="margin-top: 8px;">
                                     <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 2px;">
                                         <span>매칭 대수: ${r.current_quantity} / ${r.target_quantity}대</span>
@@ -2530,22 +2616,6 @@
                 });
             } catch (err) {
                 console.error("매립 공고 로드 오류: ", err);
-            }
-        }art_date: new Date(startDateVal).toISOString(),
-                        end_date: new Date(endDateVal).toISOString()
-                    })
-                });
-
-                if (response.ok) {
-                    triggerConfetti();
-                    showModal("🎉 수용 공고 등록 성공", "매립 수용 공고가 성공적으로 등록되었습니다.", true);
-                    fetchMyUnloadingSites();
-                } else {
-                    const data = await response.json();
-                    showModal("등록 실패", data.detail || "오류가 발생했습니다.", false);
-                }
-            } catch (err) {
-                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
             }
         }
 
@@ -2699,10 +2769,127 @@
             }
         }
 
+        function bypassAdminLogin() {
+            loggedInUser = {
+                id: 999,
+                name: "플랫폼 총괄 마스터",
+                phone_number: "010-0000-0000",
+                is_admin: true,
+                is_site_manager: false,
+                is_site_worker: false,
+                is_owner: false,
+                is_driver: false,
+                is_drop_off: false
+            };
+            accessToken = "MOCK_DEVELOPER_ADMIN_TOKEN";
+            
+            // 어드민 대시보드 렌더링
+            document.getElementById('dash-user-name').innerText = `${loggedInUser.name} 님`;
+            document.getElementById('dash-user-phone').innerText = loggedInUser.phone_number;
+            document.getElementById('dash-user-role').innerText = "본사 관리자 (Admin)";
+            
+            // 모든 일반 탭 숨김 및 어드민 전용 뷰 렌더링
+            document.getElementById('dash-manager-section').style.display = 'none';
+            document.getElementById('dash-worker-section').style.display = 'none';
+            document.getElementById('dash-owner-section').style.display = 'none';
+            document.getElementById('dash-dropoff-section').style.display = 'none';
+            document.getElementById('dash-sites-section').style.display = 'none';
+            document.getElementById('dash-b2b-section').style.display = 'none';
+            
+            // 만약 어드민 전용 UI가 HTML에 없다면, 어드민 전용 섹션(가입 심사, 배차 관제, 분쟁 중재)을 대시보드에 즉석 생성 및 삽입!
+            let adminContainer = document.getElementById('dash-admin-container');
+            if (!adminContainer) {
+                const scrollContent = document.getElementById('dashboard-scroll-content');
+                adminContainer = document.createElement('div');
+                adminContainer.id = 'dash-admin-container';
+                adminContainer.className = 'dashboard-tab-content';
+                adminContainer.style.display = 'flex';
+                adminContainer.style.flexDirection = 'column';
+                adminContainer.style.gap = '16px';
+                scrollContent.appendChild(adminContainer);
+            }
+            
+            adminContainer.innerHTML = `
+                <!-- 1. 신규 가입 서류 심사 -->
+                <div class="form-card" style="padding: 20px; border: 1px solid var(--border-color); border-radius: 12px; background: #ffffff;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 6px; text-align: left;">📋 신규 가입 서류 심사 대기열</h4>
+                    <div id="admin-pending-members" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                        <div style="padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray); display: flex; justify-content: space-between; align-items: center;">
+                            <div style="text-align: left;">
+                                <h5 style="font-size: 0.85rem; font-weight: 700; color: var(--text-dark); margin: 0;">홍길동 기사 (기사 가입)</h5>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 2px 0 0 0;">제출서류: 면허증, 화물자격증, 통장 사본</p>
+                            </div>
+                            <button class="submit-btn" onclick="adminApprove('홍길동 기사', true)" style="width: 50px; padding: 6px; font-size: 0.72rem; border-radius: 6px; box-shadow: none;">승인</button>
+                        </div>
+                        <div style="padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray); display: flex; justify-content: space-between; align-items: center;">
+                            <div style="text-align: left;">
+                                <h5 style="font-size: 0.85rem; font-weight: 700; color: var(--text-dark); margin: 0;">성춘향 지주 (하차지 개설)</h5>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 2px 0 0 0;">제출서류: 사업자증, 토사반입 허가서</p>
+                            </div>
+                            <button class="submit-btn" onclick="adminApprove('성춘향 지주', true)" style="width: 50px; padding: 6px; font-size: 0.72rem; border-radius: 6px; box-shadow: none;">승인</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. 실시간 배차 모니터링 -->
+                <div class="form-card" style="padding: 20px; border: 1px solid var(--border-color); border-radius: 12px; background: #ffffff;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 6px; text-align: left;">🛰️ 실시간 관제 및 배차 현황판</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                        <div style="padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray); display: flex; justify-content: space-between; align-items: center;">
+                            <div style="text-align: left;">
+                                <h5 style="font-size: 0.82rem; font-weight: 700; color: var(--text-dark); margin: 0;">강남 현장 ➔ 신촌 사토장</h5>
+                                <p style="font-size: 0.7rem; color: var(--text-muted); margin: 2px 0 0 0;">차량: 서울80사1234 (상차지 이동 중)</p>
+                            </div>
+                            <button class="submit-btn" onclick="adminIntervene('서울80사1234')" style="width: 70px; padding: 6px; font-size: 0.72rem; border-radius: 6px; background: #e53e3e; box-shadow: none;">강제 개입</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. 분쟁 중재 -->
+                <div class="form-card" style="padding: 20px; border: 1px solid var(--border-color); border-radius: 12px; background: #ffffff;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 6px; text-align: left;">⚖️ 운송 및 반입 분쟁 중재</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                        <div style="padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray); display: flex; flex-direction: column; gap: 8px;">
+                            <div style="text-align: left;">
+                                <h5 style="font-size: 0.82rem; font-weight: 700; color: #e53e3e; margin: 0;">뻘흙 판정으로 인한 회차 분쟁</h5>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 2px 0 0 0;">임꺽정 기사 ➔ 인천 영종도 사토장</p>
+                            </div>
+                            <button class="submit-btn" onclick="adminResolveDispute('임꺽정 기사')" style="padding: 8px; font-size: 0.75rem; border-radius: 6px; box-shadow: none;">GPS 분석 및 직권 중재 조정</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 모든 탭 숨기고 홈 탭을 보이지만 어드민 컨테이너를 활성화
+            switchDashboardTab('home');
+            document.getElementById('tab-content-home').style.display = 'none'; // 홈 안내판은 안보이게 함
+            adminContainer.style.display = 'flex'; // 어드민 콘솔만 보이게 함
+
+            navigateTo('dashboard');
+            triggerConfetti();
+        }
+
+        window.adminApprove = function(name, isApprove) {
+            showModal("📢 심사 완료", `[심사 완료] ${name}님의 가입 신청이 정상적으로 승인 완료되었습니다.`, true);
+        };
+
+        window.adminIntervene = function(carNum) {
+            showModal("🔴 강제 개입 조치", `플랫폼 강제 명령으로 해당 ${carNum} 차량의 배차가 즉시 취소 및 회차 조치되었습니다.`, false);
+        };
+
+        window.adminResolveDispute = function(name) {
+            showModal("⚖️ 직권 중재 완료", `[직권 중재 완료] GPS 이동 궤적 분석 완료.\n기사 ${name}님에게 운송 정산금 70% 지급 조정 명령(SETTLE_ADJUSTED)이 원장에 적용되었습니다.`, true);
+        };
+
         function handleLogout() {
             loggedInUser = null;
             accessToken = null;
             resetForm();
+            // 만약 어드민 빠른 진입용 컨테이너가 있다면 제거
+            const adminContainer = document.getElementById('dash-admin-container');
+            if (adminContainer) {
+                adminContainer.remove();
+            }
             navigateTo('login');
         }
 
