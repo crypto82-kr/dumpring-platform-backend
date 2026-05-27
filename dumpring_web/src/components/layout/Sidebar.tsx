@@ -97,11 +97,11 @@ export default function Sidebar() {
       <div>
         {/* Logo / Header */}
         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-            <span className="font-black text-xl text-slate-900">D</span>
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <span className="font-black text-xl text-white">D</span>
           </div>
           <div>
-            <h1 className="font-extrabold text-lg bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+            <h1 className="font-extrabold text-lg bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
               DUMPRING
             </h1>
             <p className="text-xs text-slate-400 font-medium">통합 모빌리티 플랫폼</p>
@@ -111,12 +111,12 @@ export default function Sidebar() {
         {/* Current Active User Profile info */}
         <div className="m-4 p-4 rounded-xl bg-slate-800/50 border border-slate-800 flex flex-col gap-2">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center font-bold text-sm text-cyan-400">
+            <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center font-bold text-sm text-blue-400 font-sans">
               {user.name[0]}
             </div>
             <div>
               <div className="font-semibold text-sm text-slate-200">{user.name}</div>
-              <div className="text-[11px] text-cyan-400 font-bold bg-cyan-950/80 px-2 py-0.5 rounded-full inline-block mt-0.5 border border-cyan-800/30">
+              <div className="text-[11px] text-blue-400 font-bold bg-blue-950/80 px-2 py-0.5 rounded-full inline-block mt-0.5 border border-blue-800/30">
                 {user.roleName}
               </div>
             </div>
@@ -130,7 +130,7 @@ export default function Sidebar() {
           </div>
           {menus.map((item, idx) => {
             const Icon = item.icon;
-            const isActive = idx === 0; // 데모를 위해 첫 번째 아이템 활성화 처리
+            const isActive = idx === 0;
             return (
               <a
                 key={item.title}
@@ -138,13 +138,13 @@ export default function Sidebar() {
                 onClick={(e) => e.preventDefault()}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${
                   isActive
-                    ? "bg-gradient-to-r from-cyan-500/10 to-transparent text-cyan-400 border-l-4 border-cyan-400 shadow-[inset_1px_0_0_0_rgba(6,182,212,0.1)]"
+                    ? "bg-blue-600/10 text-blue-400 border-l-4 border-blue-500 shadow-[inset_1px_0_0_0_rgba(37,99,235,0.1)]"
                     : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
                 }`}
               >
                 <Icon
                   className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${
-                    isActive ? "text-cyan-400" : "text-slate-500 group-hover:text-slate-300"
+                    isActive ? "text-blue-400" : "text-slate-500 group-hover:text-slate-300"
                   }`}
                 />
                 <span>{item.title}</span>
@@ -165,7 +165,7 @@ export default function Sidebar() {
             onClick={() => changeRole("platform_admin")}
             className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
               user.role === "platform_admin"
-                ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
                 : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
             }`}
           >
@@ -175,7 +175,7 @@ export default function Sidebar() {
             onClick={() => changeRole("site_manager")}
             className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
               user.role === "site_manager"
-                ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
                 : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
             }`}
           >
@@ -185,7 +185,7 @@ export default function Sidebar() {
             onClick={() => changeRole("dropoff_manager")}
             className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
               user.role === "dropoff_manager"
-                ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
                 : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
             }`}
           >
@@ -195,7 +195,7 @@ export default function Sidebar() {
             onClick={() => changeRole("owner")}
             className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
               user.role === "owner"
-                ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
                 : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
             }`}
           >
@@ -205,7 +205,7 @@ export default function Sidebar() {
             onClick={() => changeRole("developer")}
             className={`col-span-2 px-2 py-1.5 rounded-lg border text-center font-medium transition-colors ${
               user.role === "developer"
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
                 : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
             }`}
           >

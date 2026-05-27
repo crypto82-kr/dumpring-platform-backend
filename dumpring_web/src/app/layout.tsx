@@ -21,14 +21,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full bg-slate-950 font-sans flex text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+      <body className="min-h-full bg-slate-50 font-sans flex text-slate-900 antialiased selection:bg-cyan-500/20 selection:text-cyan-900">
         <AuthProvider>
           <div className="flex w-full min-h-screen">
             {/* Sidebar */}
             <Sidebar />
             
             {/* Main Content Area */}
-            <main className="flex-1 bg-slate-950 overflow-y-auto">
+            <main className="flex-1 bg-slate-50 overflow-y-auto">
               {children}
             </main>
           </div>
