@@ -10,9 +10,20 @@ logger = logging.getLogger("dumpring.db")
 if not settings.DATABASE_URL:
     raise ValueError("데이터베이스 연결 설정(DATABASE_URL)이 누락되었습니다. .env 파일을 확인해 주세요.")
 
+db_url = settings.DATABASE_URL
+# Supabase 등에서 제공하는 pgbouncer=true 옵션은 asyncpg 드라이버에서 지원하지 않으므로 제거합니다.
+if "pgbouncer=" in db_url:
+    from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+    parsed_url = urlparse(db_url)
+    query_params = parse_qs(parsed_url.query)
+    query_params.pop("pgbouncer", None)
+    new_query = urlencode(query_params, doseq=True)
+    parsed_url = parsed_url._replace(query=new_query)
+    db_url = urlunparse(parsed_url)
+
 # 실무 레벨의 안전한 비동기 데이터베이스 엔진 구성 (커넥션 풀 세부 옵션 적용)
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    db_url,
     # 커넥션 풀 튜닝 설정
     pool_size=20,          # 풀에 유지할 영구적인 커넥션 수
     max_overflow=10,       # 풀 크기를 초과하여 생성할 수 있는 임시 커넥션 한도
