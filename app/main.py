@@ -7,6 +7,12 @@ import os
 from app.core.config import settings
 from app.api.auth import router as auth_router
 from app.api.owner import router as owner_router
+from app.api.site_mgmt import router as site_router
+from app.api.fleet import router as fleet_router
+from app.api.locations import router as locations_router
+from app.api.drop_offs import router as drop_offs_router
+from app.api.jobs import router as jobs_router
+from app.api.common_codes import router as common_codes_router
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +27,12 @@ app = FastAPI(
 # 라우터 등록
 app.include_router(auth_router, prefix="/api/auth", tags=["인증/회원가입"])
 app.include_router(owner_router, prefix="/api/owner", tags=["차주 전용 관리"])
+app.include_router(site_router, prefix="/api/sites", tags=["현장 관리 및 매핑"])
+app.include_router(fleet_router, prefix="/api/fleet", tags=["차량 및 기사 관리"])
+app.include_router(locations_router, prefix="/api", tags=["상하차지 마스터 관리"])
+app.include_router(drop_offs_router, prefix="/api/drop-offs", tags=["하차지 마스터 관리"])
+app.include_router(jobs_router, prefix="/api", tags=["상하차지 B2B 매칭"])
+app.include_router(common_codes_router, prefix="/api/common-codes", tags=["공통 코드 마스터"])
 
 
 # CORS 설정

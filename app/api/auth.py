@@ -5,10 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from jose import jwt, JWTError
 import logging
+import uuid
 
 from app.core.db import get_db
-from app.models import User, Driver
-from app.schemas.auth import DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse
+from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus
+from app.schemas.auth import (
+    DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse,
+    SiteManagerRegister, SiteWorkerRegister, DropOffRegister
+)
 from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM
 from app.core.config import settings
 
@@ -149,6 +153,251 @@ async def register_owner(
 
     except Exception as e:
         logger.error(f"차주 회원 가입 중 에러 발생: {str(e)}")
+        await db.rollback()
+        raise e
+
+
+@router.post(
+    "/signup/site-manager",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="공사현장 관리자 회원가입",
+    description="현장관리자 계정을 생성하고 관련 현장 상세 프로필(SiteProfile) 정보를 저장합니다."
+)
+async def signup_site_manager(
+    data: SiteManagerRegister,
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(User).where(User.phone_number == data.phone_number)
+    result = await db.execute(query)
+    existing_user = result.scalars().first()
+    
+    if existing_user:
+        logger.warning(f"현장관리자 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error_code": "ALREADY_REGISTERED",
+                "message": "이미 가입된 휴대폰 번호입니다. 로그인해 주세요."
+            }
+        )
+
+    try:
+        hashed_password = get_password_hash(data.password)
+        new_user = User(
+            phone_number=data.phone_number,
+            password=hashed_password,
+            name=data.name,
+            ci=data.ci,
+            is_site_manager=True,
+            is_site_worker=False,
+            is_owner=False,
+            is_driver=False,
+            is_drop_off=False,
+            is_admin=False
+        )
+        db.add(new_user)
+        await db.flush()
+
+        new_profile = SiteProfile(
+            user_id=new_user.id,
+            company_name=data.company_name,
+            site_name=data.site_name,
+            business_number=data.business_number
+        )
+        db.add(new_profile)
+
+        # ConstructionSite 생성 또는 조회
+        site_query = select(ConstructionSite).where(
+            ConstructionSite.business_number == data.business_number,
+            ConstructionSite.company_name == data.company_name
+        )
+        site_result = await db.execute(site_query)
+        site = site_result.scalars().first()
+
+        if not site:
+            site_key = f"SITE-{uuid.uuid4().hex[:6].upper()}"
+            site = ConstructionSite(
+                user_id=new_user.id,
+                company_name=data.company_name,
+                business_number=data.business_number,
+                site_key=site_key,
+                billing_email=f"billing@{data.phone_number}.com"  # 임시 이메일
+            )
+            db.add(site)
+            await db.flush()
+
+        # SiteUserMapping 생성 (관리자는 즉시 APPROVED)
+        mapping = SiteUserMapping(
+            site_id=site.id,
+            user_id=new_user.id,
+            status=SiteUserStatus.APPROVED
+        )
+        db.add(mapping)
+        
+        await db.commit()
+        await db.refresh(new_user)
+        
+        logger.info(f"신규 현장관리자 유저 및 프로필 생성 성공: ID {new_user.id}")
+        return new_user
+
+    except Exception as e:
+        logger.error(f"현장관리자 회원가입 중 에러 발생: {str(e)}")
+        await db.rollback()
+        raise e
+
+
+@router.post(
+    "/signup/site-worker",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="공사현장 담당자 회원가입",
+    description="현장담당자 계정을 생성하고 관련 현장 프로필을 저장합니다. 기존에 선등록된 현장 직원 정보가 있다면 자동 연동(매칭)됩니다."
+)
+async def signup_site_worker(
+    data: SiteWorkerRegister,
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(User).where(User.phone_number == data.phone_number)
+    result = await db.execute(query)
+    existing_user = result.scalars().first()
+    
+    if existing_user:
+        logger.warning(f"현장담당자 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error_code": "ALREADY_REGISTERED",
+                "message": "이미 가입된 휴대폰 번호입니다. 로그인해 주세요."
+            }
+        )
+
+    try:
+        hashed_password = get_password_hash(data.password)
+        new_user = User(
+            phone_number=data.phone_number,
+            password=hashed_password,
+            name=data.name,
+            ci=data.ci,
+            is_site_manager=False,
+            is_site_worker=True,
+            is_owner=False,
+            is_driver=False,
+            is_drop_off=False,
+            is_admin=False
+        )
+        db.add(new_user)
+        await db.flush()
+
+        new_profile = SiteProfile(
+            user_id=new_user.id,
+            company_name=data.company_name,
+            site_name=data.site_name,
+            business_number=data.business_number
+        )
+        db.add(new_profile)
+
+        # ConstructionSite 조회 (site_key 기반)
+        site_query = select(ConstructionSite).where(
+            ConstructionSite.site_key == data.site_key
+        )
+        site_result = await db.execute(site_query)
+        site = site_result.scalars().first()
+
+        if not site:
+            logger.warning(f"현장담당자 가입 실패: 유효하지 않은 현장 키 ({data.site_key})")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="올바르지 않은 현장 키입니다. 현장관리자(소장님)에게 문의하여 올바른 현장 키를 입력해 주세요."
+            )
+
+        # SiteUserMapping 생성 (담당자는 PENDING으로 시작)
+        mapping = SiteUserMapping(
+            site_id=site.id,
+            user_id=new_user.id,
+            status=SiteUserStatus.PENDING
+        )
+        db.add(mapping)
+
+        # SiteEmployee 선등록 매칭 로직 작동
+        employee_query = select(SiteEmployee).where(SiteEmployee.registered_phone == data.phone_number)
+        employee_result = await db.execute(employee_query)
+        pre_registered_employee = employee_result.scalars().first()
+        
+        if pre_registered_employee:
+            pre_registered_employee.user_id = new_user.id
+            logger.info(f"★ [매칭 성공] 선등록 현장 직원 데이터 발견 및 매칭 연동 완료 (Employee ID: {pre_registered_employee.id} -> User ID: {new_user.id})")
+        
+        await db.commit()
+        await db.refresh(new_user)
+        
+        logger.info(f"신규 현장담당자 유저 및 프로필 생성 성공: ID {new_user.id}")
+        return new_user
+
+    except Exception as e:
+        logger.error(f"현장담당자 회원가입 중 에러 발생: {str(e)}")
+        await db.rollback()
+        raise e
+
+
+@router.post(
+    "/signup/drop-off",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="하차지 지주 회원가입",
+    description="하차지 지주 계정을 생성하고 관련 하차지 상세 프로필(DropOffProfile) 정보를 저장합니다."
+)
+async def signup_drop_off(
+    data: DropOffRegister,
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(User).where(User.phone_number == data.phone_number)
+    result = await db.execute(query)
+    existing_user = result.scalars().first()
+    
+    if existing_user:
+        logger.warning(f"하차지 지주 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error_code": "ALREADY_REGISTERED",
+                "message": "이미 가입된 휴대폰 번호입니다. 로그인해 주세요."
+            }
+        )
+
+    try:
+        hashed_password = get_password_hash(data.password)
+        new_user = User(
+            phone_number=data.phone_number,
+            password=hashed_password,
+            name=data.name,
+            ci=data.ci,
+            is_site_manager=False,
+            is_site_worker=False,
+            is_owner=False,
+            is_driver=False,
+            is_drop_off=True,
+            is_admin=False
+        )
+        db.add(new_user)
+        await db.flush()
+
+        new_profile = DropOffProfile(
+            user_id=new_user.id,
+            location_name=data.location_name,
+            address=data.address,
+            permit_number=data.permit_number
+        )
+        db.add(new_profile)
+        
+        await db.commit()
+        await db.refresh(new_user)
+        
+        logger.info(f"신규 하차지 지주 유저 및 프로필 생성 성공: ID {new_user.id}")
+        return new_user
+
+    except Exception as e:
+        logger.error(f"하차지 지주 회원가입 중 에러 발생: {str(e)}")
         await db.rollback()
         raise e
 

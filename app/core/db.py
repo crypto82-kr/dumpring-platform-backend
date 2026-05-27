@@ -24,6 +24,7 @@ if "pgbouncer=" in db_url:
 # 실무 레벨의 안전한 비동기 데이터베이스 엔진 구성 (커넥션 풀 세부 옵션 적용)
 engine = create_async_engine(
     db_url,
+    connect_args={"statement_cache_size": 0},  # PgBouncer (Transaction Mode) 호환을 위한 설정
     # 커넥션 풀 튜닝 설정
     pool_size=20,          # 풀에 유지할 영구적인 커넥션 수
     max_overflow=10,       # 풀 크기를 초과하여 생성할 수 있는 임시 커넥션 한도

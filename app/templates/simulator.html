@@ -67,6 +67,7 @@
             font-weight: 800;
             background: linear-gradient(135deg, #FF7A00, #FFB800);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 15px;
             letter-spacing: -1px;
@@ -720,6 +721,139 @@
                 transform: none !important;
             }
         }
+
+        /* 뷰 및 뒤로가기 버튼 스타일 추가 */
+        .app-view {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .back-btn {
+            position: absolute;
+            left: 20px;
+            font-size: 1.1rem;
+            color: var(--text-dark);
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: none; /* 기본 숨김 */
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .back-btn:hover {
+            background: #E2E8F0;
+        }
+
+        /* 역할 선택 카드 목록 */
+        .role-selection-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding-bottom: 20px;
+        }
+
+        .role-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+            text-align: left;
+        }
+
+        .role-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary-orange);
+            box-shadow: 0 8px 16px -4px rgba(255, 122, 0, 0.15);
+        }
+
+        .role-card-icon-box {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .role-card-details {
+            flex: 1;
+        }
+
+        .role-card-details h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+        }
+
+        .role-card-details p {
+            font-size: 0.78rem;
+            color: var(--text-gray);
+            line-height: 1.4;
+        }
+
+        /* 하단 탭바 스타일 및 탭 콘텐츠 스타일 */
+        .bottom-nav {
+            display: flex;
+            background: #ffffff;
+            border-top: 1px solid var(--border-color);
+            position: sticky;
+            bottom: 0;
+            left: 0;
+            width: calc(100% + 48px);
+            height: 65px;
+            z-index: 100;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.03);
+            margin-top: auto;
+            margin-left: -24px;
+            margin-right: -24px;
+            margin-bottom: -30px;
+            padding: 0 10px;
+        }
+
+        .bottom-nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            gap: 4px;
+            padding-bottom: 6px;
+        }
+
+        .bottom-nav-item i {
+            font-size: 1.25rem;
+        }
+
+        .bottom-nav-item.active {
+            color: var(--primary-teal);
+        }
+        
+        .bottom-nav-item:active {
+            transform: scale(0.92);
+        }
+
+        .dashboard-tab-content {
+            animation: fadeIn 0.3s ease-out;
+        }
     </style>
 </head>
 <body>
@@ -787,84 +921,447 @@
                 </div>
 
                 <!-- 모바일 앱 바 -->
-                <div class="app-bar">
-                    <h3 id="app-bar-title">덤프링 회원가입</h3>
+                <div class="app-bar" style="position: relative;">
+                    <div class="back-btn" id="app-bar-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></div>
+                    <h3 id="app-bar-title">덤프링 로그인</h3>
                 </div>
 
                 <!-- 메인 앱 콘텐츠 -->
-                <div class="app-content">
-                    <!-- 1. 사용자 유형 세그먼트 스위치 -->
-                    <div class="segment-container" id="role-segment-container">
-                        <div class="segment-slider" id="segment-slider"></div>
-                        <div class="segment-tab active" id="tab-driver" onclick="setRole(true)">기사로 가입</div>
-                        <div class="segment-tab" id="tab-owner" onclick="setRole(false)">차주로 가입</div>
-                    </div>
-
-                    <!-- 2. 입력 폼 카드 -->
-                    <div class="form-card">
-                        <!-- 성명 -->
-                        <div class="form-group" id="form-group-name">
-                            <label>성명 (실명)</label>
-                            <div class="input-wrapper">
-                                <input type="text" id="input-name" placeholder="실명을 입력해 주세요" required>
-                                <i class="fa-regular fa-user prefix-icon"></i>
-                            </div>
+                <div class="app-content" style="flex: 1; display: flex; flex-direction: column;">
+                    
+                    <!-- [1] 로그인 뷰 (View Login) -->
+                    <div id="view-login" class="app-view">
+                        <!-- 서비스 로고 -->
+                        <div style="text-align: center; margin-top: 20px; margin-bottom: 30px;">
+                            <i class="fa-solid fa-truck-moving" style="font-size: 4rem; color: var(--primary-orange); filter: drop-shadow(0 8px 16px rgba(255,122,0,0.2));"></i>
+                            <h2 style="font-size: 2rem; font-weight: 900; letter-spacing: 2px; color: var(--primary-teal); margin-top: 12px; margin-bottom: 4px;">DUMPRING</h2>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">덤프 중계 및 실시간 미터기 플랫폼</p>
                         </div>
 
-                        <!-- 휴대폰 번호 -->
-                        <div class="form-group">
-                            <label>휴대폰 번호 (로그인 ID)</label>
-                            <div class="input-wrapper">
-                                <input type="tel" id="input-phone" placeholder="- 없이 숫자만 입력해 주세요" maxlength="11" required>
-                                <i class="fa-solid fa-mobile-screen-button prefix-icon"></i>
-                            </div>
-                        </div>
-
-                        <!-- 비밀번호 -->
-                        <div class="form-group">
-                            <label>비밀번호</label>
-                            <div class="input-wrapper">
-                                <input type="password" id="input-password" placeholder="4자리 이상 입력해 주세요" required>
-                                <i class="fa-solid fa-lock prefix-icon"></i>
-                                <span class="suffix-btn" onclick="togglePasswordVisibility()"><i class="fa-regular fa-eye-slash" id="eye-icon"></i></span>
-                            </div>
-                        </div>
-
-                        <!-- 3. 실시간 에러 발생 영역 (Icons.error_outline + 진한 빨강 텍스트) -->
-                        <div class="error-alert" id="error-alert">
-                            <i class="fa-solid fa-circle-exclamation"></i>
-                            <span id="error-text">오류가 발생했습니다.</span>
-                        </div>
-
-                        <!-- 4. 차주 전용 기사 겸직 여부 토글 -->
-                        <div class="switch-tile" id="switch-tile">
-                            <div class="switch-header">
-                                <div style="display: flex; flex-direction: column; gap: 2px;">
-                                    <span class="switch-title">차주 본인이 직접 덤프 운행 (기사 겸직)</span>
-                                    <span class="switch-subtitle">체크 시 기사(Driver) 권한도 동시에 획득합니다.</span>
+                        <!-- 로그인 폼 카드 -->
+                        <div class="form-card" style="margin-bottom: 20px;">
+                            <!-- 휴대폰 번호 -->
+                            <div class="form-group">
+                                <label>휴대폰 번호 (로그인 ID)</label>
+                                <div class="input-wrapper">
+                                    <input type="tel" id="login-phone" placeholder="- 없이 숫자만 입력해 주세요" maxlength="11" required>
+                                    <i class="fa-solid fa-mobile-screen-button prefix-icon"></i>
                                 </div>
-                                <label class="switch-control">
-                                    <input type="checkbox" id="switch-direct">
-                                    <span class="slider"></span>
-                                </label>
+                            </div>
+
+                            <!-- 비밀번호 -->
+                            <div class="form-group">
+                                <label>비밀번호</label>
+                                <div class="input-wrapper">
+                                    <input type="password" id="login-password" placeholder="비밀번호를 입력해 주세요" required>
+                                    <i class="fa-solid fa-lock prefix-icon"></i>
+                                    <span class="suffix-btn" onclick="togglePasswordVisibility('login-password', 'login-eye')"><i class="fa-regular fa-eye-slash" id="login-eye"></i></span>
+                                </div>
+                            </div>
+
+                            <!-- 로그인 에러 영역 -->
+                            <div class="error-alert" id="login-error-alert" style="display: none;">
+                                <i class="fa-solid fa-circle-exclamation"></i>
+                                <span id="login-error-text">오류가 발생했습니다.</span>
+                            </div>
+                        </div>
+
+                        <!-- 로그인 완료 버튼 -->
+                        <button class="submit-btn" id="login-submit-btn" onclick="handleLogin()" style="margin-bottom: 20px;">
+                            <span id="login-btn-text">로그인</span>
+                            <div class="spinner" id="login-btn-spinner" style="display: none; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid white; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                        </button>
+
+                        <div class="state-toggle-link" style="text-align: center; font-size: 0.88rem;">
+                            <span style="color: var(--text-muted);">계정이 없으신가요?</span>
+                            <a href="javascript:void(0)" onclick="navigateTo('role-selection')" style="color: var(--primary-orange); font-weight: 700; text-decoration: none; margin-left: 5px;">회원가입</a>
+                        </div>
+                    </div>
+
+                    <!-- [2] 가입 역할 선택 뷰 (View Role Selection) -->
+                    <div id="view-role-selection" class="app-view" style="display: none; text-align: center;">
+                        <h3 style="font-size: 1.35rem; font-weight: 800; color: var(--primary-teal); margin-top: 16px; margin-bottom: 10px; letter-spacing: -0.5px;">덤프링에 오신 것을 환영합니다! 🎉</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.45; margin-bottom: 28px; font-weight: 500;">가입하시려는 회원 유형을 선택해 주세요.<br>유형에 맞는 맞춤형 서비스를 제공해 드립니다.</p>
+
+                        <div class="role-selection-container">
+                            <!-- 기사 카드 -->
+                            <div class="role-card" onclick="startSignup('driver')">
+                                <div class="role-card-icon-box" style="background: rgba(255, 122, 0, 0.1); color: var(--primary-orange);">
+                                    <i class="fa-solid fa-truck-moving"></i>
+                                </div>
+                                <div class="role-card-details">
+                                    <h4>덤프 트럭 기사</h4>
+                                    <p>덤프 트럭 운전 기사님으로 회원가입합니다. 실시간 콜 배차 수락 및 미터기 운행 기능을 제공합니다.</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-right" style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
+                            </div>
+
+                            <!-- 차주 카드 -->
+                            <div class="role-card" onclick="startSignup('owner')">
+                                <div class="role-card-icon-box" style="background: rgba(0, 77, 90, 0.1); color: var(--primary-teal);">
+                                    <i class="fa-solid fa-address-card"></i>
+                                </div>
+                                <div class="role-card-details">
+                                    <h4>덤프 트럭 차주</h4>
+                                    <p>덤프 트럭 소유자(사장님)로 가입합니다. 소속 기사 선등록 관리 및 차량 운행 관리가 가능합니다.</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-right" style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
+                            </div>
+
+                            <!-- 현장 카드 -->
+                            <div class="role-card" onclick="startSignup('site')">
+                                <div class="role-card-icon-box" style="background: rgba(74, 85, 104, 0.1); color: #4A5568;">
+                                    <i class="fa-solid fa-helmet-safety"></i>
+                                </div>
+                                <div class="role-card-details">
+                                    <h4>공사 현장 (소장 / 담당자)</h4>
+                                    <p>건설사 소장님 또는 현장 담당 직원으로 가입합니다. 오더 발행 및 현장 출입 덤프를 직접 통제합니다.</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-right" style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
+                            </div>
+
+                            <!-- 하차지 카드 -->
+                            <div class="role-card" onclick="startSignup('drop-off')">
+                                <div class="role-card-icon-box" style="background: rgba(45, 55, 72, 0.1); color: #2D3748;">
+                                    <i class="fa-solid fa-mountain"></i>
+                                </div>
+                                <div class="role-card-details">
+                                    <h4>사토 하차지 (지주)</h4>
+                                    <p>사토장 및 하차지 땅 주인으로 가입합니다. 현장별 덤프 오더의 토사 종류 승인 및 사토 반입을 관리합니다.</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-right" style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 로그인 / 회원가입 전환 도우미 링크 -->
-                    <div class="state-toggle-link" id="state-toggle-link" style="text-align: center; margin-top: 5px; margin-bottom: 20px; font-size: 0.9rem;">
-                        <span id="toggle-link-desc" style="color: var(--text-muted);">이미 계정이 있으신가요?</span>
-                        <a href="javascript:void(0)" id="toggle-link-btn" onclick="toggleScreenState(false)" style="color: var(--primary-teal); font-weight: 700; text-decoration: none; margin-left: 5px; transition: color 0.2s;">로그인</a>
+                    <!-- [3] 회원가입 입력 뷰 (View Register Form) -->
+                    <div id="view-register" class="app-view" style="display: none;">
+                        
+                        <!-- 1. 내부 세그먼트 토글 스위치 (기사용/차주용 또는 관리자용/담당자용) -->
+                        <div class="segment-container" id="reg-segment-container" style="margin-bottom: 20px;">
+                            <div class="segment-slider" id="reg-segment-slider" style="width: 50%; transition: transform 0.3s ease;"></div>
+                            <div class="segment-tab active" id="reg-tab-left" onclick="toggleSubRole(true)">왼쪽 탭</div>
+                            <div class="segment-tab" id="reg-tab-right" onclick="toggleSubRole(false)">오른쪽 탭</div>
+                        </div>
+
+                        <!-- 2. 입력 폼 카드 -->
+                        <div class="form-card" style="margin-bottom: 20px;">
+                            <!-- 성명 -->
+                            <div class="form-group">
+                                <label id="label-name">성명 (실명)</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="input-name" placeholder="실명을 입력해 주세요" required>
+                                    <i class="fa-regular fa-user prefix-icon"></i>
+                                </div>
+                            </div>
+
+                            <!-- 휴대폰 번호 -->
+                            <div class="form-group">
+                                <label>휴대폰 번호 (로그인 ID)</label>
+                                <div class="input-wrapper">
+                                    <input type="tel" id="input-phone" placeholder="- 없이 숫자만 입력해 주세요" maxlength="11" required>
+                                    <i class="fa-solid fa-mobile-screen-button prefix-icon"></i>
+                                </div>
+                            </div>
+
+                            <!-- 비밀번호 -->
+                            <div class="form-group">
+                                <label>비밀번호</label>
+                                <div class="input-wrapper">
+                                    <input type="password" id="input-password" placeholder="4자리 이상 입력해 주세요" required>
+                                    <i class="fa-solid fa-lock prefix-icon"></i>
+                                    <span class="suffix-btn" onclick="togglePasswordVisibility('input-password', 'reg-eye')"><i class="fa-regular fa-eye-slash" id="reg-eye"></i></span>
+                                </div>
+                            </div>
+
+                            <!-- 실시간 가입 에러 영역 -->
+                            <div class="error-alert" id="reg-error-alert" style="display: none;">
+                                <i class="fa-solid fa-circle-exclamation"></i>
+                                <span id="reg-error-text">오류가 발생했습니다.</span>
+                            </div>
+
+                            <!-- 차주 전용: 기사 겸직 여부 토글 -->
+                            <div class="switch-tile" id="switch-tile" style="display: none;">
+                                <div class="switch-header">
+                                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                                        <span class="switch-title" style="font-size: 0.8rem; font-weight: 700; color: var(--text-dark);">차주 본인이 직접 덤프 운행 (기사 겸직)</span>
+                                        <span class="switch-subtitle" style="font-size: 0.68rem; color: var(--text-muted);">체크 시 기사(Driver) 권한도 동시에 획득합니다.</span>
+                                    </div>
+                                    <label class="switch-control">
+                                        <input type="checkbox" id="switch-direct">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- 현장 전용 필드 -->
+                            <div class="form-group" id="form-group-company" style="display: none;">
+                                <label>건설사 / 상호명</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="input-company" placeholder="상호명을 입력해 주세요 (예: 현대건설)">
+                                    <i class="fa-solid fa-building prefix-icon"></i>
+                                </div>
+                            </div>
+                            <div class="form-group" id="form-group-site" style="display: none;">
+                                <label>공사 현장명</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="input-site" placeholder="소속 현장명을 입력해 주세요">
+                                    <i class="fa-solid fa-person-digging prefix-icon"></i>
+                                </div>
+                            </div>
+                            <div class="form-group" id="form-group-business-number" style="display: none;">
+                                <label>사업자등록번호</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="input-business-number" placeholder="10자리 입력해 주세요" maxlength="10">
+                                    <i class="fa-regular fa-file-lines prefix-icon"></i>
+                                </div>
+                            </div>
+
+                            <!-- 하차지 전용 필드 -->
+                            <div class="form-group" id="form-group-location" style="display: none;">
+                                <label>하차지 / 사토장 명칭</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="input-location" placeholder="사토장 이름을 입력해 주세요">
+                                    <i class="fa-solid fa-location-dot prefix-icon"></i>
+                                </div>
+                            </div>
+                            <div class="form-group" id="form-group-address" style="display: none;">
+                                <label>하차지 상세 주소</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="input-address" placeholder="지번 또는 도로명 주소 입력">
+                                    <i class="fa-solid fa-map prefix-icon"></i>
+                                </div>
+                            </div>
+                            <div class="form-group" id="form-group-permit" style="display: none;">
+                                <label>개발행위 / 반입 허가증 번호</label>
+                                <div class="input-wrapper">
+                                    <input type="text" id="input-permit" placeholder="지자체 허가증 번호 입력">
+                                    <i class="fa-solid fa-id-card prefix-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 가입 완료 대형 버튼 -->
+                        <button class="submit-btn" id="reg-submit-btn" onclick="handleRegister()">
+                            <span id="reg-btn-text">가입 완료</span>
+                            <div class="spinner" id="reg-btn-spinner" style="display: none; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid white; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                        </button>
                     </div>
 
-                    <!-- 빈 공간 채우기 -->
-                    <div style="flex-grow: 1;"></div>
+                    <!-- [4] 마이페이지/대시보드 뷰 (View Dashboard) -->
+                    <div id="view-dashboard" class="app-view" style="display: none; height: 100%; display: flex; flex-direction: column;">
+                        <!-- 스크롤 가능한 대시보드 콘텐츠 영역 -->
+                        <div class="dashboard-scroll-content" id="dashboard-scroll-content" style="flex: 1; overflow-y: auto; padding: 0px 0px 10px; display: flex; flex-direction: column; gap: 16px;">
+                            
+                            <!-- [4-1] 홈 탭 화면 -->
+                            <div id="tab-content-home" class="dashboard-tab-content" style="display: flex; flex-direction: column; gap: 16px;">
+                                <!-- 사용자 정보 카드 -->
+                                <div class="form-card" style="margin-bottom: 0px; background: linear-gradient(135deg, var(--primary-teal), #002d35); color: white; border: none; box-shadow: 0 8px 16px rgba(0,77,90,0.25);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 2px;" id="dash-user-name">홍길동 님</h4>
+                                            <p style="font-size: 0.78rem; opacity: 0.85;" id="dash-user-phone">010-1234-5678</p>
+                                        </div>
+                                        <span style="background: rgba(255,122,0,0.2); color: #ff9d42; border: 1px solid rgba(255,122,0,0.3); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;" id="dash-user-role">현장관리자</span>
+                                    </div>
+                                </div>
 
-                    <!-- 5. 완료 버튼 -->
-                    <button class="submit-btn" id="submit-btn" onclick="handleSubmit()">
-                        <span id="btn-text">기사로 가입 완료</span>
-                        <div class="spinner" id="btn-spinner"></div>
-                    </button>
+                                <!-- 홈 요약 / 바로가기 안내 -->
+                                <div class="form-card" style="padding: 20px; text-align: center; gap: 12px; margin-bottom: 0px;">
+                                    <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--text-dark);">덤프링 모바일 대시보드</h4>
+                                    <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">하단의 기능별 메뉴 탭을 터치하여<br>원하는 기능을 신속하게 관리할 수 있습니다.</p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;" onclick="switchDashboardTab('sites')">
+                                            <i class="fa-solid fa-helmet-safety" style="font-size: 1.5rem; color: var(--primary-orange); margin-bottom: 6px;"></i>
+                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">상차지 관리</div>
+                                        </div>
+                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;" onclick="switchDashboardTab('dropoffs')">
+                                            <i class="fa-solid fa-mountain" style="font-size: 1.5rem; color: var(--primary-teal); margin-bottom: 6px;"></i>
+                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">하차지 관리</div>
+                                        </div>
+                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;" onclick="switchDashboardTab('fleet')">
+                                            <i class="fa-solid fa-users" style="font-size: 1.5rem; color: #4A5568; margin-bottom: 6px;"></i>
+                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">기사/차량 관리</div>
+                                        </div>
+                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;" onclick="handleLogout()">
+                                            <i class="fa-solid fa-right-from-bracket" style="font-size: 1.5rem; color: #e53e3e; margin-bottom: 6px;"></i>
+                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">로그아웃</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- [4-2] 상차지 탭 화면 -->
+                            <div id="tab-content-sites" class="dashboard-tab-content" style="display: none; flex-direction: column; gap: 16px;">
+                                <!-- 권한 경고 플레이스홀더 -->
+                                <div id="sites-permission-denied" class="form-card" style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
+                                    <i class="fa-solid fa-lock" style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
+                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">공사현장 권한 없음</h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">현장관리자(SITE_MANAGER) 또는 현장담당자 권한을 가진 계정만 접근 가능합니다.</p>
+                                </div>
+                                <div id="sites-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
+                                    <!-- 1. 현장관리자 전용 대시보드 구역 -->
+                                    <div id="dash-manager-section" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+                                        <!-- 현장 개설하기 카드 -->
+                                        <div class="form-card" style="gap: 12px; padding: 20px;">
+                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-plus" style="margin-right: 6px;"></i>새 공사 현장 개설</h4>
+                                            <div class="form-group">
+                                                <input type="text" id="dash-new-company" placeholder="건설사명 (예: 현대건설)" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <div class="form-group">
+                                                <input type="text" id="dash-new-biznum" placeholder="사업자등록번호 10자리" maxlength="10" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <div class="form-group" style="display: flex; gap: 8px; margin: 0;">
+                                                <input type="number" step="any" id="dash-new-lat" placeholder="위도 (예: 37.5665)" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="number" step="any" id="dash-new-lng" placeholder="경도 (예: 126.9780)" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <div class="form-group" style="margin: 0;">
+                                                <input type="number" id="dash-new-radius" placeholder="지오펜싱 반경 (기본 200m)" value="200" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <button class="submit-btn" onclick="handleCreateSite()" style="padding: 12px; font-size: 0.9rem; border-radius: 8px;">현장 개설 및 참여</button>
+                                        </div>
+
+                                        <!-- 승인 대기 담당자 목록 카드 -->
+                                        <div class="form-card" style="padding: 20px;">
+                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 6px;"><i class="fa-solid fa-user-check" style="margin-right: 6px;"></i>대기 중인 담당자 승인</h4>
+                                            <div id="dash-pending-workers-container" style="display: flex; flex-direction: column; gap: 10px;">
+                                                <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">대기 중인 승인 요청이 없습니다.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 2. 현장담당자 전용 대시보드 구역 -->
+                                    <div id="dash-worker-section" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+                                        <!-- 현장 검색 및 매핑 추가 신청 -->
+                                        <div class="form-card" style="gap: 12px; padding: 20px;">
+                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-magnifying-glass" style="margin-right: 6px;"></i>새 현장 검색 및 추가 매핑 신청</h4>
+                                            <div style="display: flex; gap: 8px;">
+                                                <input type="text" id="dash-search-site-query" placeholder="상호명 또는 사업자번호" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <button class="submit-btn" onclick="handleSearchSites()" style="width: 70px; padding: 12px; font-size: 0.88rem; border-radius: 8px; box-shadow: none;">검색</button>
+                                            </div>
+                                            <div id="dash-search-results-container" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                                                <!-- 검색 결과 목록 -->
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 공동구역: 소속 현장 리스트 (담당자/관리자 공통) -->
+                                    <div id="dash-sites-section" style="display: none;" class="form-card">
+                                        <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-building-user" style="margin-right: 6px;"></i>내 소속 현장 목록</h4>
+                                        <div id="dash-my-sites-container" style="display: flex; flex-direction: column; gap: 8px;">
+                                            <!-- 소속 현장 목록 -->
+                                        </div>
+                                    </div>
+
+                                    <!-- B2B 매칭 구역: 하차지 매립 공고 탐색 & 오더 발행 (현장 관리자/담당자용) -->
+                                    <div id="dash-b2b-section" style="display: none;" class="form-card">
+                                        <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-truck-ramp-box" style="margin-right: 6px;"></i>B2B 매립 공고 탐색 & 모집 오더 발행</h4>
+                                        <div id="dash-b2b-requests-container" style="display: flex; flex-direction: column; gap: 8px;">
+                                            <!-- 매립 공고 리스트 -->
+                                            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">활성화된 매립 수용 공고가 없습니다.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- [4-3] 하차지 탭 화면 -->
+                            <div id="tab-content-dropoffs" class="dashboard-tab-content" style="display: none; flex-direction: column; gap: 16px;">
+                                <!-- 권한 경고 플레이스홀더 -->
+                                <div id="dropoffs-permission-denied" class="form-card" style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
+                                    <i class="fa-solid fa-lock" style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
+                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">하차지 지주 권한 없음</h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">하차지 지주(DROP_OFF) 권한을 가진 계정만 접근 가능합니다.</p>
+                                </div>
+                                <div id="dropoffs-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
+                                    <!-- 4. 하차지 지주 전용 대시보드 구역 -->
+                                    <div id="dash-dropoff-section" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+                                        <!-- 하차지/사토장 정보 등록 카드 -->
+                                        <div class="form-card" style="gap: 12px; padding: 20px;">
+                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-mountain" style="margin-right: 6px;"></i>새 하차지/사토장 마스터 정보 등록</h4>
+                                            <div class="form-group">
+                                                <input type="text" id="dash-new-unloading-name" placeholder="하차지명 (예: 신촌 사토장)" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <div class="form-group">
+                                                <input type="text" id="dash-new-unloading-address" placeholder="하차지 상세 주소" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <div class="form-group" style="display: flex; gap: 8px; margin: 0;">
+                                                <input type="number" step="any" id="dash-new-unloading-lat" placeholder="위도 (예: 37.5)" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="number" step="any" id="dash-new-unloading-lng" placeholder="경도 (예: 126.9)" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <div class="form-group" style="margin: 0;">
+                                                <input type="number" id="dash-new-unloading-radius" placeholder="도착 감지 반경 (기본 200m)" value="200" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <div class="form-group">
+                                                <input type="text" id="dash-new-unloading-permit" placeholder="인허가번호 (예: PERMIT-1234)" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                            </div>
+                                            <button class="submit-btn" onclick="handleCreateUnloadingSite()" style="padding: 12px; font-size: 0.9rem; border-radius: 8px;">하차지 정보 등록</button>
+                                        </div>
+
+                                        <!-- 내 하차지 목록 카드 -->
+                                        <div class="form-card" style="padding: 20px;">
+                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-list-ul" style="margin-right: 6px;"></i>내 하차지/사토장 목록</h4>
+                                            <div id="dash-unloading-sites-container" style="display: flex; flex-direction: column; gap: 8px;">
+                                                <!-- 하차지 목록 -->
+                                            </div>
+                                        </div>
+
+                                        <!-- 대기 상태인 B2B 현장 오더 승인 목록 카드 -->
+                                        <div class="form-card" style="padding: 20px;">
+                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-file-signature" style="margin-right: 6px;"></i>대기 중인 B2B 매칭 오더 승인</h4>
+                                            <div id="dash-pending-jobs-container" style="display: flex; flex-direction: column; gap: 8px;">
+                                                <!-- 대기 오더 목록 -->
+                                                <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">대기 중인 오더 승인 요청이 없습니다.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- [4-4] 기사/차량 탭 화면 -->
+                            <div id="tab-content-fleet" class="dashboard-tab-content" style="display: none; flex-direction: column; gap: 16px;">
+                                <!-- 권한 경고 플레이스홀더 -->
+                                <div id="fleet-permission-denied" class="form-card" style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
+                                    <i class="fa-solid fa-lock" style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
+                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">덤프 차주 권한 없음</h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">덤프 트럭 차주(OWNER) 권한을 가진 계정만 접근 가능합니다.</p>
+                                </div>
+                                <div id="fleet-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
+                                    <!-- 3. 차주 전용 대시보드 구역 -->
+                                    <div id="dash-owner-section" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+                                        <!-- 차주 소속 기사 관리 목록 -->
+                                        <div class="form-card" style="padding: 20px;">
+                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-users" style="margin-right: 6px;"></i>소속 운전기사 관리</h4>
+                                            <div id="dash-drivers-container" style="display: flex; flex-direction: column; gap: 10px;">
+                                                <!-- 기사 목록 -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- 하단 탭 메뉴 네비게이션 바 -->
+                        <div class="bottom-nav">
+                            <div class="bottom-nav-item active" id="btn-nav-home" onclick="switchDashboardTab('home')">
+                                <i class="fa-solid fa-house"></i>
+                                <span>홈</span>
+                            </div>
+                            <div class="bottom-nav-item" id="btn-nav-sites" onclick="switchDashboardTab('sites')">
+                                <i class="fa-solid fa-helmet-safety"></i>
+                                <span>상차지</span>
+                            </div>
+                            <div class="bottom-nav-item" id="btn-nav-dropoffs" onclick="switchDashboardTab('dropoffs')">
+                                <i class="fa-solid fa-mountain"></i>
+                                <span>하차지</span>
+                            </div>
+                            <div class="bottom-nav-item" id="btn-nav-fleet" onclick="switchDashboardTab('fleet')">
+                                <i class="fa-solid fa-users"></i>
+                                <span>기사/차량</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 </div>
 
                 <!-- 모달 알림창 -->
@@ -900,10 +1397,13 @@
         }
 
         // 상태값 관리
-        let isDriverRole = true; 
-        let isRegisterState = true; // true: 회원가입 화면, false: 로그인 화면
+        let currentView = 'login'; // 'login', 'role-selection', 'register'
+        let viewHistory = ['login'];
+        let currentRole = 'driver'; // 'driver', 'owner', 'site-manager', 'site-worker', 'drop-off'
         let obscurePassword = true;
         let isLoading = false;
+        let loggedInUser = null;
+        let accessToken = null;
 
         // 폰 상단 시계 실시간 연동
         function updateClock() {
@@ -917,107 +1417,197 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // 화면 상태 전환 (로그인 <=> 회원가입)
-        function toggleScreenState(isRegister) {
+        // [네비게이션 라우팅 구현]
+        function navigateTo(viewId) {
             if (isLoading) return;
-            isRegisterState = isRegister;
+            
+            // 모든 뷰 숨김
+            document.getElementById('view-login').style.display = 'none';
+            document.getElementById('view-role-selection').style.display = 'none';
+            document.getElementById('view-register').style.display = 'none';
+            document.getElementById('view-dashboard').style.display = 'none';
 
+            // 대상 뷰 활성화
+            document.getElementById(`view-${viewId}`).style.display = 'block';
+            
+            currentView = viewId;
+            viewHistory.push(viewId);
+
+            // 앱 바 제어
+            const backBtn = document.getElementById('app-bar-back');
             const appBarTitle = document.getElementById('app-bar-title');
-            const roleSegment = document.getElementById('role-segment-container');
-            const formGroupName = document.getElementById('form-group-name');
-            const switchTile = document.getElementById('switch-tile');
-            const submitBtnText = document.getElementById('btn-text');
-            const toggleDesc = document.getElementById('toggle-link-desc');
-            const toggleBtn = document.getElementById('toggle-link-btn');
+
+            if (currentView === 'login') {
+                backBtn.style.display = 'none';
+                appBarTitle.innerText = '덤프링 로그인';
+                viewHistory = ['login']; // 히스토리 리셋
+            } else if (currentView === 'role-selection') {
+                backBtn.style.display = 'flex';
+                appBarTitle.innerText = '회원 유형 선택';
+            } else if (currentView === 'register') {
+                backBtn.style.display = 'flex';
+                // 타이틀 수정
+                if (currentRole === 'driver' || currentRole === 'owner') {
+                    appBarTitle.innerText = '덤프링 회원가입';
+                } else if (currentRole === 'site-manager' || currentRole === 'site-worker') {
+                    appBarTitle.innerText = '공사현장 회원가입';
+                } else if (currentRole === 'drop-off') {
+                    appBarTitle.innerText = '사토 하차지 지주 회원가입';
+                }
+            } else if (currentView === 'dashboard') {
+                backBtn.style.display = 'none';
+                appBarTitle.innerText = '덤프링 마이페이지';
+            }
 
             hideError();
+        }
 
-            if (isRegisterState) {
-                // 회원가입 화면 전환
-                appBarTitle.innerText = '덤프링 회원가입';
-                roleSegment.style.display = 'flex';
-                formGroupName.style.display = 'block';
-                toggleDesc.innerText = '이미 계정이 있으신가요?';
-                toggleBtn.innerText = '로그인';
-                toggleBtn.setAttribute('onclick', 'toggleScreenState(false)');
-                
-                // 선택되어 있던 역할에 따라 스위치 및 버튼 텍스트 복구
-                setRole(isDriverRole);
-            } else {
-                // 로그인 화면 전환
-                appBarTitle.innerText = '덤프링 로그인';
-                roleSegment.style.display = 'none';
-                formGroupName.style.display = 'none';
-                switchTile.style.display = 'none';
-                submitBtnText.innerText = '로그인';
-                toggleDesc.innerText = '계정이 없으신가요?';
-                toggleBtn.innerText = '회원가입';
-                toggleBtn.setAttribute('onclick', 'toggleScreenState(true)');
+        function goBack() {
+            if (isLoading) return;
+            if (viewHistory.length <= 1) return;
+
+            viewHistory.pop(); // 현재 뷰 팝
+            const targetView = viewHistory.pop(); // 이전 뷰 팝
+            navigateTo(targetView);
+        }
+
+        // 회원가입 역할 선택 시작
+        function startSignup(roleGroup) {
+            hideError();
+            
+            const segmentContainer = document.getElementById('reg-segment-container');
+            const tabLeft = document.getElementById('reg-tab-left');
+            const tabRight = document.getElementById('reg-tab-right');
+            const nameLabel = document.getElementById('label-name');
+
+            // 모든 가입 특수 영역 초기화 숨김
+            document.getElementById('switch-tile').style.display = 'none';
+            document.getElementById('form-group-company').style.display = 'none';
+            document.getElementById('form-group-site').style.display = 'none';
+            document.getElementById('form-group-business-number').style.display = 'none';
+            document.getElementById('form-group-location').style.display = 'none';
+            document.getElementById('form-group-address').style.display = 'none';
+            document.getElementById('form-group-permit').style.display = 'none';
+
+            segmentContainer.style.display = 'none';
+            nameLabel.innerText = '성명 (실명)';
+
+            if (roleGroup === 'driver' || roleGroup === 'owner') {
+                currentRole = roleGroup;
+                segmentContainer.style.display = 'flex';
+                tabLeft.innerText = '기사로 가입';
+                tabRight.innerText = '차주로 가입';
+
+                if (currentRole === 'driver') {
+                    setRegSlider(true);
+                } else {
+                    setRegSlider(false);
+                    document.getElementById('switch-tile').style.display = 'block';
+                }
+            } else if (roleGroup === 'site') {
+                currentRole = 'site-manager';
+                segmentContainer.style.display = 'flex';
+                tabLeft.innerText = '현장관리자';
+                tabRight.innerText = '현장담당자';
+                setRegSlider(true);
+
+                document.getElementById('form-group-company').style.display = 'block';
+                document.getElementById('form-group-site').style.display = 'block';
+                document.getElementById('form-group-business-number').style.display = 'block';
+                nameLabel.innerText = '성명 (실명)';
+
+                const bizLabel = document.querySelector('#form-group-business-number label');
+                const bizInput = document.getElementById('input-business-number');
+                bizLabel.innerText = '사업자등록번호';
+                bizInput.placeholder = '10자리 입력해 주세요';
+            } else if (roleGroup === 'drop-off') {
+                currentRole = 'drop-off';
+                nameLabel.innerText = '지주 성명 (실명)';
+                document.getElementById('form-group-location').style.display = 'block';
+                document.getElementById('form-group-address').style.display = 'block';
+                document.getElementById('form-group-permit').style.display = 'block';
+            }
+
+            navigateTo('register');
+        }
+
+        // 가입 뷰 내부 세그먼트 전환
+        function toggleSubRole(isLeft) {
+            if (isLoading) return;
+            hideError();
+
+            const nameLabel = document.getElementById('label-name');
+            setRegSlider(isLeft);
+
+            // 가입 그룹별 상태값 업데이트
+            if (currentRole === 'driver' || currentRole === 'owner') {
+                currentRole = isLeft ? 'driver' : 'owner';
+                document.getElementById('switch-tile').style.display = isLeft ? 'none' : 'block';
+            } else if (currentRole === 'site-manager' || currentRole === 'site-worker') {
+                currentRole = isLeft ? 'site-manager' : 'site-worker';
+
+                const bizLabel = document.querySelector('#form-group-business-number label');
+                const bizInput = document.getElementById('input-business-number');
+
+                if (currentRole === 'site-manager') {
+                    bizLabel.innerText = '사업자등록번호';
+                    bizInput.placeholder = '10자리 입력해 주세요';
+                } else {
+                    bizLabel.innerText = '현장 구분용 고유 현장 키';
+                    bizInput.placeholder = '소장님이 공유한 현장 키 입력 (예: SITE-XXXX)';
+                }
             }
         }
 
-        // 탭 역할 전환 함수 (회원가입 시에만 UI 텍스트에 실시간 영향)
-        function setRole(role) {
-            if (isLoading) return;
-            isDriverRole = role;
-            
-            const slider = document.getElementById('segment-slider');
-            const tabDriver = document.getElementById('tab-driver');
-            const tabOwner = document.getElementById('tab-owner');
-            const switchTile = document.getElementById('switch-tile');
-            const submitBtnText = document.getElementById('btn-text');
+        function setRegSlider(isLeft) {
+            const slider = document.getElementById('reg-segment-slider');
+            const leftTab = document.getElementById('reg-tab-left');
+            const rightTab = document.getElementById('reg-tab-right');
 
-            // 에러 메시지 초기화
-            hideError();
-
-            if (isDriverRole) {
+            if (isLeft) {
                 slider.style.transform = 'translateX(0)';
-                tabDriver.classList.add('active');
-                tabOwner.classList.remove('active');
-                if (isRegisterState) {
-                    switchTile.style.display = 'none';
-                    submitBtnText.innerText = '기사로 가입 완료';
-                }
+                leftTab.classList.add('active');
+                rightTab.classList.remove('active');
             } else {
                 slider.style.transform = 'translateX(100%)';
-                tabDriver.classList.remove('active');
-                tabOwner.classList.add('active');
-                if (isRegisterState) {
-                    switchTile.style.display = 'block';
-                    submitBtnText.innerText = '차주로 가입 완료';
-                }
+                leftTab.classList.remove('active');
+                rightTab.classList.add('active');
             }
         }
 
-        // 비밀번호 표시/숨김 토글
-        function togglePasswordVisibility() {
-            obscurePassword = !obscurePassword;
-            const passwordInput = document.getElementById('input-password');
-            const eyeIcon = document.getElementById('eye-icon');
+        // 비밀번호 보이기/숨기기
+        function togglePasswordVisibility(inputId, eyeIconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(eyeIconId);
 
-            if (obscurePassword) {
-                passwordInput.type = 'password';
-                eyeIcon.className = 'fa-regular fa-eye-slash';
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fa-regular fa-eye';
             } else {
-                passwordInput.type = 'text';
-                eyeIcon.className = 'fa-regular fa-eye';
+                input.type = 'password';
+                icon.className = 'fa-regular fa-eye-slash';
             }
         }
 
-        // 에러 표시 기능
+        // 에러 핸들링
         function showError(message) {
-            const errorAlert = document.getElementById('error-alert');
-            const errorText = document.getElementById('error-text');
-            errorText.innerText = message;
-            errorAlert.style.display = 'flex';
+            if (currentView === 'login') {
+                const el = document.getElementById('login-error-alert');
+                document.getElementById('login-error-text').innerText = message;
+                el.style.display = 'flex';
+            } else {
+                const el = document.getElementById('reg-error-alert');
+                document.getElementById('reg-error-text').innerText = message;
+                el.style.display = 'flex';
+            }
         }
 
         function hideError() {
-            const errorAlert = document.getElementById('error-alert');
-            errorAlert.style.display = 'none';
+            document.getElementById('login-error-alert').style.display = 'none';
+            document.getElementById('reg-error-alert').style.display = 'none';
         }
 
-        // 모달 팝업 띄우기
+        // 모달창 
         function showModal(title, message, isSuccess = true) {
             const overlay = document.getElementById('modal-overlay');
             const titleEl = document.getElementById('modal-title');
@@ -1042,34 +1632,39 @@
             if (document.getElementById('modal-title').innerText.includes('성공') || 
                 document.getElementById('modal-title').innerText.includes('완료')) {
                 resetForm();
+                if (loggedInUser) {
+                    navigateTo('dashboard');
+                } else {
+                    navigateTo('login'); // 성공 시 로그인 뷰로 복귀
+                }
             }
         }
 
         function resetForm() {
+            document.getElementById('login-phone').value = '';
+            document.getElementById('login-password').value = '';
             document.getElementById('input-name').value = '';
             document.getElementById('input-phone').value = '';
             document.getElementById('input-password').value = '';
             document.getElementById('switch-direct').checked = false;
+            document.getElementById('input-company').value = '';
+            document.getElementById('input-site').value = '';
+            document.getElementById('input-business-number').value = '';
+            document.getElementById('input-location').value = '';
+            document.getElementById('input-address').value = '';
+            document.getElementById('input-permit').value = '';
             hideError();
         }
 
-        // 통합 제출 핸들러
-        function handleSubmit() {
-            if (isRegisterState) {
-                handleRegister();
-            } else {
-                handleLogin();
-            }
-        }
-
-        // 로그인 동작 처리
+        // ==========================================
+        // API 연동 로그인 동작 처리
+        // ==========================================
         async function handleLogin() {
             if (isLoading) return;
 
-            const phone = document.getElementById('input-phone').value.trim();
-            const password = document.getElementById('input-password').value;
+            const phone = document.getElementById('login-phone').value.trim();
+            const password = document.getElementById('login-password').value;
 
-            // 프론트엔드 자체 유효성 검사
             if (!phone) {
                 showError("휴대폰 번호를 입력해 주세요");
                 return;
@@ -1084,7 +1679,7 @@
             }
 
             hideError();
-            setLoading(true);
+            setLoadingState('login', true);
 
             try {
                 const response = await fetch(getApiUrl('/api/auth/login'), {
@@ -1104,22 +1699,24 @@
                     const user = data.user;
                     const token = data.access_token;
                     
-                    // 유저 역할 포맷팅
+                    loggedInUser = user;
+                    accessToken = token;
+                    
                     let roles = [];
                     if (user.is_driver) roles.push("기사");
                     if (user.is_owner) roles.push("차주");
                     if (user.is_site_manager) roles.push("현장 관리자");
+                    if (user.is_site_worker) roles.push("현장 담당자");
+                    if (user.is_drop_off) roles.push("하차지 지주");
                     if (user.is_admin) roles.push("관리자");
                     const roleString = roles.join(", ");
 
                     const msg = `반가워요, ${user.name}님!\n인증 완료 및 Access Token이 발급되었습니다.\n\n[계정 권한]\n- 역할: ${roleString}\n\n[발급된 JWT 토큰]\n${token}`;
                     
-                    // 폭죽 터트리기
+                    loadDashboard();
                     triggerConfetti();
-
                     showModal("🎉 로그인 성공", msg, true);
                 } else {
-                    // 로그인 실패 (401 등)
                     const errorMsg = data.detail || "휴대폰 번호 또는 비밀번호가 올바르지 않습니다.";
                     showError(errorMsg);
                     showModal("로그인 실패", errorMsg, false);
@@ -1128,20 +1725,20 @@
                 showError("서버 연결에 실패했습니다. 네트워크 상태를 확인해 주세요.");
                 showModal("오류 발생", "서버와 통신할 수 없습니다. 백엔드 구동 상태를 확인해 주세요.", false);
             } finally {
-                setLoading(false);
+                setLoadingState('login', false);
             }
         }
 
-        // 회원가입 동작 처리 (Fetch API 연동)
+        // ==========================================
+        // API 연동 회원가입 동작 처리
+        // ==========================================
         async function handleRegister() {
             if (isLoading) return;
 
             const name = document.getElementById('input-name').value.trim();
             const phone = document.getElementById('input-phone').value.trim();
             const password = document.getElementById('input-password').value;
-            const isDirectDriver = document.getElementById('switch-direct').checked;
 
-            // 프론트엔드 자체 유효성 검사 (Flutter의 validator 재현)
             if (!name) {
                 showError("성명을 입력해 주세요");
                 return;
@@ -1159,21 +1756,64 @@
                 return;
             }
 
-            hideError();
-            setLoading(true);
-
-            // API 경로 및 데이터 바인딩
-            const endpoint = isDriverRole ? '/api/auth/register-driver' : '/api/auth/register-owner';
-            const requestData = {
+            let requestData = {
                 phone_number: phone,
                 password: password,
                 name: name,
                 ci: `MOCK_MOBILE_CI_KEY_${phone}`
             };
+            let endpoint = '';
+            let msg = '';
 
-            if (!isDriverRole) {
-                requestData.is_direct_driver = isDirectDriver;
+            if (currentRole === 'driver') {
+                endpoint = '/api/auth/register-driver';
+                msg = "덤프 기사님 회원가입이 완료되었습니다!\n(차주 선등록이 존재한 경우 자동으로 즉시 차량 매칭 연동이 완료되었습니다.)";
+            } else if (currentRole === 'owner') {
+                endpoint = '/api/auth/register-owner';
+                requestData.is_direct_driver = document.getElementById('switch-direct').checked;
+                msg = "덤프 차주 회원가입이 완료되었습니다!\n이제 소속 차량과 기사를 선등록 관리해 보세요.";
+            } else if (currentRole === 'site-manager' || currentRole === 'site-worker') {
+                const company = document.getElementById('input-company').value.trim();
+                const site = document.getElementById('input-site').value.trim();
+                const bizNum = document.getElementById('input-business-number').value.trim();
+
+                if (!company || !site || !bizNum) {
+                    showError("모든 현장 프로필 정보를 입력해 주세요");
+                    return;
+                }
+
+                requestData.company_name = company;
+                requestData.site_name = site;
+
+                if (currentRole === 'site-manager') {
+                    requestData.business_number = bizNum;
+                    endpoint = '/api/auth/signup/site-manager';
+                    msg = "현장관리자 회원가입이 완료되었습니다!\n이제 로그인하여 공사현장 오더를 등록해 보세요.";
+                } else {
+                    requestData.site_key = bizNum;
+                    endpoint = '/api/auth/signup/site-worker';
+                    msg = "현장담당자 회원가입이 성공적으로 완료되었습니다!\n마스터 관리자(소장님)의 승인을 대기합니다.";
+                }
+            } else if (currentRole === 'drop-off') {
+                const location = document.getElementById('input-location').value.trim();
+                const address = document.getElementById('input-address').value.trim();
+                const permit = document.getElementById('input-permit').value.trim();
+
+                if (!location || !address || !permit) {
+                    showError("모든 하차지 프로필 정보를 입력해 주세요");
+                    return;
+                }
+
+                requestData.location_name = location;
+                requestData.address = address;
+                requestData.permit_number = permit;
+
+                endpoint = '/api/auth/signup/drop-off';
+                msg = "하차지 지주 회원가입이 완료되었습니다!\n이제 로그인하여 사토 반입 승인을 관리해 보세요.";
             }
+
+            hideError();
+            setLoadingState('register', true);
 
             try {
                 const response = await fetch(getApiUrl(endpoint), {
@@ -1187,21 +1827,12 @@
                 const data = await response.json();
 
                 if (response.status === 201) {
-                    // 가입 완료 팝업 메시지 분기 (Flutter 다이얼로그 재현)
-                    const msg = isDriverRole 
-                        ? "덤프 기사님 회원가입이 완료되었습니다!\n(차주 선등록이 존재한 경우 자동으로 즉시 차량 매칭 연동이 완료되었습니다.)" 
-                        : "차주 사장님 회원가입이 완료되었습니다!\n이제 소속 차량과 기사를 선등록 관리해 보세요.";
-                    
-                    // 폭죽 터트리기
                     triggerConfetti();
-                    
                     showModal("🎉 회원가입 완료", msg, true);
                 } else if (response.status === 400 && data.error_code === "ALREADY_REGISTERED") {
-                    // 중복 번호 핸들링 🚨
                     showError("이미 가입된 휴대폰 번호입니다. 로그인해 주세요.");
                     showModal("오류 발생", "이미 가입된 휴대폰 번호입니다. 로그인해 주세요.", false);
                 } else {
-                    // 기타 서버 에러
                     const detailMsg = data.detail || "가입 처리 도중 서버 에러가 발생했습니다.";
                     showError(detailMsg);
                     showModal("오류 발생", detailMsg, false);
@@ -1210,15 +1841,16 @@
                 showError("서버 연결에 실패했습니다. 네트워크 상태를 확인해 주세요.");
                 showModal("오류 발생", "서버와 통신할 수 없습니다. 백엔드 구동 상태를 확인해 주세요.", false);
             } finally {
-                setLoading(false);
+                setLoadingState('register', false);
             }
         }
 
-        function setLoading(val) {
+        function setLoadingState(type, val) {
             isLoading = val;
-            const btn = document.getElementById('submit-btn');
-            const text = document.getElementById('btn-text');
-            const spinner = document.getElementById('btn-spinner');
+            const prefix = type === 'login' ? 'login-' : 'reg-';
+            const btn = document.getElementById(`${prefix}submit-btn`);
+            const text = document.getElementById(`${prefix}btn-text`);
+            const spinner = document.getElementById(`${prefix}btn-spinner`);
 
             if (isLoading) {
                 btn.disabled = true;
@@ -1315,6 +1947,763 @@
             } else {
                 canvas.style.display = 'none';
             }
+        }
+
+        // ==========================================
+        // 대시보드 / 마이페이지 비즈니스 로직
+        // ==========================================
+        function loadDashboard() {
+            if (!loggedInUser) return;
+
+            // 기본 텍스트 렌더링
+            document.getElementById('dash-user-name').innerText = `${loggedInUser.name} 님`;
+            document.getElementById('dash-user-phone').innerText = loggedInUser.phone_number;
+
+            let roleName = "일반유저";
+            if (loggedInUser.is_site_manager) roleName = "현장 관리자";
+            else if (loggedInUser.is_site_worker) roleName = "현장 담당자";
+            else if (loggedInUser.is_owner) roleName = "덤프 차주";
+            else if (loggedInUser.is_driver) roleName = "덤프 기사";
+            else if (loggedInUser.is_drop_off) roleName = "하차지 지주";
+            document.getElementById('dash-user-role').innerText = roleName;
+
+            // 구역 초기화 숨김 및 데이터 호출
+            document.getElementById('dash-manager-section').style.display = 'none';
+            document.getElementById('dash-worker-section').style.display = 'none';
+            document.getElementById('dash-owner-section').style.display = 'none';
+            document.getElementById('dash-dropoff-section').style.display = 'none';
+            document.getElementById('dash-sites-section').style.display = 'none';
+            document.getElementById('dash-b2b-section').style.display = 'none';
+
+            if (loggedInUser.is_site_manager) {
+                document.getElementById('dash-manager-section').style.display = 'flex';
+                document.getElementById('dash-sites-section').style.display = 'block';
+                document.getElementById('dash-b2b-section').style.display = 'block';
+                fetchMySites();
+                fetchOpenDropOffRequests();
+            } else if (loggedInUser.is_site_worker) {
+                document.getElementById('dash-worker-section').style.display = 'flex';
+                document.getElementById('dash-sites-section').style.display = 'block';
+                document.getElementById('dash-b2b-section').style.display = 'block';
+                fetchMySites();
+                fetchOpenDropOffRequests();
+            } else if (loggedInUser.is_owner) {
+                document.getElementById('dash-owner-section').style.display = 'flex';
+                fetchMyDrivers();
+            } else if (loggedInUser.is_drop_off) {
+                document.getElementById('dash-dropoff-section').style.display = 'flex';
+                fetchMyUnloadingSites();
+            }
+
+            // 홈 탭으로 초기화
+            switchDashboardTab('home');
+        }
+
+        // 기능별 탭 메뉴 전환 및 권한 예외 페이지 핸들링
+        function switchDashboardTab(tabId) {
+            // 모든 탭 콘텐츠 숨김
+            const contents = document.querySelectorAll('.dashboard-tab-content');
+            contents.forEach(c => c.style.display = 'none');
+            
+            // 모든 탭 버튼 비활성화
+            const navItems = document.querySelectorAll('.bottom-nav-item');
+            navItems.forEach(n => n.classList.remove('active'));
+            
+            // 선택된 탭 콘텐츠 표시
+            const targetContent = document.getElementById(`tab-content-${tabId}`);
+            if (targetContent) {
+                targetContent.style.display = 'flex';
+            }
+            
+            // 선택된 탭 버튼 활성화
+            const targetNav = document.getElementById(`btn-nav-${tabId}`);
+            if (targetNav) {
+                targetNav.classList.add('active');
+            }
+            
+            // 탭별 권한 제어 시각화
+            if (!loggedInUser) return;
+            
+            if (tabId === 'sites') {
+                if (loggedInUser.is_site_manager || loggedInUser.is_site_worker) {
+                    document.getElementById('sites-permission-denied').style.display = 'none';
+                    document.getElementById('sites-allowed-section').style.display = 'flex';
+                } else {
+                    document.getElementById('sites-permission-denied').style.display = 'block';
+                    document.getElementById('sites-allowed-section').style.display = 'none';
+                }
+            } else if (tabId === 'dropoffs') {
+                if (loggedInUser.is_drop_off) {
+                    document.getElementById('dropoffs-permission-denied').style.display = 'none';
+                    document.getElementById('dropoffs-allowed-section').style.display = 'flex';
+                } else {
+                    document.getElementById('dropoffs-permission-denied').style.display = 'block';
+                    document.getElementById('dropoffs-allowed-section').style.display = 'none';
+                }
+            } else if (tabId === 'fleet') {
+                if (loggedInUser.is_owner) {
+                    document.getElementById('fleet-permission-denied').style.display = 'none';
+                    document.getElementById('fleet-allowed-section').style.display = 'flex';
+                } else {
+                    document.getElementById('fleet-permission-denied').style.display = 'block';
+                    document.getElementById('fleet-allowed-section').style.display = 'none';
+                }
+            }
+        }
+
+        async function fetchMySites() {
+            try {
+                const response = await fetch(getApiUrl('/api/sites/my-mappings'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const mappings = await response.json();
+                const container = document.getElementById('dash-my-sites-container');
+                container.innerHTML = '';
+
+                if (!mappings || mappings.length === 0) {
+                    container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">참여 중인 현장이 없습니다.</p>`;
+                    return;
+                }
+
+                // 만약 관리자라면 대기 중인 담당자 목록을 가져오기 위해 관리자 승인된 첫 현장의 ID 보관
+                let managerSiteId = null;
+
+                mappings.forEach(m => {
+                    let statusBadge = '';
+                    if (m.status === 'APPROVED') {
+                        statusBadge = `<span style="background: rgba(72,187,120,0.15); color: #38a169; padding: 3px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700;">승인완료</span>`;
+                        if (loggedInUser.is_site_manager) managerSiteId = m.site_id;
+                    } else if (m.status === 'PENDING') {
+                        statusBadge = `<span style="background: rgba(237,137,54,0.15); color: #dd6b20; padding: 3px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700;">승인대기</span>`;
+                    } else if (m.status === 'REJECTED') {
+                        statusBadge = `<span style="background: rgba(229,62,62,0.15); color: #e53e3e; padding: 3px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700;">반려됨</span>`;
+                    }
+
+                    container.innerHTML += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray);">
+                            <div>
+                                <h5 style="font-size: 0.85rem; font-weight: 700; color: var(--text-dark);">${m.company_name}</h5>
+                                <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">사업자번호: ${m.business_number}</p>
+                                ${m.site_key ? `<p style="font-size: 0.72rem; color: var(--primary-orange); font-weight: 700; margin-top: 3px;"><i class="fa-solid fa-key" style="margin-right: 4px;"></i>현장 키: ${m.site_key}</p>` : ''}
+                                ${m.latitude && m.longitude ? `<p style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;"><i class="fa-solid fa-location-crosshairs" style="margin-right: 4px;"></i>GPS: ${m.latitude}, ${m.longitude} (반경 ${m.geofencing_radius}m)</p>` : ''}
+                            </div>
+                            ${statusBadge}
+                        </div>
+                    `;
+                });
+
+                if (loggedInUser.is_site_manager && managerSiteId) {
+                    fetchPendingWorkers(managerSiteId);
+                }
+            } catch (err) {
+                console.error("현장 목록 패치 오류: ", err);
+            }
+        }
+
+        async function fetchPendingWorkers(siteId) {
+            try {
+                const response = await fetch(getApiUrl(`/api/sites/${siteId}/pending-workers`), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const workers = await response.json();
+                const container = document.getElementById('dash-pending-workers-container');
+                container.innerHTML = '';
+
+                if (!workers || workers.length === 0) {
+                    container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">대기 중인 승인 요청이 없습니다.</p>`;
+                    return;
+                }
+
+                workers.forEach(w => {
+                    container.innerHTML += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray);">
+                            <div>
+                                <h5 style="font-size: 0.85rem; font-weight: 700; color: var(--text-dark);">${w.name}</h5>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">전화번호: ${w.phone_number}</p>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="submit-btn" onclick="handleApproveWorker(${siteId}, ${w.user_id}, 'APPROVED')" style="background: var(--primary-teal); color: white; padding: 6px 12px; font-size: 0.75rem; border-radius: 6px; box-shadow: none;">승인</button>
+                                <button class="submit-btn" onclick="handleApproveWorker(${siteId}, ${w.user_id}, 'REJECTED')" style="background: #e53e3e; color: white; padding: 6px 12px; font-size: 0.75rem; border-radius: 6px; box-shadow: none;">반려</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                console.error("대기 담당자 패치 오류: ", err);
+            }
+        }
+
+        async function handleApproveWorker(siteId, workerId, status) {
+            try {
+                const response = await fetch(getApiUrl(`/api/sites/${siteId}/approve-worker`), {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        worker_id: workerId,
+                        status: status
+                    })
+                });
+
+                if (response.ok) {
+                    if (status === 'APPROVED') {
+                        triggerConfetti();
+                    }
+                    showModal("🎉 승인 처리 성공", `담당자 정보가 성공적으로 ${status === 'APPROVED' ? '승인' : '반려'} 처리되었습니다.`, true);
+                    fetchPendingWorkers(siteId);
+                } else {
+                    const data = await response.json();
+                    showModal("승인 처리 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        async function handleCreateSite() {
+            const company = document.getElementById('dash-new-company').value.trim();
+            const biznum = document.getElementById('dash-new-biznum').value.trim();
+            const latVal = document.getElementById('dash-new-lat').value.trim();
+            const lngVal = document.getElementById('dash-new-lng').value.trim();
+            const radiusVal = document.getElementById('dash-new-radius').value.trim();
+
+            if (!company || !biznum || biznum.length < 10) {
+                showModal("입력 오류", "건설사명과 올바른 10자리 사업자번호를 입력해 주세요.", false);
+                return;
+            }
+
+            const latitude = latVal ? parseFloat(latVal) : null;
+            const longitude = lngVal ? parseFloat(lngVal) : null;
+            const geofencing_radius = radiusVal ? parseFloat(radiusVal) : 200.0;
+
+            try {
+                const response = await fetch(getApiUrl('/api/sites/create-site'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        site_name: company,
+                        company_name: company,
+                        business_number: biznum,
+                        latitude: latitude,
+                        longitude: longitude,
+                        geofencing_radius: geofencing_radius
+                    })
+                });
+
+                if (response.ok) {
+                    triggerConfetti();
+                    showModal("🎉 현장 개설 성공", "새로운 공사 현장이 성공적으로 개설되고 즉시 배정되었습니다.", true);
+                    document.getElementById('dash-new-company').value = '';
+                    document.getElementById('dash-new-biznum').value = '';
+                    document.getElementById('dash-new-lat').value = '';
+                    document.getElementById('dash-new-lng').value = '';
+                    document.getElementById('dash-new-radius').value = '200';
+                    fetchMySites();
+                } else {
+                    const data = await response.json();
+                    showModal("현장 개설 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        async function handleSearchSites() {
+            const query = document.getElementById('dash-search-site-query').value.trim();
+            if (!query) {
+                showModal("입력 오류", "검색 키워드를 입력해 주세요.", false);
+                return;
+            }
+
+            try {
+                const response = await fetch(getApiUrl(`/api/sites/search?query=${encodeURIComponent(query)}`), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const sites = await response.json();
+                const container = document.getElementById('dash-search-results-container');
+                container.innerHTML = '';
+
+                if (!sites || sites.length === 0) {
+                    container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">검색 결과가 없습니다.</p>`;
+                    return;
+                }
+
+                sites.forEach(s => {
+                    container.innerHTML += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: #ffffff;">
+                            <div>
+                                <h6 style="font-size: 0.8rem; font-weight: 700; color: var(--text-dark);">${s.company_name}</h6>
+                                <p style="font-size: 0.68rem; color: var(--text-muted); margin-top: 1px;">사업자번호: ${s.business_number}</p>
+                            </div>
+                            <button class="submit-btn" onclick="handleRequestMapSite(${s.id})" style="width: 50px; padding: 6px; font-size: 0.72rem; border-radius: 6px; box-shadow: none;">신청</button>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                console.error("현장 검색 오류: ", err);
+            }
+        }
+
+        async function handleRequestMapSite(siteId) {
+            try {
+                const response = await fetch(getApiUrl('/api/sites/map-site'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ site_id: siteId })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    triggerConfetti();
+                    showModal("🎉 매핑 신청 완료", data.message, true);
+                    document.getElementById('dash-search-site-query').value = '';
+                    document.getElementById('dash-search-results-container').innerHTML = '';
+                    fetchMySites();
+                } else {
+                    showModal("매핑 신청 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        async function fetchMyDrivers() {
+            try {
+                const response = await fetch(getApiUrl('/api/fleet/my-drivers'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const drivers = await response.json();
+                const container = document.getElementById('dash-drivers-container');
+                container.innerHTML = '';
+
+                if (!drivers || drivers.length === 0) {
+                    container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">등록된 소속 운전기사가 없습니다.</p>`;
+                    return;
+                }
+
+                drivers.forEach(d => {
+                    container.innerHTML += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray);">
+                            <div>
+                                <h5 style="font-size: 0.85rem; font-weight: 700; color: var(--text-dark);">${d.name}</h5>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">전화: ${d.phone_number} / 차량: ${d.car_number} (${d.tonnage}t)</p>
+                            </div>
+                            <button class="submit-btn" onclick="handleDisconnectDriver(${d.driver_id})" style="background: var(--primary-orange); color: white; padding: 6px 12px; font-size: 0.75rem; border-radius: 6px; box-shadow: none;">등록 해제</button>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                console.error("소속 기사 패치 오류: ", err);
+            }
+        }
+
+        async function handleDisconnectDriver(driverId) {
+            if (!confirm("정말 이 소속 기사를 등록 해제하시겠습니까?")) return;
+
+            try {
+                const response = await fetch(getApiUrl(`/api/fleet/disconnect-driver/${driverId}`), {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+
+                if (response.ok) {
+                    showModal("🎉 등록 해제 성공", "기사가 소속 차량에서 성공적으로 연동 해제되었습니다.", true);
+                    fetchMyDrivers();
+                } else {
+                    const data = await response.json();
+                    showModal("해제 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        async function fetchMyUnloadingSites() {
+            try {
+                // 새로운 DropOff CRUD API 호출: GET /api/drop-offs/me
+                const response = await fetch(getApiUrl('/api/drop-offs/me'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const sites = await response.json();
+                const container = document.getElementById('dash-unloading-sites-container');
+                container.innerHTML = '';
+
+                if (!sites || sites.length === 0) {
+                    container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">등록된 하차지 정보가 없습니다.</p>`;
+                    return;
+                }
+
+                for (const s of sites) {
+                    // 각 하차지 아래에 등록된 매립 수용 공고(requests)를 표시하거나 등록하는 폼 추가
+                    container.innerHTML += `
+                        <div style="padding: 16px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-gray); display: flex; flex-direction: column; gap: 12px; text-align: left; margin-bottom: 8px;">
+                            <div>
+                                <h5 style="font-size: 0.9rem; font-weight: 800; color: var(--text-dark);">${s.name}</h5>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;"><i class="fa-solid fa-map-pin" style="margin-right: 4px;"></i>주소: ${s.address}</p>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1px;"><i class="fa-solid fa-id-card-clip" style="margin-right: 4px;"></i>허가증번호: ${s.permit_number}</p>
+                                <p style="font-size: 0.72rem; color: var(--primary-teal); font-weight: 700; margin-top: 3px;"><i class="fa-solid fa-circle-check" style="margin-right: 4px;"></i>상태: ${s.status}</p>
+                            </div>
+                            
+                            <!-- 실무형 매립 공고 등록 폼 -->
+                            <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+                                <h6 style="font-size: 0.78rem; font-weight: 700; color: var(--primary-teal);"><i class="fa-solid fa-plus" style="margin-right: 4px;"></i>새 매립 수용 공고 게시</h6>
+                                
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    <div style="display: flex; gap: 4px;">
+                                        <select id="req-soil-${s.id}" style="flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.72rem; background: white;">
+                                            <option value="GOOD_SOIL">양질토 (GOOD_SOIL)</option>
+                                            <option value="MUD_SOIL">뻘흙 (MUD_SOIL)</option>
+                                            <option value="ROCK">암버럭 (ROCK)</option>
+                                            <option value="MIXED">혼합 (MIXED)</option>
+                                        </select>
+                                        <select id="req-truck-${s.id}" style="flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.72rem; background: white;">
+                                            <option value="T_25">25톤 (T_25)</option>
+                                            <option value="T_15">15톤 (T_15)</option>
+                                            <option value="T_27">27톤 (T_27)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div style="display: flex; gap: 4px;">
+                                        <input type="number" id="req-cap-${s.id}" placeholder="목표대수" style="flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.72rem;">
+                                        <input type="number" id="req-price-${s.id}" placeholder="단가 (원)" style="flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.72rem;">
+                                    </div>
+
+                                    <div style="display: flex; gap: 4px;">
+                                        <select id="req-payer-${s.id}" style="flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.72rem; background: white;">
+                                            <option value="SITE_PAYS">현장 지불</option>
+                                            <option value="DROP_OFF_PAYS">하차지 지불</option>
+                                            <option value="FREE">무상 수용</option>
+                                        </select>
+                                        <select id="req-method-${s.id}" style="flex: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.72rem; background: white;">
+                                            <option value="MONTHLY">월대 (MONTHLY)</option>
+                                            <option value="DAILY">당일지급 (DAILY)</option>
+                                        </select>
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 4px; border: 1px solid #f1f5f9; padding: 6px; border-radius: 6px;">
+                                        <span style="font-size: 0.65rem; font-weight: bold; color: var(--text-muted);">유효 기간 설정</span>
+                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                            <input type="date" id="req-start-${s.id}" style="flex: 1; padding: 4px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.7rem;">
+                                            <span style="font-size: 0.7rem; color: var(--text-muted);">~</span>
+                                            <input type="date" id="req-end-${s.id}" style="flex: 1; padding: 4px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.7rem;">
+                                        </div>
+                                    </div>
+
+                                    <div style="display: flex; gap: 10px; padding: 4px 2px; font-size: 0.7rem; color: var(--text-gray);">
+                                        <label style="display: flex; align-items: center; gap: 3px; cursor: pointer;">
+                                            <input type="checkbox" id="req-washing-${s.id}"> 세륜기
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 3px; cursor: pointer;">
+                                            <input type="checkbox" id="req-night-${s.id}"> 야간
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 3px; cursor: pointer;">
+                                            <input type="checkbox" id="req-rain-${s.id}"> 우천
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <button class="submit-btn" onclick="handleCreateDropOffRequest(${s.id})" style="padding: 8px; font-size: 0.75rem; border-radius: 6px; box-shadow: none;">수용 공고 게시</button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // 대기 중인 B2B 매칭 오더도 함께 패치
+                fetchPendingJobs();
+            } catch (err) {
+                console.error("하차지 목록 패치 오류: ", err);
+            }
+        }
+
+        async function handleCreateUnloadingSite() {
+            const name = document.getElementById('dash-new-unloading-name').value.trim();
+            const address = document.getElementById('dash-new-unloading-address').value.trim();
+            const latVal = document.getElementById('dash-new-unloading-lat').value.trim();
+            const lngVal = document.getElementById('dash-new-unloading-lng').value.trim();
+            const radiusVal = document.getElementById('dash-new-unloading-radius').value.trim();
+            const permit = document.getElementById('dash-new-unloading-permit').value.trim();
+
+            if (!name || !address || !latVal || !lngVal || !permit) {
+                showModal("입력 오류", "하차지명, 상세 주소, 위경도, 허가증 번호를 모두 입력해 주세요.", false);
+                return;
+            }
+
+            const latitude = parseFloat(latVal);
+            const longitude = parseFloat(lngVal);
+            const radius_meter = radiusVal ? parseFloat(radiusVal) : 200.0;
+
+            try {
+                // 새로운 DropOff CRUD API 호출: POST /api/drop-offs
+                const response = await fetch(getApiUrl('/api/drop-offs'), {
+                            async function fetchOpenDropOffRequests() {
+            try {
+                const response = await fetch(getApiUrl('/api/drop-offs/requests'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const requests = await response.json();
+                const container = document.getElementById('dash-b2b-requests-container');
+                container.innerHTML = '';
+
+                if (!requests || requests.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 10px 0; display: flex; flex-direction: column; gap: 8px;">
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">현재 활성화된 매립 수용 공고가 없습니다.</p>
+                            <div style="background: rgba(255, 122, 0, 0.06); border: 1px dashed rgba(255, 122, 0, 0.4); border-radius: 8px; padding: 12px; font-size: 0.72rem; color: var(--primary-orange); line-height: 1.45; text-align: left;">
+                                <i class="fa-solid fa-lightbulb" style="margin-right: 4px;"></i> <strong>B2B 매칭 테스트 가이드:</strong><br>
+                                1. 로그아웃 후 <strong>'사토 하차지 지주'</strong>로 새로 가입하거나 로그인합니다.<br>
+                                2. 하차지 탭에서 하차지를 개설하고, 생성된 하차지에서 <strong>'새 매립 수용 공고'</strong>를 등록(게시)합니다.<br>
+                                3. 다시 현장 관리자 계정으로 로그인 후 상차지 탭을 보면 공고가 노출되며 <strong>덤프 모집 오더(글등록)</strong>를 발행할 수 있습니다!
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // 현장의 ID를 매핑하기 위해 내 현장 데이터 획득
+                const siteResponse = await fetch(getApiUrl('/api/sites/my-mappings'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const mappings = await siteResponse.json();
+                const approvedSite = mappings.find(m => m.status === 'APPROVED');
+
+                if (!approvedSite) {
+                    container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">승인 완료된 소속 현장이 있어야 오더 발행이 가능합니다.</p>`;
+                    return;
+                }
+
+                requests.forEach(r => {
+                    // 환경 조건 태그 작성
+                    let envTags = '';
+                    if (r.has_washing_facility) envTags += `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.58rem; font-weight: bold; margin-right: 3px;">세륜기</span>`;
+                    if (r.night_work_allowed) envTags += `<span style="background: #faf5ff; color: #6b21a8; padding: 2px 6px; border-radius: 4px; font-size: 0.58rem; font-weight: bold; margin-right: 3px;">야간</span>`;
+                    if (r.rain_work_allowed) envTags += `<span style="background: #f0fdf4; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 0.58rem; font-weight: bold;">우천</span>`;
+                    if (!envTags) envTags = '<span style="font-size: 0.6rem; color: var(--text-muted);">조건 없음</span>';
+
+                    // 매칭률 계산
+                    const matchPercent = Math.min(100, Math.round((r.current_quantity / r.target_quantity) * 100));
+
+                    container.innerHTML += `
+                        <div style="padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: #ffffff; display: flex; flex-direction: column; gap: 8px; text-align: left; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                            <div>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h5 style="font-size: 0.85rem; font-weight: 800; color: var(--text-dark);">수용 토사: ${r.material_type}</h5>
+                                    <span style="font-size: 0.65rem; color: var(--primary-teal); font-weight: bold; background: rgba(0,77,90,0.06); padding: 2px 6px; border-radius: 4px;">${r.truck_type} 전용</span>
+                                </div>
+                                
+                                <div style="margin-top: 4px; font-size: 0.72rem; color: var(--text-gray); line-height: 1.4;">
+                                    <div><strong>단가:</strong> <span style="color: var(--primary-orange); font-weight: bold;">${r.unit_price.toLocaleString()}원</span> (${r.payer_type} / ${r.payment_method})</div>
+                                    <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 2px;">
+                                        <strong>기간:</strong> ${new Date(r.start_date).toLocaleDateString()} ~ ${new Date(r.end_date).toLocaleDateString()}
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
+                                        <strong>현장환경:</strong> ${envTags}
+                                    </div>
+                                </div>
+
+                                <!-- 매칭률 게이지 바 -->
+                                <div style="margin-top: 8px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 2px;">
+                                        <span>매칭 대수: ${r.current_quantity} / ${r.target_quantity}대</span>
+                                        <strong>${matchPercent}%</strong>
+                                    </div>
+                                    <div style="width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                                        <div style="width: ${matchPercent}%; height: 100%; background: linear-gradient(90deg, var(--primary-teal), #06b6d4); border-radius: 3px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; gap: 6px; align-items: center; background: var(--bg-gray); padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); margin-top: 4px;">
+                                <input type="number" id="job-trucks-${r.id}" placeholder="신청대수" style="width: 70px; padding: 4px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.72rem;">
+                                <input type="date" id="job-date-${r.id}" style="flex: 1; padding: 4px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.72rem;">
+                                <button class="submit-btn" onclick="handleCreateJobPost(${approvedSite.site_id}, ${r.id})" style="width: 70px; padding: 6px; font-size: 0.72rem; border-radius: 4px; box-shadow: none;">오더 발행</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                console.error("매립 공고 로드 오류: ", err);
+            }
+        }art_date: new Date(startDateVal).toISOString(),
+                        end_date: new Date(endDateVal).toISOString()
+                    })
+                });
+
+                if (response.ok) {
+                    triggerConfetti();
+                    showModal("🎉 수용 공고 등록 성공", "매립 수용 공고가 성공적으로 등록되었습니다.", true);
+                    fetchMyUnloadingSites();
+                } else {
+                    const data = await response.json();
+                    showModal("등록 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        // 대기 중인 B2B 매칭 오더 조회
+        async function fetchPendingJobs() {
+            try {
+                const response = await fetch(getApiUrl('/api/jobs/pending'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const jobs = await response.json();
+                const container = document.getElementById('dash-pending-jobs-container');
+                container.innerHTML = '';
+
+                if (!jobs || jobs.length === 0) {
+                    container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">대기 중인 오더 승인 요청이 없습니다.</p>`;
+                    return;
+                }
+
+                jobs.forEach(j => {
+                    container.innerHTML += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray); text-align: left; margin-bottom: 8px;">
+                            <div>
+                                <h5 style="font-size: 0.85rem; font-weight: 700; color: var(--text-dark);">현장 오더 매칭 대기</h5>
+                                <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">요청 대수: ${j.required_trucks}대</p>
+                                <p style="font-size: 0.72rem; color: var(--text-muted);">작업일시: ${new Date(j.work_date).toLocaleDateString()}</p>
+                            </div>
+                            <button class="submit-btn" onclick="handleApproveJobPost(${j.id})" style="background: var(--primary-teal); color: white; padding: 6px 12px; font-size: 0.75rem; border-radius: 6px; box-shadow: none; width: 60px;">승인</button>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                console.error("대기 오더 패치 오류: ", err);
+            }
+        }
+
+        // B2B 매칭 오더 승인 처리
+        async function handleApproveJobPost(jobId) {
+            try {
+                const response = await fetch(getApiUrl(`/api/jobs/${jobId}/approve`), {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    triggerConfetti();
+                    showModal("🎉 오더 매칭 승인 완료", "B2B 매칭 오더가 성공적으로 승인 및 공개 처리되었습니다.", true);
+                    fetchPendingJobs();
+                } else {
+                    const data = await response.json();
+                    showModal("승인 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        // 현장 관리자/담당자용 매립 수용 공고 탐색 & 오더 신청 로드
+        async function fetchOpenDropOffRequests() {
+            try {
+                const response = await fetch(getApiUrl('/api/drop-offs/requests'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const requests = await response.json();
+                const container = document.getElementById('dash-b2b-requests-container');
+                container.innerHTML = '';
+
+                if (!requests || requests.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 10px 0; display: flex; flex-direction: column; gap: 8px;">
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">현재 활성화된 매립 수용 공고가 없습니다.</p>
+                            <div style="background: rgba(255, 122, 0, 0.06); border: 1px dashed rgba(255, 122, 0, 0.4); border-radius: 8px; padding: 12px; font-size: 0.72rem; color: var(--primary-orange); line-height: 1.45; text-align: left;">
+                                <i class="fa-solid fa-lightbulb" style="margin-right: 4px;"></i> <strong>B2B 매칭 테스트 가이드:</strong><br>
+                                1. 로그아웃 후 <strong>'사토 하차지 지주'</strong>로 새로 가입하거나 로그인합니다.<br>
+                                2. 하차지 탭에서 하차지를 개설하고, 생성된 하차지에서 <strong>'새 매립 수용 공고'</strong>를 등록(게시)합니다.<br>
+                                3. 다시 현장 관리자 계정으로 로그인 후 상차지 탭을 보면 공고가 노출되며 <strong>덤프 모집 오더(글등록)</strong>를 발행할 수 있습니다!
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // 현장의 ID를 매핑하기 위해 내 현장 데이터 획득
+                const siteResponse = await fetch(getApiUrl('/api/sites/my-mappings'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const mappings = await siteResponse.json();
+                const approvedSite = mappings.find(m => m.status === 'APPROVED');
+
+                if (!approvedSite) {
+                    container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">승인 완료된 소속 현장이 있어야 오더 발행이 가능합니다.</p>`;
+                    return;
+                }
+
+                requests.forEach(r => {
+                    container.innerHTML += `
+                        <div style="padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: #ffffff; display: flex; flex-direction: column; gap: 8px; text-align: left; margin-bottom: 8px;">
+                            <div>
+                                <h5 style="font-size: 0.85rem; font-weight: 800; color: var(--text-dark);">수용 가능 토사: ${r.material_type}</h5>
+                                <p style="font-size: 0.72rem; color: var(--text-muted);">수용량: ${r.capacity}대 / 단가: ${r.unit_price.toLocaleString()}원</p>
+                            </div>
+                            <div style="display: flex; gap: 6px; align-items: center; background: var(--bg-gray); padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+                                <input type="number" id="job-trucks-${r.id}" placeholder="신청대수" style="width: 70px; padding: 4px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.72rem;">
+                                <input type="date" id="job-date-${r.id}" style="flex: 1; padding: 4px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.72rem;">
+                                <button class="submit-btn" onclick="handleCreateJobPost(${approvedSite.site_id}, ${r.id})" style="width: 70px; padding: 6px; font-size: 0.72rem; border-radius: 4px; box-shadow: none;">오더 발행</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                console.error("매립 공고 로드 오류: ", err);
+            }
+        }
+
+        // 현장 관리자 덤프 오더 발행 처리
+        async function handleCreateJobPost(siteId, requestId) {
+            const trucksVal = document.getElementById(`job-trucks-${requestId}`).value.trim();
+            const dateVal = document.getElementById(`job-date-${requestId}`).value.trim();
+
+            if (!trucksVal || !dateVal) {
+                showModal("입력 오류", "신청 대수와 작업 날짜를 입력해 주세요.", false);
+                return;
+            }
+
+            try {
+                const response = await fetch(getApiUrl('/api/jobs'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        site_id: siteId,
+                        drop_off_request_id: requestId,
+                        work_date: new Date(dateVal).toISOString(),
+                        required_trucks: parseInt(trucksVal)
+                    })
+                });
+
+                if (response.ok) {
+                    triggerConfetti();
+                    showModal("🎉 모집 오더 발행 성공", "덤프 모집 오더가 성공적으로 발행되어 지주의 승인을 대기합니다.", true);
+                    fetchOpenDropOffRequests();
+                } else {
+                    const data = await response.json();
+                    showModal("오더 발행 실패", data.detail || "오류가 발생했습니다.", false);
+                }
+            } catch (err) {
+                showModal("네트워크 오류", "서버 연결에 실패했습니다.", false);
+            }
+        }
+
+        function handleLogout() {
+            loggedInUser = null;
+            accessToken = null;
+            resetForm();
+            navigateTo('login');
         }
 
         window.addEventListener('resize', resizeCanvas);

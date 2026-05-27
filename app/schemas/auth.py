@@ -21,8 +21,10 @@ class UserResponse(BaseModel):
     name: str
     
     is_site_manager: bool
+    is_site_worker: bool
     is_owner: bool
     is_driver: bool
+    is_drop_off: bool
     is_admin: bool
     
     created_at: datetime
@@ -63,4 +65,43 @@ class FleetRegister(BaseModel):
     car_number: str = Field(..., description="차량 번호 (예: 경기80사1234)", min_length=5)
     tonnage: float = Field(..., description="차량 톤수 (예: 15.0, 24.0, 25.5 등)", gt=0)
     driver_phone: str = Field(..., description="소속 운전기사 휴대폰 번호 (기사가 가입 시 매칭됨)", min_length=10, max_length=15)
+
+
+class SiteManagerRegister(BaseModel):
+    """
+    현장관리자 회원가입 요청 스키마
+    """
+    phone_number: str = Field(..., description="휴대폰 번호 (로그인 ID)", min_length=10, max_length=15)
+    password: str = Field(..., description="비밀번호", min_length=4)
+    name: str = Field(..., description="현장관리자 실명/담당자명")
+    ci: Optional[str] = Field(None, description="본인인증 고유 키(CI)")
+    company_name: str = Field(..., description="건설사/상호명")
+    site_name: str = Field(..., description="현장명")
+    business_number: str = Field(..., description="사업자등록번호")
+
+
+class SiteWorkerRegister(BaseModel):
+    """
+    현장담당자 회원가입 요청 스키마
+    """
+    phone_number: str = Field(..., description="휴대폰 번호 (로그인 ID)", min_length=10, max_length=15)
+    password: str = Field(..., description="비밀번호", min_length=4)
+    name: str = Field(..., description="현장담당자 실명")
+    ci: Optional[str] = Field(None, description="본인인증 고유 키(CI)")
+    company_name: str = Field(..., description="건설사/상호명")
+    site_name: str = Field(..., description="현장명")
+    site_key: str = Field(..., description="현장관리자가 부여한 현장 키 (예: SITE-A1B2C3)")
+
+
+class DropOffRegister(BaseModel):
+    """
+    하차지 지주 회원가입 요청 스키마
+    """
+    phone_number: str = Field(..., description="휴대폰 번호 (로그인 ID)", min_length=10, max_length=15)
+    password: str = Field(..., description="비밀번호", min_length=4)
+    name: str = Field(..., description="하차지 지주 실명")
+    ci: Optional[str] = Field(None, description="본인인증 고유 키(CI)")
+    location_name: str = Field(..., description="하차지/사토장 명칭")
+    address: str = Field(..., description="하차지 주소")
+    permit_number: str = Field(..., description="개발행위/토사 반입 허가증 번호")
 

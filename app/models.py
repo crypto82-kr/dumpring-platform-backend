@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, DateTime, text
+import enum
+import sqlalchemy as sa
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, DateTime, text, Enum
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
@@ -20,8 +22,10 @@ class User(Base):
     
     # 통합 계정 역할 권한 토글 (다중 선택 가능)
     is_site_manager = Column(Boolean, default=False, nullable=False)  # 공사현장 관리자 권한
+    is_site_worker = Column(Boolean, default=False, nullable=False)   # 현장담당자 권한
     is_owner = Column(Boolean, default=False, nullable=False)         # 차주 권한
     is_driver = Column(Boolean, default=False, nullable=False)        # 운전기사 권한
+    is_drop_off = Column(Boolean, default=False, nullable=False)      # 하차지 지주 권한
     is_admin = Column(Boolean, default=False, nullable=False)         # 시스템 총괄 관리자 권한
 
     # 생성 및 수정일시
@@ -34,6 +38,10 @@ class User(Base):
     unloading_sites = relationship("UnloadingSite", back_populates="owner")
     drivers = relationship("Driver", back_populates="user")
     owned_cars = relationship("Car", back_populates="owner")
+    site_profile = relationship("SiteProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    drop_off_profile = relationship("DropOffProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    site_mappings = relationship("SiteUserMapping", back_populates="user", cascade="all, delete-orphan")
+    drop_offs = relationship("DropOff", back_populates="owner", cascade="all, delete-orphan")
 
 
 class ConstructionSite(Base):
@@ -48,6 +56,10 @@ class ConstructionSite(Base):
     company_name = Column(String, nullable=False)  # 건설사/상호명 (예: 현대건설)
     business_number = Column(String, nullable=False)  # 사업자등록번호 (세금계산서 발행용)
     billing_email = Column(String, nullable=False)  # 세금계산서용 이메일
+    site_key = Column(String, unique=True, nullable=True, index=True)  # 현장 구분용 고유 키 (예: SITE-A1B2C3)
+    latitude = Column(Float, nullable=True)  # 현장 위도
+    longitude = Column(Float, nullable=True)  # 현장 경도
+    geofencing_radius = Column(Float, default=200.0, nullable=False)  # 지오펜싱 반경 (미터 단위)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -56,6 +68,7 @@ class ConstructionSite(Base):
     creator = relationship("User", back_populates="construction_sites")
     employees = relationship("SiteEmployee", back_populates="site", cascade="all, delete-orphan")
     orders = relationship("Order", back_populates="site")
+    site_mappings = relationship("SiteUserMapping", back_populates="site", cascade="all, delete-orphan")
 
 
 class SiteEmployee(Base):
@@ -185,3 +198,203 @@ class Order(Base):
     # Relationships
     site = relationship("ConstructionSite", back_populates="orders")
     unloading_site = relationship("UnloadingSite", back_populates="orders")
+
+
+class SiteProfile(Base):
+    """
+    8. SiteProfile (현장 상세 프로필 테이블)
+    - 현장관리자/현장담당자 가입 시 등록되는 회사 및 현장 실무 세부 정보입니다.
+    """
+    __tablename__ = "site_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    company_name = Column(String, nullable=False)  # 건설사/상호명
+    site_name = Column(String, nullable=False)  # 현장명
+    business_number = Column(String, nullable=False)  # 사업자등록번호
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    user = relationship("User", back_populates="site_profile")
+
+
+class DropOffProfile(Base):
+    """
+    9. DropOffProfile (하차지 상세 프로필 테이블)
+    - 하차지 지주 가입 시 등록되는 허가 및 입지 세부 정보입니다.
+    """
+    __tablename__ = "drop_off_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    location_name = Column(String, nullable=False)  # 하차지/사토장 명칭
+    address = Column(String, nullable=False)  # 하차지 상세 주소
+    permit_number = Column(String, nullable=False)  # 개발행위/토사 반입 허가증 번호
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    user = relationship("User", back_populates="drop_off_profile")
+
+
+class SiteUserStatus(str, enum.Enum):
+    PENDING = "PENDING"             # 승인 대기
+    APPROVED = "APPROVED"           # 승인 완료
+    REJECTED = "REJECTED"           # 거절됨
+
+
+class SiteUserMapping(Base):
+    """
+    10. SiteUserMapping (현장과 유저 간의 다대다 연결 매핑 테이블)
+    """
+    __tablename__ = "site_user_mappings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(Integer, ForeignKey("construction_sites.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    status = Column(Enum(SiteUserStatus), default=SiteUserStatus.PENDING, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    site = relationship("ConstructionSite", back_populates="site_mappings")
+    user = relationship("User", back_populates="site_mappings")
+
+
+class MaterialType(str, enum.Enum):
+    GOOD_SOIL = "GOOD_SOIL"    # 양질토
+    MUD_SOIL = "MUD_SOIL"      # 뻘흙
+    ROCK = "ROCK"              # 암버럭
+    MIXED = "MIXED"            # 혼합
+
+
+class TruckType(str, enum.Enum):
+    T_15 = "T_15"              # 15톤
+    T_25 = "T_25"              # 25톤
+    T_27 = "T_27"              # 27톤
+
+
+class PayerType(str, enum.Enum):
+    SITE_PAYS = "SITE_PAYS"          # 현장 지불
+    DROP_OFF_PAYS = "DROP_OFF_PAYS"  # 하차지 지불
+    FREE = "FREE"                    # 무상
+
+
+class PaymentMethod(str, enum.Enum):
+    MONTHLY = "MONTHLY"        # 월대
+    DAILY = "DAILY"            # 당일지급
+
+
+class CommonCode(Base):
+    """
+    12. CommonCode (공공 마스터 공통 코드 테이블)
+    - 토사 종류, 차량 규격, 정산 방식 등 비즈니스 환경에 따라 자주 바뀌는 코드 정보를 동적으로 관리합니다.
+    """
+    __tablename__ = "common_codes"
+    __table_args__ = (
+        sa.UniqueConstraint('group_code', 'code', name='_group_code_code_uc'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_code = Column(String, nullable=False, index=True)  # 예: 'MATERIAL_TYPE', 'TRUCK_TYPE'
+    code = Column(String, nullable=False, index=True)        # 예: 'GOOD_SOIL', 'T_25'
+    code_name = Column(String, nullable=False)               # 한글/영어 표시 명칭 (예: '양질토', '25톤')
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class DropOff(Base):
+    """
+    13. DropOff (하차지 마스터 데이터 테이블)
+    """
+    __tablename__ = "drop_offs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # 하차지 개설자 (지주)
+    name = Column(String, nullable=False)  # 하차지명
+    address = Column(String, nullable=False)  # 주소
+    latitude = Column(Float, nullable=False)  # 위도
+    longitude = Column(Float, nullable=False)  # 경도
+    radius_meter = Column(Float, default=200.0, nullable=False)  # 도착 감지 반경
+    permit_number = Column(String, nullable=False)  # 인허가번호
+    status = Column(String, default="ACTIVE", nullable=False)  # 상태 (기본 'ACTIVE')
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    owner = relationship("User", back_populates="drop_offs")
+    requests = relationship("DropOffRequest", back_populates="drop_off", cascade="all, delete-orphan")
+
+
+class DropOffRequest(Base):
+    """
+    14. DropOffRequest (하차지 매립 수용 공고 테이블)
+    - 하이브리드 공통 코드 설계를 도입하여, material_type, truck_type 등의 필드를 
+      동적인 마스터 코드 테이블과 실시간 검증(Validation) 연동시킵니다.
+    """
+    __tablename__ = "drop_off_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    drop_off_id = Column(Integer, ForeignKey("drop_offs.id", ondelete="CASCADE"), nullable=False)
+    
+    # 화물 및 차량 (하이브리드 공통 코드 검증이 적용되는 문자열 필드)
+    material_type = Column(String, nullable=False)
+    truck_type = Column(String, nullable=False)
+    
+    # 수량 트래킹
+    target_quantity = Column(Integer, nullable=False)  # 목표 대수
+    current_quantity = Column(Integer, default=0, nullable=False)  # 현재 매칭 대수
+    
+    # 정산 및 비용
+    payer_type = Column(String, nullable=False)
+    payment_method = Column(String, nullable=False)
+    unit_price = Column(Integer, nullable=False)  # 수용 단가 (원)
+    
+    # 환경 조건
+    has_washing_facility = Column(Boolean, default=False, nullable=False)  # 세륜기 유무
+    night_work_allowed = Column(Boolean, default=False, nullable=False)    # 야간 작업 가능
+    rain_work_allowed = Column(Boolean, default=False, nullable=False)     # 우천 작업 가능
+    
+    # 유효 기간
+    start_date = Column(DateTime(timezone=True), nullable=False)
+    end_date = Column(DateTime(timezone=True), nullable=False)
+    
+    status = Column(String, default="OPEN", nullable=False)  # 'OPEN' 또는 'CLOSED'
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    drop_off = relationship("DropOff", back_populates="requests")
+    job_posts = relationship("JobPost", back_populates="drop_off_request", cascade="all, delete-orphan")
+
+
+class JobPost(Base):
+    """
+    13. JobPost (현장 덤프 모집 오더 테이블)
+    - 상하차지 B2B 양방향 매칭 구조에 의해, 현장관리자가 하차지의 특정 수용 공고(drop_off_request_id)를 지정하여 매칭 요청을 보냅니다.
+    """
+    __tablename__ = "job_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(Integer, ForeignKey("construction_sites.id", ondelete="CASCADE"), nullable=False)
+    drop_off_request_id = Column(Integer, ForeignKey("drop_off_requests.id", ondelete="RESTRICT"), nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    work_date = Column(DateTime(timezone=True), nullable=False)  # 작업 희망 날짜
+    required_trucks = Column(Integer, nullable=False)  # 필요한 덤프 대수
+    status = Column(String, default="WAITING_APPROVAL", nullable=False)  # 'WAITING_APPROVAL' 또는 'OPEN'
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    site = relationship("ConstructionSite")
+    drop_off_request = relationship("DropOffRequest", back_populates="job_posts")
+    author = relationship("User")
+

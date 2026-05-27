@@ -1,0 +1,77 @@
+from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from typing import List
+
+from app.core.db import get_db
+from app.models import User, CommonCode
+from app.api.auth import get_current_user
+from app.schemas.common_codes import CommonCodeCreate, CommonCodeResponse
+
+router = APIRouter()
+
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommonCodeResponse,
+    summary="신규 공통 코드 등록",
+    description="시스템 관리자(ADMIN) 권한자 또는 테스트 환경에서 동적으로 공통 코드 정보를 추가합니다."
+)
+async def create_common_code(
+    data: CommonCodeCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 비즈니스 정책: 단순 지주/기사 권한이 아닌 시스템 관리자나 현장 관리자가 제어할 수 있도록 권한 확인
+    # 현 실무 설계 편의상 시스템 전체 관리자(is_admin) 검증 적용
+    if not current_user.is_admin and not current_user.is_site_manager:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="공통 코드 등록 권한이 없습니다. (관리자 권한 필요)"
+        )
+
+    # 중복 체크
+    query = select(CommonCode).where(
+        CommonCode.group_code == data.group_code.upper(),
+        CommonCode.code == data.code.upper()
+    )
+    result = await db.execute(query)
+    existing_code = result.scalars().first()
+
+    if existing_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"이미 '{data.group_code}' 그룹에 '{data.code}' 코드가 존재합니다."
+        )
+
+    new_code = CommonCode(
+        group_code=data.group_code.upper(),
+        code=data.code.upper(),
+        code_name=data.code_name,
+        display_order=data.display_order,
+        is_active=data.is_active
+    )
+    db.add(new_code)
+    await db.commit()
+    await db.refresh(new_code)
+
+    return new_code
+
+
+@router.get(
+    "/{group_code}",
+    response_model=List[CommonCodeResponse],
+    summary="특정 그룹의 활성 공통 코드 목록 조회",
+    description="지정한 그룹 코드(예: MATERIAL_TYPE, TRUCK_TYPE) 하위의 활성화(is_active=True)된 공통 코드 목록을 정렬 순서대로 조회합니다."
+)
+async def get_common_codes_by_group(
+    group_code: str,
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(CommonCode).where(
+        CommonCode.group_code == group_code.upper(),
+        CommonCode.is_active == True
+    ).order_by(CommonCode.display_order.asc(), CommonCode.id.asc())
+
+    result = await db.execute(query)
+    return result.scalars().all()
