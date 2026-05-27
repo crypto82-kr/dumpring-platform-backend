@@ -378,17 +378,41 @@ class DropOffRequest(Base):
 class JobPost(Base):
     """
     13. JobPost (현장 덤프 모집 오더 테이블)
-    - 상하차지 B2B 양방향 매칭 구조에 의해, 현장관리자가 하차지의 특정 수용 공고(drop_off_request_id)를 지정하여 매칭 요청을 보냅니다.
+    - 상하차지 B2B 양방향 매칭 구조를 지원합니다.
+    
+    [흐름 A - 하차지 먼저 (기존)]
+    현장관리자가 하차지의 특정 수용 공고(drop_off_request_id)를 지정하여 매칭 요청 → WAITING_APPROVAL → 하차지 승인 → OPEN
+    
+    [흐름 B - 상차지 먼저 (신규)]
+    현장관리자가 하차지 없이 모집 공고를 먼저 등록 → WAITING_MATCH → 하차지가 매칭 요청 → 상차지 승인 → OPEN
+    
+    [오더 상태값]
+    - WAITING_MATCH: 하차지 매칭 대기 (상차지 먼저 등록 시)
+    - WAITING_APPROVAL: 하차지 승인 대기 (하차지 먼저 등록 시)  
+    - OPEN: 기사 모집 중
+    - COMPLETED: 완료
+    - CANCELLED: 취소
     """
     __tablename__ = "job_posts"
 
     id = Column(Integer, primary_key=True, index=True)
     site_id = Column(Integer, ForeignKey("construction_sites.id", ondelete="CASCADE"), nullable=False)
-    drop_off_request_id = Column(Integer, ForeignKey("drop_off_requests.id", ondelete="RESTRICT"), nullable=False)
+    drop_off_request_id = Column(Integer, ForeignKey("drop_off_requests.id", ondelete="RESTRICT"), nullable=True)  # 흐름 B에서는 매칭 전까지 NULL
     author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # 상차지 먼저 올릴 때 사용하는 필드 (흐름 B 전용)
+    material_type = Column(String, nullable=True)         # 토사 종류 (예: GOOD_SOIL, ROCK)
+    truck_type = Column(String, nullable=True)            # 차량 규격 (예: T_15, T_25)
+    offered_unit_price = Column(Integer, nullable=True)   # 상차지 제시 단가 (원)
+    payer_type = Column(String, nullable=True)            # 비용 지급 주체 (예: SITE_PAYS, FREE)
+    memo = Column(String, nullable=True)                  # 상차지 메모/특이사항
+    
+    # 매칭된 하차지 정보 (흐름 B에서 매칭 시 기록)
+    matched_drop_off_id = Column(Integer, ForeignKey("drop_offs.id", ondelete="SET NULL"), nullable=True)
+    
     work_date = Column(DateTime(timezone=True), nullable=False)  # 작업 희망 날짜
     required_trucks = Column(Integer, nullable=False)  # 필요한 덤프 대수
-    status = Column(String, default="WAITING_APPROVAL", nullable=False)  # 'WAITING_APPROVAL' 또는 'OPEN'
+    status = Column(String, default="WAITING_APPROVAL", nullable=False)  # 상태값
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -397,4 +421,6 @@ class JobPost(Base):
     site = relationship("ConstructionSite")
     drop_off_request = relationship("DropOffRequest", back_populates="job_posts")
     author = relationship("User")
+    matched_drop_off = relationship("DropOff")
+
 

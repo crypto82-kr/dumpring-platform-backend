@@ -1153,7 +1153,7 @@
                     </div>
 
                     <!-- [4] 마이페이지/대시보드 뷰 (View Dashboard) -->
-                    <div id="view-dashboard" class="app-view" style="display: none; height: 100%; display: flex; flex-direction: column;">
+                    <div id="view-dashboard" class="app-view" style="display: none; height: 100%; flex-direction: column;">
                         <!-- 스크롤 가능한 대시보드 콘텐츠 영역 -->
                         <div class="dashboard-scroll-content" id="dashboard-scroll-content" style="flex: 1; overflow-y: auto; padding: 0px 0px 10px; display: flex; flex-direction: column; gap: 16px;">
                             
@@ -1205,7 +1205,7 @@
                                 </div>
                                 <div id="sites-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
                                     <!-- 1. 현장관리자 전용 대시보드 구역 -->
-                                    <div id="dash-manager-section" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+                                    <div id="dash-manager-section" style="display: none; flex-direction: column; gap: 16px;">
                                         <!-- 현장 개설하기 카드 -->
                                         <div class="form-card" style="gap: 12px; padding: 20px;">
                                             <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-plus" style="margin-right: 6px;"></i>새 공사 현장 개설</h4>
@@ -1235,7 +1235,7 @@
                                     </div>
 
                                     <!-- 2. 현장담당자 전용 대시보드 구역 -->
-                                    <div id="dash-worker-section" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+                                    <div id="dash-worker-section" style="display: none; flex-direction: column; gap: 16px;">
                                         <!-- 현장 검색 및 매핑 추가 신청 -->
                                         <div class="form-card" style="gap: 12px; padding: 20px;">
                                             <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-magnifying-glass" style="margin-right: 6px;"></i>새 현장 검색 및 추가 매핑 신청</h4>
@@ -1278,7 +1278,7 @@
                                 </div>
                                 <div id="dropoffs-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
                                     <!-- 4. 하차지 지주 전용 대시보드 구역 -->
-                                    <div id="dash-dropoff-section" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+                                    <div id="dash-dropoff-section" style="display: none; flex-direction: column; gap: 16px;">
                                         <!-- 하차지/사토장 정보 등록 카드 -->
                                         <div class="form-card" style="gap: 12px; padding: 20px;">
                                             <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-mountain" style="margin-right: 6px;"></i>새 하차지/사토장 마스터 정보 등록</h4>
@@ -1331,7 +1331,7 @@
                                 </div>
                                 <div id="fleet-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
                                     <!-- 3. 차주 전용 대시보드 구역 -->
-                                    <div id="dash-owner-section" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+                                    <div id="dash-owner-section" style="display: none; flex-direction: column; gap: 16px;">
                                         <!-- 차주 소속 기사 관리 목록 -->
                                         <div class="form-card" style="padding: 20px;">
                                             <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-users" style="margin-right: 6px;"></i>소속 운전기사 관리</h4>
@@ -1432,7 +1432,12 @@
             document.getElementById('view-dashboard').style.display = 'none';
 
             // 대상 뷰 활성화
-            document.getElementById(`view-${viewId}`).style.display = 'block';
+            const targetEl = document.getElementById(`view-${viewId}`);
+            if (viewId === 'dashboard') {
+                targetEl.style.display = 'flex';
+            } else {
+                targetEl.style.display = 'block';
+            }
             
             currentView = viewId;
             viewHistory.push(viewId);
@@ -2783,7 +2788,7 @@
             };
             accessToken = "MOCK_DEVELOPER_ADMIN_TOKEN";
             
-            // 어드민 대시보드 렌더링
+            // 어드민 대시보드 텍스트 렌더링
             document.getElementById('dash-user-name').innerText = `${loggedInUser.name} 님`;
             document.getElementById('dash-user-phone').innerText = loggedInUser.phone_number;
             document.getElementById('dash-user-role').innerText = "본사 관리자 (Admin)";
@@ -2795,6 +2800,12 @@
             document.getElementById('dash-dropoff-section').style.display = 'none';
             document.getElementById('dash-sites-section').style.display = 'none';
             document.getElementById('dash-b2b-section').style.display = 'none';
+            
+            // 하단 일반 사용자용 탭바 네비게이션 숨김 (UI 꼬임 방지 🚨)
+            const bottomNav = document.querySelector('.bottom-nav');
+            if (bottomNav) {
+                bottomNav.style.display = 'none';
+            }
             
             // 만약 어드민 전용 UI가 HTML에 없다면, 어드민 전용 섹션(가입 심사, 배차 관제, 분쟁 중재)을 대시보드에 즉석 생성 및 삽입!
             let adminContainer = document.getElementById('dash-admin-container');
@@ -2858,6 +2869,11 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 4. 마스터 어드민 로그아웃 단추 -->
+                <div class="form-card" style="padding: 16px; border: 1px solid var(--border-color); border-radius: 12px; background: #ffffff; text-align: center; margin-bottom: 24px;">
+                    <button class="submit-btn" onclick="handleLogout()" style="background: #e53e3e; padding: 14px; font-size: 0.95rem; border-radius: 8px;">마스터 어드민 로그아웃</button>
+                </div>
             `;
 
             // 모든 탭 숨기고 홈 탭을 보이지만 어드민 컨테이너를 활성화
@@ -2885,6 +2901,13 @@
             loggedInUser = null;
             accessToken = null;
             resetForm();
+            
+            // 하단 일반 탭 네비게이션 원래대로 복구 🚨
+            const bottomNav = document.querySelector('.bottom-nav');
+            if (bottomNav) {
+                bottomNav.style.display = 'flex';
+            }
+            
             // 만약 어드민 빠른 진입용 컨테이너가 있다면 제거
             const adminContainer = document.getElementById('dash-admin-container');
             if (adminContainer) {
