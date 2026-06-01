@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>덤프링 모바일 시뮬레이터</title>
     <!-- Google Fonts 및 FontAwesome 아이콘 추가 -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         :root {
             --primary-orange: #FF7A00;
@@ -170,9 +173,9 @@
             border-radius: 48px;
             padding: 12px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7),
-                        0 0 0 12px #1e293b,
-                        0 0 0 13px #334155,
-                        0 20px 40px rgba(255, 122, 0, 0.15);
+                0 0 0 12px #1e293b,
+                0 0 0 13px #334155,
+                0 20px 40px rgba(255, 122, 0, 0.15);
             position: relative;
             overflow: hidden;
             display: flex;
@@ -396,7 +399,7 @@
             box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.1);
         }
 
-        .input-wrapper input:focus + i.prefix-icon {
+        .input-wrapper input:focus+i.prefix-icon {
             color: var(--primary-orange);
         }
 
@@ -505,14 +508,14 @@
             background-color: white;
             transition: .3s cubic-bezier(0.25, 1, 0.5, 1);
             border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
-        input:checked + .slider {
+        input:checked+.slider {
             background-color: var(--primary-teal);
         }
 
-        input:checked + .slider:before {
+        input:checked+.slider:before {
             transform: translateX(20px);
         }
 
@@ -680,22 +683,43 @@
 
         /* 애니메이션 모음 */
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         @keyframes scaleUp {
-            from { transform: scale(0.85); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+            from {
+                transform: scale(0.85);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         @keyframes slideDown {
-            from { transform: translateY(-10px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from {
+                transform: translateY(-10px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         /* 모바일 최적화 반응형 */
@@ -703,20 +727,25 @@
             body {
                 padding: 10px;
             }
+
             .container {
                 flex-direction: column;
                 gap: 40px;
             }
+
             .info-panel {
                 text-align: center;
                 max-width: 100%;
             }
+
             .badge-list {
                 justify-content: center;
             }
+
             .feature-card {
                 text-align: left;
             }
+
             .phone-mockup {
                 transform: none !important;
             }
@@ -738,7 +767,8 @@
             cursor: pointer;
             width: 32px;
             height: 32px;
-            display: none; /* 기본 숨김 */
+            display: none;
+            /* 기본 숨김 */
             align-items: center;
             justify-content: center;
             border-radius: 50%;
@@ -767,7 +797,7 @@
             align-items: flex-start;
             cursor: pointer;
             transition: all 0.2s ease;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
             text-align: left;
         }
 
@@ -816,7 +846,7 @@
             width: calc(100% + 48px);
             height: 65px;
             z-index: 100;
-            box-shadow: 0 -4px 10px rgba(0,0,0,0.03);
+            box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.03);
             margin-top: auto;
             margin-left: -24px;
             margin-right: -24px;
@@ -846,7 +876,7 @@
         .bottom-nav-item.active {
             color: var(--primary-teal);
         }
-        
+
         .bottom-nav-item:active {
             transform: scale(0.92);
         }
@@ -856,6 +886,7 @@
         }
     </style>
 </head>
+
 <body>
 
     <div class="container">
@@ -863,7 +894,7 @@
         <div class="info-panel">
             <h1>dumpring</h1>
             <h2>덤프 트럭 중계 및 실시간 미터기 플랫폼</h2>
-            
+
             <div class="badge-list">
                 <span class="badge"><i class="fa-solid fa-truck-moving"></i> 덤프 현장 맞춤형 UX</span>
                 <span class="badge teal"><i class="fa-solid fa-bolt"></i> 실시간 API 연동 시뮬레이션</span>
@@ -894,7 +925,8 @@
                     <div class="feature-icon"><i class="fa-solid fa-link"></i></div>
                     <div class="feature-details">
                         <h3>자동 기사-차량-차주 가역 매칭</h3>
-                        <p>차주가 선등록한 차량/기사의 휴대폰 번호와 일치하는 기사가 가입 완료되면 실시간 연동 매칭이 일어납니다. 성공 시 화면에 화려한 폭죽(Confetti)이 터집니다!</p>
+                        <p>차주가 선등록한 차량/기사의 휴대폰 번호와 일치하는 기사가 가입 완료되면 실시간 연동 매칭이 일어납니다. 성공 시 화면에 화려한 폭죽(Confetti)이 터집니다!
+                        </p>
                     </div>
                 </div>
             </div>
@@ -904,7 +936,7 @@
         <div class="phone-mockup">
             <!-- 아이폰 다이내믹 아일랜드 -->
             <div class="dynamic-island"></div>
-            
+
             <!-- 폰 화면 내부 -->
             <div class="screen">
                 <!-- 캔버스 (폭죽 애니메이션용) -->
@@ -922,20 +954,25 @@
 
                 <!-- 모바일 앱 바 -->
                 <div class="app-bar" style="position: relative;">
-                    <div class="back-btn" id="app-bar-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i></div>
+                    <div class="back-btn" id="app-bar-back" onclick="goBack()"><i class="fa-solid fa-arrow-left"></i>
+                    </div>
                     <h3 id="app-bar-title">덤프링 로그인</h3>
                 </div>
 
                 <!-- 메인 앱 콘텐츠 -->
                 <div class="app-content" style="flex: 1; display: flex; flex-direction: column;">
-                    
+
                     <!-- [1] 로그인 뷰 (View Login) -->
                     <div id="view-login" class="app-view">
                         <!-- 서비스 로고 -->
                         <div style="text-align: center; margin-top: 20px; margin-bottom: 30px;">
-                            <i class="fa-solid fa-truck-moving" style="font-size: 4rem; color: var(--primary-orange); filter: drop-shadow(0 8px 16px rgba(255,122,0,0.2));"></i>
-                            <h2 style="font-size: 2rem; font-weight: 900; letter-spacing: 2px; color: var(--primary-teal); margin-top: 12px; margin-bottom: 4px;">DUMPRING</h2>
-                            <p style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">덤프 중계 및 실시간 미터기 플랫폼</p>
+                            <i class="fa-solid fa-truck-moving"
+                                style="font-size: 4rem; color: var(--primary-orange); filter: drop-shadow(0 8px 16px rgba(255,122,0,0.2));"></i>
+                            <h2
+                                style="font-size: 2rem; font-weight: 900; letter-spacing: 2px; color: var(--primary-teal); margin-top: 12px; margin-bottom: 4px;">
+                                DUMPRING</h2>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">덤프 중계 및 실시간 미터기
+                                플랫폼</p>
                         </div>
 
                         <!-- 로그인 폼 카드 -->
@@ -944,7 +981,8 @@
                             <div class="form-group">
                                 <label>휴대폰 번호 (로그인 ID)</label>
                                 <div class="input-wrapper">
-                                    <input type="tel" id="login-phone" placeholder="- 없이 숫자만 입력해 주세요" maxlength="11" required>
+                                    <input type="tel" id="login-phone" placeholder="- 없이 숫자만 입력해 주세요" maxlength="11"
+                                        required>
                                     <i class="fa-solid fa-mobile-screen-button prefix-icon"></i>
                                 </div>
                             </div>
@@ -955,7 +993,9 @@
                                 <div class="input-wrapper">
                                     <input type="password" id="login-password" placeholder="비밀번호를 입력해 주세요" required>
                                     <i class="fa-solid fa-lock prefix-icon"></i>
-                                    <span class="suffix-btn" onclick="togglePasswordVisibility('login-password', 'login-eye')"><i class="fa-regular fa-eye-slash" id="login-eye"></i></span>
+                                    <span class="suffix-btn"
+                                        onclick="togglePasswordVisibility('login-password', 'login-eye')"><i
+                                            class="fa-regular fa-eye-slash" id="login-eye"></i></span>
                                 </div>
                             </div>
 
@@ -967,83 +1007,102 @@
                         </div>
 
                         <!-- 로그인 완료 버튼 -->
-                        <button class="submit-btn" id="login-submit-btn" onclick="handleLogin()" style="margin-bottom: 20px;">
+                        <button class="submit-btn" id="login-submit-btn" onclick="handleLogin()"
+                            style="margin-bottom: 20px;">
                             <span id="login-btn-text">로그인</span>
-                            <div class="spinner" id="login-btn-spinner" style="display: none; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid white; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                            <div class="spinner" id="login-btn-spinner"
+                                style="display: none; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid white; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto;">
+                            </div>
                         </button>
 
                         <div class="state-toggle-link" style="text-align: center; font-size: 0.88rem;">
                             <span style="color: var(--text-muted);">계정이 없으신가요?</span>
-                            <a href="javascript:void(0)" onclick="navigateTo('role-selection')" style="color: var(--primary-orange); font-weight: 700; text-decoration: none; margin-left: 5px;">회원가입</a>
+                            <a href="javascript:void(0)" onclick="navigateTo('role-selection')"
+                                style="color: var(--primary-orange); font-weight: 700; text-decoration: none; margin-left: 5px;">회원가입</a>
                         </div>
-                        
+
                         <div style="text-align: center; margin-top: 15px;">
-                            <a href="javascript:void(0)" onclick="bypassAdminLogin()" style="color: #a0aec0; font-weight: bold; text-decoration: underline; font-size: 0.75rem;"><i class="fa-solid fa-code" style="margin-right: 4px;"></i>🔧 디버그: 본사 어드민 화면 바로 진입</a>
+                            <a href="javascript:void(0)" onclick="bypassAdminLogin()"
+                                style="color: #a0aec0; font-weight: bold; text-decoration: underline; font-size: 0.75rem;"><i
+                                    class="fa-solid fa-code" style="margin-right: 4px;"></i>🔧 디버그: 본사 어드민 화면 바로 진입</a>
                         </div>
                     </div>
 
                     <!-- [2] 가입 역할 선택 뷰 (View Role Selection) -->
                     <div id="view-role-selection" class="app-view" style="display: none; text-align: center;">
-                        <h3 style="font-size: 1.35rem; font-weight: 800; color: var(--primary-teal); margin-top: 16px; margin-bottom: 10px; letter-spacing: -0.5px;">덤프링에 오신 것을 환영합니다! 🎉</h3>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.45; margin-bottom: 28px; font-weight: 500;">가입하시려는 회원 유형을 선택해 주세요.<br>유형에 맞는 맞춤형 서비스를 제공해 드립니다.</p>
+                        <h3
+                            style="font-size: 1.35rem; font-weight: 800; color: var(--primary-teal); margin-top: 16px; margin-bottom: 10px; letter-spacing: -0.5px;">
+                            덤프링에 오신 것을 환영합니다! 🎉</h3>
+                        <p
+                            style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.45; margin-bottom: 28px; font-weight: 500;">
+                            가입하시려는 회원 유형을 선택해 주세요.<br>유형에 맞는 맞춤형 서비스를 제공해 드립니다.</p>
 
                         <div class="role-selection-container">
                             <!-- 기사 카드 -->
                             <div class="role-card" onclick="startSignup('driver')">
-                                <div class="role-card-icon-box" style="background: rgba(255, 122, 0, 0.1); color: var(--primary-orange);">
+                                <div class="role-card-icon-box"
+                                    style="background: rgba(255, 122, 0, 0.1); color: var(--primary-orange);">
                                     <i class="fa-solid fa-truck-moving"></i>
                                 </div>
                                 <div class="role-card-details">
                                     <h4>덤프 트럭 기사</h4>
                                     <p>덤프 트럭 운전 기사님으로 회원가입합니다. 실시간 콜 배차 수락 및 미터기 운행 기능을 제공합니다.</p>
                                 </div>
-                                <i class="fa-solid fa-chevron-right" style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
+                                <i class="fa-solid fa-chevron-right"
+                                    style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
                             </div>
 
                             <!-- 차주 카드 -->
                             <div class="role-card" onclick="startSignup('owner')">
-                                <div class="role-card-icon-box" style="background: rgba(0, 77, 90, 0.1); color: var(--primary-teal);">
+                                <div class="role-card-icon-box"
+                                    style="background: rgba(0, 77, 90, 0.1); color: var(--primary-teal);">
                                     <i class="fa-solid fa-address-card"></i>
                                 </div>
                                 <div class="role-card-details">
                                     <h4>덤프 트럭 차주</h4>
                                     <p>덤프 트럭 소유자(사장님)로 가입합니다. 소속 기사 선등록 관리 및 차량 운행 관리가 가능합니다.</p>
                                 </div>
-                                <i class="fa-solid fa-chevron-right" style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
+                                <i class="fa-solid fa-chevron-right"
+                                    style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
                             </div>
 
                             <!-- 현장 카드 -->
                             <div class="role-card" onclick="startSignup('site')">
-                                <div class="role-card-icon-box" style="background: rgba(74, 85, 104, 0.1); color: #4A5568;">
+                                <div class="role-card-icon-box"
+                                    style="background: rgba(74, 85, 104, 0.1); color: #4A5568;">
                                     <i class="fa-solid fa-helmet-safety"></i>
                                 </div>
                                 <div class="role-card-details">
                                     <h4>공사 현장 (소장 / 담당자)</h4>
                                     <p>건설사 소장님 또는 현장 담당 직원으로 가입합니다. 오더 발행 및 현장 출입 덤프를 직접 통제합니다.</p>
                                 </div>
-                                <i class="fa-solid fa-chevron-right" style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
+                                <i class="fa-solid fa-chevron-right"
+                                    style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
                             </div>
 
                             <!-- 하차지 카드 -->
                             <div class="role-card" onclick="startSignup('drop-off')">
-                                <div class="role-card-icon-box" style="background: rgba(45, 55, 72, 0.1); color: #2D3748;">
+                                <div class="role-card-icon-box"
+                                    style="background: rgba(45, 55, 72, 0.1); color: #2D3748;">
                                     <i class="fa-solid fa-mountain"></i>
                                 </div>
                                 <div class="role-card-details">
                                     <h4>사토 하차지 (지주)</h4>
                                     <p>사토장 및 하차지 땅 주인으로 가입합니다. 현장별 덤프 오더의 토사 종류 승인 및 사토 반입을 관리합니다.</p>
                                 </div>
-                                <i class="fa-solid fa-chevron-right" style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
+                                <i class="fa-solid fa-chevron-right"
+                                    style="align-self: center; color: #A0AEC0; font-size: 0.8rem; padding-top: 14px;"></i>
                             </div>
                         </div>
                     </div>
 
                     <!-- [3] 회원가입 입력 뷰 (View Register Form) -->
                     <div id="view-register" class="app-view" style="display: none;">
-                        
+
                         <!-- 1. 내부 세그먼트 토글 스위치 (기사용/차주용 또는 관리자용/담당자용) -->
                         <div class="segment-container" id="reg-segment-container" style="margin-bottom: 20px;">
-                            <div class="segment-slider" id="reg-segment-slider" style="width: 50%; transition: transform 0.3s ease;"></div>
+                            <div class="segment-slider" id="reg-segment-slider"
+                                style="width: 50%; transition: transform 0.3s ease;"></div>
                             <div class="segment-tab active" id="reg-tab-left" onclick="toggleSubRole(true)">왼쪽 탭</div>
                             <div class="segment-tab" id="reg-tab-right" onclick="toggleSubRole(false)">오른쪽 탭</div>
                         </div>
@@ -1063,7 +1122,8 @@
                             <div class="form-group">
                                 <label>휴대폰 번호 (로그인 ID)</label>
                                 <div class="input-wrapper">
-                                    <input type="tel" id="input-phone" placeholder="- 없이 숫자만 입력해 주세요" maxlength="11" required>
+                                    <input type="tel" id="input-phone" placeholder="- 없이 숫자만 입력해 주세요" maxlength="11"
+                                        required>
                                     <i class="fa-solid fa-mobile-screen-button prefix-icon"></i>
                                 </div>
                             </div>
@@ -1074,7 +1134,9 @@
                                 <div class="input-wrapper">
                                     <input type="password" id="input-password" placeholder="4자리 이상 입력해 주세요" required>
                                     <i class="fa-solid fa-lock prefix-icon"></i>
-                                    <span class="suffix-btn" onclick="togglePasswordVisibility('input-password', 'reg-eye')"><i class="fa-regular fa-eye-slash" id="reg-eye"></i></span>
+                                    <span class="suffix-btn"
+                                        onclick="togglePasswordVisibility('input-password', 'reg-eye')"><i
+                                            class="fa-regular fa-eye-slash" id="reg-eye"></i></span>
                                 </div>
                             </div>
 
@@ -1088,8 +1150,12 @@
                             <div class="switch-tile" id="switch-tile" style="display: none;">
                                 <div class="switch-header">
                                     <div style="display: flex; flex-direction: column; gap: 2px;">
-                                        <span class="switch-title" style="font-size: 0.8rem; font-weight: 700; color: var(--text-dark);">차주 본인이 직접 덤프 운행 (기사 겸직)</span>
-                                        <span class="switch-subtitle" style="font-size: 0.68rem; color: var(--text-muted);">체크 시 기사(Driver) 권한도 동시에 획득합니다.</span>
+                                        <span class="switch-title"
+                                            style="font-size: 0.8rem; font-weight: 700; color: var(--text-dark);">차주 본인이
+                                            직접 덤프 운행 (기사 겸직)</span>
+                                        <span class="switch-subtitle"
+                                            style="font-size: 0.68rem; color: var(--text-muted);">체크 시 기사(Driver) 권한도
+                                            동시에 획득합니다.</span>
                                     </div>
                                     <label class="switch-control">
                                         <input type="checkbox" id="switch-direct">
@@ -1116,7 +1182,8 @@
                             <div class="form-group" id="form-group-business-number" style="display: none;">
                                 <label>사업자등록번호</label>
                                 <div class="input-wrapper">
-                                    <input type="text" id="input-business-number" placeholder="10자리 입력해 주세요" maxlength="10">
+                                    <input type="text" id="input-business-number" placeholder="10자리 입력해 주세요"
+                                        maxlength="10">
                                     <i class="fa-regular fa-file-lines prefix-icon"></i>
                                 </div>
                             </div>
@@ -1148,152 +1215,230 @@
                         <!-- 가입 완료 대형 버튼 -->
                         <button class="submit-btn" id="reg-submit-btn" onclick="handleRegister()">
                             <span id="reg-btn-text">가입 완료</span>
-                            <div class="spinner" id="reg-btn-spinner" style="display: none; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid white; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                            <div class="spinner" id="reg-btn-spinner"
+                                style="display: none; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid white; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto;">
+                            </div>
                         </button>
                     </div>
 
                     <!-- [3-A] 필수 서류 업로드 뷰 (View Upload Documents) -->
                     <div id="view-upload-documents" class="app-view" style="display: none;">
-                        <div class="form-card" style="padding: 20px; text-align: center; background: rgba(255, 255, 255, 0.95); border: 1px solid var(--border-color); border-radius: 16px;">
-                            <div style="font-size: 2.5rem; margin-bottom: 12px;">📁</div>
-                            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--primary-teal); margin-bottom: 6px;">필수 제출 서류 업로드</h3>
-                            <p style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; margin-bottom: 20px;">
-                                덤프링 플랫폼의 안전한 물류 거래 환경을 위해 아래 필수 제출 서류들을 등록해 주세요. 제출 후 본사 승인 시 즉시 오더 매칭 등의 권한이 주어집니다.
-                            </p>
-
-                            <!-- 서류 업로드 카드 리스트 컨테이너 -->
-                            <div id="required-docs-list-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
-                                <!-- 동적 서류 카드가 여기에 렌더링됩니다 -->
+                        <!-- 상단 안내 배너 -->
+                        <div id="upload-info-banner" style="background-color: #E2F0F2; border: 1px solid rgba(128, 179, 188, 0.5); border-radius: 16px; padding: 18px; display: flex; text-align: left; gap: 12px; margin-bottom: 24px;">
+                            <i class="fa-solid fa-circle-info" style="color: #004D5A; font-size: 1.20rem; margin-top: 2px;"></i>
+                            <div style="flex: 1;">
+                                <h4 id="upload-banner-title" style="font-weight: bold; font-size: 0.85rem; color: #004D5A; margin-bottom: 6px;">신속한 가입 승인을 위한 안내</h4>
+                                <p id="upload-banner-desc" style="font-size: 0.72rem; color: #002D35; line-height: 1.4; margin: 0;"></p>
                             </div>
-
-                            <button class="submit-btn" id="btn-submit-all-docs" onclick="submitAllDocuments()" style="background: var(--primary-teal); font-weight: 700;">
-                                서류 최종 제출 및 심사 요청
-                            </button>
                         </div>
+
+                        <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-dark); margin-bottom: 12px; text-align: left;">
+                            📋 제출 필수 증빙 서류 목록
+                        </div>
+
+                        <!-- 서류 업로드 카드 리스트 컨테이너 -->
+                        <div id="required-docs-list-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px;">
+                            <!-- 동적 서류 카드가 여기에 렌더링됩니다 -->
+                        </div>
+
+                        <button class="submit-btn" id="btn-submit-all-docs" onclick="submitAllDocuments()" style="background: var(--primary-teal); font-weight: 700; padding: 18px; font-size: 0.95rem;">
+                            기사 서류 심사 요청
+                        </button>
                     </div>
 
                     <!-- [3-B] 가입 승인 대기 뷰 (View Pending) -->
                     <div id="view-pending" class="app-view" style="display: none; text-align: center;">
-                        <div class="form-card" style="padding: 30px 20px; background: rgba(255, 255, 255, 0.95); border: 1px solid var(--border-color); border-radius: 16px; min-height: 380px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px;">
-                            <div class="pulse-ring" style="width: 80px; height: 80px; border-radius: 50%; background: rgba(0, 77, 90, 0.08); display: flex; justify-content: center; align-items: center; animation: pulse 2s infinite;">
+                        <div class="form-card"
+                            style="padding: 30px 20px; background: rgba(255, 255, 255, 0.95); border: 1px solid var(--border-color); border-radius: 16px; min-height: 380px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px;">
+                            <div class="pulse-ring"
+                                style="width: 80px; height: 80px; border-radius: 50%; background: rgba(0, 77, 90, 0.08); display: flex; justify-content: center; align-items: center; animation: pulse 2s infinite;">
                                 <div style="font-size: 2rem;">⏳</div>
                             </div>
-                            
-                            <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--primary-teal); margin: 8px 0 2px 0;">가입 심사 대기 중</h3>
-                            <p id="pending-status-text" style="font-size: 0.85rem; font-weight: 700; color: var(--primary-teal);">
+
+                            <h3
+                                style="font-size: 1.25rem; font-weight: 800; color: var(--primary-teal); margin: 8px 0 2px 0;">
+                                가입 심사 대기 중</h3>
+                            <p id="pending-status-text"
+                                style="font-size: 0.85rem; font-weight: 700; color: var(--primary-teal);">
                                 필수 서류 제출 완료 & 가입 심사 대기 중...
                             </p>
-                            <p style="font-size: 0.76rem; color: var(--text-muted); line-height: 1.5; max-width: 260px; margin-bottom: 8px;">
+                            <p
+                                style="font-size: 0.76rem; color: var(--text-muted); line-height: 1.5; max-width: 260px; margin-bottom: 8px;">
                                 플랫폼 관리자가 제출하신 필수 서류를 검토 중입니다. 3초마다 원격 상태를 확인하며 승인 완료 시 자동으로 화면이 전환됩니다.
                             </p>
 
                             <!-- 반려 안내 및 재업로드 유도 박스 -->
-                            <div id="pending-reject-box" style="display: none; width: 100%; padding: 14px; background: rgba(229, 62, 98, 0.06); border: 1px dashed rgba(229, 62, 98, 0.4); border-radius: 10px; margin-top: 6px; text-align: left;">
-                                <h5 style="font-size: 0.78rem; font-weight: 800; color: #e53e3e; margin: 0 0 4px 0;">⚠️ 제출 서류 반려 안내</h5>
-                                <p id="pending-reject-reason" style="font-size: 0.72rem; color: #e53e3e; line-height: 1.4; margin: 0 0 10px 0;">반려 사유 자리</p>
-                                <button onclick="handleRejectReUpload()" style="width: 100%; padding: 8px; font-size: 0.75rem; font-weight: 700; border: none; border-radius: 6px; background: #e53e3e; color: white; cursor: pointer; transition: all 0.2s;">
+                            <div id="pending-reject-box"
+                                style="display: none; width: 100%; padding: 14px; background: rgba(229, 62, 98, 0.06); border: 1px dashed rgba(229, 62, 98, 0.4); border-radius: 10px; margin-top: 6px; text-align: left;">
+                                <h5 style="font-size: 0.78rem; font-weight: 800; color: #e53e3e; margin: 0 0 4px 0;">⚠️
+                                    제출 서류 반려 안내</h5>
+                                <p id="pending-reject-reason"
+                                    style="font-size: 0.72rem; color: #e53e3e; line-height: 1.4; margin: 0 0 10px 0;">반려
+                                    사유 자리</p>
+                                <button onclick="handleRejectReUpload()"
+                                    style="width: 100%; padding: 8px; font-size: 0.75rem; font-weight: 700; border: none; border-radius: 6px; background: #e53e3e; color: white; cursor: pointer; transition: all 0.2s;">
                                     서류 재수정 및 다시 제출하기
                                 </button>
                             </div>
 
-                            <button class="submit-btn" onclick="handleLogout()" style="background: var(--bg-gray); color: var(--text-dark); border: 1px solid var(--border-color); box-shadow: none; font-size: 0.78rem; padding: 10px; width: 120px; margin-top: 10px;">
+                            <button class="submit-btn" onclick="handleLogout()"
+                                style="background: var(--bg-gray); color: var(--text-dark); border: 1px solid var(--border-color); box-shadow: none; font-size: 0.78rem; padding: 10px; width: 120px; margin-top: 10px;">
                                 로그아웃
                             </button>
                         </div>
                     </div>
 
                     <!-- [4] 마이페이지/대시보드 뷰 (View Dashboard) -->
-                    <div id="view-dashboard" class="app-view" style="display: none; height: 100%; flex-direction: column;">
+                    <div id="view-dashboard" class="app-view"
+                        style="display: none; height: 100%; flex-direction: column;">
                         <!-- 스크롤 가능한 대시보드 콘텐츠 영역 -->
-                        <div class="dashboard-scroll-content" id="dashboard-scroll-content" style="flex: 1; overflow-y: auto; padding: 0px 0px 10px; display: flex; flex-direction: column; gap: 16px;">
-                            
+                        <div class="dashboard-scroll-content" id="dashboard-scroll-content"
+                            style="flex: 1; overflow-y: auto; padding: 0px 0px 10px; display: flex; flex-direction: column; gap: 16px;">
+
                             <!-- [4-1] 홈 탭 화면 -->
-                            <div id="tab-content-home" class="dashboard-tab-content" style="display: flex; flex-direction: column; gap: 16px;">
+                            <div id="tab-content-home" class="dashboard-tab-content"
+                                style="display: flex; flex-direction: column; gap: 16px;">
                                 <!-- 사용자 정보 카드 -->
-                                <div class="form-card" style="margin-bottom: 0px; background: linear-gradient(135deg, var(--primary-teal), #002d35); color: white; border: none; box-shadow: 0 8px 16px rgba(0,77,90,0.25);">
+                                <div class="form-card"
+                                    style="margin-bottom: 0px; background: linear-gradient(135deg, var(--primary-teal), #002d35); color: white; border: none; box-shadow: 0 8px 16px rgba(0,77,90,0.25);">
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
                                         <div>
-                                            <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 2px;" id="dash-user-name">홍길동 님</h4>
-                                            <p style="font-size: 0.78rem; opacity: 0.85;" id="dash-user-phone">010-1234-5678</p>
+                                            <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 2px;"
+                                                id="dash-user-name">홍길동 님</h4>
+                                            <p style="font-size: 0.78rem; opacity: 0.85;" id="dash-user-phone">
+                                                010-1234-5678</p>
                                         </div>
-                                        <span style="background: rgba(255,122,0,0.2); color: #ff9d42; border: 1px solid rgba(255,122,0,0.3); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;" id="dash-user-role">현장관리자</span>
+                                        <span
+                                            style="background: rgba(255,122,0,0.2); color: #ff9d42; border: 1px solid rgba(255,122,0,0.3); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;"
+                                            id="dash-user-role">현장관리자</span>
                                     </div>
                                 </div>
 
                                 <!-- 홈 요약 / 바로가기 안내 -->
-                                <div class="form-card" style="padding: 20px; text-align: center; gap: 12px; margin-bottom: 0px;">
-                                    <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--text-dark);">덤프링 모바일 대시보드</h4>
-                                    <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">하단의 기능별 메뉴 탭을 터치하여<br>원하는 기능을 신속하게 관리할 수 있습니다.</p>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;" onclick="switchDashboardTab('sites')">
-                                            <i class="fa-solid fa-helmet-safety" style="font-size: 1.5rem; color: var(--primary-orange); margin-bottom: 6px;"></i>
-                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">상차지 관리</div>
+                                <div class="form-card"
+                                    style="padding: 20px; text-align: center; gap: 12px; margin-bottom: 0px;">
+                                    <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--text-dark);">덤프링 모바일
+                                        대시보드</h4>
+                                    <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">하단의 기능별
+                                        메뉴 탭을 터치하여<br>원하는 기능을 신속하게 관리할 수 있습니다.</p>
+                                    <div
+                                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
+                                            onclick="switchDashboardTab('sites')">
+                                            <i class="fa-solid fa-helmet-safety"
+                                                style="font-size: 1.5rem; color: var(--primary-orange); margin-bottom: 6px;"></i>
+                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
+                                                상차지 관리</div>
                                         </div>
-                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;" onclick="switchDashboardTab('dropoffs')">
-                                            <i class="fa-solid fa-mountain" style="font-size: 1.5rem; color: var(--primary-teal); margin-bottom: 6px;"></i>
-                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">하차지 관리</div>
+                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
+                                            onclick="switchDashboardTab('dropoffs')">
+                                            <i class="fa-solid fa-mountain"
+                                                style="font-size: 1.5rem; color: var(--primary-teal); margin-bottom: 6px;"></i>
+                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
+                                                하차지 관리</div>
                                         </div>
-                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;" onclick="switchDashboardTab('fleet')">
-                                            <i class="fa-solid fa-users" style="font-size: 1.5rem; color: #4A5568; margin-bottom: 6px;"></i>
-                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">기사/차량 관리</div>
+                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
+                                            onclick="switchDashboardTab('fleet')">
+                                            <i class="fa-solid fa-users"
+                                                style="font-size: 1.5rem; color: #4A5568; margin-bottom: 6px;"></i>
+                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
+                                                기사/차량 관리</div>
                                         </div>
-                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;" onclick="handleLogout()">
-                                            <i class="fa-solid fa-right-from-bracket" style="font-size: 1.5rem; color: #e53e3e; margin-bottom: 6px;"></i>
-                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">로그아웃</div>
+                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
+                                            onclick="handleLogout()">
+                                            <i class="fa-solid fa-right-from-bracket"
+                                                style="font-size: 1.5rem; color: #e53e3e; margin-bottom: 6px;"></i>
+                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
+                                                로그아웃</div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- [4-2] 상차지 탭 화면 -->
-                            <div id="tab-content-sites" class="dashboard-tab-content" style="display: none; flex-direction: column; gap: 16px;">
+                            <div id="tab-content-sites" class="dashboard-tab-content"
+                                style="display: none; flex-direction: column; gap: 16px;">
                                 <!-- 권한 경고 플레이스홀더 -->
-                                <div id="sites-permission-denied" class="form-card" style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
-                                    <i class="fa-solid fa-lock" style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
-                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">공사현장 권한 없음</h4>
-                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">현장관리자(SITE_MANAGER) 또는 현장담당자 권한을 가진 계정만 접근 가능합니다.</p>
+                                <div id="sites-permission-denied" class="form-card"
+                                    style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
+                                    <i class="fa-solid fa-lock"
+                                        style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
+                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">공사현장 권한 없음
+                                    </h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+                                        현장관리자(SITE_MANAGER) 또는 현장담당자 권한을 가진 계정만 접근 가능합니다.</p>
                                 </div>
-                                <div id="sites-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
+                                <div id="sites-allowed-section"
+                                    style="display: flex; flex-direction: column; gap: 16px;">
                                     <!-- 1. 현장관리자 전용 대시보드 구역 -->
-                                    <div id="dash-manager-section" style="display: none; flex-direction: column; gap: 16px;">
+                                    <div id="dash-manager-section"
+                                        style="display: none; flex-direction: column; gap: 16px;">
                                         <!-- 현장 개설하기 카드 -->
                                         <div class="form-card" style="gap: 12px; padding: 20px;">
-                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-plus" style="margin-right: 6px;"></i>새 공사 현장 개설</h4>
+                                            <h4
+                                                style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;">
+                                                <i class="fa-solid fa-plus" style="margin-right: 6px;"></i>새 공사 현장 개설
+                                            </h4>
                                             <div class="form-group">
-                                                <input type="text" id="dash-new-company" placeholder="건설사명 (예: 현대건설)" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="text" id="dash-new-company" placeholder="건설사명 (예: 현대건설)"
+                                                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
                                             <div class="form-group">
-                                                <input type="text" id="dash-new-biznum" placeholder="사업자등록번호 10자리" maxlength="10" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="text" id="dash-new-biznum" placeholder="사업자등록번호 10자리"
+                                                    maxlength="10"
+                                                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
                                             <div class="form-group" style="display: flex; gap: 8px; margin: 0;">
-                                                <input type="number" step="any" id="dash-new-lat" placeholder="위도 (예: 37.5665)" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
-                                                <input type="number" step="any" id="dash-new-lng" placeholder="경도 (예: 126.9780)" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="number" step="any" id="dash-new-lat"
+                                                    placeholder="위도 (예: 37.5665)"
+                                                    style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="number" step="any" id="dash-new-lng"
+                                                    placeholder="경도 (예: 126.9780)"
+                                                    style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
                                             <div class="form-group" style="margin: 0;">
-                                                <input type="number" id="dash-new-radius" placeholder="지오펜싱 반경 (기본 200m)" value="200" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="number" id="dash-new-radius"
+                                                    placeholder="지오펜싱 반경 (기본 200m)" value="200"
+                                                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
-                                            <button class="submit-btn" onclick="handleCreateSite()" style="padding: 12px; font-size: 0.9rem; border-radius: 8px;">현장 개설 및 참여</button>
+                                            <button class="submit-btn" onclick="handleCreateSite()"
+                                                style="padding: 12px; font-size: 0.9rem; border-radius: 8px;">현장 개설 및
+                                                참여</button>
                                         </div>
 
                                         <!-- 승인 대기 담당자 목록 카드 -->
                                         <div class="form-card" style="padding: 20px;">
-                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 6px;"><i class="fa-solid fa-user-check" style="margin-right: 6px;"></i>대기 중인 담당자 승인</h4>
-                                            <div id="dash-pending-workers-container" style="display: flex; flex-direction: column; gap: 10px;">
-                                                <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">대기 중인 승인 요청이 없습니다.</p>
+                                            <h4
+                                                style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 6px;">
+                                                <i class="fa-solid fa-user-check" style="margin-right: 6px;"></i>대기 중인
+                                                담당자 승인</h4>
+                                            <div id="dash-pending-workers-container"
+                                                style="display: flex; flex-direction: column; gap: 10px;">
+                                                <p
+                                                    style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">
+                                                    대기 중인 승인 요청이 없습니다.</p>
                                             </div>
                                         </div>
                                     </div>
 
                                     <!-- 2. 현장담당자 전용 대시보드 구역 -->
-                                    <div id="dash-worker-section" style="display: none; flex-direction: column; gap: 16px;">
+                                    <div id="dash-worker-section"
+                                        style="display: none; flex-direction: column; gap: 16px;">
                                         <!-- 현장 검색 및 매핑 추가 신청 -->
                                         <div class="form-card" style="gap: 12px; padding: 20px;">
-                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-magnifying-glass" style="margin-right: 6px;"></i>새 현장 검색 및 추가 매핑 신청</h4>
+                                            <h4
+                                                style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;">
+                                                <i class="fa-solid fa-magnifying-glass" style="margin-right: 6px;"></i>새
+                                                현장 검색 및 추가 매핑 신청</h4>
                                             <div style="display: flex; gap: 8px;">
-                                                <input type="text" id="dash-search-site-query" placeholder="상호명 또는 사업자번호" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
-                                                <button class="submit-btn" onclick="handleSearchSites()" style="width: 70px; padding: 12px; font-size: 0.88rem; border-radius: 8px; box-shadow: none;">검색</button>
+                                                <input type="text" id="dash-search-site-query"
+                                                    placeholder="상호명 또는 사업자번호"
+                                                    style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <button class="submit-btn" onclick="handleSearchSites()"
+                                                    style="width: 70px; padding: 12px; font-size: 0.88rem; border-radius: 8px; box-shadow: none;">검색</button>
                                             </div>
-                                            <div id="dash-search-results-container" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                                            <div id="dash-search-results-container"
+                                                style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
                                                 <!-- 검색 결과 목록 -->
                                             </div>
                                         </div>
@@ -1301,70 +1446,114 @@
 
                                     <!-- 공동구역: 소속 현장 리스트 (담당자/관리자 공통) -->
                                     <div id="dash-sites-section" style="display: none;" class="form-card">
-                                        <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-building-user" style="margin-right: 6px;"></i>내 소속 현장 목록</h4>
-                                        <div id="dash-my-sites-container" style="display: flex; flex-direction: column; gap: 8px;">
+                                        <h4
+                                            style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;">
+                                            <i class="fa-solid fa-building-user" style="margin-right: 6px;"></i>내 소속 현장
+                                            목록</h4>
+                                        <div id="dash-my-sites-container"
+                                            style="display: flex; flex-direction: column; gap: 8px;">
                                             <!-- 소속 현장 목록 -->
                                         </div>
                                     </div>
 
                                     <!-- B2B 매칭 구역: 하차지 매립 공고 탐색 & 오더 발행 (현장 관리자/담당자용) -->
                                     <div id="dash-b2b-section" style="display: none;" class="form-card">
-                                        <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-truck-ramp-box" style="margin-right: 6px;"></i>B2B 매립 공고 탐색 & 모집 오더 발행</h4>
-                                        <div id="dash-b2b-requests-container" style="display: flex; flex-direction: column; gap: 8px;">
+                                        <h4
+                                            style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;">
+                                            <i class="fa-solid fa-truck-ramp-box" style="margin-right: 6px;"></i>B2B 매립
+                                            공고 탐색 & 모집 오더 발행</h4>
+                                        <div id="dash-b2b-requests-container"
+                                            style="display: flex; flex-direction: column; gap: 8px;">
                                             <!-- 매립 공고 리스트 -->
-                                            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">활성화된 매립 수용 공고가 없습니다.</p>
+                                            <p
+                                                style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">
+                                                활성화된 매립 수용 공고가 없습니다.</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- [4-3] 하차지 탭 화면 -->
-                            <div id="tab-content-dropoffs" class="dashboard-tab-content" style="display: none; flex-direction: column; gap: 16px;">
+                            <div id="tab-content-dropoffs" class="dashboard-tab-content"
+                                style="display: none; flex-direction: column; gap: 16px;">
                                 <!-- 권한 경고 플레이스홀더 -->
-                                <div id="dropoffs-permission-denied" class="form-card" style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
-                                    <i class="fa-solid fa-lock" style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
-                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">하차지 지주 권한 없음</h4>
-                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">하차지 지주(DROP_OFF) 권한을 가진 계정만 접근 가능합니다.</p>
+                                <div id="dropoffs-permission-denied" class="form-card"
+                                    style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
+                                    <i class="fa-solid fa-lock"
+                                        style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
+                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">하차지 지주 권한 없음
+                                    </h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">하차지
+                                        지주(DROP_OFF) 권한을 가진 계정만 접근 가능합니다.</p>
                                 </div>
-                                <div id="dropoffs-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
+                                <div id="dropoffs-allowed-section"
+                                    style="display: flex; flex-direction: column; gap: 16px;">
                                     <!-- 4. 하차지 지주 전용 대시보드 구역 -->
-                                    <div id="dash-dropoff-section" style="display: none; flex-direction: column; gap: 16px;">
+                                    <div id="dash-dropoff-section"
+                                        style="display: none; flex-direction: column; gap: 16px;">
                                         <!-- 하차지/사토장 정보 등록 카드 -->
                                         <div class="form-card" style="gap: 12px; padding: 20px;">
-                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;"><i class="fa-solid fa-mountain" style="margin-right: 6px;"></i>새 하차지/사토장 마스터 정보 등록</h4>
+                                            <h4
+                                                style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 4px;">
+                                                <i class="fa-solid fa-mountain" style="margin-right: 6px;"></i>새 하차지/사토장
+                                                마스터 정보 등록</h4>
                                             <div class="form-group">
-                                                <input type="text" id="dash-new-unloading-name" placeholder="하차지명 (예: 신촌 사토장)" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="text" id="dash-new-unloading-name"
+                                                    placeholder="하차지명 (예: 신촌 사토장)"
+                                                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
                                             <div class="form-group">
-                                                <input type="text" id="dash-new-unloading-address" placeholder="하차지 상세 주소" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="text" id="dash-new-unloading-address"
+                                                    placeholder="하차지 상세 주소"
+                                                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
                                             <div class="form-group" style="display: flex; gap: 8px; margin: 0;">
-                                                <input type="number" step="any" id="dash-new-unloading-lat" placeholder="위도 (예: 37.5)" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
-                                                <input type="number" step="any" id="dash-new-unloading-lng" placeholder="경도 (예: 126.9)" style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="number" step="any" id="dash-new-unloading-lat"
+                                                    placeholder="위도 (예: 37.5)"
+                                                    style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="number" step="any" id="dash-new-unloading-lng"
+                                                    placeholder="경도 (예: 126.9)"
+                                                    style="flex: 1; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
                                             <div class="form-group" style="margin: 0;">
-                                                <input type="number" id="dash-new-unloading-radius" placeholder="도착 감지 반경 (기본 200m)" value="200" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="number" id="dash-new-unloading-radius"
+                                                    placeholder="도착 감지 반경 (기본 200m)" value="200"
+                                                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
                                             <div class="form-group">
-                                                <input type="text" id="dash-new-unloading-permit" placeholder="인허가번호 (예: PERMIT-1234)" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
+                                                <input type="text" id="dash-new-unloading-permit"
+                                                    placeholder="인허가번호 (예: PERMIT-1234)"
+                                                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; background: var(--input-bg);">
                                             </div>
-                                            <button class="submit-btn" onclick="handleCreateUnloadingSite()" style="padding: 12px; font-size: 0.9rem; border-radius: 8px;">하차지 정보 등록</button>
+                                            <button class="submit-btn" onclick="handleCreateUnloadingSite()"
+                                                style="padding: 12px; font-size: 0.9rem; border-radius: 8px;">하차지 정보
+                                                등록</button>
                                         </div>
 
                                         <!-- 내 하차지 목록 카드 -->
                                         <div class="form-card" style="padding: 20px;">
-                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-list-ul" style="margin-right: 6px;"></i>내 하차지/사토장 목록</h4>
-                                            <div id="dash-unloading-sites-container" style="display: flex; flex-direction: column; gap: 8px;">
+                                            <h4
+                                                style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;">
+                                                <i class="fa-solid fa-list-ul" style="margin-right: 6px;"></i>내 하차지/사토장
+                                                목록</h4>
+                                            <div id="dash-unloading-sites-container"
+                                                style="display: flex; flex-direction: column; gap: 8px;">
                                                 <!-- 하차지 목록 -->
                                             </div>
                                         </div>
 
                                         <!-- 대기 상태인 B2B 현장 오더 승인 목록 카드 -->
                                         <div class="form-card" style="padding: 20px;">
-                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-file-signature" style="margin-right: 6px;"></i>대기 중인 B2B 매칭 오더 승인</h4>
-                                            <div id="dash-pending-jobs-container" style="display: flex; flex-direction: column; gap: 8px;">
+                                            <h4
+                                                style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;">
+                                                <i class="fa-solid fa-file-signature" style="margin-right: 6px;"></i>대기
+                                                중인 B2B 매칭 오더 승인</h4>
+                                            <div id="dash-pending-jobs-container"
+                                                style="display: flex; flex-direction: column; gap: 8px;">
                                                 <!-- 대기 오더 목록 -->
-                                                <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">대기 중인 오더 승인 요청이 없습니다.</p>
+                                                <p
+                                                    style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">
+                                                    대기 중인 오더 승인 요청이 없습니다.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -1372,20 +1561,31 @@
                             </div>
 
                             <!-- [4-4] 기사/차량 탭 화면 -->
-                            <div id="tab-content-fleet" class="dashboard-tab-content" style="display: none; flex-direction: column; gap: 16px;">
+                            <div id="tab-content-fleet" class="dashboard-tab-content"
+                                style="display: none; flex-direction: column; gap: 16px;">
                                 <!-- 권한 경고 플레이스홀더 -->
-                                <div id="fleet-permission-denied" class="form-card" style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
-                                    <i class="fa-solid fa-lock" style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
-                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">덤프 차주 권한 없음</h4>
-                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">덤프 트럭 차주(OWNER) 권한을 가진 계정만 접근 가능합니다.</p>
+                                <div id="fleet-permission-denied" class="form-card"
+                                    style="display: none; text-align: center; padding: 40px 20px; gap: 12px;">
+                                    <i class="fa-solid fa-lock"
+                                        style="font-size: 2.5rem; color: #cbd5e0; margin-bottom: 6px;"></i>
+                                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-dark);">덤프 차주 권한 없음
+                                    </h4>
+                                    <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">덤프 트럭
+                                        차주(OWNER) 권한을 가진 계정만 접근 가능합니다.</p>
                                 </div>
-                                <div id="fleet-allowed-section" style="display: flex; flex-direction: column; gap: 16px;">
+                                <div id="fleet-allowed-section"
+                                    style="display: flex; flex-direction: column; gap: 16px;">
                                     <!-- 3. 차주 전용 대시보드 구역 -->
-                                    <div id="dash-owner-section" style="display: none; flex-direction: column; gap: 16px;">
+                                    <div id="dash-owner-section"
+                                        style="display: none; flex-direction: column; gap: 16px;">
                                         <!-- 차주 소속 기사 관리 목록 -->
                                         <div class="form-card" style="padding: 20px;">
-                                            <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;"><i class="fa-solid fa-users" style="margin-right: 6px;"></i>소속 운전기사 관리</h4>
-                                            <div id="dash-drivers-container" style="display: flex; flex-direction: column; gap: 10px;">
+                                            <h4
+                                                style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 8px;">
+                                                <i class="fa-solid fa-users" style="margin-right: 6px;"></i>소속 운전기사 관리
+                                            </h4>
+                                            <div id="dash-drivers-container"
+                                                style="display: flex; flex-direction: column; gap: 10px;">
                                                 <!-- 기사 목록 -->
                                             </div>
                                         </div>
@@ -1416,28 +1616,28 @@
                         </div>
                     </div>
                 </div>
-                </div>
+            </div>
 
-                <!-- 모달 알림창 -->
-                <div class="modal-overlay" id="modal-overlay">
-                    <div class="modal-dialog">
-                        <div class="modal-title" id="modal-title">
-                            <i class="fa-solid fa-circle-check success-icon"></i>
-                            <span>가입 완료</span>
-                        </div>
-                        <div class="modal-body" id="modal-body">
-                            성공적으로 가입되었습니다.
-                        </div>
-                        <div class="modal-actions">
-                            <button class="modal-btn" id="modal-btn" onclick="closeModal()">확인</button>
-                        </div>
+            <!-- 모달 알림창 -->
+            <div class="modal-overlay" id="modal-overlay">
+                <div class="modal-dialog">
+                    <div class="modal-title" id="modal-title">
+                        <i class="fa-solid fa-circle-check success-icon"></i>
+                        <span>가입 완료</span>
+                    </div>
+                    <div class="modal-body" id="modal-body">
+                        성공적으로 가입되었습니다.
+                    </div>
+                    <div class="modal-actions">
+                        <button class="modal-btn" id="modal-btn" onclick="closeModal()">확인</button>
                     </div>
                 </div>
-
-                <!-- 폰 홈 바 -->
-                <div class="home-indicator"></div>
             </div>
+
+            <!-- 폰 홈 바 -->
+            <div class="home-indicator"></div>
         </div>
+    </div>
     </div>
 
     <!-- 비동기 스크립트 작성 및 로직 처리 -->
@@ -1474,7 +1674,7 @@
         // [네비게이션 라우팅 구현]
         function navigateTo(viewId) {
             if (isLoading) return;
-            
+
             // 모든 뷰 숨김
             document.getElementById('view-login').style.display = 'none';
             document.getElementById('view-role-selection').style.display = 'none';
@@ -1490,7 +1690,7 @@
             } else {
                 targetEl.style.display = 'block';
             }
-            
+
             currentView = viewId;
             viewHistory.push(viewId);
 
@@ -1541,7 +1741,7 @@
         // 회원가입 역할 선택 시작
         function startSignup(roleGroup) {
             hideError();
-            
+
             const segmentContainer = document.getElementById('reg-segment-container');
             const tabLeft = document.getElementById('reg-tab-left');
             const tabRight = document.getElementById('reg-tab-right');
@@ -1682,7 +1882,7 @@
             const btnEl = document.getElementById('modal-btn');
 
             bodyEl.innerText = message;
-            
+
             if (isSuccess) {
                 titleEl.innerHTML = `<i class="fa-solid fa-circle-check success-icon"></i> <span>${title}</span>`;
                 btnEl.className = 'modal-btn';
@@ -1696,7 +1896,7 @@
 
         function closeModal() {
             document.getElementById('modal-overlay').style.display = 'none';
-            if (document.getElementById('modal-title').innerText.includes('성공') || 
+            if (document.getElementById('modal-title').innerText.includes('성공') ||
                 document.getElementById('modal-title').innerText.includes('완료')) {
                 resetForm();
                 if (loggedInUser) {
@@ -1765,10 +1965,10 @@
                 if (response.status === 200) {
                     const user = data.user;
                     const token = data.access_token;
-                    
+
                     loggedInUser = user;
                     accessToken = token;
-                    
+
                     let roles = [];
                     if (user.is_driver) roles.push("기사");
                     if (user.is_owner) roles.push("차주");
@@ -1779,7 +1979,7 @@
                     const roleString = roles.join(", ");
 
                     const msg = `반가워요, ${user.name}님!\n인증 완료 및 Access Token이 발급되었습니다.\n\n[계정 권한]\n- 역할: ${roleString}\n\n[발급된 JWT 토큰]\n${token}`;
-                    
+
                     triggerConfetti();
                     showModal("🎉 로그인 성공", msg, true);
                     checkMemberStatusAndRedirect();
@@ -1982,7 +2182,7 @@
             resizeCanvas();
             canvas.style.display = 'block';
             particles = [];
-            
+
             // 중앙 하단부에서 양쪽으로 터지게 세팅
             const startX = canvas.width / 2;
             const startY = canvas.height - 40;
@@ -1999,7 +2199,7 @@
 
         function animateParticles() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
             let alive = false;
             particles.forEach((p, index) => {
                 if (p.opacity > 0) {
@@ -2071,26 +2271,26 @@
             // 모든 탭 콘텐츠 숨김
             const contents = document.querySelectorAll('.dashboard-tab-content');
             contents.forEach(c => c.style.display = 'none');
-            
+
             // 모든 탭 버튼 비활성화
             const navItems = document.querySelectorAll('.bottom-nav-item');
             navItems.forEach(n => n.classList.remove('active'));
-            
+
             // 선택된 탭 콘텐츠 표시
             const targetContent = document.getElementById(`tab-content-${tabId}`);
             if (targetContent) {
                 targetContent.style.display = 'flex';
             }
-            
+
             // 선택된 탭 버튼 활성화
             const targetNav = document.getElementById(`btn-nav-${tabId}`);
             if (targetNav) {
                 targetNav.classList.add('active');
             }
-            
+
             // 탭별 권한 제어 시각화
             if (!loggedInUser) return;
-            
+
             if (tabId === 'sites') {
                 if (loggedInUser.is_site_manager || loggedInUser.is_site_worker) {
                     document.getElementById('sites-permission-denied').style.display = 'none';
@@ -2482,7 +2682,7 @@
                         </div>
                     `;
                 }
-                
+
                 // 대기 중인 B2B 매칭 오더도 함께 패치
                 fetchPendingJobs();
             } catch (err) {
@@ -2845,12 +3045,12 @@
                 is_drop_off: false
             };
             accessToken = "MOCK_DEVELOPER_ADMIN_TOKEN";
-            
+
             // 어드민 대시보드 텍스트 렌더링
             document.getElementById('dash-user-name').innerText = `${loggedInUser.name} 님`;
             document.getElementById('dash-user-phone').innerText = loggedInUser.phone_number;
             document.getElementById('dash-user-role').innerText = "본사 관리자 (Admin)";
-            
+
             // 모든 일반 탭 숨김 및 어드민 전용 뷰 렌더링
             document.getElementById('dash-manager-section').style.display = 'none';
             document.getElementById('dash-worker-section').style.display = 'none';
@@ -2858,13 +3058,13 @@
             document.getElementById('dash-dropoff-section').style.display = 'none';
             document.getElementById('dash-sites-section').style.display = 'none';
             document.getElementById('dash-b2b-section').style.display = 'none';
-            
+
             // 하단 일반 사용자용 탭바 네비게이션 숨김 (UI 꼬임 방지 🚨)
             const bottomNav = document.querySelector('.bottom-nav');
             if (bottomNav) {
                 bottomNav.style.display = 'none';
             }
-            
+
             // 만약 어드민 전용 UI가 HTML에 없다면, 어드민 전용 섹션(가입 심사, 배차 관제, 분쟁 중재)을 대시보드에 즉석 생성 및 삽입!
             let adminContainer = document.getElementById('dash-admin-container');
             if (!adminContainer) {
@@ -2877,7 +3077,7 @@
                 adminContainer.style.gap = '16px';
                 scrollContent.appendChild(adminContainer);
             }
-            
+
             adminContainer.innerHTML = `
                 <!-- 1. 신규 가입 서류 심사 -->
                 <div class="form-card" style="padding: 20px; border: 1px solid var(--border-color); border-radius: 12px; background: #ffffff;">
@@ -2944,15 +3144,15 @@
             loadAdminPendingMembers();
         }
 
-        window.adminApprove = function(name, isApprove) {
+        window.adminApprove = function (name, isApprove) {
             showModal("📢 심사 완료", `[심사 완료] ${name}님의 가입 신청이 정상적으로 승인 완료되었습니다.`, true);
         };
 
-        window.adminIntervene = function(carNum) {
+        window.adminIntervene = function (carNum) {
             showModal("🔴 강제 개입 조치", `플랫폼 강제 명령으로 해당 ${carNum} 차량의 배차가 즉시 취소 및 회차 조치되었습니다.`, false);
         };
 
-        window.adminResolveDispute = function(name) {
+        window.adminResolveDispute = function (name) {
             showModal("⚖️ 직권 중재 완료", `[직권 중재 완료] GPS 이동 궤적 분석 완료.\n기사 ${name}님에게 운송 정산금 70% 지급 조정 명령(SETTLE_ADJUSTED)이 원장에 적용되었습니다.`, true);
         };
 
@@ -2960,13 +3160,13 @@
             loggedInUser = null;
             accessToken = null;
             resetForm();
-            
+
             // 하단 일반 탭 네비게이션 원래대로 복구 🚨
             const bottomNav = document.querySelector('.bottom-nav');
             if (bottomNav) {
                 bottomNav.style.display = 'flex';
             }
-            
+
             // 만약 어드민 빠른 진입용 컨테이너가 있다면 제거
             const adminContainer = document.getElementById('dash-admin-container');
             if (adminContainer) {
@@ -2985,18 +3185,18 @@
 
         async function checkMemberStatusAndRedirect() {
             if (!loggedInUser) return;
-            
+
             if (loggedInUser.is_admin) {
                 bypassAdminLogin();
                 return;
             }
-            
+
             if (loggedInUser.is_drop_off || loggedInUser.is_site_manager || loggedInUser.is_site_worker) {
                 loadDashboard();
                 navigateTo('dashboard');
                 return;
             }
-            
+
             try {
                 const response = await fetch(getApiUrl('/api/auth/member-status'), {
                     headers: {
@@ -3004,12 +3204,12 @@
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 if (response.status === 200) {
                     const data = await response.json();
                     const isApproved = data.is_approved;
                     const missing = data.missing_documents || [];
-                    
+
                     if (isApproved) {
                         if (pollingInterval) {
                             clearInterval(pollingInterval);
@@ -3049,7 +3249,7 @@
                     pollingInterval = null;
                     return;
                 }
-                
+
                 try {
                     const response = await fetch(getApiUrl('/api/auth/member-status'), {
                         headers: {
@@ -3061,11 +3261,11 @@
                         const data = await response.json();
                         const isApproved = data.is_approved;
                         const rejectReason = data.reject_reason;
-                        
+
                         const pendingStatusText = document.getElementById('pending-status-text');
                         const pendingRejectBox = document.getElementById('pending-reject-box');
                         const pendingRejectReason = document.getElementById('pending-reject-reason');
-                        
+
                         if (isApproved) {
                             clearInterval(pollingInterval);
                             pollingInterval = null;
@@ -3093,31 +3293,61 @@
 
         function loadRequiredDocuments(missing) {
             missingDocumentsList = missing;
+            
+            // 역할에 맞는 안내 문구 및 승인 요청 버튼 문구 설정
+            const bannerTitle = document.getElementById('upload-banner-title');
+            const bannerDesc = document.getElementById('upload-banner-desc');
+            const submitBtn = document.getElementById('btn-submit-all-docs');
+            const appBarTitle = document.getElementById('app-bar-title');
+
+            if (currentRole === 'owner') {
+                if (bannerTitle) bannerTitle.innerText = "신속한 가입 승인을 위한 안내";
+                if (bannerDesc) bannerDesc.innerText = "덤프링은 안전한 중계 플랫폼 운영을 위해 차주님의 사업자 자격 및 본인 통장 계좌를 검증합니다.\n글자가 또렷하게 보이도록 밝은 곳에서 촬영해 주세요.";
+                if (submitBtn) submitBtn.innerText = "차주 서류 심사 요청";
+                if (appBarTitle) appBarTitle.innerText = "덤프 차주 필수 서류 제출";
+            } else {
+                if (bannerTitle) bannerTitle.innerText = "신속한 가입 승인을 위한 안내";
+                if (bannerDesc) bannerDesc.innerText = "덤프링은 안전한 중계 플랫폼 운영을 위해 기사님의 운전 자격 및 본인 통장 계좌를 검증합니다.\n글자가 또렷하게 보이도록 밝은 곳에서 촬영해 주세요.";
+                if (submitBtn) submitBtn.innerText = "기사 서류 심사 요청";
+                if (appBarTitle) appBarTitle.innerText = "덤프 기사 필수 서류 제출";
+            }
+
             const container = document.getElementById('required-docs-list-container');
             container.innerHTML = '';
-            
+
             missing.forEach(doc => {
                 const isUploaded = uploadedFilesMap[doc.code] ? true : false;
+                const fileName = uploadedFilesMap[doc.code];
+                
+                // 문서 코드별 아이콘 지정
+                let iconClass = 'fa-solid fa-wallet';
+                if (doc.code === 'LICENSE') {
+                    iconClass = 'fa-solid fa-id-card';
+                } else if (doc.code === 'QUALIFICATION') {
+                    iconClass = 'fa-solid fa-truck-moving';
+                } else if (doc.code === 'BIZ_LICENSE') {
+                    iconClass = 'fa-solid fa-file-invoice';
+                }
+
                 container.innerHTML += `
-                    <div class="form-card" style="padding: 14px; border: 1px solid ${isUploaded ? '#004d5a' : 'var(--border-color)'}; border-radius: 12px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; text-align: left; transition: all 0.2s;">
-                        <div style="flex: 1; margin-right: 12px;">
-                            <h5 style="font-size: 0.85rem; font-weight: 800; color: var(--text-dark); margin: 0 0 2px 0;">${doc.code_name}</h5>
-                            <p style="font-size: 0.7rem; color: var(--text-muted); margin: 0;">
-                                코드: ${doc.code} | 상태: <span style="font-weight: 700; color: ${isUploaded ? '#319795' : '#dd6b20'};">${isUploaded ? '제출 완료' : '미제출 (필수)'}</span>
-                            </p>
-                            \${isUploaded ? `<p style="font-size: 0.68rem; color: #319795; margin: 4px 0 0 0; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📄 \${uploadedFilesMap[doc.code]}</p>` : ''}
+                    <div class="form-card" onclick="mockUploadSingleDocument('\${doc.code}', '\${doc.code_name}')" style="padding: 18px; border: 1.5px solid \${isUploaded ? '#FF7A00' : 'var(--border-color)'}; border-radius: 16px; background: #ffffff; display: flex; align-items: center; text-align: left; cursor: pointer; transition: all 0.2s; box-shadow: none; margin-bottom: 0; gap: 14px;">
+                        <div style="width: 44px; height: 44px; border-radius: 50%; background: \${isUploaded ? '#FFF4E5' : '#F7FAFC'}; display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
+                            <i class="\${iconClass}" style="color: \${isUploaded ? '#FF7A00' : '#718096'}; font-size: 1.2rem;"></i>
                         </div>
-                        <div>
-                            <button class="submit-btn" onclick="mockUploadSingleDocument('\${doc.code}', '\${doc.code_name}')" style="background: \${isUploaded ? 'var(--bg-gray)' : 'var(--primary-teal)'}; color: \${isUploaded ? 'var(--text-dark)' : 'white'}; border: \${isUploaded ? '1px solid var(--border-color)' : 'none'}; width: 75px; padding: 6px 10px; font-size: 0.72rem; border-radius: 6px; box-shadow: none; margin: 0;">
-                                \${isUploaded ? '다시 선택' : '서류 촬영'}
-                            </button>
+                        <div style="flex: 1; min-width: 0;">
+                            <h5 style="font-size: 0.85rem; font-weight: 800; color: var(--text-dark); margin: 0 0 3px 0;">\${doc.code_name}</h5>
+                            <p style="font-size: 0.7rem; color: \${isUploaded ? '#FF7A00' : 'var(--text-muted)'}; font-weight: \${isUploaded ? '700' : '400'}; margin: 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                                \${isUploaded ? fileName : '심사 제출을 위해 촬영해 주세요'}
+                            </p>
+                        </div>
+                        <div style="flex-shrink: 0;">
+                            <i class="\${isUploaded ? 'fa-solid fa-circle-check' : 'fa-solid fa-camera'}" style="color: \${isUploaded ? '#FF7A00' : '#CBD5E0'}; font-size: 1.25rem;"></i>
                         </div>
                     </div>
                 `;
             });
-            
+
             const allUploaded = missing.every(doc => uploadedFilesMap[doc.code]);
-            const submitBtn = document.getElementById('btn-submit-all-docs');
             if (allUploaded) {
                 submitBtn.removeAttribute('disabled');
                 submitBtn.style.opacity = '1';
@@ -3130,7 +3360,9 @@
         }
 
         function mockUploadSingleDocument(code, name) {
-            const mockFileName = `${code.toLowerCase()}_mock_${Math.floor(Math.random() * 900000 + 100000)}.jpg`;
+            const timeStr = Date.now().toString().substring(8);
+            const prefix = currentRole === 'owner' ? '사업자서류' : '기사서류';
+            const mockFileName = `\${prefix}_\${code}_\${timeStr}.jpg`;
             uploadedFilesMap[code] = mockFileName;
             showModal("📸 서류 촬영 성공", `[\${name}]이(가) 카메라 앨범에서 선택되어 정상 등록 대기 중입니다.\n파일명: \${mockFileName}`, true);
             loadRequiredDocuments(missingDocumentsList);
@@ -3138,9 +3370,9 @@
 
         async function submitAllDocuments() {
             if (isLoading) return;
-            
+
             setLoadingState('login', true);
-            
+
             try {
                 for (const code of Object.keys(uploadedFilesMap)) {
                     const fileName = uploadedFilesMap[code];
@@ -3155,18 +3387,18 @@
                             file_name: fileName
                         })
                     });
-                    
+
                     if (!response.ok) {
                         throw new Error(`\${code} 업로드에 실패했습니다.`);
                     }
                 }
-                
+
                 triggerConfetti();
                 showModal("🎉 필수서류 제출 완료", "모든 필수 서류가 서버에 정상 등록되었습니다.\n가입 승인 대기 화면으로 이동합니다.", true);
-                
+
                 uploadedFilesMap = {};
                 checkMemberStatusAndRedirect();
-                
+
             } catch (err) {
                 showModal("제출 실패", err.message || "서류 제출 과정에서 네트워크 오류가 발생했습니다.", false);
             } finally {
@@ -3182,25 +3414,25 @@
         async function loadAdminPendingMembers() {
             const listContainer = document.getElementById('admin-pending-members');
             if (!listContainer) return;
-            
+
             listContainer.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">⏳ 서류 심사 신청 목록을 조회하는 중...</p>';
-            
+
             try {
                 const response = await fetch(getApiUrl('/api/auth/admin/pending-members'), {
                     headers: {
                         'Authorization': `Bearer \${accessToken}`
                     }
                 });
-                
+
                 if (response.status === 200) {
                     const members = await response.json();
                     listContainer.innerHTML = '';
-                    
+
                     if (members.length === 0) {
                         listContainer.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px 0;">현재 서류 제출 대기열이 비어 있습니다.</p>';
                         return;
                     }
-                    
+
                     members.forEach(m => {
                         listContainer.innerHTML += `
                             <div style="padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-gray); display: flex; flex-direction: column; gap: 8px; text-align: left; margin-bottom: 6px;">
@@ -3235,7 +3467,7 @@
 
         async function adminApproveMember(userId, name) {
             if (!confirm(`[\${name}]님의 회원 가입을 최종 승인하시겠습니까?`)) return;
-            
+
             try {
                 const response = await fetch(getApiUrl(`/api/auth/admin/members/\${userId}/approve`), {
                     method: 'POST',
@@ -3244,7 +3476,7 @@
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 if (response.status === 200) {
                     triggerConfetti();
                     showModal("📢 심사 승인 완료", `[최종 승인 완료] \${name}님의 회원 가입 신청서가 승인되었습니다.`, true);
@@ -3261,7 +3493,7 @@
         async function adminRejectMember(userId, name) {
             const rejectReason = prompt(`[\${name}]님의 가입 반려 사유를 입력해 주세요 (예: 사업자등록증 식별 불가):`);
             if (rejectReason === null || rejectReason.trim() === '') return;
-            
+
             try {
                 const response = await fetch(getApiUrl(`/api/auth/admin/members/\${userId}/reject?reject_reason=\${encodeURIComponent(rejectReason)}`), {
                     method: 'POST',
@@ -3270,7 +3502,7 @@
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 if (response.status === 200) {
                     showModal("📢 심사 반려 완료", `[반려 완료] \${name}님의 가입 신청이 반려 처리되었습니다.`, false);
                     loadAdminPendingMembers();
@@ -3286,4 +3518,5 @@
         window.addEventListener('resize', resizeCanvas);
     </script>
 </body>
+
 </html>
