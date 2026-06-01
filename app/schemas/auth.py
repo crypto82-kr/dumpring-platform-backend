@@ -105,3 +105,19 @@ class DropOffRegister(BaseModel):
     address: str = Field(..., description="하차지 주소")
     permit_number: str = Field(..., description="개발행위/토사 반입 허가증 번호")
 
+
+class RequiredDocumentResponse(BaseModel):
+    code: str
+    code_name: str
+    display_order: int
+
+class DocumentUploadRequest(BaseModel):
+    document_code: str
+    file_name: str
+
+class MemberStatusResponse(BaseModel):
+    is_approved: bool
+    reject_reason: Optional[str] = None
+    uploaded_documents: list[str] = []
+    missing_documents: list[RequiredDocumentResponse] = []
+

@@ -1,0 +1,498 @@
+from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import or_, and_, update
+from typing import List, Optional
+from datetime import datetime
+
+from app.core.db import get_db
+from app.models import (
+    User, JobPost, DropOff, DropOffRequest, ConstructionSite, 
+    DriverFavoriteRegion, DispatchTicket, Driver, Car
+)
+from app.api.auth import get_current_user
+from app.schemas.dispatch import (
+    FavoriteRegionCreate, FavoriteRegionResponse,
+    DispatchTicketResponse, InspectionRequest
+)
+from app.schemas.jobs import JobPostResponse
+
+router = APIRouter()
+
+# ==========================================
+# 1. 시군구 검색 및 즐겨찾기 지역 배차 조회 API
+# ==========================================
+
+@router.get(
+    "/open-jobs",
+    response_model=List[JobPostResponse],
+    summary="전국 시군구 단위 배차 공고 검색",
+    description="기사가 시도, 시군구 혹은 본인의 즐겨찾는 관심 지역을 기준으로 활성화된 배차 공고(status='OPEN')들을 검색합니다."
+)
+async def get_open_dispatch_jobs(
+    sido: Optional[str] = None,
+    sigungu: Optional[str] = None,
+    use_favorites: Optional[bool] = False,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    # 기본적으로 status='OPEN'인 모집공고를 대상
+    query = select(JobPost).join(DropOff, JobPost.matched_drop_off_id == DropOff.id).where(JobPost.status == "OPEN")
+
+    # 즐겨찾는 관심지역 필터 사용 시
+    if use_favorites:
+        fav_query = select(DriverFavoriteRegion).where(DriverFavoriteRegion.user_id == current_user.id)
+        fav_result = await db.execute(fav_query)
+        favorites = fav_result.scalars().all()
+
+        if not favorites:
+            # 즐겨찾는 지역이 없다면 빈 목록 반환
+            return []
+        
+        # 각 즐겨찾기 지역별로 LIKE 주소 매핑 OR 연산
+        or_clauses = []
+        for fav in favorites:
+            or_clauses.append(
+                and_(
+                    DropOff.address.like(f"%{fav.sido}%"),
+                    DropOff.address.like(f"%{fav.sigungu}%")
+                )
+            )
+        query = query.where(or_(*or_clauses))
+
+    # 직접 시도, 시군구 입력 필터 사용 시 (즐겨찾기 우선순위가 아닐 경우)
+    else:
+        if sido:
+            query = query.where(DropOff.address.like(f"%{sido}%"))
+        if sigungu:
+            query = query.where(DropOff.address.like(f"%{sigungu}%"))
+
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+# ==========================================
+# 2. 기사 즐겨찾는 지역(관심지역) 관리 API
+# ==========================================
+
+@router.get(
+    "/favorites",
+    response_model=List[FavoriteRegionResponse],
+    summary="즐겨찾는 관심 지역 목록 조회"
+)
+async def get_favorite_regions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    query = select(DriverFavoriteRegion).where(DriverFavoriteRegion.user_id == current_user.id)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.post(
+    "/favorites",
+    response_model=FavoriteRegionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="즐겨찾는 관심 지역 추가"
+)
+async def add_favorite_region(
+    data: FavoriteRegionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    # 10개 이상 등록 제한 예외처리
+    count_query = select(DriverFavoriteRegion).where(DriverFavoriteRegion.user_id == current_user.id)
+    count_result = await db.execute(count_query)
+    existing_count = len(count_result.scalars().all())
+
+    if existing_count >= 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="즐겨찾는 관심 지역은 최대 10개까지만 등록 가능합니다."
+        )
+
+    # 중복 체크
+    dup_query = select(DriverFavoriteRegion).where(
+        DriverFavoriteRegion.user_id == current_user.id,
+        DriverFavoriteRegion.sido == data.sido,
+        DriverFavoriteRegion.sigungu == data.sigungu
+    )
+    dup_result = await db.execute(dup_query)
+    if dup_result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 즐겨찾기에 등록된 지역입니다."
+        )
+
+    new_fav = DriverFavoriteRegion(
+        user_id=current_user.id,
+        sido=data.sido,
+        sigungu=data.sigungu
+    )
+    db.add(new_fav)
+    await db.commit()
+    await db.refresh(new_fav)
+    return new_fav
+
+
+@router.delete(
+    "/favorites/{favorite_id}",
+    summary="즐겨찾는 관심 지역 삭제"
+)
+async def delete_favorite_region(
+    favorite_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    query = select(DriverFavoriteRegion).where(
+        DriverFavoriteRegion.id == favorite_id,
+        DriverFavoriteRegion.user_id == current_user.id
+    )
+    result = await db.execute(query)
+    fav = result.scalars().first()
+
+    if not fav:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="등록된 즐겨찾는 지역을 찾을 수 없습니다."
+        )
+
+    await db.delete(fav)
+    await db.commit()
+    return {"message": "정상적으로 즐겨찾는 지역이 해제되었습니다."}
+
+
+# ==========================================
+# 3. 배차 트랜잭션 흐름 제어 API
+# ==========================================
+
+@router.post(
+    "/jobs/{job_post_id}/accept",
+    response_model=DispatchTicketResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="기사의 배차 공고 수락 (매칭 티켓 생성)"
+)
+async def accept_job(
+    job_post_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    # 1. 배차 공고 조회
+    job_query = select(JobPost).where(JobPost.id == job_post_id)
+    job_result = await db.execute(job_query)
+    job = job_result.scalars().first()
+
+    if not job or job.status != "OPEN":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="모집 중(OPEN)인 배차 공고가 아닙니다."
+        )
+
+    # 1.5. [내실 다지기 🚨] 실시간 차량 수락 대수 제한 체크
+    # 현재 취소되거나 반려되지 않은 활성 배차 티켓 수량 조회
+    active_tickets_query = select(DispatchTicket).where(
+        DispatchTicket.job_post_id == job_post_id,
+        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED", "APPROVED"])
+    )
+    active_tickets_res = await db.execute(active_tickets_query)
+    active_count = len(active_tickets_res.scalars().all())
+
+    if active_count >= job.required_trucks:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"이미 모집 완료된 배차 공고입니다. (필요 차량: {job.required_trucks}대 / 현재 매칭: {active_count}대)"
+        )
+
+    # 2. 기사의 배정된 덤프 트럭 차량 조회
+    driver_query = select(Driver).where(Driver.user_id == current_user.id)
+    driver_result = await db.execute(driver_query)
+    driver = driver_result.scalars().first()
+
+    if not driver or not driver.current_car_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="차주가 배정한 정식 덤프 트럭 차량이 없습니다. 차주에게 차량 배정을 요청해 주세요."
+        )
+
+    # [내실 다지기 🚨] 기사 승인 대기 차단 조건 추가
+    if not driver.is_approved:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="플랫폼 관리자의 가입 서류 심사가 대기 중이거나 반려되었습니다. 승인 완료 후 배차 수락이 가능합니다."
+        )
+
+    # 3. 중복 수락 방지
+    dup_ticket = select(DispatchTicket).where(
+        DispatchTicket.job_post_id == job_post_id,
+        DispatchTicket.driver_id == current_user.id,
+        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+    )
+    dup_res = await db.execute(dup_ticket)
+    if dup_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 수락하여 진행 중인 동일 배차 오더가 있습니다."
+        )
+
+    # 4. 개별 운행 매칭 티켓 발급
+    new_ticket = DispatchTicket(
+        job_post_id=job_post_id,
+        driver_id=current_user.id,
+        car_id=driver.current_car_id,
+        status="ACCEPTED"
+    )
+    db.add(new_ticket)
+    await db.commit()
+    await db.refresh(new_ticket)
+
+    return new_ticket
+
+
+@router.post(
+    "/tickets/{ticket_id}/start-driving",
+    response_model=DispatchTicketResponse,
+    summary="[기사용] GPS 미터기 가동 및 주행 시작"
+)
+async def start_driving(
+    ticket_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(DispatchTicket).where(
+        DispatchTicket.id == ticket_id,
+        DispatchTicket.driver_id == current_user.id
+    )
+    result = await db.execute(query)
+    ticket = result.scalars().first()
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운행 티켓을 찾을 수 없습니다."
+        )
+
+    if ticket.status != "ACCEPTED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="미터기 가동을 시작할 수 없는 상태의 티켓입니다."
+        )
+
+    ticket.status = "DRIVING"
+    ticket.driving_started_at = datetime.now()
+
+    await db.commit()
+    await db.refresh(ticket)
+    return ticket
+
+
+@router.post(
+    "/tickets/{ticket_id}/arrive",
+    response_model=DispatchTicketResponse,
+    summary="[기사용] 하차지 지오펜스 진입 감지"
+)
+async def arrive_at_dropoff(
+    ticket_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(DispatchTicket).where(
+        DispatchTicket.id == ticket_id,
+        DispatchTicket.driver_id == current_user.id
+    )
+    result = await db.execute(query)
+    ticket = result.scalars().first()
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운행 티켓을 찾을 수 없습니다."
+        )
+
+    if ticket.status != "DRIVING":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="아직 미터기를 켜고 운행 중인 상태가 아닙니다."
+        )
+
+    ticket.status = "ARRIVED"
+    ticket.arrived_at = datetime.now()
+
+    # 모의 덤프용 랜덤 GPS 운임 축적 완료 처리 (실제 운임 확정 전 최종 계산된 상태 시뮬레이션)
+    ticket.accumulated_fare = 75000  # 기본 거리/시간 계산 결과 모의 이체
+    ticket.drive_distance_km = 18.5
+    ticket.drive_time_seconds = 1450
+
+    await db.commit()
+    await db.refresh(ticket)
+    return ticket
+
+
+@router.post(
+    "/tickets/{ticket_id}/inspection",
+    response_model=DispatchTicketResponse,
+    summary="[지주용] 하차 트럭 최종 반입 검사 및 승인/반려 판정"
+)
+async def inspect_and_confirm(
+    ticket_id: int,
+    data: InspectionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_drop_off:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="하차지 지주(DROP_OFF) 권한이 필요합니다."
+        )
+
+    # 1. 티켓 조회
+    ticket_query = select(DispatchTicket).where(DispatchTicket.id == ticket_id)
+    ticket_result = await db.execute(ticket_query)
+    ticket = ticket_result.scalars().first()
+
+    if not ticket or ticket.status != "ARRIVED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="사토장 게이트에 아직 진입/도착 대기 중인 트럭이 아닙니다."
+        )
+
+    # 2. 하차지 소유주 정합 권한 검증
+    job_query = select(JobPost).where(JobPost.id == ticket.job_post_id)
+    job_result = await db.execute(job_query)
+    job = job_result.scalars().first()
+
+    drop_off_query = select(DropOff).where(DropOff.id == job.matched_drop_off_id)
+    drop_off_result = await db.execute(drop_off_query)
+    dropoff = drop_off_result.scalars().first()
+
+    if not dropoff or dropoff.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 차량이 도착한 하차지 사토장의 소유주가 아닙니다."
+        )
+
+    decision_status = data.decision.upper()
+    if decision_status not in ["APPROVED", "REJECTED"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="검사 결과 판정은 APPROVED 또는 REJECTED만 가능합니다."
+        )
+
+    ticket.status = decision_status
+    ticket.completed_at = datetime.now()
+
+    # [내실 다지기 🚨] 해당 JobPost에 연동된 모든 DispatchTicket들의 반입 완료 여부 검증
+    # 만약 배차 신청한 모든 차량의 운행이 완료(APPROVED 또는 REJECTED 등)되었고,
+    # 성공적으로 APPROVED된 티켓 대수가 B2B 공고의 목표 차량대수(required_trucks)에 도달하면 JobPost 자체를 완료(COMPLETED) 처리
+    all_tickets_query = select(DispatchTicket).where(DispatchTicket.job_post_id == job.id)
+    all_tickets_res = await db.execute(all_tickets_query)
+    all_tickets = all_tickets_res.scalars().all()
+
+    approved_count = sum(1 for t in all_tickets if t.status == "APPROVED")
+    
+    # 현재 승인 판정 건을 포함하여 카운트
+    if decision_status == "APPROVED":
+        approved_count += 1
+
+    if approved_count >= job.required_trucks:
+        job.status = "COMPLETED"
+
+    await db.commit()
+    await db.refresh(ticket)
+    return ticket
+
+
+@router.get(
+    "/tickets/{ticket_id}",
+    response_model=DispatchTicketResponse,
+    summary="개별 운행 매칭 티켓 실시간 상세 조회"
+)
+async def get_dispatch_ticket(
+    ticket_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(DispatchTicket).where(DispatchTicket.id == ticket_id)
+    result = await db.execute(query)
+    ticket = result.scalars().first()
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="요청하신 운행 티켓 정보를 찾을 수 없습니다."
+        )
+    return ticket
+
+
+@router.get(
+    "/arrived-tickets",
+    response_model=List[DispatchTicketResponse],
+    summary="하차지 지주용 도착 완료 차량(검사 대기) 목록 조회"
+)
+async def get_arrived_tickets(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_drop_off:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="하차지 지주(DROP_OFF) 권한이 필요합니다."
+        )
+
+    # 1. 지주 소유의 하차지 ID 리스트 조회
+    drop_off_query = select(DropOff.id).where(
+        DropOff.owner_id == current_user.id,
+        DropOff.status != "DELETED"
+    )
+    drop_off_result = await db.execute(drop_off_query)
+    drop_off_ids = drop_off_result.scalars().all()
+
+    if not drop_off_ids:
+        return []
+
+    # 2. 이 하차지들과 연동된 JobPost ID 리스트 조회
+    job_query = select(JobPost.id).where(JobPost.matched_drop_off_id.in_(drop_off_ids))
+    job_result = await db.execute(job_query)
+    job_ids = job_result.scalars().all()
+
+    if not job_ids:
+        return []
+
+    # 3. 상태가 'ARRIVED'인 DispatchTicket 조회
+    ticket_query = select(DispatchTicket).where(
+        DispatchTicket.job_post_id.in_(job_ids),
+        DispatchTicket.status == "ARRIVED"
+    )
+    ticket_result = await db.execute(ticket_query)
+    return ticket_result.scalars().all()
+
+

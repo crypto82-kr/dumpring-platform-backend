@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'driver_meter_screen.dart';
 import 'driver_history_screen.dart';
 
@@ -18,15 +20,31 @@ class DriverHomeScreen extends StatefulWidget {
 }
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerProviderStateMixin {
-  bool _isWaitingForDispatch = false; // 배차 대기 모드 활성화 여부
-  Timer? _mockDispatchTimer;
+  String get _baseUrl => "https://dumpring-api.onrender.com";
 
-  // 대시보드 모의 데이터
-  int _todayWorkCount = 2;
-  int _todayEarnings = 190000;
+  bool _isWaitingForDispatch = false;
+  List<dynamic> _openJobs = [];
+  List<dynamic> _favorites = [];
+  bool _isLoadingJobs = false;
+
+  // 필터용 지역 설정 변수
+  String? _selectedSido;
+  String? _selectedSigungu;
+  bool _useFavoritesFilter = false;
+
+  // 전국 표준 시도/시군구 모의 맵 데이터 (간소화)
+  final Map<String, List<String>> _koreanRegions = {
+    "서울특별시": ["영등포구", "강남구", "마포구", "서초구", "송파구"],
+    "경기도": ["김포시", "인천 검단", "고양시", "성남시", "수원시"],
+    "인천광역시": ["서구", "중구", "남동구", "부평구"],
+    "강원도": ["춘천시", "원주시", "강릉시"]
+  };
+
+  // 대시보드 데이터
+  int _todayWorkCount = 0;
+  int _todayEarnings = 0;
   int _monthlyEarnings = 3450000;
 
-  // 배차 대기 활성 시 펄스 효과 애니메이션용
   late AnimationController _pulseController;
 
   @override
@@ -36,13 +54,170 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
+    _loadFavorites();
+    _loadOpenJobs();
   }
 
   @override
   void dispose() {
-    _mockDispatchTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  // 1. 즐겨찾는 지역 조회 API 연동
+  Future<void> _loadFavorites() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/favorites"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          _favorites = jsonDecode(utf8.decode(response.bodyBytes));
+        });
+      }
+    } catch (e) {
+      debugPrint("즐겨찾는 지역 조회 실패: $e");
+    }
+  }
+
+  // 2. 즐겨찾는 지역 추가 API 연동
+  Future<void> _addFavorite(String sido, String sigungu) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/favorites"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "sido": sido,
+          "sigungu": sigungu,
+        }),
+      );
+      if (response.statusCode == 201) {
+        _loadFavorites();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("⭐ $sido $sigungu 관심지역 추가 완료")),
+        );
+      } else {
+        final err = jsonDecode(utf8.decode(response.bodyBytes));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("⚠️ ${err['detail'] ?? '등록 실패'}")),
+        );
+      }
+    } catch (e) {
+      debugPrint("관심지역 등록 실패: $e");
+    }
+  }
+
+  // 3. 즐겨찾는 지역 삭제 API 연동
+  Future<void> _deleteFavorite(int favId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse("$_baseUrl/api/dispatch/favorites/$favId"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+      if (response.statusCode == 200) {
+        _loadFavorites();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("정상적으로 관심지역이 해제되었습니다.")),
+        );
+      }
+    } catch (e) {
+      debugPrint("관심지역 삭제 실패: $e");
+    }
+  }
+
+  // 4. 전국 시군구 배차 검색 API 연동
+  Future<void> _loadOpenJobs() async {
+    setState(() {
+      _isLoadingJobs = true;
+    });
+
+    try {
+      String queryParams = "";
+      if (_useFavoritesFilter) {
+        queryParams = "?use_favorites=true";
+      } else {
+        List<String> params = [];
+        if (_selectedSido != null) params.add("sido=$_selectedSido");
+        if (_selectedSigungu != null) params.add("sigungu=$_selectedSigungu");
+        if (params.isNotEmpty) queryParams = "?${params.join('&')}";
+      }
+
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/open-jobs$queryParams"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _openJobs = jsonDecode(utf8.decode(response.bodyBytes));
+        });
+      }
+    } catch (e) {
+      debugPrint("배차 공고 검색 실패: $e");
+    } finally {
+      setState(() {
+        _isLoadingJobs = false;
+      });
+    }
+  }
+
+  // 5. 배차 수락 API 연동 및 운행 미터기 전환
+  Future<void> _acceptJob(int jobId) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/jobs/$jobId/accept"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 201) {
+        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
+        
+        // 배차 수락 성공 시 미터기 주행 화면으로 이동
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DriverMeterScreen(
+              user: widget.user,
+              token: widget.token,
+              ticketId: ticket['id'],
+              onDriveCompleted: (earnings) {
+                setState(() {
+                  _todayWorkCount += 1;
+                  _todayEarnings += earnings;
+                  _monthlyEarnings += earnings;
+                });
+                _loadOpenJobs();
+              },
+            ),
+          ),
+        );
+      } else {
+        final err = jsonDecode(utf8.decode(response.bodyBytes));
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("배차 수락 불가"),
+            content: Text(err['detail'] ?? "이미 다른 기사가 수락하였거나 배차 가능 차량이 없습니다."),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("배차 수락 실패: $e");
+    }
   }
 
   void _toggleWaitingState(bool val) {
@@ -52,232 +227,65 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
     if (_isWaitingForDispatch) {
       _pulseController.repeat(reverse: true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("🟢 배차 대기 상태가 시작되었습니다. 곧 매칭 요청이 발송됩니다."),
-          duration: Duration(seconds: 2),
-        ),
-      );
-
-      // 사용자 경험 극대화: 4초 뒤 가상 배차 호출 트리거! (WOW 요소 🚨)
-      _mockDispatchTimer = Timer(const Duration(seconds: 4), () {
-        if (mounted && _isWaitingForDispatch) {
-          _showDispatchDialog();
-        }
-      });
+      _loadOpenJobs();
     } else {
       _pulseController.stop();
-      _mockDispatchTimer?.cancel();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("🔴 배차 대기 상태가 종료되었습니다.")),
-      );
     }
   }
 
-  // 실시간 배차 요청 모달 수신
-  void _showDispatchDialog() {
+  // 관심지역 등록 다이얼로그 팝업
+  void _showAddFavoriteDialog() {
+    String? tempSido;
+    String? tempSigungu;
+
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: EdgeInsets.zero,
-        content: Container(
-          width: 320,
-          child: Column(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text("⭐ 관심지역 즐겨찾기 추가", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          content: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 헤더 그라디언트
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFFF7A00), Color(0xFFFF9E43)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-                child: const Row(
-                  children: [
-                    Icon(Icons.flash_on, color: Colors.white, size: 24),
-                    SizedBox(width: 8),
-                    Text(
-                      "긴급 배차 요청 수신",
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: "시/도 선택"),
+                value: tempSido,
+                items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (val) {
+                  setDialogState(() {
+                    tempSido = val;
+                    tempSigungu = null; // 시도 변경 시 시군구 리셋
+                  });
+                },
               ),
-
-              // 본문 정보
-              Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildDispatchInfoRow("상차지", "강남 아파트 신축공사 현장 (서울시 강남구)", Icons.circle, Colors.blue),
-                    const SizedBox(height: 12),
-                    _buildDispatchInfoRow("하차지", "신촌지구 사토장 (경기도 김포시)", Icons.circle, Colors.orange),
-                    const SizedBox(height: 12),
-                    _buildDispatchInfoRow("토사 종류", "양질토 (GOOD_SOIL)", Icons.grass, Colors.green),
-                    const SizedBox(height: 12),
-                    _buildDispatchInfoRow("지급 방식", "월대 정산 / 현장 지불 (SITE_PAYS)", Icons.payment, Colors.purple),
-                    const SizedBox(height: 16),
-                    const Divider(),
-                    const SizedBox(height: 12),
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("예상 단가", style: TextStyle(color: Colors.grey, fontSize: 13)),
-                        Text(
-                          "95,000 원 (대당)",
-                          style: TextStyle(color: Color(0xFF004D5A), fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // 수락 / 거절 액션 버튼
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.of(context).pop(); // 모달 닫기
-                        _showRejectBottomSheet(); // 거절 사유 바텀시트
-                      },
-                      child: Container(
-                        height: 56,
-                        alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF7FAFC),
-                          borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20)),
-                          border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
-                        ),
-                        child: const Text(
-                          "거절",
-                          style: TextStyle(color: Color(0xFF718096), fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.of(context).pop(); // 모달 닫기
-                        _acceptDispatch(); // 배차 수락 및 주행 미터기 이동
-                      },
-                      child: Container(
-                        height: 56,
-                        alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF004D5A),
-                          borderRadius: BorderRadius.only(bottomRight: Radius.circular(20)),
-                        ),
-                        child: const Text(
-                          "수락 및 이동",
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: "시/군/구 선택"),
+                value: tempSigungu,
+                items: tempSido == null
+                    ? []
+                    : _koreanRegions[tempSido]!.map((sg) => DropdownMenuItem(value: sg, child: Text(sg))).toList(),
+                onChanged: (val) {
+                  setDialogState(() {
+                    tempSigungu = val;
+                  });
+                },
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDispatchInfoRow(String label, String value, IconData icon, Color color) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 2),
-              Text(value, style: const TextStyle(color: Color(0xFF2D3748), fontSize: 13, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        )
-      ],
-    );
-  }
-
-  // 거절 사유 바텀시트 연동
-  void _showRejectBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              "배차 요청 거절 사유 선택",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("취소")),
+            ElevatedButton(
+              onPressed: (tempSido != null && tempSigungu != null)
+                  ? () {
+                      _addFavorite(tempSido!, tempSigungu!);
+                      Navigator.pop(context);
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF004D5A)),
+              child: const Text("추가"),
             ),
-            const SizedBox(height: 18),
-            _buildRejectReasonItem("일정이 다른 작업과 겹칩니다."),
-            _buildRejectReasonItem("차량 정비 및 주유가 필요합니다."),
-            _buildRejectReasonItem("제시 단가가 너무 낮습니다."),
-            _buildRejectReasonItem("하차지 거리가 너무 멉니다."),
-            const SizedBox(height: 20),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRejectReasonItem(String reason) {
-    return ListTile(
-      title: Text(reason, style: const TextStyle(fontSize: 14)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-      onTap: () {
-        Navigator.of(context).pop(); // 바텀시트 닫기
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("ℹ️ 거절 사유가 등록되어 해당 배차가 제외되었습니다.")),
-        );
-      },
-    );
-  }
-
-  // 배차 수락 처리
-  void _acceptDispatch() {
-    // 펄스 효과 끄기
-    setState(() {
-      _isWaitingForDispatch = false;
-    });
-    _pulseController.stop();
-
-    // 미터기 주행 화면으로 이동
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DriverMeterScreen(
-          user: widget.user,
-          token: widget.token,
-          onDriveCompleted: (earnings) {
-            // 주행 성공 복귀 시 당일 수입 누적 반영
-            setState(() {
-              _todayWorkCount += 1;
-              _todayEarnings += earnings;
-              _monthlyEarnings += earnings;
-            });
-          },
         ),
       ),
     );
@@ -291,7 +299,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         backgroundColor: const Color(0xFF004D5A),
         foregroundColor: Colors.white,
         elevation: 0,
-        title: const Text("덤프링 기사용 홈", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        title: const Text("덤프링 기사용 홈 (Enterprise)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         centerTitle: true,
         actions: [
           IconButton(
@@ -307,22 +315,34 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. 배차 대기 상태 제어 대형 판넬
-              _buildDispatchStatusPanel(),
-              const SizedBox(height: 24),
+        child: RefreshIndicator(
+          onRefresh: _loadOpenJobs,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. 배차 수신 모드 토글
+                _buildDispatchStatusPanel(),
+                const SizedBox(height: 20),
 
-              // 2. 오늘의 누적 실적 현황판 (수입/완료수)
-              _buildEarningsDashboard(),
-              const SizedBox(height: 24),
+                // 2. 시군구 상세 검색 필터 탭 (전국 시군구 필터링 UI)
+                _buildLocationFilterPanel(),
+                const SizedBox(height: 20),
 
-              // 3. 주요 안내 & 공지
-              _buildTipCard(),
-            ],
+                // 3. 기사 즐겨찾기(관심지역) 매니저
+                _buildFavoritesManager(),
+                const SizedBox(height: 20),
+
+                // 4. 배차 모집 공고 리스트 (실시간 연동 데이터)
+                _buildLiveJobsList(),
+                const SizedBox(height: 20),
+
+                // 5. 오늘 실적 대시보드
+                _buildEarningsDashboard(),
+              ],
+            ),
           ),
         ),
       ),
@@ -338,88 +358,304 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         side: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 30.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            // 배차 대기중 펄스 상태등
-            Stack(
-              alignment: Alignment.center,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (_isWaitingForDispatch)
-                  AnimatedBuilder(
-                    animation: _pulseController,
-                    builder: (context, child) {
-                      return Container(
-                        width: 90 + (_pulseController.value * 24),
-                        height: 90 + (_pulseController.value * 24),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE6F4EA).withOpacity(1.0 - _pulseController.value),
-                          shape: BoxShape.circle,
-                        ),
-                      );
-                    },
-                  ),
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: _isWaitingForDispatch ? const Color(0xFFE6F4EA) : const Color(0xFFF7FAFC),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _isWaitingForDispatch ? Icons.wifi_tethering_rounded : Icons.portable_wifi_off_rounded,
-                    color: _isWaitingForDispatch ? Colors.green[800] : const Color(0xFF718096),
-                    size: 40,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isWaitingForDispatch ? "실시간 배차 수신 중" : "배차 정지 상태",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _isWaitingForDispatch ? Colors.green[800] : const Color(0xFF2D3748),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text("대기 상태를 켜면 오더를 수락할 수 있습니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  ],
+                ),
+                Switch(
+                  value: _isWaitingForDispatch,
+                  onChanged: _toggleWaitingState,
+                  activeColor: const Color(0xFF004D5A),
                 ),
               ],
-            ),
-            const SizedBox(height: 20),
-
-            // 현재 상태 텍스트
-            Text(
-              _isWaitingForDispatch ? "실시간 배차 대기 중..." : "배차 정지 상태",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: _isWaitingForDispatch ? Colors.green[800] : const Color(0xFF2D3748),
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              "대기를 켜면 10km 이내의 긴급 오더를 받습니다.",
-              style: TextStyle(color: Color(0xFF718096), fontSize: 12),
-            ),
-            const SizedBox(height: 24),
-
-            // 토글 스위치 형태의 대형 클릭 영역
-            InkWell(
-              onTap: () => _toggleWaitingState(!_isWaitingForDispatch),
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: _isWaitingForDispatch ? const Color(0xFFFFFFF0) : const Color(0xFF004D5A),
-                  border: Border.all(
-                    color: _isWaitingForDispatch ? const Color(0xFFFF7A00) : Colors.transparent,
-                    width: _isWaitingForDispatch ? 1.5 : 0,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  _isWaitingForDispatch ? "배차 수신 대기 종료" : "배차 수신 대기 시작",
-                  style: TextStyle(
-                    color: _isWaitingForDispatch ? const Color(0xFFFF7A00) : Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLocationFilterPanel() {
+    return Card(
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("📍 전국 시군구 배차 검색", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Row(
+                  children: [
+                    const Text("즐겨찾는 지역만", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    const SizedBox(width: 4),
+                    Checkbox(
+                      value: _useFavoritesFilter,
+                      onChanged: (val) {
+                        setState(() {
+                          _useFavoritesFilter = val ?? false;
+                        });
+                        _loadOpenJobs();
+                      },
+                      activeColor: const Color(0xFF004D5A),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (!_useFavoritesFilter)
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                        border: OutlineInputBorder(),
+                        labelText: "시/도",
+                      ),
+                      value: _selectedSido,
+                      items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12)))).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedSido = val;
+                          _selectedSigungu = null;
+                        });
+                        _loadOpenJobs();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                        border: OutlineInputBorder(),
+                        labelText: "시/군/구",
+                      ),
+                      value: _selectedSigungu,
+                      items: _selectedSido == null
+                          ? []
+                          : _koreanRegions[_selectedSido]!.map((sg) => DropdownMenuItem(value: sg, child: Text(sg, style: const TextStyle(fontSize: 12)))).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedSigungu = val;
+                        });
+                        _loadOpenJobs();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            if (_selectedSido != null || _selectedSigungu != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _selectedSido = null;
+                      _selectedSigungu = null;
+                    });
+                    _loadOpenJobs();
+                  },
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text("필터 초기화 및 전체 조회", style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF7A00)),
+                ),
+              )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFavoritesManager() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("⭐ 나의 관심 배차 지역", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2D3748))),
+            TextButton.icon(
+              onPressed: _showAddFavoriteDialog,
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text("추가", style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFF004D5A)),
+            ),
+          ],
+        ),
+        if (_favorites.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Text("등록된 관심 지역이 없습니다. 관심 지역을 추가하여 빠르게 필터링해 보세요.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+          )
+        else
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _favorites.map((fav) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: InputChip(
+                    label: Text("${fav['sido']} ${fav['sigungu']}", style: const TextStyle(fontSize: 11)),
+                    backgroundColor: Colors.white,
+                    selectedColor: const Color(0xFFE2F0F2),
+                    selected: _selectedSido == fav['sido'] && _selectedSigungu == fav['sigungu'],
+                    onPressed: () {
+                      setState(() {
+                        _selectedSido = fav['sido'];
+                        _selectedSigungu = fav['sigungu'];
+                        _useFavoritesFilter = false;
+                      });
+                      _loadOpenJobs();
+                    },
+                    onDeleted: () => _deleteFavorite(fav['id']),
+                    deleteIconColor: Colors.red[400],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLiveJobsList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text("📡 매칭 가능 실시간 배차 공고", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A202C))),
+        const SizedBox(height: 12),
+        if (_isLoadingJobs)
+          const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator()))
+        else if (_openJobs.isEmpty)
+          Container(
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Center(
+              child: Text("현재 조건에 매칭되는 활성화된 공고가 없습니다.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _openJobs.length,
+            itemBuilder: (context, index) {
+              final job = _openJobs[index];
+              return Card(
+                color: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2F0F2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text("매칭모집중", style: TextStyle(color: Color(0xFF004D5A), fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                          Text("필요차량 ${job['required_trucks']}대", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(Icons.circle, color: Colors.blue, size: 12),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "상차지: 현장 ID ${job['site_id']}", 
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2D3748))
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.circle, color: Colors.orange, size: 12),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "하차지: 매칭 ID ${job['matched_drop_off_id'] ?? '지주 승인 완료'}", 
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2D3748))
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("작업 예정일", style: TextStyle(color: Colors.grey, fontSize: 10)),
+                              const SizedBox(height: 2),
+                              Text(job['work_date'].toString().substring(0, 10), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          ElevatedButton(
+                            onPressed: _isWaitingForDispatch ? () => _acceptJob(job['id']) : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF7A00),
+                              disabledBackgroundColor: Colors.grey[300],
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text("수락 및 운행", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 
@@ -428,121 +664,58 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text(
-          "📊 운행 실적 대시보드",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C)),
+          "📊 오늘의 정산 및 실적 요약",
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A202C)),
         ),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _buildStatCard("오늘 완료", "$_todayWorkCount 건", Icons.check_circle_outline_rounded, Colors.green),
+              child: Card(
+                color: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("완료 건수", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const SizedBox(height: 6),
+                      Text("$_todayWorkCount 건", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A))),
+                    ],
+                  ),
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildStatCard("오늘 예상 수입", "${_formatter(_todayEarnings)} 원", Icons.monetization_on_outlined, const Color(0xFFFF7A00)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _buildMonthlyEarningsCard(),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
-    return Card(
-      color: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(width: 6),
-                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(value, style: const TextStyle(color: Color(0xFF1A202C), fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMonthlyEarningsCard() {
-    return Card(
-      color: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Row(
-          children: [
-            const CircleAvatar(
-              radius: 22,
-              backgroundColor: Color(0xFFE2F0F2),
-              child: Icon(Icons.calendar_month, color: Color(0xFF004D5A)),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("이번 달 총 정산 예정액", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text("${_formatter(_monthlyEarnings)} 원", style: const TextStyle(color: Color(0xFF004D5A), fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTipCard() {
-    return Card(
-      color: const Color(0xFFF7FAFC),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
-      child: const Padding(
-        padding: EdgeInsets.all(20.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.lightbulb_outline, color: Color(0xFFFF7A00), size: 22),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Tip: GPS 실시간 미터기 사용 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2D3748))),
-                  SizedBox(height: 6),
-                  Text(
-                    "운행 시작 버튼을 누르면 차량 GPS를 이용해 요금이 가산됩니다. 대기 상태나 시속 10km/h 이하 구간에서는 시간 요금으로 자동 전환됩니다.",
-                    style: TextStyle(fontSize: 11, color: Color(0xFF718096), height: 1.4),
+              child: Card(
+                color: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("오늘 예상 수입", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const SizedBox(height: 6),
+                      Text("${_formatter(_todayEarnings)} 원", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFFF7A00))),
+                    ],
                   ),
-                ],
+                ),
               ),
-            )
+            ),
           ],
         ),
-      ),
+      ],
     );
   }
 

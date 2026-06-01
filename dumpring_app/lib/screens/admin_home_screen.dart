@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class AdminHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -17,21 +19,39 @@ class AdminHomeScreen extends StatefulWidget {
 class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // 1. 모의 승인 대기 회원 리스트
-  final List<Map<String, dynamic>> _pendingMembers = [
-    {
-      "id": 801,
-      "type": "기사 가입",
-      "name": "홍길동 기사",
-      "docs": "면허증, 종사자격증, 통장 사본",
-    },
-    {
-      "id": 802,
-      "type": "하차지 개설",
-      "name": "성춘향 지주 (한강 사토장)",
-      "docs": "사업자증, 토사반입 허가서",
+  // 1. 실제 승인 대기 회원 리스트
+  List<Map<String, dynamic>> _pendingMembers = [];
+  bool _isLoadingPending = false;
+  String get _baseUrl => "https://dumpring-api.onrender.com";
+
+  Future<void> _fetchPendingMembers() async {
+    setState(() {
+      _isLoadingPending = true;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/auth/admin/pending-members"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+        setState(() {
+          _pendingMembers = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("대기 회원 조회 실패: $e");
+    } finally {
+      setState(() {
+        _isLoadingPending = false;
+      });
     }
-  ];
+  }
 
   // 2. 실시간 배차 모니터링
   final List<Map<String, dynamic>> _activeDispatches = [
@@ -66,26 +86,96 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _fetchPendingMembers();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _tabController.dispose();
     super.dispose();
   }
 
-  // 모의 회원 가입 승인 처리
-  void _approveMember(Map<String, dynamic> member, bool isApprove) {
-    setState(() {
-      _pendingMembers.removeWhere((element) => element['id'] == member['id']);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("📢 [심사 완료] ${member['name']}님의 가입 신청이 정상적으로 ${isApprove ? '승인 완료' : '반려 처리'}되었습니다."),
-        backgroundColor: isApprove ? Colors.green : Colors.red,
-      ),
-    );
+  // 실제 회원 가입 승인 처리
+  void _approveMember(Map<String, dynamic> member, bool isApprove) async {
+    if (isApprove) {
+      try {
+        final response = await http.post(
+          Uri.parse("$_baseUrl/api/auth/admin/members/${member['id']}/approve"),
+          headers: {
+            "Authorization": "Bearer ${widget.token}",
+            "Content-Type": "application/json",
+          },
+        );
+
+        if (response.statusCode == 200) {
+          setState(() {
+            _pendingMembers.removeWhere((element) => element['id'] == member['id']);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("📢 [심사 승인 완료] ${member['name']}님의 가입 신청이 최종 승인되었습니다."),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint("승인 처리 실패: $e");
+      }
+    } else {
+      // 반려 처리 - 반려 사유 입력 다이얼로그 표시
+      final controller = TextEditingController();
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text("가입 신청 반려 사유 입력", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: "반려 사유를 입력해 주세요 (예: 서류 식별 불가)",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("취소", style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () async {
+                final reason = controller.text.trim();
+                if (reason.isEmpty) return;
+                Navigator.of(context).pop();
+                
+                try {
+                  final response = await http.post(
+                    Uri.parse("$_baseUrl/api/auth/admin/members/${member['id']}/reject?reject_reason=$reason"),
+                    headers: {
+                      "Authorization": "Bearer ${widget.token}",
+                      "Content-Type": "application/json",
+                    },
+                  );
+
+                  if (response.statusCode == 200) {
+                    setState(() {
+                      _pendingMembers.removeWhere((element) => element['id'] == member['id']);
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("📢 [심사 반려 완료] ${member['name']}님의 가입 신청이 반려되었습니다."),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  debugPrint("반려 처리 실패: $e");
+                }
+              },
+              child: const Text("반려 확정", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   // 배차 강제 개입 처리

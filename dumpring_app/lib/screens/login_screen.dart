@@ -7,6 +7,10 @@ import 'driver_pending_screen.dart';
 import 'drop_off_home_screen.dart';
 import 'owner_home_screen.dart';
 import 'admin_home_screen.dart';
+import 'driver_home_screen.dart';
+import 'driver_document_upload_screen.dart';
+import 'owner_document_upload_screen.dart';
+import 'owner_pending_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -89,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Color(0xFFFF7A00)),
+            Icon(Icons.check_circle_outline_outline, color: Color(0xFFFF7A00)),
             SizedBox(width: 8),
             Text("로그인 성공", style: TextStyle(fontWeight: FontWeight.bold)),
           ],
@@ -99,43 +103,105 @@ class _LoginScreenState extends State<LoginScreen> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop(); // 다이얼로그 닫기
-              if (user['is_admin'] == true) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => AdminHomeScreen(user: user, token: token),
-                  ),
-                );
-              } else if (user['is_owner'] == true) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => OwnerHomeScreen(user: user, token: token),
-                  ),
-                );
-              } else if (user['is_drop_off'] == true) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => DropOffHomeScreen(user: user, token: token),
-                  ),
-                );
-              } else if (user['is_driver'] == true) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => DriverPendingScreen(user: user, token: token),
-                  ),
-                );
-              } else {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => DashboardScreen(user: user, token: token),
-                  ),
-                );
-              }
+              _redirectAfterLogin(context, user, token);
             },
             child: const Text("확인", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
           )
         ],
       ),
     );
+  }
+
+  void _redirectAfterLogin(BuildContext context, Map<String, dynamic> user, String token) async {
+    if (user['is_admin'] == true) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => AdminHomeScreen(user: user, token: token)),
+      );
+      return;
+    }
+    
+    if (user['is_drop_off'] == true || user['is_site_manager'] == true) {
+      if (user['is_drop_off'] == true) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => DropOffHomeScreen(user: user, token: token)),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => DashboardScreen(user: user, token: token)),
+        );
+      }
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/auth/member-status"),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        final bool isApproved = decoded['is_approved'] ?? false;
+        final List missing = decoded['missing_documents'] ?? [];
+
+        if (user['is_driver'] == true) {
+          if (isApproved) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => DriverHomeScreen(user: user, token: token)),
+            );
+          } else {
+            if (missing.isNotEmpty) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => DriverDocumentUploadScreen(user: user, token: token)),
+              );
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => DriverPendingScreen(user: user, token: token)),
+              );
+            }
+          }
+        } else if (user['is_owner'] == true) {
+          if (isApproved) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => OwnerHomeScreen(user: user, token: token)),
+            );
+          } else {
+            if (missing.isNotEmpty) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => OwnerDocumentUploadScreen(user: user, token: token)),
+              );
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => OwnerPendingScreen(user: user, token: token)),
+              );
+            }
+          }
+        }
+      } else {
+        if (user['is_driver'] == true) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => DriverPendingScreen(user: user, token: token)),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => OwnerPendingScreen(user: user, token: token)),
+          );
+        }
+      }
+    } catch (e) {
+      if (user['is_driver'] == true) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => DriverPendingScreen(user: user, token: token)),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => OwnerPendingScreen(user: user, token: token)),
+        );
+      }
+    }
   }
 
   void _showErrorDialog(String message) {

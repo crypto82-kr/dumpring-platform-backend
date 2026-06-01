@@ -28,6 +28,10 @@ class User(Base):
     is_drop_off = Column(Boolean, default=False, nullable=False)      # 하차지 지주 권한
     is_admin = Column(Boolean, default=False, nullable=False)         # 시스템 총괄 관리자 권한
 
+    # 가입 심사 승인 여부 (차주 및 공통)
+    is_approved = Column(Boolean, default=False, nullable=False)
+    reject_reason = Column(String, nullable=True)
+
     # 생성 및 수정일시
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -148,6 +152,7 @@ class Driver(Base):
     current_car_id = Column(Integer, ForeignKey("cars.id", ondelete="SET NULL"), nullable=True)  # 배정 차량
     registered_phone = Column(String, nullable=False, index=True)  # 차주가 선등록한 기사 휴대폰 번호
     is_approved = Column(Boolean, default=False, nullable=False)  # 차주 소속 기사 승인 여부 (본사/차주 승인 단계)
+    reject_reason = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -155,6 +160,24 @@ class Driver(Base):
     # Relationships
     user = relationship("User", back_populates="drivers")
     assigned_car = relationship("Car", back_populates="drivers")
+
+
+class UserUploadedDocument(Base):
+    """
+    유저가 업로드한 필수 서류 동적 보관 테이블
+    """
+    __tablename__ = "user_uploaded_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    document_code = Column(String, nullable=False, index=True)  # CommonCode의 code 연동 (예: 'LICENSE', 'BIZ_LICENSE')
+    file_name = Column(String, nullable=False)  # 업로드된 파일명 또는 URL 경로
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    user = relationship("User")
 
 
 class Order(Base):
@@ -422,5 +445,47 @@ class JobPost(Base):
     drop_off_request = relationship("DropOffRequest", back_populates="job_posts")
     author = relationship("User")
     matched_drop_off = relationship("DropOff")
+
+
+class DriverFavoriteRegion(Base):
+    """
+    기사별 즐겨찾는 배차 구역 설정 테이블
+    """
+    __tablename__ = "driver_favorite_regions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    sido = Column(String, nullable=False, index=True)
+    sigungu = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        sa.UniqueConstraint('user_id', 'sido', 'sigungu', name='_user_favorite_region_uc'),
+    )
+
+
+class DispatchTicket(Base):
+    """
+    기사 개별 운행 매칭 및 GPS 미터 정산 티켓
+    """
+    __tablename__ = "dispatch_tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_post_id = Column(Integer, ForeignKey("job_posts.id", ondelete="CASCADE"), nullable=False)
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    car_id = Column(Integer, ForeignKey("cars.id", ondelete="RESTRICT"), nullable=False)
+
+    # 상태값: 'ACCEPTED'(수락), 'DRIVING'(운행중/미터기온), 'ARRIVED'(도착), 'APPROVED'(승인완료), 'REJECTED'(반려/회차), 'CANCELLED'(취소)
+    status = Column(String, default="ACCEPTED", nullable=False)
+
+    accumulated_fare = Column(Integer, default=0, nullable=False)
+    drive_distance_km = Column(Float, default=0.0, nullable=False)
+    drive_time_seconds = Column(Integer, default=0, nullable=False)
+
+    accepted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    driving_started_at = Column(DateTime(timezone=True), nullable=True)
+    arrived_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
 
 

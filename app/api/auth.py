@@ -491,3 +491,300 @@ async def get_current_owner(
         )
     return current_user
 
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    현재 로그인된 사용자가 '어드민(is_admin=True)' 권한을 지녔는지 검증하고 반환합니다.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="시스템 총괄 관리자(ADMIN) 권한이 필요합니다."
+        )
+    return current_user
+
+
+# ==========================================
+# ==========================================
+# 필수 서류 공통코드화 및 가입 심사/승인 API
+# ==========================================
+
+from app.models import CommonCode, UserUploadedDocument
+from app.schemas.auth import RequiredDocumentResponse, DocumentUploadRequest, MemberStatusResponse
+
+@router.get(
+    "/required-documents",
+    summary="역할별 필수제출 서류 목록 조회",
+    response_model=List[RequiredDocumentResponse],
+    description="가입 시 필수 제출해야 하는 서류 종류를 공통코드에서 조회합니다. role은 'driver'(기사) 또는 'owner'(차주)입니다."
+)
+async def get_required_documents(
+    role: str,
+    db: AsyncSession = Depends(get_db)
+):
+    group_code = "REQUIRED_DOC_DRIVER" if role.lower() == "driver" else "REQUIRED_DOC_OWNER"
+    
+    query = select(CommonCode).where(
+        CommonCode.group_code == group_code,
+        CommonCode.is_active == True
+    ).order_by(CommonCode.display_order.asc())
+    
+    result = await db.execute(query)
+    codes = result.scalars().all()
+    
+    return [
+        RequiredDocumentResponse(
+            code=c.code,
+            code_name=c.code_name,
+            display_order=c.display_order
+        ) for c in codes
+    ]
+
+
+@router.post(
+    "/upload-document",
+    summary="필수 서류 개별 파일명 등록 (업로드)",
+    description="기사 또는 차주가 특정 코드(예: LICENSE, BIZ_LICENSE)의 필수 서류를 임시 업로드 등록합니다."
+)
+async def upload_document(
+    data: DocumentUploadRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # 1. 기존 업로드 내역이 있는지 조회
+    query = select(UserUploadedDocument).where(
+        UserUploadedDocument.user_id == current_user.id,
+        UserUploadedDocument.document_code == data.document_code
+    )
+    result = await db.execute(query)
+    existing_doc = result.scalars().first()
+    
+    if existing_doc:
+        # 이미 제출된 경우 기존 파일 정보 덮어쓰기
+        existing_doc.file_name = data.file_name
+        logger.info(f"유저 [ID: {current_user.id}] 필수서류 [{data.document_code}] 덮어쓰기 업데이트 완료.")
+    else:
+        new_doc = UserUploadedDocument(
+            user_id=current_user.id,
+            document_code=data.document_code,
+            file_name=data.file_name
+        )
+        db.add(new_doc)
+        logger.info(f"유저 [ID: {current_user.id}] 신규 필수서류 [{data.document_code}] 등록 완료.")
+        
+    await db.commit()
+    return {"message": "서류가 정상적으로 업로드 처리되었습니다."}
+
+
+@router.get(
+    "/member-status",
+    summary="로그인 회원의 서류제출 및 승인현황 조회",
+    response_model=MemberStatusResponse,
+    description="로그인한 기사 또는 차주가 본인의 전체 서류 제출 개수와 승인 여부, 반려 사유, 미제출 서류 목록을 실시간으로 확인합니다."
+)
+async def get_member_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # 1. 역할 구분
+    role = "driver" if current_user.is_driver else "owner"
+    group_code = "REQUIRED_DOC_DRIVER" if role == "driver" else "REQUIRED_DOC_OWNER"
+    
+    # 2. 필수 공통코드 가져오기
+    codes_query = select(CommonCode).where(
+        CommonCode.group_code == group_code,
+        CommonCode.is_active == True
+    ).order_by(CommonCode.display_order.asc())
+    codes_result = await db.execute(codes_query)
+    req_codes = codes_result.scalars().all()
+    
+    # 3. 유저가 제출한 서류 목록
+    uploaded_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
+    uploaded_result = await db.execute(uploaded_query)
+    uploaded_docs = uploaded_result.scalars().all()
+    
+    uploaded_codes = [d.document_code for d in uploaded_docs]
+    
+    # 4. 미제출 서류 목록 도출
+    missing_docs = []
+    for rc in req_codes:
+        if rc.code not in uploaded_codes:
+            missing_docs.append(
+                RequiredDocumentResponse(
+                    code=rc.code,
+                    code_name=rc.code_name,
+                    display_order=rc.display_order
+                )
+            )
+            
+    # 5. 심사 승인 여부 확인
+    is_approved = False
+    reject_reason = None
+    
+    if role == "driver":
+        driver_query = select(Driver).where(Driver.user_id == current_user.id)
+        driver_result = await db.execute(driver_query)
+        driver = driver_result.scalars().first()
+        if driver:
+            is_approved = driver.is_approved
+            reject_reason = driver.reject_reason
+    else:
+        # 차주
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+        
+    return MemberStatusResponse(
+        is_approved=is_approved,
+        reject_reason=reject_reason,
+        uploaded_documents=uploaded_codes,
+        missing_documents=missing_docs
+    )
+
+
+@router.get(
+    "/admin/pending-members",
+    summary="[어드민] 가입 심사 대기 중인 회원(차주/기사) 목록 조회",
+    description="관리자가 제출된 서류를 보고 승인할 수 있도록, 대기 중인 기사/차주 회원 리스트와 그들이 제출한 서류 세부를 통합 반환합니다."
+)
+async def get_pending_members(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    response_list = []
+    
+    # 기사 중 아직 미승인(is_approved = False) 유저 검색
+    driver_query = select(Driver).where(Driver.is_approved == False)
+    driver_res = await db.execute(driver_query)
+    drivers = driver_res.scalars().all()
+    
+    for d in drivers:
+        name = "기사"
+        phone = d.registered_phone
+        user_id = d.user_id
+        if user_id:
+            u_query = select(User).where(User.id == user_id)
+            u_res = await db.execute(u_query)
+            u = u_res.scalars().first()
+            if u:
+                name = u.name
+                phone = u.phone_number
+                
+        # 제출 서류
+        doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == user_id)
+        doc_res = await db.execute(doc_query)
+        docs = doc_res.scalars().all()
+        doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+        
+        response_list.append({
+            "id": user_id,
+            "type": "기사 가입",
+            "name": name,
+            "phone_number": phone,
+            "docs": doc_summary or "미제출",
+            "created_at": d.created_at
+        })
+        
+    # 차주 중 아직 미승인(is_approved = False) 유저 검색
+    owner_query = select(User).where(User.is_owner == True, User.is_approved == False)
+    owner_res = await db.execute(owner_query)
+    owners = owner_res.scalars().all()
+    
+    for o in owners:
+        # 어드민 계정은 제외
+        if o.is_admin:
+            continue
+            
+        doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == o.id)
+        doc_res = await db.execute(doc_query)
+        docs = doc_res.scalars().all()
+        doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+        
+        response_list.append({
+            "id": o.id,
+            "type": "차주 가입",
+            "name": o.name,
+            "phone_number": o.phone_number,
+            "docs": doc_summary or "미제출",
+            "created_at": o.created_at
+        })
+        
+    return response_list
+
+
+@router.post(
+    "/admin/members/{user_id}/approve",
+    summary="[어드민] 특정 회원 최종 승인 처리",
+    description="어드민이 서류 심사 결과에 대해 회원 가입을 최종 승인합니다."
+)
+async def approve_member(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    query = select(User).where(User.id == user_id)
+    result = await db.execute(query)
+    user = result.scalars().first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 유저를 찾을 수 없습니다."
+        )
+        
+    # 역할에 따라 승인 처리
+    if user.is_driver:
+        d_query = select(Driver).where(Driver.user_id == user_id)
+        d_res = await db.execute(d_query)
+        driver = d_res.scalars().first()
+        if driver:
+            driver.is_approved = True
+            driver.reject_reason = None
+            
+    if user.is_owner:
+        user.is_approved = True
+        user.reject_reason = None
+        
+    await db.commit()
+    return {"message": "회원 가입 서류 심사가 성공적으로 최종 승인 완료되었습니다."}
+
+
+@router.post(
+    "/admin/members/{user_id}/reject",
+    summary="[어드민] 특정 회원 반려(거절) 처리",
+    description="어드민이 사유와 함께 회원 가입 신청을 반려(거절) 처리합니다."
+)
+async def reject_member(
+    user_id: int,
+    reject_reason: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    query = select(User).where(User.id == user_id)
+    result = await db.execute(query)
+    user = result.scalars().first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 유저를 찾을 수 없습니다."
+        )
+        
+    # 역할에 따라 반려 처리
+    if user.is_driver:
+        d_query = select(Driver).where(Driver.user_id == user_id)
+        d_res = await db.execute(d_query)
+        driver = d_res.scalars().first()
+        if driver:
+            driver.is_approved = False
+            driver.reject_reason = reject_reason
+            
+    if user.is_owner:
+        user.is_approved = False
+        user.reject_reason = reject_reason
+        
+    await db.commit()
+    return {"message": "회원 가입 신청이 성공적으로 반려되었습니다."}
+
+

@@ -2,24 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
-import 'driver_home_screen.dart';
-import 'driver_document_upload_screen.dart';
+import 'owner_home_screen.dart';
+import 'owner_document_upload_screen.dart';
 
-class DriverPendingScreen extends StatefulWidget {
+class OwnerPendingScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final String token;
 
-  const DriverPendingScreen({
+  const OwnerPendingScreen({
     Key? key,
     required this.user,
     required this.token,
   }) : super(key: key);
 
   @override
-  State<DriverPendingScreen> createState() => _DriverPendingScreenState();
+  State<OwnerPendingScreen> createState() => _OwnerPendingScreenState();
 }
 
-class _DriverPendingScreenState extends State<DriverPendingScreen> {
+class _OwnerPendingScreenState extends State<OwnerPendingScreen> {
   String get _baseUrl => "https://dumpring-api.onrender.com";
 
   bool _isApproved = false;
@@ -90,7 +90,7 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isApproved) {
-      return DriverHomeScreen(user: widget.user, token: widget.token);
+      return OwnerHomeScreen(user: widget.user, token: widget.token);
     }
 
     return Scaffold(
@@ -100,7 +100,7 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Color(0xFF1A202C)),
         title: const Text(
-          "가입 심사 현황",
+          "차주 가입 심사 현황",
           style: TextStyle(color: Color(0xFF1A202C), fontWeight: FontWeight.bold, fontSize: 17),
         ),
         centerTitle: true,
@@ -133,7 +133,7 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
                     const SizedBox(height: 28),
 
                     Text(
-                      _isRejected ? "가입 심사 반려 안내" : "가입 서류 심사 대기 중",
+                      _isRejected ? "가입 심사 반려 안내" : "가입 서류 심사 진행 중",
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 20,
@@ -145,8 +145,8 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
 
                     Text(
                       _isRejected
-                          ? "심사 도중 반려 사유가 발생하였습니다. 아래 내용을 확인 후 서류를 재제출해 주세요."
-                          : "가입 승인을 위해 정식 라이센스 및 계좌 검증이 진행 중입니다.\n승인 완료 시 자동으로 기사 홈 화면으로 이동합니다.",
+                          ? "서류 검토 과정에서 결격 사유가 발견되었습니다. 아래 내용을 조치한 후 다시 요청해 주세요."
+                          : "제출해 주신 영업 서류와 통장 사본을 대조 검증하고 있습니다.\n승인 즉시 배차 및 기사 배정 홈 화면으로 자동 전환됩니다.",
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 13,
@@ -172,14 +172,14 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
                                 Icon(Icons.cancel, color: Colors.red, size: 18),
                                 SizedBox(width: 8),
                                 Text(
-                                  "반려 사유",
+                                  "반려 사유 상세",
                                   style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              _rejectReason ?? "제출 서류 검증 실패",
+                              _rejectReason ?? "제출하신 서류의 상호명과 가입자명이 다릅니다. 서류를 다시 확인해 주세요.",
                               style: const TextStyle(fontSize: 13, color: Color(0xFF2D3748), height: 1.4),
                             ),
                           ],
@@ -191,7 +191,7 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
                         onPressed: () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
-                              builder: (context) => DriverDocumentUploadScreen(
+                              builder: (context) => OwnerDocumentUploadScreen(
                                 user: widget.user,
                                 token: widget.token,
                               ),
@@ -205,7 +205,7 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
                         ),
-                        child: const Text("서류 재보완 및 등록", style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text("서류 보완 재제출", style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ] else ...[
                       Card(
@@ -226,7 +226,7 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
                               ),
                               SizedBox(height: 16),
                               Text(
-                                "평균 1영업일 이내에 검증이 완료됩니다.\n실시간 승인 결과를 수신하고 있으니 잠시 기다려 주세요.",
+                                "본사 관리자가 실시간으로 검토 중입니다.\n페이지를 닫지 말고 잠시만 대기해 주세요.",
                                 textAlign: TextAlign.center,
                                 style: TextStyle(fontSize: 12, color: Color(0xFF718096), height: 1.5),
                               ),

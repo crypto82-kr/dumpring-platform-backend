@@ -304,7 +304,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
     return Container(
       color: const Color(0xFFFFF4E5),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      border: const Border(bottom: BorderSide(color: Color(0xFFFFE6CC))),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFFFE6CC)))),
       child: const Row(
         children: [
           Icon(Icons.warning_amber_rounded, color: Color(0xFFFF7A00), size: 22),

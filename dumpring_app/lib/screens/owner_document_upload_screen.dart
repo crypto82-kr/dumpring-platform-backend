@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'driver_pending_screen.dart';
+import 'owner_pending_screen.dart';
 
-class DriverDocumentUploadScreen extends StatefulWidget {
+class OwnerDocumentUploadScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final String token;
 
-  const DriverDocumentUploadScreen({
+  const OwnerDocumentUploadScreen({
     Key? key,
     required this.user,
     required this.token,
   }) : super(key: key);
 
   @override
-  State<DriverDocumentUploadScreen> createState() => _DriverDocumentUploadScreenState();
+  State<OwnerDocumentUploadScreen> createState() => _OwnerDocumentUploadScreenState();
 }
 
-class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen> {
+class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
   String get _baseUrl => "https://dumpring-api.onrender.com";
 
   List<Map<String, dynamic>> _requiredDocs = [];
@@ -38,7 +38,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
 
     try {
       final response = await http.get(
-        Uri.parse("$_baseUrl/api/auth/required-documents?role=driver"),
+        Uri.parse("$_baseUrl/api/auth/required-documents?role=owner"),
         headers: {
           "Authorization": "Bearer ${widget.token}",
           "Content-Type": "application/json",
@@ -54,6 +54,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
           }
         });
         
+        // 제출 현황도 파악하여 이미 업로드 완료된 건이 있는지 매핑
         await _fetchExistingStatus();
       }
     } catch (e) {
@@ -80,7 +81,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
         final uploaded = decoded['uploaded_documents'] as List;
         setState(() {
           for (var code in uploaded) {
-            _uploadedFiles[code] = "제출완료_${code.toLowerCase()}.jpg";
+            _uploadedFiles[code] = "제출완료_${code.toLowerCase()}.pdf";
           }
         });
       }
@@ -133,13 +134,14 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
           _isSubmitting = false;
         });
         final timeStr = DateTime.now().millisecondsSinceEpoch.toString().substring(8);
-        final simulatedFileName = "기사서류_${docCode}_$timeStr.jpg";
+        final simulatedFileName = "사업자서류_${docCode}_$timeStr.jpg";
         await _uploadDocumentToServer(docCode, simulatedFileName);
       }
     });
   }
 
   void _submitAllDocuments() {
+    // 모든 서류가 다 제출되었는지 검증
     final missing = _requiredDocs.where((doc) => _uploadedFiles[doc['code']] == null).toList();
 
     if (missing.isNotEmpty) {
@@ -161,9 +163,10 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
       return;
     }
 
+    // 제출 완료 후 심사대기 페이지로 이동
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => DriverPendingScreen(
+        builder: (context) => OwnerPendingScreen(
           user: widget.user,
           token: widget.token,
         ),
@@ -180,7 +183,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Color(0xFF1A202C)),
         title: const Text(
-          "덤프 기사 필수 서류 제출",
+          "차주 필수 서류 제출",
           style: TextStyle(color: Color(0xFF1A202C), fontWeight: FontWeight.bold, fontSize: 17),
         ),
         centerTitle: true,
@@ -213,12 +216,12 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      "신속한 가입 승인을 위한 안내",
+                                      "차주 사장님 가입 승인 안내",
                                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF004D5A)),
                                     ),
                                     SizedBox(height: 6),
                                     Text(
-                                      "덤프링은 안전한 중계 플랫폼 운영을 위해 기사님의 운전 자격 및 본인 통장 계좌를 검증합니다.\n글자가 또렷하게 보이도록 밝은 곳에서 촬영해 주세요.",
+                                      "덤프링은 안전한 중계 거래 계약 체결을 위해 국세청 연동 전 차주님의 정상 영업 허가 여부와 운임 계좌를 본사 총괄 관리자가 직접 확인 및 승인합니다.",
                                       style: TextStyle(fontSize: 12, color: Color(0xFF002D35), height: 1.4),
                                     ),
                                   ],
@@ -265,11 +268,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                                         radius: 26,
                                         backgroundColor: isUploaded ? const Color(0xFFFFF4E5) : const Color(0xFFF7FAFC),
                                         child: Icon(
-                                          docCode == 'LICENSE'
-                                              ? Icons.badge_outlined
-                                              : docCode == 'QUALIFICATION'
-                                                  ? Icons.local_shipping_outlined
-                                                  : Icons.account_balance_wallet_outlined,
+                                          docCode == 'BIZ_LICENSE' ? Icons.business_outlined : Icons.account_balance_wallet_outlined,
                                           color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFF718096),
                                           size: 26,
                                         ),
@@ -322,7 +321,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                             elevation: 0,
                           ),
                           child: const Text(
-                            "기사 서류 심사 요청",
+                            "차주 서류 심사 요청",
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ),

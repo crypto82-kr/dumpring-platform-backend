@@ -473,7 +473,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.mountain_flag_outlined, color: Color(0xFF004D5A)),
+                  Icon(Icons.flag_outlined, color: Color(0xFF004D5A)),
                   SizedBox(width: 8),
                   Text(
                     "새 하차지 / 사토장 등록",
@@ -601,7 +601,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: ListTile(
                   leading: const CircleAvatar(
                     backgroundColor: Color(0xFFE2F0F2),
-                    child: Icon(Icons.mountain_flag, color: Color(0xFF004D5A)),
+                    child: Icon(Icons.flag, color: Color(0xFF004D5A)),
                   ),
                   title: Text(site['site_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text("수용 토사 종류: ${site['preferred_soil_types'] ?? ''}"),
