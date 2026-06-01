@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'driver_meter_screen.dart';
 import 'driver_history_screen.dart';
+import 'driver_dispatch_confirm_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -638,14 +639,26 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                             ],
                           ),
                           ElevatedButton(
-                            onPressed: _isWaitingForDispatch ? () => _acceptJob(job['id']) : null,
+                            onPressed: _isWaitingForDispatch
+                                ? () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => DriverDispatchConfirmScreen(
+                                          user: widget.user,
+                                          token: widget.token,
+                                          job: job,
+                                        ),
+                                      ),
+                                    ).then((_) => _loadOpenJobs());
+                                  }
+                                : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFFF7A00),
                               disabledBackgroundColor: Colors.grey[300],
                               elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
-                            child: const Text("수락 및 운행", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                            child: const Text("오더 확인", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
