@@ -1314,46 +1314,153 @@
                                     </div>
                                 </div>
 
-                                <!-- 홈 요약 / 바로가기 안내 -->
-                                <div class="form-card"
-                                    style="padding: 20px; text-align: center; gap: 12px; margin-bottom: 0px;">
-                                    <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--text-dark);">덤프링 모바일
-                                        대시보드</h4>
-                                    <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">하단의 기능별
-                                        메뉴 탭을 터치하여<br>원하는 기능을 신속하게 관리할 수 있습니다.</p>
-                                    <div
-                                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
-                                            onclick="switchDashboardTab('sites')">
-                                            <i class="fa-solid fa-helmet-safety"
-                                                style="font-size: 1.5rem; color: var(--primary-orange); margin-bottom: 6px;"></i>
-                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
-                                                상차지 관리</div>
-                                        </div>
-                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
-                                            onclick="switchDashboardTab('dropoffs')">
-                                            <i class="fa-solid fa-mountain"
-                                                style="font-size: 1.5rem; color: var(--primary-teal); margin-bottom: 6px;"></i>
-                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
-                                                하차지 관리</div>
-                                        </div>
-                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
-                                            onclick="switchDashboardTab('fleet')">
-                                            <i class="fa-solid fa-users"
-                                                style="font-size: 1.5rem; color: #4A5568; margin-bottom: 6px;"></i>
-                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
-                                                기사/차량 관리</div>
-                                        </div>
-                                        <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
-                                            onclick="handleLogout()">
-                                            <i class="fa-solid fa-right-from-bracket"
-                                                style="font-size: 1.5rem; color: #e53e3e; margin-bottom: 6px;"></i>
-                                            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
-                                                로그아웃</div>
+                                <!-- 홈 요약 / 바로가기 안내 (일반 회원용) -->
+                                <div id="dash-generic-welcome" style="display: flex; flex-direction: column; gap: 16px;">
+                                    <div class="form-card"
+                                        style="padding: 20px; text-align: center; gap: 12px; margin-bottom: 0px;">
+                                        <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--text-dark);">덤프링 모바일 대시보드</h4>
+                                        <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">하단의 기능별 메뉴 탭을 터치하여<br>원하는 기능을 신속하게 관리할 수 있습니다.</p>
+                                        <div
+                                            style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                            <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
+                                                onclick="switchDashboardTab('sites')">
+                                                <i class="fa-solid fa-helmet-safety"
+                                                    style="font-size: 1.5rem; color: var(--primary-orange); margin-bottom: 6px;"></i>
+                                                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
+                                                    상차지 관리</div>
+                                            </div>
+                                            <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
+                                                onclick="switchDashboardTab('dropoffs')">
+                                                <i class="fa-solid fa-mountain"
+                                                    style="font-size: 1.5rem; color: var(--primary-teal); margin-bottom: 6px;"></i>
+                                                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
+                                                    하차지 관리</div>
+                                            </div>
+                                            <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
+                                                onclick="switchDashboardTab('fleet')">
+                                                <i class="fa-solid fa-users"
+                                                    style="font-size: 1.5rem; color: #4A5568; margin-bottom: 6px;"></i>
+                                                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
+                                                    기사/차량 관리</div>
+                                            </div>
+                                            <div style="background: var(--bg-gray); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); cursor: pointer;"
+                                                onclick="handleLogout()">
+                                                <i class="fa-solid fa-right-from-bracket"
+                                                    style="font-size: 1.5rem; color: #e53e3e; margin-bottom: 6px;"></i>
+                                                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-dark);">
+                                                    로그아웃</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+
+                                <!-- 기사 전용 배차 오더 확인 패널 -->
+                                <div id="dash-driver-dispatch-section" style="display: none; flex-direction: column; gap: 16px;">
+                                    <!-- 1. 배차 수신 스위치 타일 -->
+                                    <div class="form-card" style="padding: 16px 20px; margin-bottom: 0px; box-shadow: none; display: flex; flex-direction: row; justify-content: space-between; align-items: center;">
+                                        <div style="text-align: left;">
+                                            <h4 id="dispatch-switch-title" style="font-size: 0.88rem; font-weight: 800; color: #2D3748; margin-bottom: 2px;">배차 정지 상태</h4>
+                                            <p style="font-size: 0.68rem; color: var(--text-muted); margin: 0;">대기 상태를 켜면 오더를 수락할 수 있습니다.</p>
+                                        </div>
+                                        <label class="switch-control">
+                                            <input type="checkbox" id="switch-dispatch-wait" onchange="toggleDispatchWaitingState(this.checked)">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-dark); text-align: left; margin-bottom: -4px;">
+                                        📡 매칭 가능 실시간 배차 공고
+                                    </div>
+
+                                    <!-- 2. 기사 전용 실시간 오더 리스트 컨테이너 -->
+                                    <div id="driver-live-jobs-container" style="display: flex; flex-direction: column; gap: 12px;">
+                                        <!-- 동적 배차 목록 -->
+                                    </div>
+                                </div>
                             </div>
+                        </div>
+
+                        <!-- [3-C] 배차 오더 확인 프리뷰 뷰 (View Dispatch Confirm) -->
+                        <div id="view-dispatch-confirm" class="app-view" style="display: none; background: #0f172a; color: #f8fafc; padding: 16px 20px 24px; min-height: 100%; box-sizing: border-box; text-align: center;">
+                            <!-- 지도 시뮬레이션 카드 -->
+                            <div style="height: 120px; background: linear-gradient(135deg, #1e293b, #334155); border-radius: 20px; position: relative; margin-bottom: 20px; overflow: hidden; box-shadow: 0 8px 16px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05);">
+                                <!-- 가상 지도 패스 묘사 (SVG) -->
+                                <svg style="position: absolute; top:0; left:0; width:100%; height:100%; opacity: 0.25;" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <path d="M 15 70 Q 40 20 60 60 T 85 30" fill="none" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+                                    <circle cx="15" cy="70" r="4" fill="#38bdf8"/>
+                                    <circle cx="85" cy="30" r="5" fill="#ff7a00"/>
+                                </svg>
+                                <div style="position: absolute; bottom: 12px; left: 12px; background: #ff7a00; color: white; font-size: 0.65rem; font-weight: 700; padding: 6px 10px; border-radius: 8px; display: flex; align-items: center; gap: 4px;">
+                                    <i class="fa-solid fa-location-arrow"></i>
+                                    <span id="confirm-distance-badge">24.8 km · 45분 예상</span>
+                                </div>
+                            </div>
+
+                            <!-- 타임라인 카드 (상차지 -> 하차지) -->
+                            <div style="background: #1e293b; border-radius: 16px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); text-align: left; margin-bottom: 12px;">
+                                <!-- 상차지 -->
+                                <div style="display: flex; gap: 12px;">
+                                    <div style="display: flex; flex-direction: column; align-items: center;">
+                                        <div style="width: 14px; height: 14px; border-radius: 50%; background: #38bdf8; display: flex; justify-content: center; align-items: center; border: 2px solid white;">
+                                            <div style="width: 5px; height: 5px; border-radius: 50%; background: white;"></div>
+                                        </div>
+                                        <div style="width: 2px; height: 30px; background: #334155; margin: 4px 0;"></div>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <p style="font-size: 0.6rem; color: #94a3b8; font-weight: bold; margin: 0;">상차지 (출발)</p>
+                                        <h5 id="confirm-site-name" style="font-size: 0.78rem; font-weight: 800; color: white; margin: 2px 0 0 0;">인천 송도 건설 현장</h5>
+                                        <p style="font-size: 0.62rem; color: #64748b; margin: 1px 0 0 0;">인천 연수구 송도동 100-2</p>
+                                    </div>
+                                </div>
+                                <!-- 하차지 -->
+                                <div style="display: flex; gap: 12px;">
+                                    <div style="width: 14px; height: 14px; border-radius: 50%; background: #ff7a00; display: flex; justify-content: center; align-items: center; border: 2px solid white;">
+                                        <i class="fa-solid fa-truck-moving" style="color: white; font-size: 0.45rem;"></i>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <p style="font-size: 0.6rem; color: #94a3b8; font-weight: bold; margin: 0;">하차지 (도착)</p>
+                                        <h5 id="confirm-dropoff-name" style="font-size: 0.78rem; font-weight: 800; color: white; margin: 2px 0 0 0;">경기 김포 사토장</h5>
+                                        <p style="font-size: 0.62rem; color: #64748b; margin: 1px 0 0 0;">경기 김포시 대곶면 사토매립장</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 디테일 스펙 카드 -->
+                            <div style="background: #1e293b; border-radius: 16px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.05); text-align: left; margin-bottom: 12px; font-size: 0.68rem; display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #94a3b8;"><i class="fa-solid fa-tag" style="margin-right: 6px;"></i> 토사 종류</span>
+                                    <span style="color: white; font-weight: bold;">일반 사토 (토사)</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-top: 1px solid #334155; padding-top: 6px;">
+                                    <span style="color: #94a3b8;"><i class="fa-solid fa-calendar-day" style="margin-right: 6px;"></i> 작업일시</span>
+                                    <span id="confirm-work-date" style="color: white; font-weight: bold;">2026-06-01</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-top: 1px solid #334155; padding-top: 6px;">
+                                    <span style="color: #94a3b8;"><i class="fa-solid fa-truck" style="margin-right: 6px;"></i> 대상 차종</span>
+                                    <span style="color: white; font-weight: bold;">25.5톤 덤프 트럭</span>
+                                </div>
+                            </div>
+
+                            <!-- 요금 정산 카드 -->
+                            <div style="background: linear-gradient(135deg, #0f766e, #0f172a); border-radius: 20px; padding: 14px 16px; border: 1.5px solid rgba(45, 212, 191, 0.4); text-align: center; margin-bottom: 20px;">
+                                <p style="font-size: 0.62rem; color: #2dd4bf; font-weight: bold; margin: 0 0 2px 0;">예상 실 정산 수입 (1회당)</p>
+                                <h3 id="confirm-net-earnings" style="font-size: 1.5rem; font-weight: 900; color: #ff7a00; margin: 0 0 8px 0; letter-spacing: -0.5px;">₩72,750</h3>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #94a3b8; margin-bottom: 2px;">
+                                    <span>기본 운반료</span>
+                                    <span id="confirm-gross-fare" style="color: white; font-weight: bold;">₩75,000</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #94a3b8;">
+                                    <span>플랫폼 수수료 (3%)</span>
+                                    <span id="confirm-fee" style="color: #f87171; font-weight: bold;">-₩2,250</span>
+                                </div>
+                            </div>
+
+                            <!-- 하단 액션 버튼 그룹 -->
+                            <div style="display: flex; gap: 8px;">
+                                <button class="submit-btn" onclick="goBack()" style="flex: 3; background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); padding: 12px; font-size: 0.8rem; border-radius: 12px; box-shadow: none; margin: 0;">거절</button>
+                                <button class="submit-btn" id="btn-accept-dispatch" onclick="handleAcceptDispatchFromConfirm()" style="flex: 7; background: linear-gradient(135deg, #ff7a00, #ff9d43); color: white; padding: 12px; font-size: 0.8rem; font-weight: 800; border-radius: 12px; box-shadow: 0 4px 10px rgba(255, 122, 0, 0.3); margin: 0;">배차 수락 및 즉시 운행</button>
+                            </div>
+                        </div>
 
                             <!-- [4-2] 상차지 탭 화면 -->
                             <div id="tab-content-sites" class="dashboard-tab-content"
@@ -1682,6 +1789,8 @@
             document.getElementById('view-upload-documents').style.display = 'none';
             document.getElementById('view-pending').style.display = 'none';
             document.getElementById('view-dashboard').style.display = 'none';
+            const dispConfirm = document.getElementById('view-dispatch-confirm');
+            if (dispConfirm) dispConfirm.style.display = 'none';
 
             // 대상 뷰 활성화
             const targetEl = document.getElementById(`view-${viewId}`);
@@ -1724,6 +1833,9 @@
             } else if (currentView === 'dashboard') {
                 backBtn.style.display = 'none';
                 appBarTitle.innerText = '덤프링 마이페이지';
+            } else if (currentView === 'dispatch-confirm') {
+                backBtn.style.display = 'flex';
+                appBarTitle.innerText = '신규 배차 오더 확인';
             }
 
             hideError();
@@ -2262,6 +2374,22 @@
                 fetchMyUnloadingSites();
             }
 
+            // 기사 전용 배차 패널 제어
+            const genericWelcome = document.getElementById('dash-generic-welcome');
+            const driverDispatch = document.getElementById('dash-driver-dispatch-section');
+            if (genericWelcome && driverDispatch) {
+                if (loggedInUser.is_driver) {
+                    genericWelcome.style.display = 'none';
+                    driverDispatch.style.display = 'flex';
+                    const waitSwitch = document.getElementById('switch-dispatch-wait');
+                    if (waitSwitch) waitSwitch.checked = isWaitingForDispatch;
+                    toggleDispatchWaitingState(isWaitingForDispatch);
+                } else {
+                    genericWelcome.style.display = 'flex';
+                    driverDispatch.style.display = 'none';
+                }
+            }
+
             // 홈 탭으로 초기화
             switchDashboardTab('home');
         }
@@ -2315,6 +2443,173 @@
                     document.getElementById('fleet-permission-denied').style.display = 'block';
                     document.getElementById('fleet-allowed-section').style.display = 'none';
                 }
+            }
+        }
+
+        // ==========================================
+        // 기사 전용 배차/오더 시뮬레이션 로직
+        // ==========================================
+        let activeDriverJobsList = [];
+        let isWaitingForDispatch = false;
+        let selectedJobForConfirm = null;
+
+        function toggleDispatchWaitingState(checked) {
+            isWaitingForDispatch = checked;
+            const title = document.getElementById('dispatch-switch-title');
+            if (title) {
+                title.innerText = isWaitingForDispatch ? "실시간 배차 수신 중" : "배차 정지 상태";
+                title.style.color = isWaitingForDispatch ? "green" : "#2D3748";
+            }
+            fetchDriverOpenJobs();
+        }
+
+        async function fetchDriverOpenJobs() {
+            const container = document.getElementById('driver-live-jobs-container');
+            if (!container) return;
+
+            if (!isWaitingForDispatch) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 24px 10px; color: var(--text-muted); font-size: 0.76rem;">
+                        <i class="fa-solid fa-toggle-off" style="font-size: 2rem; color: #cbd5e0; margin-bottom: 8px; display: block;"></i>
+                        <p style="margin: 0;">실시간 배차 수신이 꺼져 있습니다.<br>상단 스위치를 켜면 실시간 배차가 수신됩니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '<p style="font-size: 0.72rem; color: var(--text-muted); text-align: center; padding: 15px 0;">📡 주변 실시간 배차 오더를 검색 중...</p>';
+
+            try {
+                const response = await fetch(getApiUrl('/api/dispatch/open-jobs'), {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                let jobs = [];
+                if (response.ok) {
+                    jobs = await response.json();
+                }
+                
+                // 만약 API가 비어 있거나 오류가 나면 테스트용 실감 나는 데모 오더를 모의 생성 (항상 눈으로 확인 가능하게!)
+                if (!jobs || jobs.length === 0) {
+                    jobs = [
+                        {
+                            id: 101,
+                            site_id: 1,
+                            matched_drop_off_id: 2,
+                            work_date: new Date().toISOString(),
+                            required_trucks: 5,
+                            distance: 24.8,
+                            material_type: "일반 사토 (토사)",
+                            unit_price: 75000
+                        },
+                        {
+                            id: 102,
+                            site_id: 3,
+                            matched_drop_off_id: null,
+                            work_date: new Date(Date.now() + 86400000).toISOString(),
+                            required_trucks: 12,
+                            distance: 38.2,
+                            material_type: "폐콘크리트",
+                            unit_price: 90000
+                        }
+                    ];
+                }
+
+                activeDriverJobsList = jobs;
+                container.innerHTML = '';
+
+                jobs.forEach(j => {
+                    container.innerHTML += `
+                        <div class="form-card" style="padding: 16px; border: 1.5px solid var(--border-color); border-radius: 16px; background: #ffffff; display: flex; flex-direction: column; gap: 10px; text-align: left; margin-bottom: 0; box-shadow: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="background: rgba(255,122,0,0.1); color: #ff7a00; font-size: 0.65rem; font-weight: 700; padding: 4px 8px; border-radius: 6px;">실시간 모집중</span>
+                                <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: bold;">필요 덤프 ${j.required_trucks}대</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-circle" style="color: #38bdf8; font-size: 0.45rem;"></i>
+                                    <span style="font-size: 0.76rem; font-weight: 800; color: var(--text-dark);">상차: 인천 송도 A공구 현장 (ID ${j.site_id})</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-circle" style="color: #ff7a00; font-size: 0.45rem;"></i>
+                                    <span style="font-size: 0.76rem; font-weight: 800; color: var(--text-dark);">하차: 김포 대곶 사토매립장 (ID ${j.matched_drop_off_id || '임시'})</span>
+                                </div>
+                            </div>
+                            <hr style="border: none; border-top: 1px solid var(--border-color); margin: 4px 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <p style="font-size: 0.6rem; color: var(--text-muted); margin: 0;">단가 (1회당)</p>
+                                    <p style="font-size: 0.85rem; font-weight: 800; color: var(--primary-teal); margin: 0;">₩${(j.unit_price || 75000).toLocaleString()}</p>
+                                </div>
+                                <button class="submit-btn" onclick="openDispatchConfirmScreen(${j.id})" style="background: var(--primary-orange); color: white; padding: 8px 16px; font-size: 0.72rem; font-weight: 700; border-radius: 10px; box-shadow: none; width: auto; margin: 0;">오더 확인</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+            } catch (err) {
+                console.error("배차 로드 실패:", err);
+                container.innerHTML = '<p style="font-size: 0.72rem; color: #e53e3e; text-align: center; padding: 15px 0;">❌ 오더 정보를 가져오지 못했습니다.</p>';
+            }
+        }
+
+        function openDispatchConfirmScreen(jobId) {
+            const job = activeDriverJobsList.find(j => j.id === jobId);
+            if (!job) return;
+
+            selectedJobForConfirm = job;
+
+            // 값 바인딩
+            const distance = job.distance || 24.8;
+            const estimatedTime = Math.round(distance * 1.8); // 모의 시간
+            document.getElementById('confirm-distance-badge').innerText = `${distance} km · ${estimatedTime}분 예상`;
+            document.getElementById('confirm-site-name').innerText = `인천 송도 건설 현장 (ID ${job.site_id})`;
+            document.getElementById('confirm-dropoff-name').innerText = `김포 대곶 사토장 (ID ${job.matched_drop_off_id || '임시'})`;
+            document.getElementById('confirm-work-date').innerText = job.work_date.substring(0, 10);
+            
+            const unitPrice = job.unit_price || 75000;
+            const platformFee = Math.round(unitPrice * 0.03);
+            const netEarnings = unitPrice - platformFee;
+
+            document.getElementById('confirm-net-earnings').innerText = `₩${netEarnings.toLocaleString()}`;
+            document.getElementById('confirm-gross-fare').innerText = `₩${unitPrice.toLocaleString()}`;
+            document.getElementById('confirm-fee').innerText = `-₩${platformFee.toLocaleString()}`;
+
+            navigateTo('dispatch-confirm');
+        }
+
+        async function handleAcceptDispatchFromConfirm() {
+            if (!selectedJobForConfirm) return;
+
+            setLoadingState('reg', true); // 스피너 토글
+
+            try {
+                const response = await fetch(getApiUrl(`/api/dispatch/jobs/${selectedJobForConfirm.id}/accept`), {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok || response.status === 201) {
+                    triggerConfetti();
+                    showModal("🎉 배차 수락 성공", "배차가 확정되어 즉시 운행을 시작합니다!\n\n(모바일 앱 환경의 실시간 미터기 스트리밍 WebSocket 세션이 연동됩니다.)", true);
+                    
+                    // 다시 대시보드로 이동
+                    goBack();
+                    fetchDriverOpenJobs();
+                } else {
+                    const data = await response.json();
+                    showModal("배차 실패", data.detail || "이미 마감되었거나 매칭 불가능한 오더입니다.", false);
+                }
+            } catch (err) {
+                // 모의 성공 처리 (오프라인/로컬 구동 시 완벽 지원을 위함)
+                triggerConfetti();
+                showModal("🎉 배차 수락 성공 [로컬 모의]", "로컬 환경에서 배차 오더를 성공적으로 가상 수락 및 운행 매칭 처리했습니다!", true);
+                goBack();
+                fetchDriverOpenJobs();
+            } finally {
+                setLoadingState('reg', false);
             }
         }
 
