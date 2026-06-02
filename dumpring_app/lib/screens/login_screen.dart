@@ -11,6 +11,7 @@ import 'driver_home_screen.dart';
 import 'driver_document_upload_screen.dart';
 import 'owner_document_upload_screen.dart';
 import 'owner_pending_screen.dart';
+import 'sdui_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -28,6 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isStatusChecking = false;
   String? _errorMessage;
 
   @override
@@ -61,10 +63,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final decodedResponse = jsonDecode(utf8.decode(response.bodyBytes));
 
       if (response.statusCode == 200) {
-        // 로그인 대성공
+        // 로그인 대성공 - 불필요한 다이얼로그 팝업을 제거하고 즉시 화면 전환 (사용성 극대화 🚀)
         final token = decodedResponse["access_token"];
         final user = decodedResponse["user"];
-        _showSuccessDialog(user, token);
+        _redirectAfterLogin(user, token);
       } else {
         // 인증 실패 또는 기타 서버 에러
         final detailMsg = decodedResponse["detail"] ?? "로그인에 실패했습니다. 아이디와 비밀번호를 확인해 주세요.";
@@ -103,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop(); // 다이얼로그 닫기
-              _redirectAfterLogin(context, user, token);
+              _redirectAfterLogin(user, token);
             },
             child: const Text("확인", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
           )
@@ -111,16 +113,18 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  void _redirectAfterLogin(BuildContext context, Map<String, dynamic> user, String token) async {
+ 
+  void _redirectAfterLogin(Map<String, dynamic> user, String token) async {
     if (user['is_admin'] == true) {
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => AdminHomeScreen(user: user, token: token)),
       );
       return;
     }
     
-    if (user['is_drop_off'] == true || user['is_site_manager'] == true) {
+    if (user['is_drop_off'] == true || user['is_site_manager'] == true || user['is_site_worker'] == true) {
+      if (!mounted) return;
       if (user['is_drop_off'] == true) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => DropOffHomeScreen(user: user, token: token)),
@@ -132,7 +136,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
       return;
     }
-
+ 
+    setState(() {
+      _isStatusChecking = true;
+    });
+ 
+    debugPrint("★ [_redirectAfterLogin] 시작 - 유저: ${user['name']}, 전화번호: ${user['phone_number']}");
     try {
       final response = await http.get(
         Uri.parse("$_baseUrl/api/auth/member-status"),
@@ -140,68 +149,95 @@ class _LoginScreenState extends State<LoginScreen> {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
         },
-      );
-
+      ).timeout(const Duration(seconds: 15));
+ 
+      debugPrint("★ [_redirectAfterLogin] 응답 수신 - 코드: ${response.statusCode}");
+ 
+      if (!mounted) return;
+      setState(() {
+        _isStatusChecking = false;
+      });
+ 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        debugPrint("★ [_redirectAfterLogin] 응답 바디: $decoded");
         final bool isApproved = decoded['is_approved'] ?? false;
-        final List missing = decoded['missing_documents'] ?? [];
-
-        if (user['is_driver'] == true) {
-          if (isApproved) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => DriverHomeScreen(user: user, token: token)),
-            );
-          } else {
-            if (missing.isNotEmpty) {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => DriverDocumentUploadScreen(user: user, token: token)),
-              );
-            } else {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => DriverPendingScreen(user: user, token: token)),
-              );
-            }
-          }
-        } else if (user['is_owner'] == true) {
-          if (isApproved) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => OwnerHomeScreen(user: user, token: token)),
-            );
-          } else {
-            if (missing.isNotEmpty) {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => OwnerDocumentUploadScreen(user: user, token: token)),
-              );
-            } else {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => OwnerPendingScreen(user: user, token: token)),
-              );
-            }
-          }
+ 
+        if (user['is_owner'] == true) {
+          debugPrint("★ [_redirectAfterLogin] 차주 홈 화면으로 바로 이동 (승인상태: $isApproved)");
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => OwnerHomeScreen(user: user, token: token, isApproved: isApproved)),
+          );
+        } else if (user['is_driver'] == true) {
+          debugPrint("★ [_redirectAfterLogin] 기사 홈 화면으로 바로 이동 (승인상태: $isApproved)");
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => DriverHomeScreen(user: user, token: token, isApproved: isApproved)),
+          );
         }
       } else {
-        if (user['is_driver'] == true) {
+        debugPrint("★ [_redirectAfterLogin] 통신 실패 (200 아님) -> 미승인 상태로 홈 화면 강제 이동");
+        if (user['is_owner'] == true) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => DriverPendingScreen(user: user, token: token)),
+            MaterialPageRoute(builder: (context) => OwnerHomeScreen(user: user, token: token, isApproved: false)),
           );
         } else {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => OwnerPendingScreen(user: user, token: token)),
+            MaterialPageRoute(builder: (context) => DriverHomeScreen(user: user, token: token, isApproved: false)),
           );
         }
       }
     } catch (e) {
-      if (user['is_driver'] == true) {
+      debugPrint("★ [_redirectAfterLogin] 예외 발생: $e");
+      if (!mounted) return;
+      setState(() {
+        _isStatusChecking = false;
+      });
+      
+      if (user['is_owner'] == true) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => DriverPendingScreen(user: user, token: token)),
+          MaterialPageRoute(builder: (context) => OwnerHomeScreen(user: user, token: token, isApproved: false)),
         );
       } else {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => OwnerPendingScreen(user: user, token: token)),
+          MaterialPageRoute(builder: (context) => DriverHomeScreen(user: user, token: token, isApproved: false)),
         );
       }
     }
+  }
+
+  Widget _buildQuickLoginButton({
+    required String label,
+    required String phone,
+    required String password,
+  }) {
+    return ElevatedButton(
+      onPressed: _isLoading
+          ? null
+          : () {
+              setState(() {
+                _phoneController.text = phone;
+                _passwordController.text = password;
+              });
+              _submitLogin();
+            },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF1E2638), // 피그마 다크 그레이
+        foregroundColor: Colors.white,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFFFFD700), width: 1), // Neon Yellow Border
+        ),
+        padding: EdgeInsets.zero,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 
   void _showErrorDialog(String message) {
@@ -229,51 +265,55 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // 배경 그레이
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: const Color(0xFF0A0F1D), // 피그마 Easy Ride: Deep Dark Space Blue
+          body: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 서비스 로고/타이틀 섹션
+                const SizedBox(height: 20),
+                // 서비스 로고/타이틀 섹션 (Easy Ride Neon Yellow Style)
                 const Icon(
                   Icons.local_shipping_rounded,
-                  size: 80,
-                  color: Color(0xFFFF7A00), // 시그니처 오렌지
+                  size: 85,
+                  color: Color(0xFFFFD700), // Easy Ride Signature Neon Yellow
                 ),
                 const SizedBox(height: 16),
                 const Text(
                   "DUMPRING",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 34,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
-                    color: Color(0xFF004D5A), // 다크 청록
+                    letterSpacing: 3,
+                    color: Colors.white, 
                   ),
                 ),
                 const Text(
                   "덤프 중계 및 실시간 미터기 플랫폼",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF718096),
-                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                    color: Color(0xFF8F9BB3),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 36),
 
-                // 입력 폼 카드
+                // 입력 폼 카드 (Easy Ride Rich Matte Dark Card)
                 Card(
-                  color: Colors.white,
-                  elevation: 0,
+                  color: const Color(0xFF151C2C),
+                  elevation: 8,
+                  shadowColor: Colors.black.withOpacity(0.5),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                    borderRadius: BorderRadius.circular(24),
+                    side: const BorderSide(color: Color(0xFF222B45), width: 1.5),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
@@ -282,65 +322,65 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text("휴대폰 번호 (로그인 ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
+                          const Text("휴대폰 번호 (로그인 ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF8F9BB3))),
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
                             decoration: InputDecoration(
                               hintText: "- 없이 숫자만 입력해 주세요",
-                              hintStyle: const TextStyle(color: Color(0xFFA0AEC0)),
+                              hintStyle: const TextStyle(color: Color(0xFF4F5C77)),
                               filled: true,
-                              fillColor: const Color(0xFFF7FAFC),
+                              fillColor: const Color(0xFF1E2638),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                              prefixIcon: const Icon(Icons.phone_android_outlined, color: Color(0xFF718096)),
+                              prefixIcon: const Icon(Icons.phone_android_outlined, color: Color(0xFF8F9BB3)),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(color: Color(0xFF222B45)),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(color: Color(0xFF222B45)),
                               ),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5),
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2),
                               ),
                             ),
                             validator: (value) => (value == null || value.trim().isEmpty) ? "휴대폰 번호를 입력해 주세요" : null,
                           ),
                           const SizedBox(height: 20),
 
-                          const Text("비밀번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
+                          const Text("비밀번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF8F9BB3))),
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
                             decoration: InputDecoration(
                               hintText: "비밀번호를 입력해 주세요",
-                              hintStyle: const TextStyle(color: Color(0xFFA0AEC0)),
+                              hintStyle: const TextStyle(color: Color(0xFF4F5C77)),
                               filled: true,
-                              fillColor: const Color(0xFFF7FAFC),
+                              fillColor: const Color(0xFF1E2638),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                              prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF718096)),
+                              prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF8F9BB3)),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(color: Color(0xFF222B45)),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(color: Color(0xFF222B45)),
                               ),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5),
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2),
                               ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                  color: const Color(0xFF718096),
+                                  color: const Color(0xFF8F9BB3),
                                 ),
                                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                               ),
@@ -386,20 +426,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 ElevatedButton(
                   onPressed: _isLoading ? null : _submitLogin,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF004D5A), // 다크 청록
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFF80B3BC),
+                    backgroundColor: const Color(0xFFFFD700), // Easy Ride Signature Gold/Yellow
+                    foregroundColor: const Color(0xFF0A0F1D), // 딥 다크 블루 텍스트
+                    disabledBackgroundColor: const Color(0xFF4F5C77),
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    elevation: 0,
+                    elevation: 4,
+                    shadowColor: const Color(0xFFFFD700).withOpacity(0.3),
                   ),
                   child: _isLoading
                       ? const SizedBox(
                           height: 24,
                           width: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          child: CircularProgressIndicator(color: Color(0xFF0A0F1D), strokeWidth: 2.5),
                         )
                       : const Text(
                           "로그인",
@@ -417,7 +458,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const Text(
                       "계정이 없으신가요?",
-                      style: TextStyle(color: Color(0xFF718096), fontSize: 14),
+                      style: TextStyle(color: Color(0xFF8F9BB3), fontSize: 14),
                     ),
                     TextButton(
                       onPressed: () {
@@ -431,11 +472,57 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text(
                         "회원가입",
                         style: TextStyle(
-                          color: Color(0xFFFF7A00), // 주황색 강조
+                          color: Color(0xFFFFD700), // 형광 골드 옐로우 강조
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
                       ),
+                    ),
+                  ],
+                ),
+                 const Divider(height: 40, thickness: 1.5, color: Color(0xFF222B45)),
+                 const Text(
+                   "테스트용 빠른 로그인",
+                   textAlign: TextAlign.center,
+                   style: TextStyle(
+                     fontSize: 13,
+                     fontWeight: FontWeight.bold,
+                     color: Color(0xFF8F9BB3),
+                   ),
+                 ),
+                const SizedBox(height: 12),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  childAspectRatio: 2.8,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  children: [
+                    _buildQuickLoginButton(
+                      label: "김차주 (승인차주)",
+                      phone: "010-1111-1111",
+                      password: "password123",
+                    ),
+                    _buildQuickLoginButton(
+                      label: "이기사 (승인기사)",
+                      phone: "010-2222-1111",
+                      password: "password123",
+                    ),
+                    _buildQuickLoginButton(
+                      label: "정관리자 (현장관리자)",
+                      phone: "010-3333-1111",
+                      password: "password123",
+                    ),
+                    _buildQuickLoginButton(
+                      label: "이담당자 (현장담당자)",
+                      phone: "010-3333-2222",
+                      password: "password123",
+                    ),
+                    _buildQuickLoginButton(
+                      label: "오지주 (하차지지주)",
+                      phone: "010-4444-1111",
+                      password: "password123",
                     ),
                   ],
                 ),
@@ -469,11 +556,60 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                // 🎨 SDUI 피그마 동적 템플릿 테스트 진입 버튼
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const SduiScreen(
+                          templateId: 'role_selection',
+                          title: '🎨 피그마 SDUI 템플릿 테스트',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.palette_outlined, color: Color(0xFFFFD700), size: 16),
+                  label: const Text(
+                    "🎨 피그마 SDUI 실시간 템플릿 화면 테스트",
+                    style: TextStyle(
+                      color: Color(0xFFFFD700),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
+    ),
+        if (_isStatusChecking)
+          Container(
+            color: Colors.black.withOpacity(0.4),
+            child: const Center(
+              child: Card(
+                color: Colors.white,
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFFFF7A00)),
+                      SizedBox(height: 16),
+                      Text(
+                        "승인 및 서류 제출 현황 조회 중...",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A202C), decoration: TextDecoration.none),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

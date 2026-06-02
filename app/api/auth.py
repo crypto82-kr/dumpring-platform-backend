@@ -590,7 +590,7 @@ async def get_member_status(
     db: AsyncSession = Depends(get_db)
 ):
     # 1. 역할 구분
-    role = "driver" if current_user.is_driver else "owner"
+    role = "owner" if current_user.is_owner else "driver"
     group_code = "REQUIRED_DOC_DRIVER" if role == "driver" else "REQUIRED_DOC_OWNER"
     
     # 2. 필수 공통코드 가져오기
@@ -787,5 +787,50 @@ async def reject_member(
         
     await db.commit()
     return {"message": "회원 가입 신청이 성공적으로 반려되었습니다."}
+
+
+from pydantic import BaseModel
+
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
+    password: Optional[str] = None
+
+@router.put(
+    "/profile",
+    summary="개인정보 및 프로필 수정",
+    description="로그인한 사용자의 이름, 휴대폰 번호, 또는 비밀번호를 변경합니다."
+)
+async def update_profile(
+    data: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if data.name is not None:
+        current_user.name = data.name
+    if data.phone_number is not None:
+        if data.phone_number != current_user.phone_number:
+            query = select(User).where(User.phone_number == data.phone_number)
+            result = await db.execute(query)
+            existing = result.scalars().first()
+            if existing:
+                raise HTTPException(status_code=400, detail="이미 존재하는 전화번호입니다.")
+            current_user.phone_number = data.phone_number
+    if data.password is not None and data.password.strip() != "":
+        current_user.password = get_password_hash(data.password)
+    
+    await db.commit()
+    await db.refresh(current_user)
+    return {"message": "프로필이 성공적으로 수정되었습니다.", "user": {
+        "id": current_user.id,
+        "name": current_user.name,
+        "phone_number": current_user.phone_number,
+        "is_owner": current_user.is_owner,
+        "is_driver": current_user.is_driver,
+        "is_site_manager": current_user.is_site_manager,
+        "is_site_worker": current_user.is_site_worker,
+        "is_drop_off": current_user.is_drop_off,
+        "is_approved": current_user.is_approved
+    }}
 
 

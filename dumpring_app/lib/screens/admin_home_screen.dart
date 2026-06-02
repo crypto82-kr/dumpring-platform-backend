@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'common_drawer.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -18,6 +19,7 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late Map<String, dynamic> _currentUser;
 
   // 1. 실제 승인 대기 회원 리스트
   List<Map<String, dynamic>> _pendingMembers = [];
@@ -85,6 +87,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
   @override
   void initState() {
     super.initState();
+    _currentUser = Map<String, dynamic>.from(widget.user);
     _tabController = TabController(length: 3, vsync: this);
     _fetchPendingMembers();
   }
@@ -264,6 +267,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
+      drawer: CommonDrawer(
+        user: _currentUser,
+        token: widget.token,
+        onProfileUpdated: (newUser) {
+          setState(() {
+            _currentUser = newUser;
+          });
+        },
+      ),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A202C), // 플랫폼 마스터 어두운 그레이/블랙 헤더
         foregroundColor: Colors.white,

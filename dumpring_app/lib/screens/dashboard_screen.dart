@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'common_drawer.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -22,6 +23,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = false;
   List<dynamic> _siteMappings = [];
   List<dynamic> _unloadingSites = [];
+  late Map<String, dynamic> _currentUser;
 
   // 현장 등록 폼 컨트롤러
   final _siteFormKey = GlobalKey<FormState>();
@@ -40,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _currentUser = Map<String, dynamic>.from(widget.user);
     _fetchData();
   }
 
@@ -236,29 +239,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isSiteManager = widget.user['is_site_manager'] == true;
-    final bool isDropOff = widget.user['is_drop_off'] == true;
+    final bool isSiteManager = _currentUser['is_site_manager'] == true;
+    final bool isDropOff = _currentUser['is_drop_off'] == true;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: const Color(0xFF0A0F1D), // 피그마 다크 테마 통일
+      drawer: CommonDrawer(
+        user: _currentUser,
+        token: widget.token,
+        onProfileUpdated: (newUser) {
+          setState(() {
+            _currentUser = newUser;
+          });
+        },
+      ),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF004D5A),
+        backgroundColor: const Color(0xFF151C2C), // 다크 네이비 헤더
         foregroundColor: Colors.white,
         elevation: 0,
-        title: const Text("DUMPRING 대시보드", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("DUMPRING 대시보드", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              Navigator.of(context).pop(); // 로그아웃 처리 후 복귀
-            },
-          ),
-        ],
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF004D5A)))
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)))
             : RefreshIndicator(
                 onRefresh: _fetchData,
                 child: SingleChildScrollView(
@@ -288,13 +292,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       // 그 외 역할인 경우 기본 목록 안내
                       if (!isSiteManager && !isDropOff) ...[
                         const Card(
+                          color: Color(0xFF151C2C),
                           margin: EdgeInsets.only(top: 40),
                           child: Padding(
                             padding: EdgeInsets.all(24.0),
                             child: Text(
                               "기사 또는 실무 담당자님 환영합니다!\n상단 메뉴를 이용하시거나 대시보드 오더 수락 기능을 기다려 주세요.",
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 16, height: 1.5, color: Color(0xFF4A5568)),
+                              style: TextStyle(fontSize: 16, height: 1.5, color: Color(0xFF8F9BB3)),
                             ),
                           ),
                         ),
@@ -309,16 +314,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildWelcomeCard() {
     return Card(
-      elevation: 0,
+      elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: Color(0xFF222B45)),
       ),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: const LinearGradient(
-            colors: [Color(0xFF004D5A), Color(0xFF002D35)],
+            colors: [Color(0xFF151C2C), Color(0xFF0F1420)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -328,25 +333,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "${widget.user['name']} 님",
+              "${_currentUser['name']} 님",
               style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              widget.user['phone_number'],
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              _currentUser['phone_number'] ?? '',
+              style: const TextStyle(color: Color(0xFF8F9BB3), fontSize: 14),
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF7A00).withOpacity(0.2),
+                color: const Color(0xFFFFD700).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFFF7A00).withOpacity(0.4)),
+                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.3)),
               ),
               child: Text(
                 _getRoleText(),
-                style: const TextStyle(color: Color(0xFFFF7A00), fontSize: 12, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -357,22 +362,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String _getRoleText() {
     List<String> roles = [];
-    if (widget.user['is_site_manager'] == true) roles.add("현장관리자");
-    if (widget.user['is_site_worker'] == true) roles.add("현장담당자");
-    if (widget.user['is_owner'] == true) roles.add("차주");
-    if (widget.user['is_driver'] == true) roles.add("기사");
-    if (widget.user['is_drop_off'] == true) roles.add("하차지 지주");
+    if (_currentUser['is_site_manager'] == true) roles.add("현장관리자");
+    if (_currentUser['is_site_worker'] == true) roles.add("현장담당자");
+    if (_currentUser['is_owner'] == true) roles.add("차주");
+    if (_currentUser['is_driver'] == true) roles.add("기사");
+    if (_currentUser['is_drop_off'] == true) roles.add("하차지 지주");
     return roles.isEmpty ? "일반유저" : roles.join(", ");
   }
 
   // 공사현장 신규 개설 폼
   Widget _buildSiteRegisterForm() {
     return Card(
-      color: Colors.white,
-      elevation: 0,
+      color: const Color(0xFF151C2C), // 다크 카드
+      elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: Color(0xFF222B45), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -383,11 +388,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.add_business_outlined, color: Color(0xFF004D5A)),
+                  Icon(Icons.add_business_outlined, color: Color(0xFFFFD700)),
                   SizedBox(width: 8),
                   Text(
                     "새 공사현장 개설",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ],
               ),
@@ -441,10 +446,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ElevatedButton(
                 onPressed: _registerConstructionSite,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF004D5A),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  backgroundColor: const Color(0xFFFFD700), // 형광 골드 옐로우
+                  foregroundColor: const Color(0xFF0A0F1D), // 딥 다크 블루 텍스트
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 2,
+                  shadowColor: const Color(0xFFFFD700).withOpacity(0.3),
                 ),
                 child: const Text("현장 개설 및 자동 매핑", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
               ),
@@ -458,11 +465,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 하차지 정보 등록 폼
   Widget _buildDropOffRegisterForm() {
     return Card(
-      color: Colors.white,
-      elevation: 0,
+      color: const Color(0xFF151C2C), // 다크 카드
+      elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: Color(0xFF222B45), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -473,11 +480,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.flag_outlined, color: Color(0xFF004D5A)),
+                  Icon(Icons.flag_outlined, color: Color(0xFFFFD700)),
                   SizedBox(width: 8),
                   Text(
                     "새 하차지 / 사토장 등록",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ],
               ),
@@ -497,10 +504,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ElevatedButton(
                 onPressed: _registerUnloadingSite,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF004D5A),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  backgroundColor: const Color(0xFFFFD700), // 형광 골드 옐로우
+                  foregroundColor: const Color(0xFF0A0F1D), // 딥 다크 블루 텍스트
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 2,
+                  shadowColor: const Color(0xFFFFD700).withOpacity(0.3),
                 ),
                 child: const Text("하차지 정보 등록 완료", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
               ),
@@ -517,13 +526,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         const Text(
           "내 소속 현장 목록",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C)),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         const SizedBox(height: 8),
         if (_siteMappings.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
-            child: Text("소속된 현장이 없습니다.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            child: Text("소속된 현장이 없습니다.", textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF8F9BB3))),
           )
         else
           ListView.builder(
@@ -533,35 +542,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
             itemBuilder: (context, index) {
               final mapping = _siteMappings[index];
               return Card(
+                color: const Color(0xFF151C2C), // 다크 카드
                 margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFF222B45), width: 1),
+                ),
                 child: ListTile(
-                  title: Text(mapping['site_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(mapping['site_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 4),
-                      Text("초대코드: ${mapping['site_key'] ?? ''}", style: const TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.bold)),
+                      Text("초대코드: ${mapping['site_key'] ?? ''}", style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
                       if (mapping['latitude'] != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           "GPS: ${mapping['latitude']}, ${mapping['longitude']} (반경 ${mapping['geofencing_radius']}m)",
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF8F9BB3)),
                         ),
                       ],
                     ],
                   ),
                   trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: mapping['status'] == 'APPROVED' ? const Color(0xFFE6F4EA) : const Color(0xFFFFF4E5),
-                      borderRadius: BorderRadius.circular(12),
+                      color: mapping['status'] == 'APPROVED' 
+                          ? const Color(0xFFFFD700).withOpacity(0.15) 
+                          : const Color(0xFF222B45),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: mapping['status'] == 'APPROVED' 
+                            ? const Color(0xFFFFD700).withOpacity(0.3) 
+                            : Colors.transparent,
+                      ),
                     ),
                     child: Text(
                       mapping['status'] == 'APPROVED' ? "승인완료" : "승인대기",
                       style: TextStyle(
-                        color: mapping['status'] == 'APPROVED' ? Colors.green[800] : Colors.orange[800],
-                        fontSize: 12,
+                        color: mapping['status'] == 'APPROVED' ? const Color(0xFFFFD700) : const Color(0xFF8F9BB3),
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -580,13 +600,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         const Text(
           "내 하차지/사토장 목록",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C)),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         const SizedBox(height: 8),
         if (_unloadingSites.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
-            child: Text("등록된 하차지가 없습니다.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            child: Text("등록된 하차지가 없습니다.", textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF8F9BB3))),
           )
         else
           ListView.builder(
@@ -596,16 +616,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
             itemBuilder: (context, index) {
               final site = _unloadingSites[index];
               return Card(
+                color: const Color(0xFF151C2C), // 다크 카드
                 margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFF222B45), width: 1),
+                ),
                 child: ListTile(
                   leading: const CircleAvatar(
-                    backgroundColor: Color(0xFFE2F0F2),
-                    child: Icon(Icons.flag, color: Color(0xFF004D5A)),
+                    backgroundColor: Color(0xFF1E2638),
+                    child: Icon(Icons.flag, color: Color(0xFFFFD700)),
                   ),
-                  title: Text(site['site_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("수용 토사 종류: ${site['preferred_soil_types'] ?? ''}"),
-                  trailing: const Icon(Icons.check_circle, color: Color(0xFF004D5A)),
+                  title: Text(site['site_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                  subtitle: Text("수용 토사 종류: ${site['preferred_soil_types'] ?? ''}", style: const TextStyle(color: Color(0xFF8F9BB3))),
+                  trailing: const Icon(Icons.check_circle, color: Color(0xFFFFD700)),
                 ),
               );
             },
@@ -617,14 +641,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   InputDecoration _buildInputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Color(0xFFA0AEC0), fontSize: 14),
+      hintStyle: const TextStyle(color: Color(0xFF4F5C77), fontSize: 14),
       filled: true,
-      fillColor: const Color(0xFFF7FAFC),
+      fillColor: const Color(0xFF1E2638), // 다크 인풋 필드
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      prefixIcon: Icon(icon, color: const Color(0xFF718096), size: 20),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5)),
+      prefixIcon: Icon(icon, color: const Color(0xFF8F9BB3), size: 20),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF222B45))),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF222B45))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2)),
     );
   }
 }

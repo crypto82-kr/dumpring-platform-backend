@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'common_drawer.dart';
 
 class DropOffHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -31,10 +32,12 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   bool _isLoadingB2B = false;
   final List<Map<String, dynamic>> _pendingB2BJobs = [];
   final List<Map<String, dynamic>> _completedImports = [];
+  late Map<String, dynamic> _currentUser;
 
   @override
   void initState() {
     super.initState();
+    _currentUser = Map<String, dynamic>.from(widget.user);
     _fetchPendingB2BJobs();
     _fetchArrivedTickets();
     
@@ -283,12 +286,21 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     final double percent = (_currentImportedTons / _dailyLimitTons).clamp(0.0, 1.0);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: const Color(0xFF0A0F1D), // 피그마 다크 테마 통일
+      drawer: CommonDrawer(
+        user: _currentUser,
+        token: widget.token,
+        onProfileUpdated: (newUser) {
+          setState(() {
+            _currentUser = newUser;
+          });
+        },
+      ),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF004D5A),
+        backgroundColor: const Color(0xFF151C2C), // 다크 네이비 헤더
         foregroundColor: Colors.white,
         elevation: 0,
-        title: const Text("하차지 관리 시스템 (Enterprise)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text("하차지 관리 시스템 (Enterprise)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -320,11 +332,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
   Widget _buildLimitCard(double percent) {
     return Card(
-      color: Colors.white,
-      elevation: 0,
+      color: const Color(0xFF151C2C), // 다크 카드
+      elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: Color(0xFF222B45), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -334,8 +346,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("오늘의 토사 반입량 한도", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2D3748))),
-                Icon(Icons.bar_chart, color: Color(0xFFFF7A00)),
+                Text("오늘의 토사 반입량 한도", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
+                Icon(Icons.bar_chart, color: Color(0xFFFFD700)),
               ],
             ),
             const SizedBox(height: 20),
@@ -344,9 +356,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               children: [
                 Text(
                   "${_currentImportedTons.toStringAsFixed(1)} 톤 수용",
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFFD700)),
                 ),
-                Text("일일 한도 ${_dailyLimitTons.toStringAsFixed(0)} 톤", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text("일일 한도 ${_dailyLimitTons.toStringAsFixed(0)} 톤", style: const TextStyle(fontSize: 12, color: Color(0xFF8F9BB3))),
               ],
             ),
             const SizedBox(height: 12),
@@ -355,8 +367,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               child: LinearProgressIndicator(
                 value: percent,
                 minHeight: 14,
-                backgroundColor: const Color(0xFFE2E8F0),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF7A00)),
+                backgroundColor: const Color(0xFF222B45),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFFD700)),
               ),
             ),
           ],
@@ -449,8 +461,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
         const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("🚚 실시간 게이트 반입 대기열", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
-            Text("GPS 실시간 연동", style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
+            Text("🚚 실시간 게이트 반입 대기열", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text("GPS 실시간 연동", style: TextStyle(fontSize: 11, color: Color(0xFFFFD700), fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 12),
@@ -458,11 +470,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 36),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: const Color(0xFF151C2C),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: const Color(0xFF222B45)),
             ),
-            child: const Center(child: Text("도착 대기 중인 트럭이 없습니다 (실시간 감지 작동 중)", style: TextStyle(color: Colors.grey, fontSize: 12))),
+            child: const Center(child: Text("도착 대기 중인 트럭이 없습니다 (실시간 감지 작동 중)", style: TextStyle(color: Color(0xFF8F9BB3), fontSize: 12))),
           )
         else
           ListView.builder(
@@ -472,19 +484,28 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             itemBuilder: (context, index) {
               final ticket = _arrivedTickets[index];
               return Card(
+                color: const Color(0xFF151C2C),
                 margin: const EdgeInsets.only(bottom: 10),
-                elevation: 0,
+                elevation: 4,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  side: const BorderSide(color: Color(0xFF222B45), width: 1),
                 ),
                 child: ListTile(
-                  title: Text("덤프트럭 티켓 #${ticket['id']}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("기사 ID: ${ticket['driver_id']} | 거리 ${ticket['drive_distance_km']}km"),
+                  title: Text("덤프트럭 티켓 #${ticket['id']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                  subtitle: Text(
+                    "기사 ID: ${ticket['driver_id']} | 거리 ${ticket['drive_distance_km']}km",
+                    style: const TextStyle(color: Color(0xFF8F9BB3)),
+                  ),
                   trailing: ElevatedButton(
                     onPressed: () => _processIncomingTruck(ticket),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF004D5A)),
-                    child: const Text("반입 검사", style: TextStyle(color: Colors.white, fontSize: 11)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFD700),
+                      foregroundColor: const Color(0xFF0A0F1D),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      elevation: 2,
+                    ),
+                    child: const Text("반입 검사", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ),
               );

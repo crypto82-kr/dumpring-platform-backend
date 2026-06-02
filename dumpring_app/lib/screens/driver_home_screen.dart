@@ -5,15 +5,18 @@ import 'package:http/http.dart' as http;
 import 'driver_meter_screen.dart';
 import 'driver_history_screen.dart';
 import 'driver_dispatch_confirm_screen.dart';
+import 'common_drawer.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final String token;
+  final bool isApproved;
 
   const DriverHomeScreen({
     Key? key,
     required this.user,
     required this.token,
+    this.isApproved = false,
   }) : super(key: key);
 
   @override
@@ -46,11 +49,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   int _todayEarnings = 0;
   int _monthlyEarnings = 3450000;
 
+  late Map<String, dynamic> _currentUser;
   late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
+    _currentUser = Map<String, dynamic>.from(widget.user);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -295,20 +300,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: const Color(0xFF0A0F1D), // 피그마 다크 블루 테마 통일
+      drawer: CommonDrawer(
+        user: _currentUser,
+        token: widget.token,
+        onProfileUpdated: (newUser) {
+          setState(() {
+            _currentUser = newUser;
+          });
+        },
+      ),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF004D5A),
+        backgroundColor: const Color(0xFF151C2C), // 딥 그레이 헤더
         foregroundColor: Colors.white,
         elevation: 0,
-        title: const Text("덤프링 기사용 홈 (Enterprise)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text("덤프링 기사용 홈 (Enterprise)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.history_rounded),
+            icon: const Icon(Icons.history_rounded, color: Color(0xFFFFD700)),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => DriverHistoryScreen(user: widget.user, token: widget.token),
+                  builder: (context) => DriverHistoryScreen(user: _currentUser, token: widget.token),
                 ),
               );
             },
@@ -352,11 +366,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
   Widget _buildDispatchStatusPanel() {
     return Card(
-      color: Colors.white,
-      elevation: 0,
+      color: const Color(0xFF151C2C), // 다크 카드
+      elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: Color(0xFF222B45), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -373,17 +387,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: _isWaitingForDispatch ? Colors.green[800] : const Color(0xFF2D3748),
+                        color: _isWaitingForDispatch ? const Color(0xFFFFD700) : Colors.white,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text("대기 상태를 켜면 오더를 수락할 수 있습니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    const Text("대기 상태를 켜면 오더를 수락할 수 있습니다.", style: TextStyle(color: Color(0xFF8F9BB3), fontSize: 11)),
                   ],
                 ),
                 Switch(
                   value: _isWaitingForDispatch,
                   onChanged: _toggleWaitingState,
-                  activeColor: const Color(0xFF004D5A),
+                  activeColor: const Color(0xFFFFD700),
                 ),
               ],
             ),
@@ -395,11 +409,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
   Widget _buildLocationFilterPanel() {
     return Card(
-      color: Colors.white,
-      elevation: 0,
+      color: const Color(0xFF151C2C), // 다크 카드
+      elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: Color(0xFF222B45), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -409,10 +423,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("📍 전국 시군구 배차 검색", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const Text("📍 전국 시군구 배차 검색", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
                 Row(
                   children: [
-                    const Text("즐겨찾는 지역만", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    const Text("즐겨찾는 지역만", style: TextStyle(fontSize: 11, color: Color(0xFF8F9BB3))),
                     const SizedBox(width: 4),
                     Checkbox(
                       value: _useFavoritesFilter,
@@ -422,7 +436,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                         });
                         _loadOpenJobs();
                       },
-                      activeColor: const Color(0xFF004D5A),
+                      activeColor: const Color(0xFFFFD700),
                     ),
                   ],
                 ),
@@ -590,12 +604,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE2F0F2),
-                              borderRadius: BorderRadius.circular(8),
+                              color: const Color(0xFF004D5A).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            child: const Text("매칭모집중", style: TextStyle(color: Color(0xFF004D5A), fontSize: 10, fontWeight: FontWeight.bold)),
+                            child: const Text("매칭 모집중", style: TextStyle(color: Color(0xFF004D5A), fontSize: 10, fontWeight: FontWeight.bold)),
                           ),
                           Text("필요차량 ${job['required_trucks']}대", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
                         ],
@@ -603,7 +617,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          const Icon(Icons.circle, color: Colors.blue, size: 12),
+                          const Icon(Icons.circle, color: Color(0xFF004D5A), size: 12),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -616,7 +630,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.circle, color: Colors.orange, size: 12),
+                          const Icon(Icons.circle, color: Color(0xFFFF7A00), size: 12),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -643,11 +657,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                                 ? () {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
-                                        builder: (context) => DriverDispatchConfirmScreen(
-                                          user: widget.user,
-                                          token: widget.token,
-                                          job: job,
-                                        ),
+                                          builder: (context) => DriverDispatchConfirmScreen(
+                                            user: widget.user,
+                                            token: widget.token,
+                                            job: job,
+                                            isApproved: widget.isApproved,
+                                          ),
                                       ),
                                     ).then((_) => _loadOpenJobs());
                                   }
@@ -655,8 +670,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFFF7A00),
                               disabledBackgroundColor: Colors.grey[300],
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 2,
+                              shadowColor: const Color(0xFFFF7A00).withOpacity(0.3),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             ),
                             child: const Text("오더 확인", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                           ),

@@ -118,6 +118,56 @@ async def disconnect_driver(
     # 여기서는 차주 소속에서 완전히 방출하기 위해 레코드를 제거하거나 초기화합니다.
     # 안전하게 기사 테이블에서 해당 관계 레코드를 완전 삭제하여 차주 리스트에서 치워버립니다.
     await db.delete(driver)
-
+ 
     await db.commit()
     return {"message": "기사 등록이 정상적으로 해제되었습니다."}
+ 
+ 
+class CarResponse(BaseModel):
+    id: int
+    car_number: str
+    tonnage: float
+    driver_name: str
+    inspection_date: str
+ 
+@router.get(
+    "/my-cars",
+    response_model=List[CarResponse],
+    summary="차주 사장님이 등록한 차량 목록 조회"
+)
+async def get_my_cars(
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    car_query = select(Car).where(Car.owner_id == current_owner.id)
+    car_result = await db.execute(car_query)
+    cars = car_result.scalars().all()
+    
+    response_list = []
+    for c in cars:
+        # 이 차량에 지정된 기사 찾기
+        driver_query = select(Driver).where(Driver.current_car_id == c.id)
+        driver_result = await db.execute(driver_query)
+        d = driver_result.scalars().first()
+        
+        driver_name = "미배정"
+        if d:
+            if d.user_id:
+                user_query = select(User).where(User.id == d.user_id)
+                user_result = await db.execute(user_query)
+                u = user_result.scalars().first()
+                if u:
+                    driver_name = u.name
+            else:
+                driver_name = "선등록 대기기사"
+                
+        response_list.append(
+            CarResponse(
+                id=c.id,
+                car_number=c.car_number,
+                tonnage=c.tonnage,
+                driver_name=driver_name,
+                inspection_date="2026-12-31"
+            )
+        )
+    return response_list

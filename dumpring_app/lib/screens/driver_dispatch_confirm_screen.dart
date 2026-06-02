@@ -7,12 +7,14 @@ class DriverDispatchConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final String token;
   final Map<String, dynamic> job;
+  final bool isApproved;
 
   const DriverDispatchConfirmScreen({
     Key? key,
     required this.user,
     required this.token,
     required this.job,
+    this.isApproved = false,
   }) : super(key: key);
 
   @override
@@ -32,6 +34,24 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
   }
 
   Future<void> _acceptDispatch() async {
+    if (!widget.isApproved) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text("배차 수락 제한", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text("🔒 가입 심사가 완료되지 않았습니다.\n심사 승인 완료 후에 배차 수락 및 즉시 운행 시작이 가능합니다."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("확인", style: TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
     });
