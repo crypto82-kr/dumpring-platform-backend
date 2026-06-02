@@ -324,7 +324,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                         const SizedBox(height: 10),
                         Text(
                           "₩${_formatCurrency(netEarning)}",
-                          style: const TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.extrabold, fontSize: 28, letterSpacing: -0.5),
+                          style: const TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -0.5),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 18),
@@ -401,7 +401,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                                 ? const CircularProgressIndicator(color: Colors.white)
                                 : const Text(
                                     "배차 수락 및 운행 시작",
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.extrabold, fontSize: 15),
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
                                   ),
                           ),
                         ),

@@ -93,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [
-            Icon(Icons.check_circle_outline_outline, color: Color(0xFFFF7A00)),
+            Icon(Icons.check_circle_outline, color: Color(0xFFFF7A00)),
             SizedBox(width: 8),
             Text("로그인 성공", style: TextStyle(fontWeight: FontWeight.bold)),
           ],
