@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class DriverMeterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -22,7 +24,7 @@ class DriverMeterScreen extends StatefulWidget {
 }
 
 class _DriverMeterScreenState extends State<DriverMeterScreen> {
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
 
   // 1: 상차지 이동, 2: 대기중, 3: 미터기 가동중, 4: 하차지 도착(승인 대기), 5: 운행 완료
   int _driveStep = 1;
@@ -38,6 +40,75 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
   bool _isLandownerAbsent = false;
   String? _attachedPhoto;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialTicketState();
+  }
+
+  Future<void> _loadInitialTicketState() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
+        final String status = ticket['status'];
+        
+        setState(() {
+          if (status == "ACCEPTED") {
+            _driveStep = 1;
+          } else if (status == "DRIVING") {
+            _driveStep = 3;
+            _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
+            _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+            _currentFare = ticket['accumulated_fare'] ?? 95000;
+            _resumeMeterTimer();
+          } else if (status == "ARRIVED") {
+            _driveStep = 4;
+            _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
+            _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+            _currentFare = ticket['accumulated_fare'] ?? 95000;
+            _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+              _pollTicketStatus();
+            });
+          } else if (status == "APPROVED" || status == "COMPLETED") {
+            _driveStep = 5;
+            _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
+            _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+            _currentFare = ticket['accumulated_fare'] ?? 95000;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("초기 티켓 상태 로드 실패: $e");
+    }
+  }
+
+  void _resumeMeterTimer() {
+    _meterTimer?.cancel();
+    _speedKmh = 60;
+    _meterTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _elapsedSeconds += 1;
+          if (_speedKmh > 10) {
+            _isDistanceMode = true;
+            _distanceKm += (_speedKmh / 3600);
+            _currentFare += ((_speedKmh / 3600) * 12000).round();
+          } else {
+            _isDistanceMode = false;
+            _currentFare += 120;
+          }
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -142,7 +213,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             _driveStep = 5;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("🟢 지주가 반입을 최종 승인하였습니다. 전표가 발행됩니다.")),
+            SnackBar(content: Text("🟢 지주가 반입을 최종 승인하였습니다. 전표가 발행됩니다.")),
           );
         } else if (status == "REJECTED") {
           _statusPollTimer?.cancel();
@@ -150,15 +221,15 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             context: context,
             barrierDismissible: false,
             builder: (context) => AlertDialog(
-              title: const Text("⚠️ 반입 반려 회차 통보"),
-              content: const Text("하차지 지주가 토질 검사 부적격 판정(뻘흙 등)을 내려 반입이 반려되었습니다. 차량을 회차 후 분쟁 조정 센터로 연동됩니다."),
+              title: Text("⚠️ 반입 반려 회차 통보"),
+              content: Text("하차지 지주가 토질 검사 부적격 판정(뻘흙 등)을 내려 반입이 반려되었습니다. 차량을 회차 후 분쟁 조정 센터로 연동됩니다."),
               actions: [
                 TextButton(
                   onPressed: () {
                     Navigator.pop(context);
                     Navigator.pop(context); // 홈화면으로 즉시 복원 복귀
                   },
-                  child: const Text("확인 및 홈 복귀"),
+                  child: Text("확인 및 홈 복귀"),
                 )
               ],
             ),
@@ -184,7 +255,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       _attachedPhoto = "사토장_실시간촬영_${widget.ticketId}.jpg";
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("📸 지주 부재에 따른 증빙 사진이 첨부되었습니다.")),
+      SnackBar(content: Text("📸 지주 부재에 따른 증빙 사진이 첨부되었습니다.")),
     );
   }
 
@@ -196,12 +267,12 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF004D5A),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0.5,
-        title: Text(_getAppBarTitle(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(_getAppBarTitle(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -240,7 +311,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
   Widget _buildFlowIndicator() {
     return Container(
-      color: Colors.white,
+      color: AppColors.surface,
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -266,24 +337,24 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
         CircleAvatar(
           radius: 12,
           backgroundColor: isActive
-              ? const Color(0xFFFF7A00)
-              : (isPassed ? const Color(0xFF004D5A) : const Color(0xFFE2E8F0)),
+              ? AppColors.warning
+              : (isPassed ? AppColors.primary : AppColors.divider),
           child: Text(
             step.toString(),
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: isActive || isPassed ? Colors.white : const Color(0xFF718096),
+              color: isActive || isPassed ? AppColors.textPrimary : AppColors.textSecondary,
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           label,
           style: TextStyle(
             fontSize: 10,
             fontWeight: isActive || isPassed ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? const Color(0xFFFF7A00) : (isPassed ? const Color(0xFF004D5A) : const Color(0xFF718096)),
+            color: isActive ? AppColors.warning : (isPassed ? AppColors.primary : AppColors.textSecondary),
           ),
         ),
       ],
@@ -294,7 +365,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     return Expanded(
       child: Container(
         height: 1,
-        color: const Color(0xFFCBD5E0),
+        color: AppColors.divider,
         margin: const EdgeInsets.symmetric(horizontal: 4),
       ),
     );
@@ -313,7 +384,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       case 5:
         return _buildStep5Receipt();
       default:
-        return const SizedBox();
+        return SizedBox();
     }
   }
 
@@ -321,26 +392,26 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.navigation_outlined, size: 70, color: Color(0xFF004D5A)),
-        const SizedBox(height: 20),
-        const Text(
+        Icon(Icons.navigation_outlined, size: 70, color: AppColors.primary),
+        SizedBox(height: 20),
+        Text(
           "상차지로 이동해 주세요",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D3748)),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
-        const SizedBox(height: 8),
-        const Text(
+        SizedBox(height: 8),
+        Text(
           "안전 운행을 위해 덤프링 실시간 경로 연동을 개시합니다.",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: Color(0xFF718096)),
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         Card(
-          color: Colors.white,
+          color: AppColors.surface,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFFE2E8F0)),
+            side: BorderSide(color: AppColors.divider),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
@@ -348,41 +419,41 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
               children: [
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.place, color: Colors.blue),
-                  title: Text("티켓 ID: #${widget.ticketId} 지정 매칭 현장", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  subtitle: const Text("매칭된 지도상 상차 현장 입구로 이동", style: TextStyle(fontSize: 12)),
+                  leading: Icon(Icons.place, color: AppColors.primary),
+                  title: Text("티켓 ID: #${widget.ticketId} 지정 매칭 현장", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  subtitle: Text("매칭된 지도상 상차 현장 입구로 이동", style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         ElevatedButton.icon(
           onPressed: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("🗺️ 외부 카카오 내비게이션 앱으로 경로 안내를 실행합니다.")),
+              SnackBar(content: Text("🗺️ 외부 카카오 내비게이션 앱으로 경로 안내를 실행합니다.")),
             );
           },
-          icon: const Icon(Icons.map),
-          label: const Text("카카오 내비게이션 경로 안내"),
+          icon: Icon(Icons.map),
+          label: Text("카카오 내비게이션 경로 안내"),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF7A00),
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.warning,
+            foregroundColor: AppColors.textPrimary,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         OutlinedButton(
           onPressed: _arrivedAtLoadingSite,
           style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: Color(0xFF004D5A)),
-            foregroundColor: const Color(0xFF004D5A),
+            side: BorderSide(color: AppColors.primary),
+            foregroundColor: AppColors.primary,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: const Text("상차지 현장 도착 완료 (수동)", style: TextStyle(fontWeight: FontWeight.bold)),
+          child: Text("상차지 현장 도착 완료 (수동)", style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );
@@ -392,52 +463,52 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.pending_actions_rounded, size: 70, color: Color(0xFFFF7A00)),
-        const SizedBox(height: 20),
-        const Text(
+        Icon(Icons.pending_actions_rounded, size: 70, color: AppColors.warning),
+        SizedBox(height: 20),
+        Text(
           "상차지 도착 완료 및 상차 작업 중",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D3748)),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
-        const SizedBox(height: 8),
-        const Text(
+        SizedBox(height: 8),
+        Text(
           "상차가 완전히 끝나고 차량이 출발할 때\n하단의 [운행 시작] 버튼을 눌러 미터기를 가동해 주세요.",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: Color(0xFF718096), height: 1.4),
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         Container(
           height: 140,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: AppColors.divider),
           ),
-          child: const Center(
+          child: Center(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.flag_outlined, color: Color(0xFF004D5A), size: 30),
+                Icon(Icons.flag_outlined, color: AppColors.primary, size: 30),
                 SizedBox(width: 12),
                 Text(
                   "토사 상차 작업 진행 중...",
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF004D5A), fontSize: 14),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14),
                 )
               ],
             ),
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         ElevatedButton(
           onPressed: _startDriving,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF004D5A),
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textPrimary,
             padding: const EdgeInsets.symmetric(vertical: 18),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             elevation: 0,
           ),
-          child: const Text("운행 시작 (미터기 가동)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          child: Text("운행 시작 (미터기 가동)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         ),
       ],
     );
@@ -448,7 +519,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Card(
-          color: const Color(0xFF1A202C), 
+          color: AppColors.surface, 
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           child: Padding(
@@ -461,22 +532,22 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _isDistanceMode ? Colors.blue[900]!.withOpacity(0.4) : Colors.orange[900]!.withOpacity(0.4),
+                        color: AppColors.primaryLight,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _isDistanceMode ? Colors.blue : Colors.orange),
+                        border: Border.all(color: AppColors.primary),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             _isDistanceMode ? Icons.speed : Icons.timer,
-                            color: _isDistanceMode ? Colors.blue : Colors.orange,
+                            color: AppColors.primary,
                             size: 14,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
                             _isDistanceMode ? "거리 가산 모드 (>10km/h)" : "시간 가산 모드 (정체/대기)",
                             style: TextStyle(
-                              color: _isDistanceMode ? Colors.blue[200] : Colors.orange[200],
+                              color: AppColors.textPrimary,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
@@ -486,28 +557,28 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
                     ),
                     Row(
                       children: [
-                        const Icon(Icons.gps_fixed, color: Colors.green, size: 14),
-                        const SizedBox(width: 4),
-                        Text("GPS 수신 정상", style: TextStyle(color: Colors.green[200], fontSize: 10)),
+                        Icon(Icons.gps_fixed, color: Colors.green, size: 14),
+                        SizedBox(width: 4),
+                        Text("GPS 수신 정상", style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
                       ],
                     )
                   ],
                 ),
-                const SizedBox(height: 24),
-                const Text("실시간 운행 예상 금액", style: TextStyle(color: Colors.white60, fontSize: 13)),
-                const SizedBox(height: 6),
+                SizedBox(height: 24),
+                Text("실시간 운행 예상 금액", style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                SizedBox(height: 6),
                 Text(
                   "${_formatter(_currentFare)} 원",
-                  style: const TextStyle(
-                    color: Color(0xFFFF7A00), 
+                  style: TextStyle(
+                    color: AppColors.warning, 
                     fontSize: 34,
                     fontWeight: FontWeight.w900,
                     fontFamily: 'monospace',
                   ),
                 ),
-                const SizedBox(height: 20),
-                const Divider(color: Colors.white24),
-                const SizedBox(height: 12),
+                SizedBox(height: 20),
+                Divider(color: AppColors.divider),
+                SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
@@ -520,52 +591,52 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: AppColors.divider),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 "⚙️ [모의 요금 주행 시뮬레이터]",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF004D5A), fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12),
               ),
-              const SizedBox(height: 4),
-              const Text(
+              SizedBox(height: 4),
+              Text(
                 "아래 버튼으로 속도를 바꾸어 가산 전환을 테스트하세요.",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 10),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => _changeSpeed(5),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.orange[800],
-                        side: BorderSide(color: Colors.orange[300]!),
+                        foregroundColor: AppColors.warning,
+                        side: BorderSide(color: AppColors.warning.withAlpha(128)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: const Text("서행/대기 (5km/h)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      child: Text("서행/대기 (5km/h)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => _changeSpeed(60),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.blue[800],
-                        side: BorderSide(color: Colors.blue[300]!),
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary.withAlpha(128)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: const Text("일반 고속 (60km/h)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      child: Text("일반 고속 (60km/h)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -573,17 +644,17 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         ElevatedButton(
           onPressed: _arrivedAtUnloadingSite,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF004D5A),
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textPrimary,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
           ),
-          child: const Text("하차지 도착 완료 (지오펜스 작동)", style: TextStyle(fontWeight: FontWeight.bold)),
+          child: Text("하차지 도착 완료 (지오펜스 작동)", style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );
@@ -593,76 +664,76 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.radar_rounded, size: 70, color: Color(0xFF004D5A)),
-        const SizedBox(height: 20),
-        const Text(
+        Icon(Icons.radar_rounded, size: 70, color: AppColors.primary),
+        SizedBox(height: 20),
+        Text(
           "하차지 지오펜스 도착 감지 완료",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D3748)),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
-        const SizedBox(height: 8),
-        const Text(
+        SizedBox(height: 8),
+        Text(
           "지주(하차지 지주)가 반입 승인을 내릴 때까지 잠시 대기해 주세요.\n실시간 승인 판정 감지 타이머가 작동 중입니다.",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: Color(0xFF718096), height: 1.5),
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.5),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         Card(
-          color: Colors.white,
+          color: AppColors.surface,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFFE2E8F0)),
+            side: BorderSide(color: AppColors.divider),
           ),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               children: [
                 if (!_isLandownerAbsent) ...[
-                  const CircularProgressIndicator(color: Color(0xFFFF7A00)),
-                  const SizedBox(height: 18),
-                  const Text(
+                  CircularProgressIndicator(color: AppColors.warning),
+                  SizedBox(height: 18),
+                  Text(
                     "지주 실시간 심사 승인 대기 중...",
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFFF7A00)),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.warning),
                   ),
                 ] else ...[
-                  const Icon(Icons.flag, color: Color(0xFF004D5A), size: 40),
-                  const SizedBox(height: 12),
-                  const Text(
+                  Icon(Icons.flag, color: AppColors.primary, size: 40),
+                  SizedBox(height: 12),
+                  Text(
                     "지주 부재 대체 전표 모드",
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     "증빙: $_attachedPhoto",
-                    style: const TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
                   ),
                 ],
               ],
             ),
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         if (!_isLandownerAbsent) ...[
           ElevatedButton(
             onPressed: _landownerApproved,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF004D5A),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textPrimary,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 0,
             ),
-            child: const Text("지주 강제 수동 통과 모사", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text("지주 강제 수동 통과 모사", style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _takeLandownerAbsentPhoto,
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text("지주 부재 시 사진 업로드 증빙"),
+            icon: Icon(Icons.camera_alt_outlined),
+            label: Text("지주 부재 시 사진 업로드 증빙"),
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFFF7A00),
-              side: const BorderSide(color: Color(0xFFFF7A00)),
+              foregroundColor: AppColors.warning,
+              side: BorderSide(color: AppColors.warning),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -671,13 +742,13 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
           ElevatedButton(
             onPressed: _landownerApproved,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF7A00),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.warning,
+              foregroundColor: AppColors.textPrimary,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 0,
             ),
-            child: const Text("현장 사진 증빙서 제출 및 완료", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text("현장 사진 증빙서 제출 및 완료", style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ],
@@ -688,58 +759,58 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.check_circle_rounded, size: 70, color: Color(0xFF004D5A)),
-        const SizedBox(height: 20),
-        const Text(
+        Icon(Icons.check_circle_rounded, size: 70, color: AppColors.primary),
+        SizedBox(height: 20),
+        Text(
           "운행 최종 완료 (정산 확정)",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D3748)),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         Card(
-          color: Colors.white,
+          color: AppColors.surface,
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFFE2E8F0)),
+            side: BorderSide(color: AppColors.divider),
           ),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Center(
+                Center(
                   child: Text(
                     "덤프링 디지털 정산 영수증",
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.primary),
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Center(
                   child: Text(
                     "티켓 ID: #${widget.ticketId} | 완료시각: ${DateTime.now().toString().substring(0, 19)}",
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 12),
+                SizedBox(height: 16),
+                Divider(),
+                SizedBox(height: 12),
                 _buildReceiptRow("주행 거리", "${_distanceKm.toStringAsFixed(2)} km"),
                 _buildReceiptRow("운행 시간", _formatTime(_elapsedSeconds)),
                 _buildReceiptRow("정산 유형", _isLandownerAbsent ? "지주 부재 (사진 전송 완료)" : "하차지 즉시 매핑 정산"),
-                const SizedBox(height: 12),
-                const Divider(),
-                const SizedBox(height: 16),
+                SizedBox(height: 12),
+                Divider(),
+                SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       "정산 금액",
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D3748), fontSize: 13),
+                      style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
                     ),
                     Text(
                       "${_formatter(_currentFare)} 원",
-                      style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFFF7A00), fontSize: 20),
+                      style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.warning, fontSize: 20),
                     ),
                   ],
                 ),
@@ -747,17 +818,17 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         ElevatedButton(
           onPressed: _completeEntireDrive,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF004D5A),
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textPrimary,
             padding: const EdgeInsets.symmetric(vertical: 18),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             elevation: 0,
           ),
-          child: const Text("정산 내역 확인 및 홈 복귀", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          child: Text("정산 내역 확인 및 홈 복귀", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         ),
       ],
     );
@@ -769,8 +840,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          Text(value, style: const TextStyle(color: Color(0xFF2D3748), fontSize: 12, fontWeight: FontWeight.w500)),
+          Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(value, style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -779,11 +850,11 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   Widget _buildMeterIndicator(String label, String value, IconData icon) {
     return Column(
       children: [
-        Icon(icon, color: Colors.white60, size: 16),
-        const SizedBox(height: 6),
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10)),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+        Icon(icon, color: AppColors.textSecondary, size: 16),
+        SizedBox(height: 6),
+        Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+        SizedBox(height: 2),
+        Text(value, style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold)),
       ],
     );
   }

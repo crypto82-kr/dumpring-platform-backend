@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'driver_meter_screen.dart';
+import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class DriverDispatchConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -22,7 +24,7 @@ class DriverDispatchConfirmScreen extends StatefulWidget {
 }
 
 class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScreen> {
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
   bool _isSubmitting = false;
 
   // 1회당 단가 포맷용
@@ -39,12 +41,12 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
         context: context,
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text("배차 수락 제한", style: TextStyle(fontWeight: FontWeight.bold)),
-          content: const Text("🔒 가입 심사가 완료되지 않았습니다.\n심사 승인 완료 후에 배차 수락 및 즉시 운행 시작이 가능합니다."),
+          title: Text("오더 수락 제한", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Text("🔒 가입 심사가 완료되지 않았습니다.\n심사 승인 완료 후에 오더 수락 및 즉시 운행 시작이 가능합니다."),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("확인", style: TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.bold)),
+              child: Text("확인", style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold)),
             )
           ],
         ),
@@ -71,9 +73,9 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
         if (!mounted) return;
         
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("🚀 배차 매칭이 최종 확정되었습니다! 운행을 시작합니다."),
-            backgroundColor: Color(0xFF004D5A),
+          SnackBar(
+            content: Text("🚀 오더 수락이 최종 확정되었습니다! 운행을 시작합니다."),
+            backgroundColor: AppColors.primary,
           ),
         );
 
@@ -92,7 +94,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
         );
       } else {
         final err = jsonDecode(utf8.decode(response.bodyBytes));
-        _showErrorDialog(err['detail'] ?? "이미 다른 기사님이 수락했거나 만료된 오더입니다.");
+        _showErrorDialog(err['detail'] ?? "이미 다른 기사님이 수락했거나 만료된 공고입니다.");
       }
     } catch (e) {
       _showErrorDialog("서버 네트워크 연결에 실패했습니다.");
@@ -110,12 +112,12 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("배차 수락 불가", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text("오더 수락 불가", style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text(msg),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("확인", style: TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.bold)),
+            child: Text("확인", style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -132,17 +134,17 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
     final int netEarning = unitPrice - platformFee;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // 프리미엄 다크 테마 배경
+      backgroundColor: AppColors.background, // 프리미엄 다크 테마 배경
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "신규 배차 오더 확인",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
+        title: Text(
+          "신규 현장 공고 확인",
+          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 17),
         ),
         centerTitle: true,
       ),
@@ -154,19 +156,16 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 1. 프리미엄 지도 시각화 카드 (배차 경로 미리보기)
+                  // 1. 프리미엄 지도 시각화 카드 (운행 경로 미리보기)
                   Container(
                     height: 180,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(24),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1E293B), Color(0xFF334155)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: AppColors.surface,
+                      border: Border.all(color: AppColors.divider),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
+                          color: Colors.black.withAlpha(76),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
                         ),
@@ -190,16 +189,16 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFF7A00),
+                              color: AppColors.warning,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.navigation_rounded, color: Colors.white, size: 14),
-                                const SizedBox(width: 6),
+                                Icon(Icons.navigation_rounded, color: AppColors.textPrimary, size: 14),
+                                SizedBox(width: 6),
                                 Text(
                                   "$distance km · $estimatedTimeMinutes분 소요 예상",
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12),
                                 ),
                               ],
                             ),
@@ -208,15 +207,15 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
 
                   // 2. 경로 타임라인 정보 카드 (상차지 -> 하차지)
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
+                      color: AppColors.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      border: Border.all(color: AppColors.divider),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,36 +226,36 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                           children: [
                             Column(
                               children: [
-                                const CircleAvatar(
+                                CircleAvatar(
                                   radius: 10,
-                                  backgroundColor: Color(0xFF38BDF8), // 택시 스타일 블루
-                                  child: Icon(Icons.circle, color: Colors.white, size: 8),
+                                  backgroundColor: AppColors.primary, // 택시 스타일 블루
+                                  child: Icon(Icons.circle, color: AppColors.textPrimary, size: 8),
                                 ),
                                 Container(
                                   width: 2,
                                   height: 40,
-                                  color: const Color(0xFF334155),
+                                  color: AppColors.divider,
                                 ),
                               ],
                             ),
-                            const SizedBox(width: 14),
+                            SizedBox(width: 14),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     "상차지 (출발)",
-                                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
                                   ),
-                                  const SizedBox(height: 4),
+                                  SizedBox(height: 4),
                                   Text(
                                     "현장 ID ${widget.job['site_id']} (인천 송도 건설 현장)",
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
-                                  const SizedBox(height: 2),
-                                  const Text(
+                                  SizedBox(height: 2),
+                                  Text(
                                     "인천 연수구 송도동 100-2",
-                                    style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                                    style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                   ),
                                 ],
                               ),
@@ -267,29 +266,29 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const CircleAvatar(
+                            CircleAvatar(
                               radius: 10,
-                              backgroundColor: Color(0xFFFF7A00), // 덤프링 시그니처 오렌지
-                              child: Icon(Icons.local_shipping_rounded, color: Colors.white, size: 10),
+                              backgroundColor: AppColors.warning, // 덤프링 시그니처 오렌지
+                              child: Icon(Icons.local_shipping_rounded, color: AppColors.textPrimary, size: 10),
                             ),
-                            const SizedBox(width: 14),
+                            SizedBox(width: 14),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     "하차지 (도착)",
-                                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
                                   ),
-                                  const SizedBox(height: 4),
+                                  SizedBox(height: 4),
                                   Text(
                                     "하차지 ID ${widget.job['matched_drop_off_id'] ?? '지주 승인 하차장'}",
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
-                                  const SizedBox(height: 2),
-                                  const Text(
+                                  SizedBox(height: 2),
+                                  Text(
                                     "경기 김포시 대곶면 사토매립장",
-                                    style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                                    style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                   ),
                                 ],
                               ),
@@ -299,74 +298,70 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
 
                   // 3. 작업 스펙 및 추가 디테일 카드
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
+                      color: AppColors.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      border: Border.all(color: AppColors.divider),
                     ),
                     child: Column(
                       children: [
                         _buildDetailRow("토사 종류", "일반 사토 (토사)", Icons.category_rounded),
-                        const Divider(color: Color(0xFF334155), height: 24),
+                        Divider(color: AppColors.divider, height: 24),
                         _buildDetailRow("작업 예정일", widget.job['work_date'].toString().substring(0, 10), Icons.calendar_today_rounded),
-                        const Divider(color: Color(0xFF334155), height: 24),
+                        Divider(color: AppColors.divider, height: 24),
                         _buildDetailRow("필요 차종", "25.5톤 덤프 트럭", Icons.local_shipping_rounded),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
 
                   // 4. 프리미엄 요금 / 운송료 정산 카드 (택시 미터기 요금판 컨셉)
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF0F766E), Color(0xFF0F172A)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFF0F766E).withOpacity(0.4), width: 1.5),
+                      border: Border.all(color: AppColors.primary, width: 1.5),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
+                        Text(
                           "예상 실 정산 수입 (1회당)",
-                          style: TextStyle(color: Color(0xFF2DD4BF), fontWeight: FontWeight.bold, fontSize: 12),
+                          style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         Text(
                           "₩${_formatCurrency(netEarning)}",
-                          style: const TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -0.5),
+                          style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -0.5),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 18),
+                        SizedBox(height: 18),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text("기본 운반료", style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                            Text("₩${_formatCurrency(unitPrice)}", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                            Text("기본 운반료", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                            Text("₩${_formatCurrency(unitPrice)}", style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text("플랫폼 수수료 (3%)", style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                            Text("-₩${_formatCurrency(platformFee)}", style: const TextStyle(color: Color(0xFFF87171), fontSize: 12, fontWeight: FontWeight.bold)),
+                            Text("플랫폼 수수료 (3%)", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                            Text("-₩${_formatCurrency(platformFee)}", style: TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  SizedBox(height: 36),
 
                   // 5. 작업 거절 & 수락 버튼 (바텀 액션 바 스타일)
                   Row(
@@ -380,19 +375,19 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                           child: Container(
                             height: 60,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1E293B),
+                              color: AppColors.surface,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white.withOpacity(0.1)),
+                              border: Border.all(color: AppColors.divider),
                             ),
                             alignment: Alignment.center,
-                            child: const Text(
+                            child: Text(
                               "거절",
-                              style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, fontSize: 15),
+                              style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 15),
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       // 수락 및 즉시 운행 단추
                       Expanded(
                         flex: 7,
@@ -402,15 +397,15 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                           child: Container(
                             height: 60,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFF7A00), Color(0xFFFF9D43)],
+                              gradient: LinearGradient(
+                                colors: [AppColors.warning, AppColors.warning.withAlpha(200)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFFF7A00).withOpacity(0.3),
+                                  color: AppColors.warning.withAlpha(76),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
@@ -418,10 +413,10 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                             ),
                             alignment: Alignment.center,
                             child: _isSubmitting
-                                ? const CircularProgressIndicator(color: Colors.white)
-                                : const Text(
-                                    "배차 수락 및 운행 시작",
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
+                                ? CircularProgressIndicator(color: AppColors.textPrimary)
+                                : Text(
+                                    "오더 수락 및 운행 시작",
+                                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15),
                                   ),
                           ),
                         ),
@@ -440,11 +435,11 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
   Widget _buildDetailRow(String title, String value, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF64748B), size: 18),
-        const SizedBox(width: 12),
-        Text(title, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+        Icon(icon, color: AppColors.textTertiary, size: 18),
+        SizedBox(width: 12),
+        Text(title, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         const Spacer(),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(value, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
       ],
     );
   }
@@ -455,15 +450,10 @@ class PathMapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF38BDF8).withOpacity(0.3)
+      ..color = AppColors.primary.withAlpha(76)
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-
-    final dashPaint = Paint()
-      ..color = const Color(0xFFFF7A00).withOpacity(0.4)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
 
     final path = Path();
     path.moveTo(size.width * 0.15, size.height * 0.7);
@@ -483,11 +473,11 @@ class PathMapPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     // 출발지 점
-    final startPaint = Paint()..color = const Color(0xFF38BDF8);
+    final startPaint = Paint()..color = AppColors.primary;
     canvas.drawCircle(Offset(size.width * 0.15, size.height * 0.7), 6, startPaint);
 
     // 도착지 점
-    final endPaint = Paint()..color = const Color(0xFFFF7A00);
+    final endPaint = Paint()..color = AppColors.warning;
     canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.3), 8, endPaint);
   }
 

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
@@ -20,7 +21,7 @@ class OwnerPendingScreen extends StatefulWidget {
 }
 
 class _OwnerPendingScreenState extends State<OwnerPendingScreen> {
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
 
   bool _isApproved = false;
   bool _isRejected = false;
@@ -74,7 +75,7 @@ class _OwnerPendingScreenState extends State<OwnerPendingScreen> {
           if (_isApproved) {
             _pollingTimer?.cancel();
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text("🎉 [승인 완료] 본사의 가입 서류 심사가 최종 통과되었습니다!"),
                 backgroundColor: Colors.green,
               ),
@@ -96,10 +97,10 @@ class _OwnerPendingScreenState extends State<OwnerPendingScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Color(0xFF1A202C)),
-        title: const Text(
+        title: Text(
           "차주 가입 심사 현황",
           style: TextStyle(color: Color(0xFF1A202C), fontWeight: FontWeight.bold, fontSize: 17),
         ),
@@ -130,44 +131,44 @@ class _OwnerPendingScreenState extends State<OwnerPendingScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    SizedBox(height: 28),
 
                     Text(
                       _isRejected ? "가입 심사 반려 안내" : "가입 서류 심사 진행 중",
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF1A202C),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
 
                     Text(
                       _isRejected
                           ? "서류 검토 과정에서 결격 사유가 발견되었습니다. 아래 내용을 조치한 후 다시 요청해 주세요."
                           : "제출해 주신 영업 서류와 통장 사본을 대조 검증하고 있습니다.\n승인 즉시 배차 및 기사 배정 홈 화면으로 자동 전환됩니다.",
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         color: Color(0xFF718096),
                         height: 1.5,
                       ),
                     ),
-                    const SizedBox(height: 36),
+                    SizedBox(height: 36),
 
                     if (_isRejected) ...[
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: Colors.red[200]!, width: 1),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(
+                            Row(
                               children: [
                                 Icon(Icons.cancel, color: Colors.red, size: 18),
                                 SizedBox(width: 8),
@@ -177,15 +178,15 @@ class _OwnerPendingScreenState extends State<OwnerPendingScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
+                            SizedBox(height: 10),
                             Text(
                               _rejectReason ?? "제출하신 서류의 상호명과 가입자명이 다릅니다. 서류를 다시 확인해 주세요.",
-                              style: const TextStyle(fontSize: 13, color: Color(0xFF2D3748), height: 1.4),
+                              style: TextStyle(fontSize: 13, color: Color(0xFF2D3748), height: 1.4),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      SizedBox(height: 28),
 
                       ElevatedButton(
                         onPressed: () {
@@ -200,22 +201,22 @@ class _OwnerPendingScreenState extends State<OwnerPendingScreen> {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF004D5A),
-                          foregroundColor: Colors.white,
+                          foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
                         ),
-                        child: const Text("서류 보완 재제출", style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text("서류 보완 재제출", style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ] else ...[
                       Card(
-                        color: Colors.white,
+                        color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
-                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          side: BorderSide(color: Color(0xFFE2E8F0)),
                         ),
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.all(24.0),
                           child: Column(
                             children: [

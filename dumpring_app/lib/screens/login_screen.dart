@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'role_selection_screen.dart'; // 회원가입 선택 화면 임포트
@@ -12,6 +13,7 @@ import 'driver_document_upload_screen.dart';
 import 'owner_document_upload_screen.dart';
 import 'owner_pending_screen.dart';
 import 'sdui_screen.dart';
+import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -21,7 +23,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
@@ -92,22 +94,23 @@ class _LoginScreenState extends State<LoginScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Color(0xFFFF7A00)),
+            Icon(Icons.check_circle_outline, color: AppColors.warning),
             SizedBox(width: 8),
-            Text("로그인 성공", style: TextStyle(fontWeight: FontWeight.bold)),
+            Text("로그인 성공", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           ],
         ),
-        content: Text("${user['name']}님, 환영합니다!\n덤프링 플랫폼 서비스를 시작합니다."),
+        content: Text("${user['name']}님, 환영합니다!\n덤프링 플랫폼 서비스를 시작합니다.", style: TextStyle(color: AppColors.textPrimary)),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop(); // 다이얼로그 닫기
               _redirectAfterLogin(user, token);
             },
-            child: const Text("확인", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+            child: Text("확인", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -221,18 +224,18 @@ class _LoginScreenState extends State<LoginScreen> {
               _submitLogin();
             },
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF1E2638), // 피그마 다크 그레이
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Color(0xFFFFD700), width: 1), // Neon Yellow Border
+          side: BorderSide(color: AppColors.primary, width: 1),
         ),
         padding: EdgeInsets.zero,
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
         ),
@@ -244,19 +247,20 @@ class _LoginScreenState extends State<LoginScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.error_outline, color: Colors.red),
+            Icon(Icons.error_outline, color: AppColors.danger),
             SizedBox(width: 8),
-            Text("로그인 실패", style: TextStyle(fontWeight: FontWeight.bold)),
+            Text("로그인 실패", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           ],
         ),
-        content: Text(message),
+        content: Text(message, style: TextStyle(color: AppColors.textPrimary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("확인", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: Text("확인", style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -268,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: const Color(0xFF0A0F1D), // 피그마 Easy Ride: Deep Dark Space Blue
+          backgroundColor: AppColors.background,
           body: SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -277,43 +281,43 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 20),
-                // 서비스 로고/타이틀 섹션 (Easy Ride Neon Yellow Style)
-                const Icon(
+                SizedBox(height: 20),
+                // 서비스 로고/타이틀 섹션
+                Icon(
                   Icons.local_shipping_rounded,
                   size: 85,
-                  color: Color(0xFFFFD700), // Easy Ride Signature Neon Yellow
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-                const SizedBox(height: 16),
-                const Text(
+                SizedBox(height: 16),
+                Text(
                   "DUMPRING",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 34,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 3,
-                    color: Colors.white, 
+                    color: AppColors.textPrimary, 
                   ),
                 ),
-                const Text(
+                Text(
                   "덤프 중계 및 실시간 미터기 플랫폼",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
-                    color: Color(0xFF8F9BB3),
+                    color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 36),
+                SizedBox(height: 36),
 
-                // 입력 폼 카드 (Easy Ride Rich Matte Dark Card)
+                // 입력 폼 카드
                 Card(
-                  color: const Color(0xFF151C2C),
+                  color: AppColors.surface,
                   elevation: 8,
                   shadowColor: Colors.black.withOpacity(0.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
-                    side: const BorderSide(color: Color(0xFF222B45), width: 1.5),
+                    side: BorderSide(color: AppColors.divider, width: 1.5),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
@@ -322,65 +326,65 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text("휴대폰 번호 (로그인 ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF8F9BB3))),
-                          const SizedBox(height: 8),
+                          Text("휴대폰 번호 (로그인 ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                          SizedBox(height: 8),
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                             decoration: InputDecoration(
                               hintText: "- 없이 숫자만 입력해 주세요",
-                              hintStyle: const TextStyle(color: Color(0xFF4F5C77)),
+                              hintStyle: TextStyle(color: AppColors.textTertiary),
                               filled: true,
-                              fillColor: const Color(0xFF1E2638),
+                              fillColor: AppColors.background,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                              prefixIcon: const Icon(Icons.phone_android_outlined, color: Color(0xFF8F9BB3)),
+                              prefixIcon: Icon(Icons.phone_android_outlined, color: AppColors.textSecondary),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Color(0xFF222B45)),
+                                borderSide: BorderSide(color: AppColors.divider),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Color(0xFF222B45)),
+                                borderSide: BorderSide(color: AppColors.divider),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2),
+                                borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                               ),
                             ),
                             validator: (value) => (value == null || value.trim().isEmpty) ? "휴대폰 번호를 입력해 주세요" : null,
                           ),
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20),
 
-                          const Text("비밀번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF8F9BB3))),
-                          const SizedBox(height: 8),
+                          Text("비밀번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                          SizedBox(height: 8),
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                             decoration: InputDecoration(
                               hintText: "비밀번호를 입력해 주세요",
-                              hintStyle: const TextStyle(color: Color(0xFF4F5C77)),
+                              hintStyle: TextStyle(color: AppColors.textTertiary),
                               filled: true,
-                              fillColor: const Color(0xFF1E2638),
+                              fillColor: AppColors.background,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                              prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF8F9BB3)),
+                              prefixIcon: Icon(Icons.lock_outline, color: AppColors.textSecondary),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Color(0xFF222B45)),
+                                borderSide: BorderSide(color: AppColors.divider),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Color(0xFF222B45)),
+                                borderSide: BorderSide(color: AppColors.divider),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Color(0xFFFFD700), width: 2),
+                                borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                               ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                  color: const Color(0xFF8F9BB3),
+                                  color: AppColors.textSecondary,
                                 ),
                                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                               ),
@@ -389,23 +393,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
 
                           if (_errorMessage != null) ...[
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFFF5F5),
+                                color: AppColors.danger.withAlpha(20),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.red[200]!, width: 1),
+                                border: Border.all(color: AppColors.danger, width: 1),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                                  const SizedBox(width: 8),
+                                  Icon(Icons.error_outline, color: AppColors.danger, size: 20),
+                                  SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       _errorMessage!,
                                       style: TextStyle(
-                                        color: Colors.red[800],
+                                        color: AppColors.danger,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
                                       ),
@@ -420,29 +424,29 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
 
                 // 로그인 버튼
                 ElevatedButton(
                   onPressed: _isLoading ? null : _submitLogin,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD700), // Easy Ride Signature Gold/Yellow
-                    foregroundColor: const Color(0xFF0A0F1D), // 딥 다크 블루 텍스트
-                    disabledBackgroundColor: const Color(0xFF4F5C77),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: AppColors.background,
+                    disabledBackgroundColor: AppColors.textTertiary,
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 4,
-                    shadowColor: const Color(0xFFFFD700).withOpacity(0.3),
+                    shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.3),
                   ),
                   child: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 24,
                           width: 24,
-                          child: CircularProgressIndicator(color: Color(0xFF0A0F1D), strokeWidth: 2.5),
+                          child: CircularProgressIndicator(color: AppColors.background, strokeWidth: 2.5),
                         )
-                      : const Text(
+                      : Text(
                           "로그인",
                           style: TextStyle(
                             fontSize: 18,
@@ -450,15 +454,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 // 회원가입 제안 버튼
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
+                    Text(
                       "계정이 없으신가요?",
-                      style: TextStyle(color: Color(0xFF8F9BB3), fontSize: 14),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                     ),
                     TextButton(
                       onPressed: () {
@@ -469,10 +473,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         );
                       },
-                      child: const Text(
+                      child: Text(
                         "회원가입",
                         style: TextStyle(
-                          color: Color(0xFFFFD700), // 형광 골드 옐로우 강조
+                          color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -480,17 +484,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                 const Divider(height: 40, thickness: 1.5, color: Color(0xFF222B45)),
-                 const Text(
+                 Divider(height: 40, thickness: 1.5, color: AppColors.divider),
+                 Text(
                    "테스트용 빠른 로그인",
                    textAlign: TextAlign.center,
                    style: TextStyle(
                      fontSize: 13,
                      fontWeight: FontWeight.bold,
-                     color: Color(0xFF8F9BB3),
+                     color: AppColors.textSecondary,
                    ),
                  ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -526,7 +530,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
 
                 // 🔧 디버그: 본사 어드민 빠른 진입 버튼
                 TextButton.icon(
@@ -545,18 +549,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.developer_mode, color: Color(0xFF718096), size: 16),
-                  label: const Text(
+                  icon: Icon(Icons.developer_mode, color: AppColors.textSecondary, size: 16),
+                  label: Text(
                     "🔧 디버그: 본사 어드민 화면 바로 진입",
                     style: TextStyle(
-                      color: Color(0xFF718096),
+                      color: AppColors.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       decoration: TextDecoration.underline,
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 // 🎨 SDUI 피그마 동적 템플릿 테스트 진입 버튼
                 TextButton.icon(
                   onPressed: () {
@@ -569,11 +573,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.palette_outlined, color: Color(0xFFFFD700), size: 16),
-                  label: const Text(
+                  icon: Icon(Icons.palette_outlined, color: Theme.of(context).colorScheme.primary, size: 16),
+                  label: Text(
                     "🎨 피그마 SDUI 실시간 템플릿 화면 테스트",
                     style: TextStyle(
-                      color: Color(0xFFFFD700),
+                      color: Theme.of(context).colorScheme.primary,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       decoration: TextDecoration.underline,
@@ -589,19 +593,19 @@ class _LoginScreenState extends State<LoginScreen> {
         if (_isStatusChecking)
           Container(
             color: Colors.black.withOpacity(0.4),
-            child: const Center(
+            child: Center(
               child: Card(
-                color: Colors.white,
+                color: AppColors.surface,
                 child: Padding(
-                  padding: EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.all(24.0),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(color: Color(0xFFFF7A00)),
+                      CircularProgressIndicator(color: AppColors.warning),
                       SizedBox(height: 16),
                       Text(
                         "승인 및 서류 제출 현황 조회 중...",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A202C), decoration: TextDecoration.none),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary, decoration: TextDecoration.none),
                       ),
                     ],
                   ),

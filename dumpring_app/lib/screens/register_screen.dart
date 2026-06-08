@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart'; // kIsWeb 지원용
@@ -16,7 +17,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String get _baseUrl {
     // 모든 환경(디버그/릴리즈)에서 임시로 Render 배포 주소를 바라보도록 고정합니다.
     // 만약 Render 주소가 다르게 발급되었다면 (예: dumpring-api-xxxx.onrender.com) 아래 주소를 수정해 주세요.
-    return "https://dumpring-api.onrender.com";
+    return AppConfig.baseUrl;
   }
 
   final _formKey = GlobalKey<FormState>();
@@ -123,7 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text("🎉 회원가입 완료", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text("🎉 회원가입 완료", style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text(
           _isDriverRole 
               ? "덤프 기사님 회원가입이 완료되었습니다!\n(차주 선등록이 존재한 경우 자동으로 즉시 차량 매칭 연동이 완료되었습니다.)" 
@@ -135,7 +136,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Navigator.of(context).pop(); // 팝업 닫기
               Navigator.of(context).pop(); // 가입창 닫기 (역할 선택창도 가입창이 닫히면 이전 화면으로 돌아감 또는 직접 로그인창 복귀)
             },
-            child: const Text("확인", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+            child: Text("확인", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -148,7 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.error_outline, color: Colors.red),
             SizedBox(width: 8),
@@ -159,7 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("닫기", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: Text("닫기", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -184,9 +185,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA), // 1. 깔끔한 연그레이 배경 적용
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
         elevation: 0.5,
-        title: const Text(
+        title: Text(
           "덤프링 회원가입",
           style: TextStyle(color: Color(0xFF1A202C), fontWeight: FontWeight.bold, fontSize: 18),
         ),
@@ -223,7 +224,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: _isDriverRole ? Colors.white : const Color(0xFF4A5568), // 2. 선택 시 흰색 글씨, 비선택 시 어두운 그레이 반전
+                              color: _isDriverRole ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF4A5568), // 2. 선택 시 흰색 글씨, 비선택 시 어두운 그레이 반전
                             ),
                           ),
                         ),
@@ -245,7 +246,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: !_isDriverRole ? Colors.white : const Color(0xFF4A5568), // 2. 선택 시 흰색 글씨, 비선택 시 어두운 그레이 반전
+                              color: !_isDriverRole ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF4A5568), // 2. 선택 시 흰색 글씨, 비선택 시 어두운 그레이 반전
                             ),
                           ),
                         ),
@@ -254,15 +255,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // 3. 입력 폼 카드
               Card(
-                color: Colors.white,
+                color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                  side: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
@@ -272,62 +273,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // 성명 입력칸
-                        const Text("성명 (실명)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("성명 (실명)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         // 3. 입력창 높이 55px 확보를 위해 vertical 패딩을 넉넉히 설정한 TextFormField
                         TextFormField(
                           controller: _nameController,
                           keyboardType: TextInputType.name,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: InputDecoration(
                             hintText: "실명을 입력해 주세요",
-                            hintStyle: const TextStyle(color: Color(0xFFA0AEC0)),
+                            hintStyle: TextStyle(color: Color(0xFFA0AEC0)),
                             filled: true,
                             fillColor: const Color(0xFFF7FAFC), // 3. 부드러운 그레이 배경
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18), // 3. 높이 55px 이상 확보용 패딩
-                            prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF718096)), // 3. 회색조 인물 아이콘 왼쪽 내장
+                            prefixIcon: Icon(Icons.person_outline, color: Color(0xFF718096)), // 3. 회색조 인물 아이콘 왼쪽 내장
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12), // 3. 테두리 라운딩 12px
-                              borderSide: const BorderSide(color: Color(0xFFCBD5E0), width: 1), // 3. 얇은 외곽선
+                              borderSide: BorderSide(color: Color(0xFFCBD5E0), width: 1), // 3. 얇은 외곽선
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              borderSide: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5),
+                              borderSide: BorderSide(color: Color(0xFFFF7A00), width: 1.5),
                             ),
                           ),
                           validator: (value) => (value == null || value.trim().isEmpty) ? "성명을 입력해 주세요" : null,
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
                         // 휴대폰 번호 입력칸
-                        const Text("휴대폰 번호 (로그인 ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("휴대폰 번호 (로그인 ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: InputDecoration(
                             hintText: "- 없이 숫자만 입력해 주세요",
-                            hintStyle: const TextStyle(color: Color(0xFFA0AEC0)),
+                            hintStyle: TextStyle(color: Color(0xFFA0AEC0)),
                             filled: true,
                             fillColor: const Color(0xFFF7FAFC), // 3. 부드러운 그레이 배경
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18), // 3. 높이 55px 이상 확보용 패딩
-                            prefixIcon: const Icon(Icons.phone_android_outlined, color: Color(0xFF718096)), // 3. 회색조 스마트폰 아이콘 왼쪽 내장
+                            prefixIcon: Icon(Icons.phone_android_outlined, color: Color(0xFF718096)), // 3. 회색조 스마트폰 아이콘 왼쪽 내장
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12), // 3. 테두리 라운딩 12px
-                              borderSide: const BorderSide(color: Color(0xFFCBD5E0), width: 1),
+                              borderSide: BorderSide(color: Color(0xFFCBD5E0), width: 1),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              borderSide: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5),
+                              borderSide: BorderSide(color: Color(0xFFFF7A00), width: 1.5),
                             ),
                           ),
                           validator: (value) {
@@ -340,33 +341,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
                         // 비밀번호 입력칸
-                        const Text("비밀번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("비밀번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: InputDecoration(
                             hintText: "4자리 이상 입력해 주세요",
-                            hintStyle: const TextStyle(color: Color(0xFFA0AEC0)),
+                            hintStyle: TextStyle(color: Color(0xFFA0AEC0)),
                             filled: true,
                             fillColor: const Color(0xFFF7FAFC), // 3. 부드러운 그레이 배경
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18), // 3. 높이 55px 이상 확보용 패딩
-                            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF718096)), // 3. 회색조 자물쇠 아이콘 왼쪽 내장
+                            prefixIcon: Icon(Icons.lock_outline, color: Color(0xFF718096)), // 3. 회색조 자물쇠 아이콘 왼쪽 내장
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12), // 3. 테두리 라운딩 12px
-                              borderSide: const BorderSide(color: Color(0xFFCBD5E0), width: 1),
+                              borderSide: BorderSide(color: Color(0xFFCBD5E0), width: 1),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              borderSide: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5),
+                              borderSide: BorderSide(color: Color(0xFFFF7A00), width: 1.5),
                             ),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -381,7 +382,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                         // 5. 중복 가입 에러 발생 시 입력창 바로 아래에 경고문 표시 (요구사항 5 준수 🚨)
                         if (_errorMessage != null) ...[
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
@@ -391,8 +392,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline, color: Colors.red, size: 20), // 5. 경고 아이콘
-                                const SizedBox(width: 8),
+                                Icon(Icons.error_outline, color: Colors.red, size: 20), // 5. 경고 아이콘
+                                SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     _errorMessage!,
@@ -410,15 +411,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                         // 차주일 때만 다이내믹 노출되는 '직접 운행 여부' 필드
                         if (!_isDriverRole) ...[
-                          const SizedBox(height: 12),
-                          const Divider(height: 24),
+                          SizedBox(height: 12),
+                          Divider(height: 24),
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text(
+                            title: Text(
                               "차주 본인이 직접 덤프 운행 (기사 겸직)",
                               style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2D3748)),
                             ),
-                            subtitle: const Text("체크 시 기사(Driver) 권한도 동시에 획득합니다.", style: TextStyle(fontSize: 12)),
+                            subtitle: Text("체크 시 기사(Driver) 권한도 동시에 획득합니다.", style: TextStyle(fontSize: 12)),
                             value: _isDirectDriver,
                             activeColor: const Color(0xFF004D5A), // 다크 청록 포인트
                             onChanged: (val) => setState(() => _isDirectDriver = val),
@@ -429,14 +430,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // 4. 액션 가입 완료 버튼 (화면 하단 꽉 차는 대형 라운드 버튼)
               ElevatedButton(
                 onPressed: _isLoading ? null : _submitRegister,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF004D5A), // 4. 메인 버튼 컬러: 신뢰감을 주는 다크 청록(#004D5A) 적용
-                  foregroundColor: Colors.white,
+                  foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                   disabledBackgroundColor: const Color(0xFF80B3BC),
                   padding: const EdgeInsets.symmetric(vertical: 18), // 4. 대형 버튼에 맞춘 넓은 세로 패딩
                   shape: RoundedRectangleBorder(
@@ -445,14 +446,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   elevation: 0,
                 ),
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 24,
                         width: 24,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        child: CircularProgressIndicator(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)), strokeWidth: 2.5),
                       )
                     : Text(
                         _isDriverRole ? "기사로 가입 완료" : "차주로 가입 완료",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18, // 4. 글자 18pt(18) 크기 적용
                           fontWeight: FontWeight.bold, // 4. 볼드(Bold) 적용
                           letterSpacing: 0.5,

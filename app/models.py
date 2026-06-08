@@ -148,7 +148,7 @@ class Driver(Base):
     __tablename__ = "drivers"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # 기사 가입 완료 시 연동
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), unique=True, nullable=True)  # 기사 가입 완료 시 연동
     current_car_id = Column(Integer, ForeignKey("cars.id", ondelete="SET NULL"), nullable=True)  # 배정 차량
     registered_phone = Column(String, nullable=False, index=True)  # 차주가 선등록한 기사 휴대폰 번호
     is_approved = Column(Boolean, default=False, nullable=False)  # 차주 소속 기사 승인 여부 (본사/차주 승인 단계)
@@ -488,4 +488,28 @@ class DispatchTicket(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
 
+
+
+class SduiTheme(Base):
+    """
+    앱 전체 테마 설정 테이블
+    - 관리자가 앱의 색상/폰트 등 테마를 DB에서 관리
+    - is_active=True인 테마가 앱에 실시간 적용
+    """
+    __tablename__ = "sdui_themes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    theme_key = Column(String, unique=True, nullable=False, index=True)  # 'dark_gold', 'ocean_blue' 등
+    name = Column(String, nullable=False)
+    primary_color = Column(String, nullable=False)      # '0xFFFFD700'
+    secondary_color = Column(String, nullable=False)
+    background_color = Column(String, nullable=False)
+    surface_color = Column(String, nullable=False)
+    text_color = Column(String, nullable=False)
+    accent_color = Column(String, nullable=True)
+    font_family = Column(String, nullable=True)
+    is_active = Column(Boolean, default=False, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

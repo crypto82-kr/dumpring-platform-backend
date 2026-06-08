@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class DriverHistoryScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -68,21 +69,22 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         contentPadding: const EdgeInsets.all(24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Center(
+            Center(
               child: Text(
                 "덤프링 전자 전표",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary),
               ),
             ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
+            SizedBox(height: 16),
+            Divider(color: AppColors.divider),
+            SizedBox(height: 12),
             _buildReceiptRow("전표 번호", "#DR-${item['id']}"),
             _buildReceiptRow("운행 날짜", item['date']),
             _buildReceiptRow("운행 시간", item['time']),
@@ -90,30 +92,30 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
             _buildReceiptRow("하차지", item['unloading']),
             _buildReceiptRow("주행 거리", item['distance']),
             _buildReceiptRow("소요 시간", item['duration']),
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 16),
+            SizedBox(height: 12),
+            Divider(color: AppColors.divider),
+            SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("정산 금액", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                Text("정산 금액", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
                 Text(
                   "${_formatter(item['fare'])} 원",
-                  style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFFF7A00), fontSize: 20),
+                  style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.warning, fontSize: 20),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF004D5A),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
               ),
-              child: const Text("닫기", style: TextStyle(fontWeight: FontWeight.bold)),
+              child: Text("닫기", style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -127,8 +129,8 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          Text(value, style: const TextStyle(color: Color(0xFF2D3748), fontSize: 12, fontWeight: FontWeight.w500)),
+          Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(value, style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -147,22 +149,13 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
       }
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        iconTheme: const IconThemeData(color: Color(0xFF1A202C)),
-        title: const Text(
-          "운행 이력 및 정산 내역",
-          style: TextStyle(color: Color(0xFF1A202C), fontWeight: FontWeight.bold, fontSize: 17),
-        ),
-        centerTitle: true,
-      ),
+    return DRScaffold(
+      type: DRLayoutType.sub,
+      title: "운행 이력 및 정산 내역",
       body: SafeArea(
         child: Column(
           children: [
-            // 상단 총 정산 요약 카드 대시보드 (프리미엄 🚨)
+            // 상단 총 정산 요약 카드 대시보드
             _buildSummaryDashboard(totalSettled, totalPending),
 
             // 이력 목록 영역
@@ -177,9 +170,10 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 0,
+                    color: AppColors.surface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                      side: BorderSide(color: AppColors.divider),
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -188,18 +182,18 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                         children: [
                           Text(
                             item['date'],
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey),
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary),
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: isSettled ? const Color(0xFFE6F4EA) : const Color(0xFFFFF4E5),
+                              color: isSettled ? AppColors.success.withAlpha(30) : AppColors.warning.withAlpha(30),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               isSettled ? "입금완료" : "정산예정",
                               style: TextStyle(
-                                color: isSettled ? Colors.green[800] : Colors.orange[800],
+                                color: isSettled ? AppColors.success : AppColors.warning,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -210,38 +204,38 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           Row(
                             children: [
-                              const Icon(Icons.circle, color: Colors.blue, size: 10),
-                              const SizedBox(width: 8),
+                              Icon(Icons.circle, color: AppColors.info, size: 10),
+                              SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   item['loading'],
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D3748), fontSize: 14),
+                                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 14),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.circle, color: Colors.orange, size: 10),
-                              const SizedBox(width: 8),
+                              Icon(Icons.circle, color: AppColors.warning, size: 10),
+                              SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   item['unloading'],
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D3748), fontSize: 14),
+                                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 14),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           Text(
                             "${item['time']} (${item['distance']} / ${item['duration']})",
-                            style: const TextStyle(color: Colors.grey, fontSize: 11),
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                           )
                         ],
                       ),
@@ -251,10 +245,10 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                         children: [
                           Text(
                             "${_formatter(item['fare'])} 원",
-                            style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF004D5A), fontSize: 15),
+                            style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.primary, fontSize: 15),
                           ),
-                          const SizedBox(height: 4),
-                          const Icon(Icons.receipt_long_outlined, size: 18, color: Color(0xFFFF7A00)),
+                          SizedBox(height: 4),
+                          Icon(Icons.receipt_long_outlined, size: 18, color: AppColors.warning),
                         ],
                       ),
                       onTap: () => _showReceiptModal(item),
@@ -271,18 +265,18 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
 
   Widget _buildSummaryDashboard(int settled, int pending) {
     return Container(
-      color: Colors.white,
+      color: AppColors.surface,
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
           Row(
             children: [
               Expanded(
-                child: _buildSummaryItem("입금 완료액", settled, Colors.green[800]!),
+                child: _buildSummaryItem("입금 완료액", settled, AppColors.success),
               ),
-              Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
+              Container(width: 1, height: 40, color: AppColors.divider),
               Expanded(
-                child: _buildSummaryItem("정산 대기액", pending, const Color(0xFFFF7A00)),
+                child: _buildSummaryItem("정산 대기액", pending, AppColors.warning),
               ),
             ],
           ),
@@ -294,8 +288,8 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
   Widget _buildSummaryItem(String label, int amount, Color color) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
+        Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+        SizedBox(height: 6),
         Text(
           "${_formatter(amount)} 원",
           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: color),

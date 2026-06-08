@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'common_drawer.dart';
@@ -24,7 +25,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
   // 1. 실제 승인 대기 회원 리스트
   List<Map<String, dynamic>> _pendingMembers = [];
   bool _isLoadingPending = false;
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
 
   Future<void> _fetchPendingMembers() async {
     setState(() {
@@ -131,17 +132,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
         context: context,
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text("가입 신청 반려 사유 입력", style: TextStyle(fontWeight: FontWeight.bold)),
+          title: Text("가입 신청 반려 사유 입력", style: TextStyle(fontWeight: FontWeight.bold)),
           content: TextField(
             controller: controller,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: "반려 사유를 입력해 주세요 (예: 서류 식별 불가)",
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text("취소", style: TextStyle(color: Colors.grey)),
+              child: Text("취소", style: TextStyle(color: Colors.grey)),
             ),
             TextButton(
               onPressed: () async {
@@ -173,7 +174,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                   debugPrint("반려 처리 실패: $e");
                 }
               },
-              child: const Text("반려 확정", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              child: Text("반려 확정", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -187,7 +188,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("배차 강제 개입 통제", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text("배차 강제 개입 통제", style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text("차량 ${dispatch['truck']}의 운행 정보에 강제 개입합니다.\n운행 취소 또는 다른 대체 기사를 긴급 재배정할 수 있습니다."),
         actions: [
           TextButton(
@@ -197,14 +198,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
               });
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("🔴 플랫폼 강제 명령으로 해당 배차가 즉시 취소 및 회차 처리되었습니다."), backgroundColor: Colors.red),
+                SnackBar(content: Text("🔴 플랫폼 강제 명령으로 해당 배차가 즉시 취소 및 회차 처리되었습니다."), backgroundColor: Colors.red),
               );
             },
-            child: const Text("강제 운행 취소", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: Text("강제 운행 취소", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("닫기", style: TextStyle(color: Colors.grey)),
+            child: Text("닫기", style: TextStyle(color: Colors.grey)),
           )
         ],
       ),
@@ -222,20 +223,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Center(
+            Center(
               child: Text(
                 "⚖️ 운송 분쟁 직권 중재 판결",
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
               ),
             ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
-            const Text(
+            SizedBox(height: 16),
+            Divider(),
+            SizedBox(height: 12),
+            Text(
               "플랫폼이 기사 차량의 GPS 이동 궤적 로그 및 주행 거리 기록을 실시간 디코딩 분석한 결과, 하차지 반경 진입 후 회차 지시가 확인되었습니다. 운반비 70% 직권 정산 조정을 제안합니다.",
               style: TextStyle(fontSize: 12, color: Color(0xFF4A5568), height: 1.4),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
                 setState(() {
@@ -243,7 +244,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                 });
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text("⚖️ [직권 중재 완료] 정산금 70% 지급 조정 명령(`SETTLE_ADJUSTED`)이 원장에 적용되었습니다."),
                     backgroundColor: Color(0xFF004D5A),
                   ),
@@ -251,11 +252,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF004D5A),
-                foregroundColor: Colors.white,
+                foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text("직권 정산 강제 조정 완료 (SETTLE_ADJUSTED)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              child: Text("직권 정산 강제 조정 완료 (SETTLE_ADJUSTED)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -278,15 +279,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       ),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A202C), // 플랫폼 마스터 어두운 그레이/블랙 헤더
-        foregroundColor: Colors.white,
+        foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
         elevation: 0,
-        title: const Text("덤프링 본사 총괄 Admin", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text("덤프링 본사 총괄 Admin", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         centerTitle: true,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: const Color(0xFFFF7A00),
           labelColor: const Color(0xFFFF7A00),
-          unselectedLabelColor: Colors.white70,
+          unselectedLabelColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87),
           tabs: const [
             Tab(icon: Icon(Icons.verified_user), text: "가입 심사"),
             Tab(icon: Icon(Icons.monitor_heart), text: "실시간 배차"),
@@ -314,10 +315,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text("📋 신규 가입 서류 심사 대기열", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
-          const SizedBox(height: 16),
+          Text("📋 신규 가입 서류 심사 대기열", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
+          SizedBox(height: 16),
           if (_pendingMembers.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
               child: Text("심사 대기 중인 신규 가입 서류가 없습니다.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
             )
@@ -339,15 +340,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(m['type'], style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF7A00), fontSize: 13)),
-                            Text("ID: #${m['id']}", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                            Text(m['type'], style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF7A00), fontSize: 13)),
+                            Text("ID: #${m['id']}", style: TextStyle(color: Colors.grey, fontSize: 11)),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        Text(m['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2D3748))),
-                        const SizedBox(height: 4),
-                        Text("첨부 서류: ${m['docs']}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 6),
+                        Text(m['name'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2D3748))),
+                        SizedBox(height: 4),
+                        Text("첨부 서류: ${m['docs']}", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        SizedBox(height: 16),
                         Row(
                           children: [
                             Expanded(
@@ -355,23 +356,23 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                                 onPressed: () => _approveMember(m, false),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.red,
-                                  side: const BorderSide(color: Colors.red),
+                                  side: BorderSide(color: Colors.red),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
-                                child: const Text("반려 처리", style: TextStyle(fontWeight: FontWeight.bold)),
+                                child: Text("반려 처리", style: TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 12),
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () => _approveMember(m, true),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF1A202C),
-                                  foregroundColor: Colors.white,
+                                  foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   elevation: 0,
                                 ),
-                                child: const Text("심사 승인", style: TextStyle(fontWeight: FontWeight.bold)),
+                                child: Text("심사 승인", style: TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ),
                           ],
@@ -394,8 +395,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text("🛰️ 실시간 관제 및 배차 현황판", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
-          const SizedBox(height: 16),
+          Text("🛰️ 실시간 관제 및 배차 현황판", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
+          SizedBox(height: 16),
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -407,11 +408,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  leading: const CircleAvatar(
+                  leading: CircleAvatar(
                     backgroundColor: Color(0xFFFF7A00),
-                    child: Icon(Icons.flash_on, color: Colors.white),
+                    child: Icon(Icons.flash_on, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937))),
                   ),
-                  title: Text("${d['site']} ➔ ${d['drop_off']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  title: Text("${d['site']} ➔ ${d['drop_off']}", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: Text("관제 차량: ${d['truck']} / 현재상태: ${d['status']}"),
                   trailing: ElevatedButton(
                     onPressed: () => _interveneDispatch(d),
@@ -421,7 +422,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: const Text("강제 개입", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    child: Text("강제 개입", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ),
               );
@@ -439,10 +440,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text("⚖️ 운임 및 반입 분쟁 중재 대기열", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
-          const SizedBox(height: 16),
+          Text("⚖️ 운임 및 반입 분쟁 중재 대기열", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
+          SizedBox(height: 16),
           if (_disputes.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
               child: Text("접수된 미결 분쟁이 없습니다.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
             )
@@ -464,25 +465,25 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text("덤프비/토질 분쟁", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
-                            Text("분쟁 코드: #DP-${d['id']}", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                            Text("덤프비/토질 분쟁", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
+                            Text("분쟁 코드: #DP-${d['id']}", style: TextStyle(color: Colors.grey, fontSize: 11)),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text("기사: ${d['driver']} / 사토장: ${d['drop_off']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        const SizedBox(height: 6),
-                        Text(d['issue'], style: const TextStyle(color: Color(0xFF4A5568), fontSize: 12, height: 1.4)),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 8),
+                        Text("기사: ${d['driver']} / 사토장: ${d['drop_off']}", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        SizedBox(height: 6),
+                        Text(d['issue'], style: TextStyle(color: Color(0xFF4A5568), fontSize: 12, height: 1.4)),
+                        SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () => _resolveDispute(d),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1A202C),
-                            foregroundColor: Colors.white,
+                            foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             elevation: 0,
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text("GPS 분석 및 직권 중재 조정", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           ),
                         )

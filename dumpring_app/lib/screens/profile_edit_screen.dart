@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -19,7 +21,7 @@ class ProfileEditScreen extends StatefulWidget {
 }
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
 
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
@@ -80,7 +82,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text("✨ 개인정보 및 등록정보가 성공적으로 수정되었습니다."),
             backgroundColor: Color(0xFF004D5A),
           ),
@@ -105,12 +107,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF004D5A),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        title: const Text("개인정보 및 등록정보 수정", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          "개인정보 및 등록정보 수정", 
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+        ),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -122,98 +131,98 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Card(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                    side: BorderSide(color: AppColors.divider, width: 1),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("이름", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("이름", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _nameController,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
                           decoration: InputDecoration(
                             filled: true,
-                            fillColor: const Color(0xFFF7FAFC),
+                            fillColor: AppColors.background,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: BorderSide(color: AppColors.divider),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: BorderSide(color: AppColors.divider),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5),
+                              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
                             ),
                           ),
                           validator: (value) => (value == null || value.trim().isEmpty) ? "이름을 입력해 주세요" : null,
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
-                        const Text("휴대폰 번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("휴대폰 번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
                           decoration: InputDecoration(
                             filled: true,
-                            fillColor: const Color(0xFFF7FAFC),
+                            fillColor: AppColors.background,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: BorderSide(color: AppColors.divider),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: BorderSide(color: AppColors.divider),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5),
+                              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
                             ),
                           ),
                           validator: (value) => (value == null || value.trim().isEmpty) ? "휴대폰 번호를 입력해 주세요" : null,
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
-                        const Text("비밀번호 변경 (변경할 경우에만 입력)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("비밀번호 변경 (변경할 경우에만 입력)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
                           decoration: InputDecoration(
                             hintText: "새 비밀번호 입력",
-                            hintStyle: const TextStyle(color: Color(0xFFA0AEC0), fontSize: 14),
+                            hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 14),
                             filled: true,
-                            fillColor: const Color(0xFFF7FAFC),
+                            fillColor: AppColors.background,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: BorderSide(color: AppColors.divider),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: BorderSide(color: AppColors.divider),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5),
+                              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
                             ),
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                color: const Color(0xFF718096),
+                                color: AppColors.textSecondary,
                               ),
                               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                             ),
@@ -223,7 +232,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
 
                 if (_errorMessage != null) ...[
                   Container(
@@ -235,8 +244,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                        const SizedBox(width: 8),
+                        Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _errorMessage!,
@@ -250,15 +259,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                 ],
 
                 ElevatedButton(
                   onPressed: _isLoading ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF7A00),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey[300],
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: AppColors.background,
+                    disabledBackgroundColor: AppColors.textTertiary,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -266,12 +275,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     elevation: 0,
                   ),
                   child: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(color: AppColors.background, strokeWidth: 2),
                         )
-                      : const Text("저장하기", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      : Text("저장하기", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),

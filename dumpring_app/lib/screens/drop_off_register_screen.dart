@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -10,7 +11,7 @@ class DropOffRegisterScreen extends StatefulWidget {
 }
 
 class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -98,8 +99,8 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text("🎉 회원가입 완료", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text(
+        title: Text("🎉 회원가입 완료", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
           "사토 하차지 지주 회원가입이 완료되었습니다!\n이제 로그인하여 사토 반입 승인 및 관리를 진행해 보세요."
         ),
         actions: [
@@ -108,7 +109,7 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
               Navigator.of(context).pop(); // 팝업 닫기
               Navigator.of(context).pop(); // 역할 선택창 닫고 로그인창 복귀
             },
-            child: const Text("확인", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+            child: Text("확인", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -120,7 +121,7 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.error_outline, color: Colors.red),
             SizedBox(width: 8),
@@ -131,7 +132,7 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("닫기", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: Text("닫기", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -143,10 +144,10 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Color(0xFF1A202C)),
-        title: const Text(
+        title: Text(
           "사토 하차지 지주 회원가입",
           style: TextStyle(color: Color(0xFF1A202C), fontWeight: FontWeight.bold, fontSize: 18),
         ),
@@ -160,11 +161,11 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
             children: [
               // 가입 폼 카드
               Card(
-                color: Colors.white,
+                color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                  side: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
@@ -174,46 +175,46 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // 성명
-                        const Text("지주 성명 (실명)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("지주 성명 (실명)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _nameController,
                           keyboardType: TextInputType.name,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: _buildInputDecoration("실명을 입력해 주세요", Icons.person_outline),
                           validator: (value) => (value == null || value.trim().isEmpty) ? "성명을 입력해 주세요" : null,
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
                         // 휴대폰 번호
-                        const Text("휴대폰 번호 (로그인 ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("휴대폰 번호 (로그인 ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: _buildInputDecoration("- 없이 숫자만 입력해 주세요", Icons.phone_android_outlined),
                           validator: (value) => (value == null || value.trim().length < 10) ? "올바른 휴대폰 번호를 입력해 주세요" : null,
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
                         // 비밀번호
-                        const Text("비밀번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("비밀번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: InputDecoration(
                             hintText: "4자리 이상 입력해 주세요",
-                            hintStyle: const TextStyle(color: Color(0xFFA0AEC0)),
+                            hintStyle: TextStyle(color: Color(0xFFA0AEC0)),
                             filled: true,
                             fillColor: const Color(0xFFF7FAFC),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF718096)),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5)),
+                            prefixIcon: Icon(Icons.lock_outline, color: Color(0xFF718096)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE2E8F0))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE2E8F0))),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFFF7A00), width: 1.5)),
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -224,49 +225,49 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
                           ),
                           validator: (value) => (value == null || value.length < 4) ? "비밀번호는 4자리 이상이어야 합니다" : null,
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
-                        const Divider(height: 12),
-                        const SizedBox(height: 12),
+                        Divider(height: 12),
+                        SizedBox(height: 12),
 
                         // 하차지명
-                        const Text("하차지 / 사토장 명칭", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("하차지 / 사토장 명칭", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _locationController,
                           keyboardType: TextInputType.text,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: _buildInputDecoration("사토장 이름을 입력해 주세요 (예: 신촌지구 사토장)", Icons.place_outlined),
                           validator: (value) => (value == null || value.trim().isEmpty) ? "하차지 명칭을 입력해 주세요" : null,
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
                         // 하차지 주소
-                        const Text("하차지 상세 주소", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("하차지 상세 주소", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _addressController,
                           keyboardType: TextInputType.text,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: _buildInputDecoration("지번 또는 도로명 주소를 입력해 주세요", Icons.map_outlined),
                           validator: (value) => (value == null || value.trim().isEmpty) ? "주소를 입력해 주세요" : null,
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
                         // 허가증 번호
-                        const Text("개발행위 / 토사 반입 허가증 번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
-                        const SizedBox(height: 8),
+                        Text("개발행위 / 토사 반입 허가증 번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF718096))),
+                        SizedBox(height: 8),
                         TextFormField(
                           controller: _permitController,
                           keyboardType: TextInputType.text,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           decoration: _buildInputDecoration("관할 지자체 발행 허가증 번호", Icons.verified_user_outlined),
                           validator: (value) => (value == null || value.trim().isEmpty) ? "허가증 번호를 입력해 주세요" : null,
                         ),
 
                         // 에러 표시 창
                         if (_errorMessage != null) ...[
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
@@ -276,8 +277,8 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                                const SizedBox(width: 8),
+                                Icon(Icons.error_outline, color: Colors.red, size: 20),
+                                SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     _errorMessage!,
@@ -297,14 +298,14 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // 가입 완료 버튼
               ElevatedButton(
                 onPressed: _isLoading ? null : _submitDropOffRegister,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF004D5A),
-                  foregroundColor: Colors.white,
+                  foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                   disabledBackgroundColor: const Color(0xFF80B3BC),
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(
@@ -313,12 +314,12 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
                   elevation: 0,
                 ),
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 24,
                         width: 24,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        child: CircularProgressIndicator(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)), strokeWidth: 2.5),
                       )
-                    : const Text(
+                    : Text(
                         "하차지 지주 가입 완료",
                         style: TextStyle(
                           fontSize: 18,
@@ -336,14 +337,14 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
   InputDecoration _buildInputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Color(0xFFA0AEC0)),
+      hintStyle: TextStyle(color: Color(0xFFA0AEC0)),
       filled: true,
       fillColor: const Color(0xFFF7FAFC),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       prefixIcon: Icon(icon, color: const Color(0xFF718096)),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFF7A00), width: 1.5)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE2E8F0))),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFE2E8F0))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Color(0xFFFF7A00), width: 1.5)),
     );
   }
 }

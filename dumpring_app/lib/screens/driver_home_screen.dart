@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -6,6 +7,7 @@ import 'driver_meter_screen.dart';
 import 'driver_history_screen.dart';
 import 'driver_dispatch_confirm_screen.dart';
 import 'common_drawer.dart';
+import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -24,7 +26,7 @@ class DriverHomeScreen extends StatefulWidget {
 }
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerProviderStateMixin {
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
 
   bool _isWaitingForDispatch = false;
   List<dynamic> _openJobs = [];
@@ -62,12 +64,68 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     );
     _loadFavorites();
     _loadOpenJobs();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkActiveTicket();
+    });
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
     super.dispose();
+  }
+
+  // 진행 중인 배차 티켓 확인 API 연동
+  Future<void> _checkActiveTicket() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/active-ticket"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+      if (response.statusCode == 200) {
+        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
+        if (ticket != null && ticket['id'] != null) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text("진행 중인 운행 감지", style: TextStyle(fontWeight: FontWeight.bold)),
+              content: Text("🚨 아직 완료되지 않은 운행(티켓 ID: #${ticket['id']})이 존재합니다.\n미터기 화면으로 이동하여 운행을 계속하시겠습니까?"),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("취소", style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => DriverMeterScreen(
+                          user: widget.user,
+                          token: widget.token,
+                          ticketId: ticket['id'],
+                          onDriveCompleted: (earnings) {
+                            _loadOpenJobs();
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                  child: Text("이동"),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("진행 중인 배차 확인 실패: $e");
+    }
   }
 
   // 1. 즐겨찾는 지역 조회 API 연동
@@ -131,7 +189,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       if (response.statusCode == 200) {
         _loadFavorites();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("정상적으로 관심지역이 해제되었습니다.")),
+          SnackBar(content: Text("정상적으로 관심지역이 해제되었습니다.")),
         );
       }
     } catch (e) {
@@ -213,10 +271,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text("배차 수락 불가"),
+            title: Text("배차 수락 불가"),
             content: Text(err['detail'] ?? "이미 다른 기사가 수락하였거나 배차 가능 차량이 없습니다."),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))
+              TextButton(onPressed: () => Navigator.pop(context), child: Text("확인"))
             ],
           ),
         );
@@ -249,12 +307,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text("⭐ 관심지역 즐겨찾기 추가", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          title: Text("⭐ 관심지역 즐겨찾기 추가", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: "시/도 선택"),
+                decoration: InputDecoration(labelText: "시/도 선택"),
                 value: tempSido,
                 items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                 onChanged: (val) {
@@ -264,9 +322,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   });
                 },
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: "시/군/구 선택"),
+                decoration: InputDecoration(labelText: "시/군/구 선택"),
                 value: tempSigungu,
                 items: tempSido == null
                     ? []
@@ -280,7 +338,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("취소")),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text("취소")),
             ElevatedButton(
               onPressed: (tempSido != null && tempSigungu != null)
                   ? () {
@@ -288,8 +346,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       Navigator.pop(context);
                     }
                   : null,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF004D5A)),
-              child: const Text("추가"),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              child: Text("추가"),
             ),
           ],
         ),
@@ -300,7 +358,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1D), // 피그마 다크 블루 테마 통일
+      backgroundColor: AppColors.background, // 피그마 다크 블루 테마 통일
       drawer: CommonDrawer(
         user: _currentUser,
         token: widget.token,
@@ -311,14 +369,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         },
       ),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF151C2C), // 딥 그레이 헤더
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.surface, // 딥 그레이 헤더
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        title: const Text("덤프링 기사용 홈 (Enterprise)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+        title: Text(
+          "덤프링 기사용 홈 (Enterprise)",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: AppColors.textPrimary,
+          ),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.history_rounded, color: Color(0xFFFFD700)),
+            icon: Icon(Icons.history_rounded, color: AppColors.primary),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -340,19 +405,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               children: [
                 // 1. 배차 수신 모드 토글
                 _buildDispatchStatusPanel(),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 // 2. 시군구 상세 검색 필터 탭 (전국 시군구 필터링 UI)
                 _buildLocationFilterPanel(),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 // 3. 기사 즐겨찾기(관심지역) 매니저
                 _buildFavoritesManager(),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 // 4. 배차 모집 공고 리스트 (실시간 연동 데이터)
                 _buildLiveJobsList(),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 // 5. 오늘 실적 대시보드
                 _buildEarningsDashboard(),
@@ -366,11 +431,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
   Widget _buildDispatchStatusPanel() {
     return Card(
-      color: const Color(0xFF151C2C), // 다크 카드
+      color: AppColors.surface, // 다크 카드
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF222B45), width: 1),
+        side: BorderSide(color: AppColors.divider, width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -383,21 +448,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _isWaitingForDispatch ? "실시간 배차 수신 중" : "배차 정지 상태",
+                      _isWaitingForDispatch ? "실시간 오더 수신 중" : "오더 수신 대기 중단",
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: _isWaitingForDispatch ? const Color(0xFFFFD700) : Colors.white,
+                        color: _isWaitingForDispatch ? AppColors.primary : AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text("대기 상태를 켜면 오더를 수락할 수 있습니다.", style: TextStyle(color: Color(0xFF8F9BB3), fontSize: 11)),
+                    SizedBox(height: 4),
+                    Text("수신 상태를 활성화하면 현장 공고를 확인하고 수락할 수 있습니다.", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                   ],
                 ),
                 Switch(
                   value: _isWaitingForDispatch,
                   onChanged: _toggleWaitingState,
-                  activeColor: const Color(0xFFFFD700),
+                  activeColor: AppColors.primary,
                 ),
               ],
             ),
@@ -409,11 +474,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
   Widget _buildLocationFilterPanel() {
     return Card(
-      color: const Color(0xFF151C2C), // 다크 카드
+      color: AppColors.surface, // 다크 카드
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF222B45), width: 1),
+        side: BorderSide(color: AppColors.divider, width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -423,11 +488,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("📍 전국 시군구 배차 검색", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
+                Text("📍 전국 현장 공고 검색", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                 Row(
                   children: [
-                    const Text("즐겨찾는 지역만", style: TextStyle(fontSize: 11, color: Color(0xFF8F9BB3))),
-                    const SizedBox(width: 4),
+                    Text("즐겨찾는 지역만", style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    SizedBox(width: 4),
                     Checkbox(
                       value: _useFavoritesFilter,
                       onChanged: (val) {
@@ -436,25 +501,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                         });
                         _loadOpenJobs();
                       },
-                      activeColor: const Color(0xFFFFD700),
+                      activeColor: AppColors.primary,
                     ),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             if (!_useFavoritesFilter)
               Row(
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         contentPadding: EdgeInsets.symmetric(horizontal: 12),
                         border: OutlineInputBorder(),
                         labelText: "시/도",
                       ),
                       value: _selectedSido,
-                      items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12)))).toList(),
+                      items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s, style: TextStyle(fontSize: 12)))).toList(),
                       onChanged: (val) {
                         setState(() {
                           _selectedSido = val;
@@ -464,10 +529,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       },
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         contentPadding: EdgeInsets.symmetric(horizontal: 12),
                         border: OutlineInputBorder(),
                         labelText: "시/군/구",
@@ -475,7 +540,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       value: _selectedSigungu,
                       items: _selectedSido == null
                           ? []
-                          : _koreanRegions[_selectedSido]!.map((sg) => DropdownMenuItem(value: sg, child: Text(sg, style: const TextStyle(fontSize: 12)))).toList(),
+                          : _koreanRegions[_selectedSido]!.map((sg) => DropdownMenuItem(value: sg, child: Text(sg, style: TextStyle(fontSize: 12)))).toList(),
                       onChanged: (val) {
                         setState(() {
                           _selectedSigungu = val;
@@ -497,9 +562,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                     });
                     _loadOpenJobs();
                   },
-                  icon: const Icon(Icons.refresh, size: 14),
-                  label: const Text("필터 초기화 및 전체 조회", style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF7A00)),
+                  icon: Icon(Icons.refresh, size: 14),
+                  label: Text("필터 초기화 및 전체 조회", style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.warning),
                 ),
               )
           ],
@@ -515,19 +580,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("⭐ 나의 관심 배차 지역", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2D3748))),
+            Text("⭐ 나의 관심 공고 지역", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
             TextButton.icon(
               onPressed: _showAddFavoriteDialog,
-              icon: const Icon(Icons.add, size: 14),
-              label: const Text("추가", style: TextStyle(fontSize: 12)),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFF004D5A)),
+              icon: Icon(Icons.add, size: 14),
+              label: Text("추가", style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
             ),
           ],
         ),
         if (_favorites.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: Text("등록된 관심 지역이 없습니다. 관심 지역을 추가하여 빠르게 필터링해 보세요.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+            child: Text("등록된 관심 지역이 없습니다. 관심 지역을 추가하여 빠르게 필터링해 보세요.", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           )
         else
           SingleChildScrollView(
@@ -537,9 +602,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: InputChip(
-                    label: Text("${fav['sido']} ${fav['sigungu']}", style: const TextStyle(fontSize: 11)),
-                    backgroundColor: Colors.white,
-                    selectedColor: const Color(0xFFE2F0F2),
+                    label: Text("${fav['sido']} ${fav['sigungu']}", style: TextStyle(fontSize: 11)),
+                    backgroundColor: AppColors.surface,
+                    selectedColor: AppColors.primaryLight,
                     selected: _selectedSido == fav['sido'] && _selectedSigungu == fav['sigungu'],
                     onPressed: () {
                       setState(() {
@@ -550,7 +615,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       _loadOpenJobs();
                     },
                     onDeleted: () => _deleteFavorite(fav['id']),
-                    deleteIconColor: Colors.red[400],
+                    deleteIconColor: AppColors.danger,
                   ),
                 );
               }).toList(),
@@ -564,20 +629,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text("📡 매칭 가능 실시간 배차 공고", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A202C))),
-        const SizedBox(height: 12),
+        Text("📡 실시간 등록 현장 공고", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+        SizedBox(height: 12),
         if (_isLoadingJobs)
-          const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator()))
+          Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator()))
         else if (_openJobs.isEmpty)
           Container(
             height: 120,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: AppColors.divider),
             ),
-            child: const Center(
-              child: Text("현재 조건에 매칭되는 활성화된 공고가 없습니다.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            child: Center(
+              child: Text("현재 조건에 매칭되는 활성화된 현장 공고가 없습니다.", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
             ),
           )
         else
@@ -588,11 +653,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             itemBuilder: (context, index) {
               final job = _openJobs[index];
               return Card(
-                color: Colors.white,
+                color: AppColors.surface,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  side: BorderSide(color: AppColors.divider),
                 ),
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
@@ -606,50 +671,50 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF004D5A).withOpacity(0.12),
+                              color: AppColors.primaryLight,
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: const Text("매칭 모집중", style: TextStyle(color: Color(0xFF004D5A), fontSize: 10, fontWeight: FontWeight.bold)),
+                            child: Text("기사 모집중", style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
                           ),
-                          Text("필요차량 ${job['required_trucks']}대", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                          Text("모집 차량 ${job['required_trucks']}대", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       Row(
                         children: [
-                          const Icon(Icons.circle, color: Color(0xFF004D5A), size: 12),
-                          const SizedBox(width: 8),
+                          Icon(Icons.circle, color: AppColors.primary, size: 12),
+                          SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               "상차지: 현장 ID ${job['site_id']}", 
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2D3748))
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.circle, color: Color(0xFFFF7A00), size: 12),
-                          const SizedBox(width: 8),
+                          Icon(Icons.circle, color: AppColors.warning, size: 12),
+                          SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               "하차지: 매칭 ID ${job['matched_drop_off_id'] ?? '지주 승인 완료'}", 
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2D3748))
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)
                             ),
                           ),
                         ],
                       ),
-                      const Divider(height: 24),
+                      Divider(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text("작업 예정일", style: TextStyle(color: Colors.grey, fontSize: 10)),
-                              const SizedBox(height: 2),
-                              Text(job['work_date'].toString().substring(0, 10), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              Text("작업 예정일", style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                              SizedBox(height: 2),
+                              Text(job['work_date'].toString().substring(0, 10), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             ],
                           ),
                           ElevatedButton(
@@ -668,14 +733,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                                   }
                                 : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF7A00),
-                              disabledBackgroundColor: Colors.grey[300],
+                              backgroundColor: AppColors.warning,
+                              disabledBackgroundColor: AppColors.divider,
                               elevation: 2,
-                              shadowColor: const Color(0xFFFF7A00).withOpacity(0.3),
+                              shadowColor: AppColors.warning.withAlpha(76),
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             ),
-                            child: const Text("오더 확인", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                            child: Text("공고 확인", style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
@@ -693,51 +758,51 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        Text(
           "📊 오늘의 정산 및 실적 요약",
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A202C)),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Row(
           children: [
             Expanded(
               child: Card(
-                color: Colors.white,
+                color: AppColors.surface,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  side: BorderSide(color: AppColors.divider),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("완료 건수", style: TextStyle(color: Colors.grey, fontSize: 11)),
-                      const SizedBox(height: 6),
-                      Text("$_todayWorkCount 건", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A))),
+                      Text("완료 건수", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                      SizedBox(height: 6),
+                      Text("$_todayWorkCount 건", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary)),
                     ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Card(
-                color: Colors.white,
+                color: AppColors.surface,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  side: BorderSide(color: AppColors.divider),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("오늘 예상 수입", style: TextStyle(color: Colors.grey, fontSize: 11)),
-                      const SizedBox(height: 6),
-                      Text("${_formatter(_todayEarnings)} 원", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFFF7A00))),
+                      Text("오늘 예상 수입", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                      SizedBox(height: 6),
+                      Text("${_formatter(_todayEarnings)} 원", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.warning)),
                     ],
                   ),
                 ),

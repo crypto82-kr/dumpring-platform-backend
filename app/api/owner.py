@@ -66,20 +66,30 @@ async def register_fleet(
             target_user_id = already_joined_user.id
             logger.info(f"★ [기가입 기사 발견] 기사 유저가 이미 가입 완료 상태입니다. 즉시 연동 매칭합니다 (User ID: {target_user_id})")
 
-        # 4. 기사 프로필 선등록
-        # 동일 기사 번호가 이미 등록되어 있다면 기존 프로필을 가져와 갱신하고, 아니면 신규 생성합니다.
-        driver_check_query = select(Driver).where(Driver.registered_phone == data.driver_phone)
-        driver_check_result = await db.execute(driver_check_query)
-        existing_driver = driver_check_result.scalars().first()
+        # 4. 기사 프로필 선등록 및 연동 (Driver.user_id unique 제약 조건 준수)
+        existing_driver = None
+        if target_user_id:
+            # 기사가 이미 가입되어 있는 경우, user_id 기준으로 기존 드라이버 프로필 조회
+            driver_by_user_query = select(Driver).where(Driver.user_id == target_user_id)
+            driver_by_user_res = await db.execute(driver_by_user_query)
+            existing_driver = driver_by_user_res.scalars().first()
+
+        if not existing_driver:
+            # phone_number 기준으로 기존 드라이버 프로필 조회
+            driver_by_phone_query = select(Driver).where(Driver.registered_phone == data.driver_phone)
+            driver_by_phone_res = await db.execute(driver_by_phone_query)
+            existing_driver = driver_by_phone_res.scalars().first()
 
         if existing_driver:
-            # 이미 등록된 기사 프로필이 있다면 차량 정보 및 연동 정보를 갱신합니다.
+            # 기존 프로필이 있으면 차량 정보와 연동 정보 갱신
             existing_driver.current_car_id = new_car.id
             if target_user_id:
                 existing_driver.user_id = target_user_id
+            # 전화번호 포맷을 입력된 값으로 업데이트
+            existing_driver.registered_phone = data.driver_phone
             logger.info(f"기존에 등록되어 있던 기사 프로필을 최신 차량(Car ID: {new_car.id}) 및 기사 정보로 갱신 연동했습니다. (Driver ID: {existing_driver.id})")
         else:
-            # 신규 기사 선등록인 경우 레코드를 신규 추가합니다.
+            # 신규 기사 선등록
             new_driver = Driver(
                 user_id=target_user_id,
                 current_car_id=new_car.id,

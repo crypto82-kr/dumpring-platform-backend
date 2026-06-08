@@ -79,6 +79,8 @@ class JobPostResponse(BaseModel):
     payer_type: Optional[str] = None
     memo: Optional[str] = None
     matched_drop_off_id: Optional[int] = None
+    site_name: Optional[str] = None
+    drop_off_name: Optional[str] = None
     work_date: datetime
     required_trucks: int
     status: str

@@ -102,9 +102,9 @@ class _SduiScreenState extends State<SduiScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
+      builder: (context) => Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFD700)),
+          valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
         ),
       ),
     );
@@ -116,9 +116,9 @@ class _SduiScreenState extends State<SduiScreen> {
       _loadTemplate(); // 템플릿 리로드
       
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text("성공적으로 새로고침 완료!"),
-          backgroundColor: Color(0xFF1E2638),
+          backgroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2638) : const Color(0xFFF3F4F6)),
         ),
       );
     }
@@ -128,25 +128,25 @@ class _SduiScreenState extends State<SduiScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E2638),
+        backgroundColor: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2638) : const Color(0xFFF3F4F6)) : const Color(0xFFF3F4F6)),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFFFFD700), width: 1.0),
+          side: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.0),
         ),
         title: Text(
           title,
-          style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold),
+          style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
         ),
         content: Text(
           message,
-          style: const TextStyle(color: Colors.white, height: 1.4),
+          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)), height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
+            child: Text(
               "확인",
-              style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold),
+              style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
             ),
           )
         ],
@@ -160,28 +160,28 @@ class _SduiScreenState extends State<SduiScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E2638),
-        title: const Text(
+        backgroundColor: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2638) : const Color(0xFFF3F4F6)) : const Color(0xFFF3F4F6)),
+        title: Text(
           "🔗 피그마 라이브 프레임 연동",
-          style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold),
+          style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "피그마 프레임의 전체 주소(URL)를 붙여넣으세요. 해당 디자인 구조가 즉시 모바일에 실시간 반영됩니다.",
-              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.45),
+              style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87) : Colors.black87), fontSize: 13, height: 1.45),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TextField(
               controller: urlController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937))),
+              decoration: InputDecoration(
                 hintText: "https://www.figma.com/file/...",
-                hintStyle: TextStyle(color: Colors.white38),
+                hintStyle: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38) : Colors.black38)),
                 filled: true,
-                fillColor: Color(0xFF0A0F1D),
+                fillColor: Theme.of(context).scaffoldBackgroundColor,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -190,7 +190,7 @@ class _SduiScreenState extends State<SduiScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("취소", style: TextStyle(color: Colors.white38)),
+            child: Text("취소", style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38) : Colors.black38))),
           ),
           TextButton(
             onPressed: () {
@@ -198,9 +198,9 @@ class _SduiScreenState extends State<SduiScreen> {
               Navigator.pop(context);
               _applyFigmaUrl(input);
             },
-            child: const Text(
+            child: Text(
               "즉시 적용",
-              style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold),
+              style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
             ),
           )
         ],
@@ -247,7 +247,7 @@ class _SduiScreenState extends State<SduiScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("피그마 노드($nodeId) 적용 연동 성공!"),
-          backgroundColor: const Color(0xFFFFD700),
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
     } catch (e) {
@@ -258,18 +258,18 @@ class _SduiScreenState extends State<SduiScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1D), // 딥 다크 블루 일체화
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // 딥 다크 블루 일체화
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0F1D),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: Icon(Icons.arrow_back_ios, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937))),
           onPressed: () => Navigator.maybePop(context),
         ),
         title: Text(
           widget.title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)),
             fontWeight: FontWeight.w800,
             fontSize: 18,
           ),
@@ -277,7 +277,7 @@ class _SduiScreenState extends State<SduiScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.link, color: Color(0xFFFFD700)),
+            icon: Icon(Icons.link, color: Theme.of(context).colorScheme.primary),
             tooltip: "피그마 주소 직접 연동",
             onPressed: () => _showFigmaLinkInputDialog(context),
           )
@@ -287,9 +287,9 @@ class _SduiScreenState extends State<SduiScreen> {
         future: _sduiFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFD700)),
+                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
               ),
             );
           } else if (snapshot.hasError) {
@@ -297,18 +297,18 @@ class _SduiScreenState extends State<SduiScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
-                  const SizedBox(height: 16),
+                  Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                  SizedBox(height: 16),
                   Text(
                     "화면을 불러오지 못했습니다.\n${snapshot.error}",
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70),
+                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87) : Colors.black87)),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _loadTemplate,
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
-                    child: const Text("재시도", style: TextStyle(color: Colors.black)),
+                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
+                    child: Text("재시도", style: TextStyle(color: Colors.black)),
                   )
                 ],
               ),
@@ -317,8 +317,8 @@ class _SduiScreenState extends State<SduiScreen> {
 
           final sduiComponent = snapshot.data!;
           return RefreshIndicator(
-            color: const Color(0xFFFFD700),
-            backgroundColor: const Color(0xFF1E2638),
+            color: Theme.of(context).colorScheme.primary,
+            backgroundColor: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2638) : const Color(0xFFF3F4F6)) : const Color(0xFFF3F4F6)),
             onRefresh: () async {
               _loadTemplate();
             },

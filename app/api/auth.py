@@ -323,11 +323,11 @@ async def signup_site_worker(
         # SiteEmployee 선등록 매칭 로직 작동
         employee_query = select(SiteEmployee).where(SiteEmployee.registered_phone == data.phone_number)
         employee_result = await db.execute(employee_query)
-        pre_registered_employee = employee_result.scalars().first()
+        pre_registered_employees = employee_result.scalars().all()
         
-        if pre_registered_employee:
-            pre_registered_employee.user_id = new_user.id
-            logger.info(f"★ [매칭 성공] 선등록 현장 직원 데이터 발견 및 매칭 연동 완료 (Employee ID: {pre_registered_employee.id} -> User ID: {new_user.id})")
+        for emp in pre_registered_employees:
+            emp.user_id = new_user.id
+            logger.info(f"★ [매칭 성공] 선등록 현장 직원 데이터 발견 및 매칭 연동 완료 (Employee ID: {emp.id} -> User ID: {new_user.id})")
         
         await db.commit()
         await db.refresh(new_user)

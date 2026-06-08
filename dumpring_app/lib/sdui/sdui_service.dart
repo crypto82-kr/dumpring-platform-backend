@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'sdui_model.dart';
+import 'sdui_theme_model.dart';
+import '../shared/app_config.dart';
 
 class SduiService {
-  static const String baseUrl = "https://dumpring-api.onrender.com";
+  static String get baseUrl => AppConfig.baseUrl;
+  static SduiTheme currentTheme = SduiTheme.defaultTheme();
 
   // 템플릿 ID를 받아 백엔드로부터 SDUI JSON 구조를 페치
   static Future<SduiComponent> fetchTemplate(String templateId, {String? token}) async {

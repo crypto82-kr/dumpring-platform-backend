@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'owner_pending_screen.dart';
@@ -18,7 +19,7 @@ class OwnerDocumentUploadScreen extends StatefulWidget {
 }
 
 class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
-  String get _baseUrl => "https://dumpring-api.onrender.com";
+  String get _baseUrl => AppConfig.baseUrl;
 
   List<Map<String, dynamic>> _requiredDocs = [];
   Map<String, String?> _uploadedFiles = {}; // { document_code: file_name }
@@ -117,7 +118,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("🔴 서류 업로드 도중 네트워크 오류가 발생했습니다."), backgroundColor: Colors.red),
+        SnackBar(content: Text("🔴 서류 업로드 도중 네트워크 오류가 발생했습니다."), backgroundColor: Colors.red),
       );
     }
   }
@@ -149,13 +150,13 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
         context: context,
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Text("필수 서류 누락", style: TextStyle(fontWeight: FontWeight.bold)),
+          title: Text("필수 서류 누락", style: TextStyle(fontWeight: FontWeight.bold)),
           content: Text("아직 제출하지 않은 필수 서류가 있습니다:\n\n" + 
               missing.map((e) => "• ${e['code_name']}").join("\n")),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text("확인", style: TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.bold)),
+              child: Text("확인", style: TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.bold)),
             )
           ],
         ),
@@ -179,10 +180,10 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Color(0xFF1A202C)),
-        title: const Text(
+        title: Text(
           "차주 필수 서류 제출",
           style: TextStyle(color: Color(0xFF1A202C), fontWeight: FontWeight.bold, fontSize: 17),
         ),
@@ -192,7 +193,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
         child: Stack(
           children: [
             _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF7A00)))
+                ? Center(child: CircularProgressIndicator(color: Color(0xFFFF7A00)))
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
@@ -206,7 +207,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: const Color(0xFF80B3BC).withOpacity(0.5)),
                           ),
-                          child: const Row(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Icon(Icons.info_outline_rounded, color: Color(0xFF004D5A), size: 24),
@@ -230,13 +231,13 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        SizedBox(height: 28),
 
-                        const Text(
+                        Text(
                           "📋 제출 필수 증빙 서류 목록",
                           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A202C)),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         // 동적 서류 카드 리스트 출력
                         ..._requiredDocs.map((doc) {
@@ -248,7 +249,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: Card(
-                              color: Colors.white,
+                              color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)),
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
@@ -273,16 +274,16 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                                           size: 26,
                                         ),
                                       ),
-                                      const SizedBox(width: 16),
+                                      SizedBox(width: 16),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               docName,
-                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A202C)),
+                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A202C)),
                                             ),
-                                            const SizedBox(height: 4),
+                                            SizedBox(height: 4),
                                             Text(
                                               isUploaded ? fileName! : "심사 제출을 위해 촬영해 주세요",
                                               style: TextStyle(
@@ -294,7 +295,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                                           ],
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
+                                      SizedBox(width: 8),
                                       Icon(
                                         isUploaded ? Icons.check_circle : Icons.camera_alt_outlined,
                                         color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFFCBD5E0),
@@ -307,32 +308,32 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                             ),
                           );
                         }).toList(),
-                        const SizedBox(height: 32),
+                        SizedBox(height: 32),
 
                         // 심사 요청 버튼
                         ElevatedButton(
                           onPressed: _isSubmitting ? null : _submitAllDocuments,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF004D5A),
-                            foregroundColor: Colors.white,
+                            foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                             disabledBackgroundColor: const Color(0xFF80B3BC),
                             padding: const EdgeInsets.symmetric(vertical: 18),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             elevation: 0,
                           ),
-                          child: const Text(
+                          child: Text(
                             "차주 서류 심사 요청",
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ),
-                        const SizedBox(height: 50),
+                        SizedBox(height: 50),
                       ],
                     ),
                   ),
             if (_isSubmitting)
               Container(
                 color: Colors.black.withOpacity(0.3),
-                child: const Center(
+                child: Center(
                   child: CircularProgressIndicator(color: Color(0xFFFF7A00)),
                 ),
               )

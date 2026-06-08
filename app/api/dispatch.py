@@ -73,8 +73,24 @@ async def get_open_dispatch_jobs(
         if sigungu:
             query = query.where(DropOff.address.like(f"%{sigungu}%"))
 
+    # select(JobPost)와 함께 Site, DropOff 정보를 로드하도록 변경
+    from sqlalchemy.orm import selectinload
+    query = query.options(
+        selectinload(JobPost.site),
+        selectinload(JobPost.matched_drop_off)
+    )
+
     result = await db.execute(query)
-    return result.scalars().all()
+    jobs = result.scalars().all()
+    
+    # 응답 객체에 이름 세팅
+    for j in jobs:
+        if j.site:
+            j.site_name = j.site.company_name
+        if j.matched_drop_off:
+            j.drop_off_name = j.matched_drop_off.name
+            
+    return jobs
 
 
 # ==========================================
@@ -189,6 +205,31 @@ async def delete_favorite_region(
 # ==========================================
 # 3. 배차 트랜잭션 흐름 제어 API
 # ==========================================
+
+@router.get(
+    "/active-ticket",
+    response_model=Optional[DispatchTicketResponse],
+    summary="기사의 현재 진행 중인 배차 티켓 조회"
+)
+async def get_active_ticket(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    query = select(DispatchTicket).where(
+        DispatchTicket.driver_id == current_user.id,
+        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+    ).order_by(DispatchTicket.accepted_at.desc())
+    
+    result = await db.execute(query)
+    ticket = result.scalars().first()
+    return ticket
+
 
 @router.post(
     "/jobs/{job_post_id}/accept",
