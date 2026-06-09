@@ -117,10 +117,11 @@ async def create_site(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager:
+    # 현장관리자(소장)와 현장담당자(담당자) 모두 현장 개설 권한을 갖습니다.
+    if not current_user.is_site_manager and not current_user.is_site_worker:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자(소장님)만 신규 현장을 개설할 수 있습니다."
+            detail="현장관리자(소장님) 또는 현장담당자만 신규 현장을 개설할 수 있습니다."
         )
 
     # 중복 체크
@@ -215,7 +216,9 @@ async def map_site(
         return {"message": "이미 승인 대기 중인 현장입니다.", "status": "PENDING"}
 
     # 권한에 따른 초기 상태 결정
-    initial_status = SiteUserStatus.APPROVED if current_user.is_site_manager else SiteUserStatus.PENDING
+    # 현장관리자와 현장담당자 모두 즉시 APPROVED로 매핑됩니다.
+    is_site_role = current_user.is_site_manager or current_user.is_site_worker
+    initial_status = SiteUserStatus.APPROVED if is_site_role else SiteUserStatus.PENDING
 
     mapping = SiteUserMapping(
         site_id=site.id,
@@ -287,10 +290,11 @@ async def get_pending_workers(
     check_result = await db.execute(check_query)
     is_manager = check_result.scalars().first()
 
-    if not is_manager or not current_user.is_site_manager:
+    # 현장관리자(소장) 또는 현장담당자가 해당 현장 APPROVED 매핑을 보유한 경우 조회 허용
+    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 현장의 승인 완료된 관리자(소장님)만 조회할 수 있습니다."
+            detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 조회할 수 있습니다."
         )
 
     pending_query = select(SiteUserMapping).where(
@@ -337,10 +341,11 @@ async def approve_worker(
     check_result = await db.execute(check_query)
     is_manager = check_result.scalars().first()
 
-    if not is_manager or not current_user.is_site_manager:
+    # 현장관리자(소장) 또는 현장담당자가 해당 현장 APPROVED 매핑을 보유한 경우 승인/반려 허용
+    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 현장의 승인 완료된 관리자(소장님)만 담당자를 승인/반려할 수 있습니다."
+            detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 담당자를 승인/반려할 수 있습니다."
         )
 
     target_query = select(SiteUserMapping).where(

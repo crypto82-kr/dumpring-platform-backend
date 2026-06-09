@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -241,7 +241,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isSiteManager = _currentUser['is_site_manager'] == true;
+    // 현장관리자(소장)는 현장담당자의 모든 업무를 포함합니다.
+    final bool isSiteManager = _currentUser['is_site_manager'] == true ||
+        _currentUser['is_site_worker'] == true;
     final bool isDropOff = _currentUser['is_drop_off'] == true;
 
     return Scaffold(
