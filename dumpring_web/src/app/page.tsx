@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const { user, changeRole } = useAuth();
+  const { user, changeRole, activePath, setActivePath } = useAuth();
   const [inputText, setInputText] = useState("");
   
   // Interactive Simulation States
