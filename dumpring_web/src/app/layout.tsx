@@ -1,13 +1,7 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Sidebar from "@/components/layout/Sidebar";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
 
 export const metadata: Metadata = {
   title: "덤프링 통합 관리 시스템 (DUMPRING Integrated Admin Portal)",
@@ -20,15 +14,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full bg-slate-50 font-sans flex text-slate-900 antialiased selection:bg-cyan-500/20 selection:text-cyan-900">
+    <html lang="ko" className="h-full antialiased">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            try {
+              const mode = localStorage.getItem('darkMode');
+              if (mode === 'true') {
+                document.documentElement.classList.add('dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+              }
+            } catch (e) {}
+          })();
+        ` }} />
+      </head>
+      <body className="min-h-full bg-gray-50 dark:bg-gray-950 font-sans flex text-gray-900 dark:text-gray-100 antialiased selection:bg-brand-500/20 selection:text-brand-900">
         <AuthProvider>
           <div className="flex w-full min-h-screen">
             {/* Sidebar */}
             <Sidebar />
             
             {/* Main Content Area */}
-            <main className="flex-1 bg-slate-50 overflow-y-auto">
+            <main className="flex-1 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
               {children}
             </main>
           </div>

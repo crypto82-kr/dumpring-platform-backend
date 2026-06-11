@@ -16,6 +16,8 @@ interface AuthContextType {
   user: UserProfile | null;
   changeRole: (role: UserRole) => void;
   logout: () => void;
+  activePath: string;
+  setActivePath: (path: string) => void;
 }
 
 const roleNames: Record<UserRole, string> = {
@@ -30,6 +32,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [activePath, setActivePath] = useState<string>("");
 
   useEffect(() => {
     // 기본 로그인 유저 세팅 (첫 상태: 플랫폼 관리자)
@@ -40,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role: "platform_admin",
       roleName: roleNames["platform_admin"],
     });
+    setActivePath("/admin");
   }, []);
 
   const changeRole = (role: UserRole) => {
@@ -50,6 +54,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role,
       roleName: roleNames[role],
     });
+
+    const defaultPaths: Record<UserRole, string> = {
+      platform_admin: "/admin",
+      site_manager: "/site",
+      dropoff_manager: "/dropoff",
+      owner: "/owner",
+      developer: "/dev",
+    };
+    setActivePath(defaultPaths[role] || "/");
   };
 
   const logout = () => {
@@ -57,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, changeRole, logout }}>
+    <AuthContext.Provider value={{ user, changeRole, logout, activePath, setActivePath }}>
       {children}
     </AuthContext.Provider>
   );

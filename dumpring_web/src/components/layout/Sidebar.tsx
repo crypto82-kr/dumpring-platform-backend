@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
@@ -26,13 +26,18 @@ import {
   Receipt,
   Bell,
   Sliders,
-  Activity
+  Activity,
+  ChevronDown,
+  ChevronUp,
+  Sun,
+  Moon
 } from "lucide-react";
 
 interface MenuItem {
   title: string;
   icon: React.ComponentType<any>;
   path: string;
+  subItems?: { title: string; path: string }[];
 }
 
 const menuByRole: Record<UserRole, MenuItem[]> = {
@@ -47,7 +52,18 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   platform_admin: [
     { title: "플랫폼 대시보드", icon: BarChart3, path: "/admin" },
-    { title: "가입 및 하차지 승인", icon: ShieldCheck, path: "/admin/approvals" },
+    {
+      title: "승인 관리",
+      icon: ShieldCheck,
+      path: "#approve",
+      subItems: [
+        { title: "기사 가입 승인", path: "/admin/approve-driver" },
+        { title: "차주/운송사 승인", path: "/admin/approve-owner" },
+        { title: "현장 관리자 승인", path: "/admin/approve-site" },
+        { title: "하차지 승인 관리", path: "/admin/approve-dropoff" }
+      ]
+    },
+    { title: "통합 이용자 관리", icon: Users, path: "/admin/users" },
     { title: "운임 및 수수료 설정", icon: Percent, path: "/admin/fees" },
     { title: "분쟁 및 신고 처리", icon: ShieldAlert, path: "/admin/disputes" },
     { title: "고객지원 & 게시판 관리", icon: MessageSquare, path: "/admin/boards" },
@@ -57,9 +73,20 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   site_manager: [
     { title: "현장 관리 대시보드", icon: LayoutDashboard, path: "/site" },
-    { title: "덤프트럭 배차 신청", icon: Truck, path: "/site/request" },
-    { title: "진출입 실시간 현황", icon: MapPin, path: "/site/status" },
-    { title: "운행 이력 조회", icon: FileText, path: "/site/history" },
+    { title: "현장관리자 권한 관리", icon: Users, path: "/site/org-hierarchy" },
+    { title: "현장 등록", icon: MapPin, path: "/site/request" },
+    {
+      title: "배차 관리",
+      icon: Truck,
+      path: "#site-dispatch",
+      subItems: [
+        { title: "배차 요청", path: "/site/dispatch-request" },
+        { title: "배차 요청 현황", path: "/site/dispatch" },
+        { title: "배차 승인 처리", path: "/site/dispatch-approve" },
+        { title: "운행 이력 조회", path: "/site/history" },
+      ]
+    },
+    { title: "진출입 실시간 현황", icon: Activity, path: "/site/status" },
     { title: "덤프비 정산 확인", icon: DollarSign, path: "/site/dump-expenses" },
     { title: "흙값 정산 관리", icon: TrendingUp, path: "/site/soil-expenses" },
     { title: "세금계산서 업무", icon: Receipt, path: "/site/tax-invoice" },
@@ -67,10 +94,20 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   dropoff_manager: [
     { title: "하차지 대시보드", icon: LayoutDashboard, path: "/dropoff" },
-    { title: "신규 하차지 등록", icon: MapPin, path: "/dropoff/register" },
-    { title: "실시간 반입 현황", icon: Truck, path: "/dropoff/inbound" },
-    { title: "실시간 반입 확인", icon: ShieldCheck, path: "/dropoff/verification" },
-    { title: "반입 허가 차량 관리", icon: Users, path: "/dropoff/trucks" },
+    { title: "하차지 담당자 권한 관리", icon: Users, path: "/dropoff/org-hierarchy" },
+    { title: "하차지 등록", icon: MapPin, path: "/dropoff/register" },
+    {
+      title: "배차 현황",
+      icon: Truck,
+      path: "#dropoff-dispatch",
+      subItems: [
+        { title: "배차 요청", path: "/dropoff/dispatch-request" },
+        { title: "금일 배차 현황", path: "/dropoff/dispatch" },
+        { title: "반입 허가 차량 관리", path: "/dropoff/trucks" },
+        { title: "실시간 반입 현황", path: "/dropoff/inbound" },
+        { title: "실시간 반입 확인", path: "/dropoff/verification" },
+      ]
+    },
     { title: "흙값 정산 관리", icon: DollarSign, path: "/dropoff/soil-settlement" },
     { title: "하차지 정보 통계", icon: BarChart3, path: "/dropoff/stats" },
     { title: "알림 수신함", icon: Bell, path: "/dropoff/alerts" },
@@ -86,37 +123,88 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
 };
 
 export default function Sidebar() {
-  const { user, changeRole } = useAuth();
+  const { user, changeRole, activePath, setActivePath } = useAuth();
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ "승인 관리": true });
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Sync dark mode state with HTML class
+  useEffect(() => {
+    const root = window.document.documentElement;
+    const initialDark = root.classList.contains("dark") || localStorage.getItem("darkMode") === "true";
+    setIsDarkMode(initialDark);
+    if (initialDark) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const root = window.document.documentElement;
+    const nextDark = !isDarkMode;
+    setIsDarkMode(nextDark);
+    if (nextDark) {
+      root.classList.add("dark");
+      localStorage.setItem("darkMode", "true");
+    } else {
+      root.classList.remove("dark");
+      localStorage.setItem("darkMode", "false");
+    }
+  };
+
+  const menus = user ? (menuByRole[user.role] || []) : [];
+
+  // Auto-expand menu when active sub-item path changes
+  useEffect(() => {
+    menus.forEach(item => {
+      if (item.subItems && item.subItems.some(sub => sub.path === activePath)) {
+        setExpandedMenus(prev => ({ ...prev, [item.title]: true }));
+      }
+    });
+  }, [activePath, menus]);
 
   if (!user) return null;
 
-  const menus = menuByRole[user.role] || [];
+  const toggleMenu = (title: string) => {
+    setExpandedMenus(prev => ({ ...prev, [title]: !prev[title] }));
+  };
 
   return (
-    <aside className="w-72 bg-slate-900 border-r border-slate-800 text-slate-100 flex flex-col justify-between h-screen sticky top-0">
+    <aside className="w-72 bg-white dark:bg-black border-r border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 flex flex-col justify-between h-screen sticky top-0 transition-colors duration-250">
       <div>
-        {/* Logo / Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <span className="font-black text-xl text-white">D</span>
+        {/* Logo / Header with Dark Mode Toggle */}
+        <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
+              <span className="font-black text-xl text-white">D</span>
+            </div>
+            <div>
+              <h1 className="font-extrabold text-lg bg-gradient-to-r from-brand-500 to-brand-700 dark:from-brand-400 dark:to-brand-600 bg-clip-text text-transparent">
+                DUMPRING
+              </h1>
+              <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">통합 모빌리티 플랫폼</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-extrabold text-lg bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              DUMPRING
-            </h1>
-            <p className="text-xs text-slate-400 font-medium">통합 모빌리티 플랫폼</p>
-          </div>
+          
+          {/* User toggleable Dark Mode button */}
+          <button
+            onClick={toggleDarkMode}
+            className="p-2 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-white/5 transition-all text-gray-500 dark:text-gray-400 active:scale-95"
+            title={isDarkMode ? "라이트 모드로 변경" : "다크 모드로 변경"}
+          >
+            {isDarkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+          </button>
         </div>
 
         {/* Current Active User Profile info */}
-        <div className="m-4 p-4 rounded-xl bg-slate-800/50 border border-slate-800 flex flex-col gap-2">
+        <div className="m-4 p-4 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 flex flex-col gap-2">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center font-bold text-sm text-blue-400 font-sans">
+            <div className="w-9 h-9 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center font-bold text-sm text-brand-500 font-sans">
               {user.name[0]}
             </div>
             <div>
-              <div className="font-semibold text-sm text-slate-200">{user.name}</div>
-              <div className="text-[11px] text-blue-400 font-bold bg-blue-950/80 px-2 py-0.5 rounded-full inline-block mt-0.5 border border-blue-800/30">
+              <div className="font-semibold text-sm text-gray-800 dark:text-gray-200">{user.name}</div>
+              <div className="text-[11px] text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2.5 py-0.5 rounded-full inline-block mt-0.5 border border-brand-100 dark:border-brand-500/20">
                 {user.roleName}
               </div>
             </div>
@@ -124,27 +212,75 @@ export default function Sidebar() {
         </div>
 
         {/* Dynamic Navigation Menu Items */}
-        <nav className="px-3 py-4 flex flex-col gap-1.5">
-          <div className="px-3 mb-2 text-xs font-bold text-slate-500 tracking-wider uppercase">
+        <nav className="px-3 py-4 flex flex-col gap-1.5 overflow-y-auto max-h-[calc(100vh-360px)] no-scrollbar">
+          <div className="px-3 mb-2 text-xs font-bold text-gray-400 dark:text-gray-500 tracking-wider uppercase">
             서비스 메뉴 ({user.roleName})
           </div>
           {menus.map((item, idx) => {
             const Icon = item.icon;
-            const isActive = idx === 0;
+            const hasSub = !!item.subItems;
+            const isExpanded = !!expandedMenus[item.title];
+            const isAnySubActive = hasSub && item.subItems!.some(sub => activePath === sub.path);
+            const isActive = activePath === item.path || isAnySubActive;
+
+            if (hasSub) {
+              return (
+                <div key={item.title} className="flex flex-col gap-1">
+                  <a
+                    href="#"
+                    onClick={(e) => { e.preventDefault(); toggleMenu(item.title); }}
+                    className={`menu-item group ${
+                      isActive ? "menu-item-active" : "menu-item-inactive"
+                    }`}
+                  >
+                    <Icon
+                      className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${
+                        isActive ? "text-brand-500 dark:text-brand-400" : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200"
+                      }`}
+                    />
+                    <span className="flex-1">{item.title}</span>
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-gray-400 dark:text-gray-550" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-555" />
+                    )}
+                  </a>
+
+                  {isExpanded && (
+                    <div className="pl-6 flex flex-col gap-1 border-l border-gray-200 dark:border-gray-800 ml-5 mt-0.5 animate-fadeIn">
+                      {item.subItems!.map(sub => {
+                        const isSubActive = activePath === sub.path;
+                        return (
+                          <a
+                            key={sub.title}
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); setActivePath(sub.path); }}
+                            className={`menu-dropdown-item group ${
+                              isSubActive ? "menu-dropdown-item-active" : "menu-dropdown-item-inactive"
+                            }`}
+                          >
+                            {sub.title}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <a
                 key={item.title}
                 href="#"
-                onClick={(e) => e.preventDefault()}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${
-                  isActive
-                    ? "bg-blue-600/10 text-blue-400 border-l-4 border-blue-500 shadow-[inset_1px_0_0_0_rgba(37,99,235,0.1)]"
-                    : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
+                onClick={(e) => { e.preventDefault(); setActivePath(item.path); }}
+                className={`menu-item group ${
+                  isActive ? "menu-item-active" : "menu-item-inactive"
                 }`}
               >
                 <Icon
                   className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${
-                    isActive ? "text-blue-400" : "text-slate-500 group-hover:text-slate-300"
+                    isActive ? "text-brand-500 dark:text-brand-400" : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200"
                   }`}
                 />
                 <span>{item.title}</span>
@@ -155,9 +291,9 @@ export default function Sidebar() {
       </div>
 
       {/* Role Quick Selector at Footer */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/30">
-        <div className="text-[11px] font-bold text-slate-500 mb-2.5 flex items-center gap-1.5 px-1">
-          <RefreshCw className="w-3 h-3 animate-spin-slow" />
+      <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.02] transition-colors">
+        <div className="text-[11px] font-bold text-gray-450 dark:text-gray-500 mb-2.5 flex items-center gap-1.5 px-1">
+          <RefreshCw className="w-3 h-3 animate-spin-slow text-brand-500" />
           <span>권한 빠른 시뮬레이션</span>
         </div>
         <div className="grid grid-cols-2 gap-1.5 text-[11px]">
@@ -165,8 +301,8 @@ export default function Sidebar() {
             onClick={() => changeRole("platform_admin")}
             className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
               user.role === "platform_admin"
-                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
+                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
+                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
             }`}
           >
             플랫폼 관리자
@@ -175,8 +311,8 @@ export default function Sidebar() {
             onClick={() => changeRole("site_manager")}
             className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
               user.role === "site_manager"
-                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
+                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
+                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
             }`}
           >
             현장 관리자
@@ -185,8 +321,8 @@ export default function Sidebar() {
             onClick={() => changeRole("dropoff_manager")}
             className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
               user.role === "dropoff_manager"
-                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
+                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
+                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
             }`}
           >
             하차지 관리자
@@ -195,8 +331,8 @@ export default function Sidebar() {
             onClick={() => changeRole("owner")}
             className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
               user.role === "owner"
-                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
+                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
+                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
             }`}
           >
             차주/운송사
@@ -205,8 +341,8 @@ export default function Sidebar() {
             onClick={() => changeRole("developer")}
             className={`col-span-2 px-2 py-1.5 rounded-lg border text-center font-medium transition-colors ${
               user.role === "developer"
-                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800"
+                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
+                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-650 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
             }`}
           >
             시스템 개발자 (Developer)
