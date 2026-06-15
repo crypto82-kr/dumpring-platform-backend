@@ -203,13 +203,35 @@ async def create_job_post(
             detail=f"요청하신 덤프 대수({data.required_trucks}대)가 수용 공고의 남은 여유 수량({dropoff_request.target_quantity - dropoff_request.current_quantity}대)을 초과합니다."
         )
 
+    # 하차지(DropOff) 정보 직접 조회하여 위경도 획득
+    drop_off_query = select(DropOff).where(DropOff.id == dropoff_request.drop_off_id)
+    drop_off_result = await db.execute(drop_off_query)
+    dropoff = drop_off_result.scalars().first()
+
+    # 예상 거리 및 시간 사전 계산
+    distance = None
+    est_time = None
+    if site and dropoff and site.latitude and site.longitude and dropoff.latitude and dropoff.longitude:
+        import math
+        lat1, lon1 = site.latitude, site.longitude
+        lat2, lon2 = dropoff.latitude, dropoff.longitude
+        R = 6371.0
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = round(R * c, 1)
+        est_time = int(distance * 1.5 + 5)
+
     new_job = JobPost(
         site_id=data.site_id,
         drop_off_request_id=data.drop_off_request_id,
         author_id=current_user.id,
         work_date=data.work_date,
         required_trucks=data.required_trucks,
-        status="WAITING_APPROVAL"
+        status="WAITING_APPROVAL",
+        distance=distance,
+        estimated_time=est_time
     )
     db.add(new_job)
     await db.commit()
@@ -513,9 +535,32 @@ async def match_job_post(
             detail="본인이 소유한 하차지만 매칭 요청할 수 있습니다."
         )
 
-    # 3. 매칭 요청: 하차지 ID 연결 & 상태를 WAITING_APPROVAL로 전환
+    # 3. 매칭 요청: 하차지 ID 연결 & 상태를 WAITING_APPROVAL로 전환 및 거리/시간 계산
     job.matched_drop_off_id = data.drop_off_id
     job.status = "WAITING_APPROVAL"
+
+    # 상차지(ConstructionSite) 정보 조회하여 위경도 획득
+    site_query = select(ConstructionSite).where(ConstructionSite.id == job.site_id)
+    site_result = await db.execute(site_query)
+    site = site_result.scalars().first()
+
+    # 예상 거리 및 시간 계산
+    distance = None
+    est_time = None
+    if site and dropoff and site.latitude and site.longitude and dropoff.latitude and dropoff.longitude:
+        import math
+        lat1, lon1 = site.latitude, site.longitude
+        lat2, lon2 = dropoff.latitude, dropoff.longitude
+        R = 6371.0
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = round(R * c, 1)
+        est_time = int(distance * 1.5 + 5)
+
+    job.distance = distance
+    job.estimated_time = est_time
 
     await db.commit()
     await db.refresh(job)

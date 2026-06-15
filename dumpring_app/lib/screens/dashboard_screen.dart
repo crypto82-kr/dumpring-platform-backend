@@ -451,7 +451,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: _registerConstructionSite,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary, // 형광 골드 옐로우
-                  foregroundColor: Theme.of(context).scaffoldBackgroundColor, // 딥 다크 블루 텍스트
+                  foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white), // 고대비 텍스트
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 2,
@@ -509,7 +509,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: _registerUnloadingSite,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary, // 형광 골드 옐로우
-                  foregroundColor: Theme.of(context).scaffoldBackgroundColor, // 딥 다크 블루 텍스트
+                  foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white), // 고대비 텍스트
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 2,

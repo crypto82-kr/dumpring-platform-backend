@@ -33,6 +33,9 @@ async def get_open_dispatch_jobs(
     sido: Optional[str] = None,
     sigungu: Optional[str] = None,
     use_favorites: Optional[bool] = False,
+    search: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -43,7 +46,24 @@ async def get_open_dispatch_jobs(
         )
 
     # 기본적으로 status='OPEN'인 모집공고를 대상
-    query = select(JobPost).join(DropOff, JobPost.matched_drop_off_id == DropOff.id).where(JobPost.status == "OPEN")
+    query = select(JobPost).join(
+        DropOff, JobPost.matched_drop_off_id == DropOff.id
+    ).join(
+        ConstructionSite, JobPost.site_id == ConstructionSite.id
+    ).where(JobPost.status == "OPEN")
+
+    # 검색어가 있을 경우 필터링 (현장명, 하차지명, 메모, 현장 ID)
+    if search:
+        search_term = f"%{search}%"
+        from sqlalchemy import cast, String
+        query = query.where(
+            or_(
+                ConstructionSite.company_name.like(search_term),
+                DropOff.name.like(search_term),
+                JobPost.memo.like(search_term),
+                cast(JobPost.site_id, String).like(search_term)
+            )
+        )
 
     # 즐겨찾는 관심지역 필터 사용 시
     if use_favorites:
@@ -58,38 +78,80 @@ async def get_open_dispatch_jobs(
         # 각 즐겨찾기 지역별로 LIKE 주소 매핑 OR 연산
         or_clauses = []
         for fav in favorites:
-            or_clauses.append(
-                and_(
-                    DropOff.address.like(f"%{fav.sido}%"),
-                    DropOff.address.like(f"%{fav.sigungu}%")
+            if fav.sigungu == "전체":
+                or_clauses.append(
+                    DropOff.address.like(f"%{fav.sido}%")
                 )
-            )
+            else:
+                or_clauses.append(
+                    and_(
+                        DropOff.address.like(f"%{fav.sido}%"),
+                        DropOff.address.like(f"%{fav.sigungu}%")
+                    )
+                )
         query = query.where(or_(*or_clauses))
 
     # 직접 시도, 시군구 입력 필터 사용 시 (즐겨찾기 우선순위가 아닐 경우)
     else:
         if sido:
             query = query.where(DropOff.address.like(f"%{sido}%"))
-        if sigungu:
+        if sigungu and sigungu != "전체":
             query = query.where(DropOff.address.like(f"%{sigungu}%"))
 
-    # select(JobPost)와 함께 Site, DropOff 정보를 로드하도록 변경
+    # select(JobPost)와 함께 Site, DropOff, DropOffRequest 정보를 로드하도록 변경
     from sqlalchemy.orm import selectinload
     query = query.options(
         selectinload(JobPost.site),
-        selectinload(JobPost.matched_drop_off)
-    )
+        selectinload(JobPost.matched_drop_off),
+        selectinload(JobPost.drop_off_request)
+    ).order_by(JobPost.created_at.desc()).offset(offset).limit(limit)
 
     result = await db.execute(query)
     jobs = result.scalars().all()
     
-    # 응답 객체에 이름 세팅
+    # 응답 객체에 이름 및 상세 데이터 세팅
     for j in jobs:
+        # 단가 세팅 (상차지 제시 단가가 없으면 매치된 하차지 공고 단가 사용)
+        if j.offered_unit_price is None and j.drop_off_request:
+            j.offered_unit_price = j.drop_off_request.unit_price
+
+        # 기본 회사명 세팅
         if j.site:
             j.site_name = j.site.company_name
+            j.site_latitude = j.site.latitude
+            j.site_longitude = j.site.longitude
+            # 주소 매핑
+            if "현대" in j.site.company_name:
+                j.site_address = "인천 연수구 송도동 100-2"
+            elif "GS" in j.site.company_name:
+                j.site_address = "경기 김포시 대곶면 사토매립장 부근"
+            else:
+                j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
+        
         if j.matched_drop_off:
             j.drop_off_name = j.matched_drop_off.name
-            
+            j.drop_off_latitude = j.matched_drop_off.latitude
+            j.drop_off_longitude = j.matched_drop_off.longitude
+            j.drop_off_address = j.matched_drop_off.address
+
+        # DB에 기저장된 값 우선 사용, 없을 시 실시간 연산
+        if j.distance is None or j.estimated_time is None:
+            if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
+                import math
+                lat1, lon1 = j.site.latitude, j.site.longitude
+                lat2, lon2 = j.matched_drop_off.latitude, j.matched_drop_off.longitude
+                R = 6371.0
+                dlat = math.radians(lat2 - lat1)
+                dlon = math.radians(lon2 - lon1)
+                a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+                c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                j.distance = round(R * c, 1)
+                # 대형 덤프트럭 평균 속도 시속 40km 기준 (1.5분/km) + 신호 대기 등 5분 추가
+                j.estimated_time = int(j.distance * 1.5 + 5)
+            else:
+                j.distance = None
+                j.estimated_time = None
+
     return jobs
 
 

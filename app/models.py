@@ -437,6 +437,9 @@ class JobPost(Base):
     required_trucks = Column(Integer, nullable=False)  # 필요한 덤프 대수
     status = Column(String, default="WAITING_APPROVAL", nullable=False)  # 상태값
 
+    distance = Column(Float, nullable=True)               # 예상 거리 (km)
+    estimated_time = Column(Integer, nullable=True)       # 예상 소요 시간 (분)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

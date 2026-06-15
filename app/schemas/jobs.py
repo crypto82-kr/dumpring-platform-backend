@@ -87,5 +87,15 @@ class JobPostResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # 추가 상세 정보 필드
+    site_latitude: Optional[float] = None
+    site_longitude: Optional[float] = None
+    drop_off_latitude: Optional[float] = None
+    drop_off_longitude: Optional[float] = None
+    drop_off_address: Optional[str] = None
+    site_address: Optional[str] = None
+    distance: Optional[float] = None
+    estimated_time: Optional[int] = None
+
     class Config:
         from_attributes = True

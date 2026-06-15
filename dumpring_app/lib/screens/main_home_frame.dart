@@ -174,7 +174,7 @@ class _MainHomeFrameState extends State<MainHomeFrame> {
               onPressed: () => Navigator.maybePop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Theme.of(context).scaffoldBackgroundColor,
+                foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
               ),

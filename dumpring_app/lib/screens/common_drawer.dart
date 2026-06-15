@@ -36,18 +36,21 @@ class CommonDrawer extends StatelessWidget {
 
   // Helper to create a ListTile with consistent styling (Easy Ride Premium Font style)
   Widget _tile(BuildContext context, IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, color: AppColors.primary),
-      title: Text(
-        title, 
-        style: TextStyle(
-          fontWeight: FontWeight.w800, 
-          color: AppColors.textPrimary,
-          fontSize: 15,
-          letterSpacing: -0.5,
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        leading: Icon(icon, color: AppColors.primary),
+        title: Text(
+          title, 
+          style: TextStyle(
+            fontWeight: FontWeight.w800, 
+            color: AppColors.textPrimary,
+            fontSize: 15,
+            letterSpacing: -0.5,
+          ),
         ),
+        onTap: onTap,
       ),
-      onTap: onTap,
     );
   }
 
@@ -142,27 +145,30 @@ class CommonDrawer extends StatelessWidget {
               Text("시스템 설정", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SwitchListTile(
-                value: true,
-                onChanged: (val) {},
-                title: Text("실시간 배차 푸시 알림", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
-                activeColor: AppColors.primary,
-              ),
-              SwitchListTile(
-                value: false,
-                onChanged: (val) {},
-                title: Text("야간 자동 무음 모드", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
-                activeColor: AppColors.primary,
-              ),
-              ListTile(
-                title: Text("앱 버전 정보", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
-                subtitle: Text("v1.0.0 (최신 버전)", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                trailing: Icon(Icons.info_outline, size: 20, color: AppColors.primary),
-              )
-            ],
+          content: Material(
+            color: Colors.transparent,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  value: true,
+                  onChanged: (val) {},
+                  title: Text("실시간 배차 푸시 알림", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+                  activeColor: AppColors.primary,
+                ),
+                SwitchListTile(
+                  value: false,
+                  onChanged: (val) {},
+                  title: Text("야간 자동 무음 모드", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+                  activeColor: AppColors.primary,
+                ),
+                ListTile(
+                  title: Text("앱 버전 정보", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+                  subtitle: Text("v1.0.0 (최신 버전)", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  trailing: Icon(Icons.info_outline, size: 20, color: AppColors.primary),
+                )
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -180,51 +186,52 @@ class CommonDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      child: Container(
-        color: AppColors.background,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            UserAccountsDrawerHeader(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border(bottom: BorderSide(color: AppColors.divider, width: 1.5)),
-              ),
-              accountName: Text(
-                user['name'] ?? '사용자',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
-              ),
-              accountEmail: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(user['phone_number'] ?? '', style: TextStyle(color: AppColors.textSecondary)),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _getUserRoleText(),
-                      style: TextStyle(color: AppColors.background, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: AppColors.background,
-                child: Icon(Icons.person, color: AppColors.primary, size: 40),
-              ),
+      backgroundColor: AppColors.background,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          UserAccountsDrawerHeader(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border(bottom: BorderSide(color: AppColors.divider, width: 1.5)),
             ),
-            // Dynamic menu items based on role (ListView to prevent overflow)
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  ..._buildMenuItems(context),
-                  Divider(color: AppColors.divider),
-                  ListTile(
+            accountName: Text(
+              user['name'] ?? '사용자',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
+            ),
+            accountEmail: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(user['phone_number'] ?? '', style: TextStyle(color: AppColors.textSecondary)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _getUserRoleText(),
+                    style: TextStyle(color: AppColors.background, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: AppColors.background,
+              child: Icon(Icons.person, color: AppColors.primary, size: 40),
+            ),
+          ),
+          // Dynamic menu items based on role (ListView to prevent overflow)
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                ..._buildMenuItems(context),
+                Divider(color: AppColors.divider),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
                     leading: const Icon(Icons.logout_outlined, color: Colors.redAccent),
                     title: const Text("로그아웃", style: TextStyle(fontWeight: FontWeight.w800, color: Colors.redAccent, fontSize: 15)),
                     onTap: () async {
@@ -257,12 +264,12 @@ class CommonDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+        ],
       ),
     );
   }

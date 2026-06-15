@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -502,7 +502,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                     onPressed: () => _processIncomingTruck(ticket),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).scaffoldBackgroundColor,
+                      foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       elevation: 2,
                     ),

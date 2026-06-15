@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -139,9 +139,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
       return;
     }
- 
+
+    // 기사인 경우 승인확인 로딩 팝업 오버레이만 노출하지 않고, 실제 승인 상태 조회(API)는 그대로 진행합니다.
+    final bool showOverlay = user['is_driver'] != true;
+
     setState(() {
-      _isStatusChecking = true;
+      _isStatusChecking = showOverlay;
     });
  
     debugPrint("★ [_redirectAfterLogin] 시작 - 유저: ${user['name']}, 전화번호: ${user['phone_number']}");

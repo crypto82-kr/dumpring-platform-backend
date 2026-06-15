@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -370,7 +370,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                 label: Text("기사 초대"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
@@ -471,7 +471,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                 label: Text("차량 추가"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
@@ -553,12 +553,15 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
           SizedBox(height: 20),
           Divider(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB)), thickness: 1.5),
           SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(backgroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2638) : const Color(0xFFF3F4F6)), child: Icon(Icons.account_balance, color: Theme.of(context).colorScheme.primary)),
-            title: Text("정산 수령 법인계좌 설정", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)))),
-            subtitle: Text("신한은행 110-123-456789 (예금주: 주식회사 덤프운송)", style: TextStyle(fontSize: 12, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)))),
-            trailing: Icon(Icons.arrow_forward_ios, size: 14, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563))),
+          Material(
+            color: Colors.transparent,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(backgroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2638) : const Color(0xFFF3F4F6)), child: Icon(Icons.account_balance, color: Theme.of(context).colorScheme.primary)),
+              title: Text("정산 수령 법인계좌 설정", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)))),
+              subtitle: Text("신한은행 110-123-456789 (예금주: 주식회사 덤프운송)", style: TextStyle(fontSize: 12, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)))),
+              trailing: Icon(Icons.arrow_forward_ios, size: 14, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563))),
+            ),
           ),
         ],
       ),

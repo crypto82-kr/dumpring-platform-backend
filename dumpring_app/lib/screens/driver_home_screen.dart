@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'driver_meter_screen.dart';
 import 'driver_history_screen.dart';
 import 'driver_dispatch_confirm_screen.dart';
@@ -28,10 +29,18 @@ class DriverHomeScreen extends StatefulWidget {
 class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerProviderStateMixin {
   String get _baseUrl => AppConfig.baseUrl;
 
-  bool _isWaitingForDispatch = false;
+  bool _isWaitingForDispatch = true;
   List<dynamic> _openJobs = [];
   List<dynamic> _favorites = [];
   bool _isLoadingJobs = false;
+
+  // 페이징 상태 변수
+  int _offset = 0;
+  final int _limit = 20;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+  bool _showBackToTop = false;
+  late ScrollController _scrollController;
 
   // 필터용 지역 설정 변수
   String? _selectedSido;
@@ -53,6 +62,37 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
   late Map<String, dynamic> _currentUser;
   late AnimationController _pulseController;
+  final TextEditingController _searchController = TextEditingController();
+
+  // SharedPreferences 키 생성 (계정별 고유 키)
+  String get _prefsKey => "favorites_filter_${_currentUser['id'] ?? widget.user['id'] ?? 'default'}";
+
+  // 상태 로드
+  Future<void> _loadFavoritesFilterState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _useFavoritesFilter = prefs.getBool(_prefsKey) ?? false;
+      });
+    } catch (e) {
+      debugPrint("SharedPreferences 로드 에러: $e");
+    }
+  }
+
+  // 상태 저장
+  Future<void> _saveFavoritesFilterState(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefsKey, value);
+    } catch (e) {
+      debugPrint("SharedPreferences 저장 에러: $e");
+    }
+  }
+
+  Future<void> _initAndLoadJobs() async {
+    await _loadFavoritesFilterState();
+    _loadOpenJobs(isRefresh: true);
+  }
 
   @override
   void initState() {
@@ -62,8 +102,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
+    _scrollController = ScrollController()..addListener(_scrollListener);
     _loadFavorites();
-    _loadOpenJobs();
+    _initAndLoadJobs();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkActiveTicket();
     });
@@ -72,7 +113,47 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   @override
   void dispose() {
     _pulseController.dispose();
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+
+    try {
+      final pixels = _scrollController.position.pixels;
+      
+      // 바닥 감지 시 추가 페이징 로드
+      if (pixels >= _scrollController.position.maxScrollExtent - 200) {
+        _loadMoreJobs();
+      }
+
+      // 400px 기준으로 탑 이동 버튼 활성화 여부 결정
+      final show = pixels > 400;
+      if (show != _showBackToTop) {
+        setState(() {
+          _showBackToTop = show;
+        });
+      }
+    } catch (e) {
+      debugPrint("스크롤 리스너 작동 오류: $e");
+    }
+  }
+
+  Future<void> _loadMoreJobs() async {
+    if (_isLoadingJobs || _isLoadingMore || !_hasMore) return;
+    setState(() {
+      _isLoadingMore = true;
+    });
+    _offset += _limit;
+    await _loadOpenJobs(isRefresh: false);
+    if (mounted) {
+      setState(() {
+        _isLoadingMore = false;
+      });
+    }
   }
 
   // 진행 중인 배차 티켓 확인 API 연동
@@ -115,7 +196,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       ),
                     );
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                  ),
                   child: Text("이동"),
                 ),
               ],
@@ -148,7 +232,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   }
 
   // 2. 즐겨찾는 지역 추가 API 연동
-  Future<void> _addFavorite(String sido, String sigungu) async {
+  Future<bool> _addFavorite(String sido, String sigungu) async {
     try {
       final response = await http.post(
         Uri.parse("$_baseUrl/api/dispatch/favorites"),
@@ -162,18 +246,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         }),
       );
       if (response.statusCode == 201) {
-        _loadFavorites();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("⭐ $sido $sigungu 관심지역 추가 완료")),
-        );
+        await _loadFavorites();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("⭐ $sido $sigungu 관심지역 추가 완료")),
+          );
+        }
+        return true;
       } else {
         final err = jsonDecode(utf8.decode(response.bodyBytes));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("⚠️ ${err['detail'] ?? '등록 실패'}")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("⚠️ ${err['detail'] ?? '등록 실패'}")),
+          );
+        }
+        return false;
       }
     } catch (e) {
       debugPrint("관심지역 등록 실패: $e");
+      return false;
     }
   }
 
@@ -198,20 +289,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   }
 
   // 4. 전국 시군구 배차 검색 API 연동
-  Future<void> _loadOpenJobs() async {
+  Future<void> _loadOpenJobs({bool isRefresh = true}) async {
+    if (isRefresh) {
+      _offset = 0;
+      _hasMore = true;
+    }
+
     setState(() {
-      _isLoadingJobs = true;
+      _isLoadingJobs = isRefresh;
     });
 
     try {
-      String queryParams = "";
+      String queryParams = "?limit=$_limit&offset=$_offset";
+      
+      final String keyword = _searchController.text.trim();
+      if (keyword.isNotEmpty) {
+        queryParams += "&search=${Uri.encodeComponent(keyword)}";
+      }
+
       if (_useFavoritesFilter) {
-        queryParams = "?use_favorites=true";
+        queryParams += "&use_favorites=true";
       } else {
-        List<String> params = [];
-        if (_selectedSido != null) params.add("sido=$_selectedSido");
-        if (_selectedSigungu != null) params.add("sigungu=$_selectedSigungu");
-        if (params.isNotEmpty) queryParams = "?${params.join('&')}";
+        if (_selectedSido != null && _selectedSido != "전체") queryParams += "&sido=${Uri.encodeComponent(_selectedSido!)}";
+        if (_selectedSigungu != null && _selectedSigungu != "전체") queryParams += "&sigungu=${Uri.encodeComponent(_selectedSigungu!)}";
       }
 
       final response = await http.get(
@@ -222,8 +322,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       );
 
       if (response.statusCode == 200) {
+        final List<dynamic> fetchedJobs = jsonDecode(utf8.decode(response.bodyBytes));
+        
         setState(() {
-          _openJobs = jsonDecode(utf8.decode(response.bodyBytes));
+          if (isRefresh) {
+            _openJobs = fetchedJobs;
+          } else {
+            _openJobs.addAll(fetchedJobs);
+          }
+          if (fetchedJobs.length < _limit) {
+            _hasMore = false;
+          }
         });
       }
     } catch (e) {
@@ -284,72 +393,101 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     }
   }
 
-  void _toggleWaitingState(bool val) {
-    setState(() {
-      _isWaitingForDispatch = val;
-    });
 
-    if (_isWaitingForDispatch) {
-      _pulseController.repeat(reverse: true);
-      _loadOpenJobs();
-    } else {
-      _pulseController.stop();
-    }
-  }
 
   // 관심지역 등록 다이얼로그 팝업
   void _showAddFavoriteDialog() {
     String? tempSido;
     String? tempSigungu;
+    bool isSaving = false;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text("⭐ 관심지역 즐겨찾기 추가", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: "시/도 선택"),
-                value: tempSido,
-                items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                onChanged: (val) {
-                  setDialogState(() {
-                    tempSido = val;
-                    tempSigungu = null; // 시도 변경 시 시군구 리셋
-                  });
-                },
-              ),
-              SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: "시/군/구 선택"),
-                value: tempSigungu,
-                items: tempSido == null
-                    ? []
-                    : _koreanRegions[tempSido]!.map((sg) => DropdownMenuItem(value: sg, child: Text(sg))).toList(),
-                onChanged: (val) {
-                  setDialogState(() {
-                    tempSigungu = val;
-                  });
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text("취소")),
-            ElevatedButton(
-              onPressed: (tempSido != null && tempSigungu != null)
-                  ? () {
-                      _addFavorite(tempSido!, tempSigungu!);
-                      Navigator.pop(context);
-                    }
-                  : null,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: Text("추가"),
-            ),
-          ],
+          title: const Text("⭐ 관심지역 즐겨찾기 추가", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          content: isSaving
+              ? const SizedBox(
+                  height: 100,
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: "시/도 선택"),
+                      value: tempSido,
+                      items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          tempSido = val;
+                          tempSigungu = "전체"; // 시도 변경 시 기본값으로 '전체' 설정
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: "시/군/구 선택"),
+                      value: tempSigungu,
+                      items: tempSido == null
+                          ? []
+                          : [
+                              const DropdownMenuItem(value: "전체", child: Text("전체")),
+                              ..._koreanRegions[tempSido]!.map((sg) => DropdownMenuItem(value: sg, child: Text(sg)))
+                            ],
+                      onChanged: (val) {
+                        setDialogState(() {
+                          tempSigungu = val;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+          actions: isSaving
+              ? []
+              : [
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("취소")),
+                  ElevatedButton(
+                    onPressed: (tempSido != null && tempSigungu != null)
+                        ? () async {
+                            final isDuplicate = _favorites.any((fav) =>
+                                fav['sido'] == tempSido && fav['sigungu'] == tempSigungu);
+                            if (isDuplicate) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("⚠️ 이미 등록된 관심지역입니다: $tempSido $tempSigungu")),
+                              );
+                              Navigator.pop(context);
+                              return;
+                            }
+
+                            setDialogState(() {
+                              isSaving = true;
+                            });
+
+                            final success = await _addFavorite(tempSido!, tempSigungu!);
+                            if (success) {
+                              setState(() {
+                                _useFavoritesFilter = true;
+                              });
+                              await _saveFavoritesFilterState(true);
+                              _loadOpenJobs();
+                            }
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
+                          }
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                    ),
+                    child: const Text("추가"),
+                  ),
+                ],
         ),
       ),
     );
@@ -373,7 +511,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         title: Text(
-          "덤프링 기사용 홈 (Enterprise)",
+          "덤프링",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
@@ -396,81 +534,60 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       ),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _loadOpenJobs,
-          child: SingleChildScrollView(
+          onRefresh: () => _loadOpenJobs(isRefresh: true),
+          child: CustomScrollView(
+            controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. 배차 수신 모드 토글
-                _buildDispatchStatusPanel(),
-                SizedBox(height: 20),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.all(20.0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    // 2. 시군구 상세 검색 필터 탭 (전국 시군구 필터링 및 나의 관심 지역 통합 UI)
+                    _buildLocationFilterPanel(),
+                    const SizedBox(height: 20),
+                  ]),
+                ),
+              ),
 
-                // 2. 시군구 상세 검색 필터 탭 (전국 시군구 필터링 UI)
-                _buildLocationFilterPanel(),
-                SizedBox(height: 20),
+              // 4. 배차 모집 공고 리스트 (실시간 연동 데이터)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                sliver: _buildLiveJobsSliverList(),
+              ),
 
-                // 3. 기사 즐겨찾기(관심지역) 매니저
-                _buildFavoritesManager(),
-                SizedBox(height: 20),
-
-                // 4. 배차 모집 공고 리스트 (실시간 연동 데이터)
-                _buildLiveJobsList(),
-                SizedBox(height: 20),
-
-                // 5. 오늘 실적 대시보드
-                _buildEarningsDashboard(),
-              ],
-            ),
+              SliverPadding(
+                padding: const EdgeInsets.all(20.0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const SizedBox(height: 20),
+                    // 5. 오늘 실적 대시보드
+                    _buildEarningsDashboard(),
+                  ]),
+                ),
+              ),
+            ],
           ),
         ),
       ),
+      floatingActionButton: _showBackToTop
+          ? FloatingActionButton(
+              onPressed: () {
+                _scrollController.animateTo(
+                  0.0,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut,
+                );
+              },
+              backgroundColor: AppColors.primary,
+              foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+              child: const Icon(Icons.arrow_upward),
+            )
+          : null,
     );
   }
 
-  Widget _buildDispatchStatusPanel() {
-    return Card(
-      color: AppColors.surface, // 다크 카드
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: AppColors.divider, width: 1),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isWaitingForDispatch ? "실시간 오더 수신 중" : "오더 수신 대기 중단",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: _isWaitingForDispatch ? AppColors.primary : AppColors.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text("수신 상태를 활성화하면 현장 공고를 확인하고 수락할 수 있습니다.", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                  ],
-                ),
-                Switch(
-                  value: _isWaitingForDispatch,
-                  onChanged: _toggleWaitingState,
-                  activeColor: AppColors.primary,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildLocationFilterPanel() {
     return Card(
@@ -491,39 +608,98 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                 Text("📍 전국 현장 공고 검색", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                 Row(
                   children: [
-                    Text("즐겨찾는 지역만", style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                    SizedBox(width: 4),
+                    Text("관심지역", style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    const SizedBox(width: 2),
                     Checkbox(
                       value: _useFavoritesFilter,
-                      onChanged: (val) {
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: (val) async {
+                        final newValue = val ?? false;
                         setState(() {
-                          _useFavoritesFilter = val ?? false;
+                          _useFavoritesFilter = newValue;
                         });
+                        await _saveFavoritesFilterState(newValue);
                         _loadOpenJobs();
                       },
                       activeColor: AppColors.primary,
+                    ),
+                    const SizedBox(width: 2),
+                    TextButton.icon(
+                      onPressed: _showAddFavoriteDialog,
+                      icon: const Icon(Icons.add, size: 12),
+                      label: const Text("추가", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
             SizedBox(height: 8),
-            if (!_useFavoritesFilter)
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: "현장명, 하차지 또는 현장 ID 입력",
+                      hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      prefixIcon: Icon(Icons.search, color: AppColors.primary, size: 18),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.divider),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+                      ),
+                    ),
+                    onSubmitted: (_) => _loadOpenJobs(),
+                  ),
+                ),
+                SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _loadOpenJobs,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text("조회", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            if (!_useFavoritesFilter) ...[
               Row(
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         border: OutlineInputBorder(),
                         labelText: "시/도",
+                        labelStyle: TextStyle(fontSize: 12),
                       ),
                       value: _selectedSido,
-                      items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s, style: TextStyle(fontSize: 12)))).toList(),
+                      items: [
+                        const DropdownMenuItem(value: "전체", child: Text("전체", style: TextStyle(fontSize: 12))),
+                        ..._koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12))))
+                      ],
                       onChanged: (val) {
                         setState(() {
                           _selectedSido = val;
-                          _selectedSigungu = null;
+                          _selectedSigungu = "전체"; // 기본적으로 '전체' 설정
                         });
                         _loadOpenJobs();
                       },
@@ -532,15 +708,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         border: OutlineInputBorder(),
                         labelText: "시/군/구",
+                        labelStyle: TextStyle(fontSize: 12),
                       ),
                       value: _selectedSigungu,
-                      items: _selectedSido == null
-                          ? []
-                          : _koreanRegions[_selectedSido]!.map((sg) => DropdownMenuItem(value: sg, child: Text(sg, style: TextStyle(fontSize: 12)))).toList(),
+                      items: _selectedSido == null || _selectedSido == "전체"
+                          ? [
+                              const DropdownMenuItem(value: "전체", child: Text("전체", style: TextStyle(fontSize: 12))),
+                            ]
+                          : [
+                              const DropdownMenuItem(value: "전체", child: Text("전체", style: TextStyle(fontSize: 12))),
+                              ..._koreanRegions[_selectedSido]!.map((sg) => DropdownMenuItem(value: sg, child: Text(sg, style: const TextStyle(fontSize: 12))))
+                            ],
                       onChanged: (val) {
                         setState(() {
                           _selectedSigungu = val;
@@ -551,7 +734,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   ),
                 ],
               ),
-            if (_selectedSido != null || _selectedSigungu != null)
+            ],
+            if (_selectedSido != null || _selectedSigungu != null || _searchController.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: TextButton.icon(
@@ -559,14 +743,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                     setState(() {
                       _selectedSido = null;
                       _selectedSigungu = null;
+                      _searchController.clear();
                     });
                     _loadOpenJobs();
                   },
-                  icon: Icon(Icons.refresh, size: 14),
-                  label: Text("필터 초기화 및 전체 조회", style: TextStyle(fontSize: 12)),
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text("필터 초기화 및 전체 조회", style: TextStyle(fontSize: 12)),
                   style: TextButton.styleFrom(foregroundColor: AppColors.warning),
                 ),
-              )
+              ),
+            if (_useFavoritesFilter) ...[
+              const Divider(height: 24),
+              _buildFavoritesManager(),
+            ],
           ],
         ),
       ),
@@ -577,46 +766,38 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text("⭐ 나의 관심 공고 지역", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-            TextButton.icon(
-              onPressed: _showAddFavoriteDialog,
-              icon: Icon(Icons.add, size: 14),
-              label: Text("추가", style: TextStyle(fontSize: 12)),
-              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-            ),
-          ],
-        ),
         if (_favorites.isEmpty)
           Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: Text("등록된 관심 지역이 없습니다. 관심 지역을 추가하여 빠르게 필터링해 보세요.", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text("등록된 관심 지역이 없습니다. 우측 상단의 '추가' 버튼을 눌러 등록해 보세요.", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           )
         else
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+            child: Wrap(
+              spacing: 8.0, // 칩 간 가로 간격
+              runSpacing: 8.0, // 줄 바꿈 시 세로 간격
               children: _favorites.map((fav) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: InputChip(
-                    label: Text("${fav['sido']} ${fav['sigungu']}", style: TextStyle(fontSize: 11)),
-                    backgroundColor: AppColors.surface,
-                    selectedColor: AppColors.primaryLight,
-                    selected: _selectedSido == fav['sido'] && _selectedSigungu == fav['sigungu'],
-                    onPressed: () {
-                      setState(() {
-                        _selectedSido = fav['sido'];
-                        _selectedSigungu = fav['sigungu'];
-                        _useFavoritesFilter = false;
-                      });
-                      _loadOpenJobs();
-                    },
-                    onDeleted: () => _deleteFavorite(fav['id']),
-                    deleteIconColor: AppColors.danger,
-                  ),
+                final String displayLabel = fav['sigungu'] == "전체"
+                    ? "${fav['sido']} 전체"
+                    : "${fav['sido']} ${fav['sigungu']}";
+                return InputChip(
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  label: Text(displayLabel, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: AppColors.surface,
+                  selectedColor: AppColors.primaryLight,
+                  selected: _selectedSido == fav['sido'] && _selectedSigungu == fav['sigungu'],
+                  onPressed: () {
+                    setState(() {
+                      _selectedSido = fav['sido'];
+                      _selectedSigungu = fav['sigungu'];
+                      _useFavoritesFilter = false;
+                    });
+                    _loadOpenJobs();
+                  },
+                  onDeleted: () => _deleteFavorite(fav['id']),
+                  deleteIconColor: AppColors.danger,
                 );
               }).toList(),
             ),
@@ -625,132 +806,187 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildLiveJobsList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text("📡 실시간 등록 현장 공고", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-        SizedBox(height: 12),
-        if (_isLoadingJobs)
-          Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator()))
-        else if (_openJobs.isEmpty)
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.divider),
-            ),
-            child: Center(
-              child: Text("현재 조건에 매칭되는 활성화된 현장 공고가 없습니다.", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-            ),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _openJobs.length,
-            itemBuilder: (context, index) {
-              final job = _openJobs[index];
-              return Card(
+  Widget _buildLiveJobsSliverList() {
+    if (_isLoadingJobs) {
+      return const SliverToBoxAdapter(
+        child: Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator())),
+      );
+    }
+    
+    if (_openJobs.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text("📡 실시간 등록 현장 공고", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+            SizedBox(height: 12),
+            Container(
+              height: 120,
+              decoration: BoxDecoration(
                 color: AppColors.surface,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: AppColors.divider),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Center(
+                child: Text("현재 조건에 매칭되는 활성화된 현장 공고가 없습니다.", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          if (index == 0) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text("📡 실시간 등록 현장 공고", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                SizedBox(height: 12),
+                _buildJobCard(_openJobs[0]),
+              ],
+            );
+          }
+          if (index < _openJobs.length) {
+            return _buildJobCard(_openJobs[index]);
+          }
+          // 로딩 인디케이터
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        },
+        childCount: _openJobs.length + (_isLoadingMore ? 1 : 0),
+      ),
+    );
+  }
+
+  Widget _buildJobCard(dynamic job) {
+    return Card(
+      color: AppColors.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.divider),
+      ),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text("기사 모집중", style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text("기사 모집중", style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
-                          Text("모집 차량 ${job['required_trucks']}대", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
-                        ],
-                      ),
-                      SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Icon(Icons.circle, color: AppColors.primary, size: 12),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "상차지: 현장 ID ${job['site_id']}", 
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.circle, color: AppColors.warning, size: 12),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "하차지: 매칭 ID ${job['matched_drop_off_id'] ?? '지주 승인 완료'}", 
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)
-                            ),
-                          ),
-                        ],
-                      ),
-                      Divider(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("작업 예정일", style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                              SizedBox(height: 2),
-                              Text(job['work_date'].toString().substring(0, 10), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                          ElevatedButton(
-                            onPressed: _isWaitingForDispatch
-                                ? () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                          builder: (context) => DriverDispatchConfirmScreen(
-                                            user: widget.user,
-                                            token: widget.token,
-                                            job: job,
-                                            isApproved: widget.isApproved,
-                                          ),
-                                      ),
-                                    ).then((_) => _loadOpenJobs());
-                                  }
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.warning,
-                              disabledBackgroundColor: AppColors.divider,
-                              elevation: 2,
-                              shadowColor: AppColors.warning.withAlpha(76),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            ),
-                            child: Text("공고 확인", style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    ],
+                Text("모집 차량 ${job['required_trucks']}대", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+              ],
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.circle, color: AppColors.primary, size: 12),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "상차지: ${job['site_name'] ?? '현장 ID ${job['site_id']}'}", 
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)
                   ),
                 ),
-              );
-            },
-          ),
-      ],
+              ],
+            ),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.circle, color: AppColors.warning, size: 12),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "하차지: ${job['drop_off_name'] ?? '매칭 ID ${job['matched_drop_off_id'] ?? "지주 승인 완료"}'}", 
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                // 예상 거리
+                Icon(Icons.navigation_rounded, color: AppColors.textTertiary, size: 14),
+                SizedBox(width: 4),
+                Text(
+                  job['distance'] != null ? "${job['distance']} km" : "거리 미정",
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(width: 16),
+                // 예상 소요시간
+                Icon(Icons.access_time_rounded, color: AppColors.textTertiary, size: 14),
+                SizedBox(width: 4),
+                Text(
+                  job['estimated_time'] != null ? "${job['estimated_time']}분" : "시간 미정",
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(width: 16),
+                // 운반 단가
+                Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
+                SizedBox(width: 4),
+                Text(
+                  job['offered_unit_price'] != null ? "${_formatter(job['offered_unit_price'])}원" : "단가 미정",
+                  style: TextStyle(color: AppColors.warning, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("작업 예정일", style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                    SizedBox(height: 2),
+                    Text(job['work_date'].toString().substring(0, 10), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                ElevatedButton(
+                  onPressed: _isWaitingForDispatch
+                      ? () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (context) => DriverDispatchConfirmScreen(
+                                  user: widget.user,
+                                  token: widget.token,
+                                  job: job,
+                                  isApproved: widget.isApproved,
+                                ),
+                            ),
+                          ).then((_) => _loadOpenJobs());
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.warning,
+                    disabledBackgroundColor: AppColors.divider,
+                    elevation: 2,
+                    shadowColor: AppColors.warning.withAlpha(76),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: Text("공고 확인", style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -800,7 +1036,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("오늘 예상 수입", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                      Text("오늘의 운송 수익", style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                       SizedBox(height: 6),
                       Text("${_formatter(_todayEarnings)} 원", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.warning)),
                     ],

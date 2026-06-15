@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -126,12 +126,30 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
 
   @override
   Widget build(BuildContext context) {
-    // 임의의 거리 및 단가 가설 데이터 (화면에 표시할 실감 나는 요소들)
-    final double distance = 24.8; 
-    final int estimatedTimeMinutes = 45;
-    final int unitPrice = 75000; // 기본 단가 설정
+    // 실제 공고 데이터(widget.job)에서 필요한 세부 정보 추출
+    final double distance = (widget.job['distance'] ?? 0.0).toDouble(); 
+    final int estimatedTimeMinutes = widget.job['estimated_time'] ?? 0;
+    final int unitPrice = widget.job['offered_unit_price'] ?? 0; // 기본 단가 설정
     final int platformFee = (unitPrice * 0.03).round(); // 수수료 3%
     final int netEarning = unitPrice - platformFee;
+
+    final String materialType = widget.job['material_type'] == 'GOOD_SOIL'
+        ? '양질토'
+        : widget.job['material_type'] == 'MUD_SOIL'
+            ? '뻘흙'
+            : widget.job['material_type'] == 'ROCK'
+                ? '암버럭'
+                : widget.job['material_type'] == 'MIXED'
+                    ? '혼합'
+                    : widget.job['material_type'] ?? '미정';
+
+    final String truckType = widget.job['truck_type'] == 'T_15'
+        ? '15톤 덤프 트럭'
+        : widget.job['truck_type'] == 'T_25'
+            ? '25.5톤 덤프 트럭'
+            : widget.job['truck_type'] == 'T_27'
+                ? '27톤 덤프 트럭'
+                : widget.job['truck_type'] ?? '미정';
 
     return Scaffold(
       backgroundColor: AppColors.background, // 프리미엄 다크 테마 배경
@@ -143,7 +161,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "신규 현장 공고 확인",
+          "배차 현장 확인",
           style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 17),
         ),
         centerTitle: true,
@@ -249,12 +267,12 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    "현장 ID ${widget.job['site_id']} (인천 송도 건설 현장)",
+                                    widget.job['site_name'] ?? "현장명 없음",
                                     style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
                                   SizedBox(height: 2),
                                   Text(
-                                    "인천 연수구 송도동 100-2",
+                                    widget.job['site_address'] ?? "상차지 주소 없음",
                                     style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                   ),
                                 ],
@@ -282,12 +300,12 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    "하차지 ID ${widget.job['matched_drop_off_id'] ?? '지주 승인 하차장'}",
+                                    widget.job['drop_off_name'] ?? "하차지명 없음",
                                     style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
                                   SizedBox(height: 2),
                                   Text(
-                                    "경기 김포시 대곶면 사토매립장",
+                                    widget.job['drop_off_address'] ?? "하차지 주소 없음",
                                     style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                   ),
                                 ],
@@ -310,11 +328,11 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                     ),
                     child: Column(
                       children: [
-                        _buildDetailRow("토사 종류", "일반 사토 (토사)", Icons.category_rounded),
+                        _buildDetailRow("토사 종류", materialType, Icons.category_rounded),
                         Divider(color: AppColors.divider, height: 24),
                         _buildDetailRow("작업 예정일", widget.job['work_date'].toString().substring(0, 10), Icons.calendar_today_rounded),
                         Divider(color: AppColors.divider, height: 24),
-                        _buildDetailRow("필요 차종", "25.5톤 덤프 트럭", Icons.local_shipping_rounded),
+                        _buildDetailRow("필요 차종", truckType, Icons.local_shipping_rounded),
                       ],
                     ),
                   ),
@@ -381,7 +399,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                             ),
                             alignment: Alignment.center,
                             child: Text(
-                              "거절",
+                              "취소",
                               style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 15),
                             ),
                           ),
@@ -415,7 +433,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                             child: _isSubmitting
                                 ? CircularProgressIndicator(color: AppColors.textPrimary)
                                 : Text(
-                                    "오더 수락 및 운행 시작",
+                                    "배차",
                                     style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15),
                                   ),
                           ),
