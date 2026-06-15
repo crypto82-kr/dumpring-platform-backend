@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
+from app.schemas.jobs import JobPostResponse
 
 class FavoriteRegionCreate(BaseModel):
     sido: str = Field(..., description="시/도 (예: 서울특별시, 경기도)")
@@ -30,6 +31,7 @@ class DispatchTicketResponse(BaseModel):
     driving_started_at: Optional[datetime] = None
     arrived_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    job_post: Optional[JobPostResponse] = None
 
     class Config:
         orm_mode = True

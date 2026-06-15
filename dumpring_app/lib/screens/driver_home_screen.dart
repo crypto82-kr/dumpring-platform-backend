@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'driver_meter_screen.dart';
@@ -33,6 +34,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   List<dynamic> _openJobs = [];
   List<dynamic> _favorites = [];
   bool _isLoadingJobs = false;
+  Map<String, dynamic>? _activeTicket; // 진행 중인 배차 티켓
+
+  // 날짜 필터
+  DateTime? _selectedDate;
 
   // 페이징 상태 변수
   int _offset = 0;
@@ -156,7 +161,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     }
   }
 
-  // 진행 중인 배차 티켓 확인 API 연동
+  // 진행 중인 배차 티켓 확인 API 연동 (상태에 저장하여 상단 섹션으로 표시)
   Future<void> _checkActiveTicket() async {
     try {
       final response = await http.get(
@@ -169,51 +174,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         final ticket = jsonDecode(utf8.decode(response.bodyBytes));
         if (ticket != null && ticket['id'] != null) {
           setState(() {
+            _activeTicket = ticket;
             _isWaitingForDispatch = false;
           });
-          if (!mounted) return;
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text("진행 중인 운행 감지", style: TextStyle(fontWeight: FontWeight.bold)),
-              content: Text("🚨 아직 완료되지 않은 운행(티켓 ID: #${ticket['id']})이 존재합니다.\n미터기 화면으로 이동하여 운행을 계속하시겠습니까?"),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text("취소", style: TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => DriverMeterScreen(
-                          user: widget.user,
-                          token: widget.token,
-                          ticketId: ticket['id'],
-                          onDriveCompleted: (earnings) {
-                            setState(() {
-                              _isWaitingForDispatch = true;
-                            });
-                            _loadOpenJobs();
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
-                  ),
-                  child: Text("이동"),
-                ),
-              ],
-            ),
-          );
         } else {
           setState(() {
+            _activeTicket = null;
             _isWaitingForDispatch = true;
           });
         }
@@ -316,6 +282,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       final String keyword = _searchController.text.trim();
       if (keyword.isNotEmpty) {
         queryParams += "&search=${Uri.encodeComponent(keyword)}";
+      }
+
+      // 날짜 필터
+      if (_selectedDate != null) {
+        final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+        queryParams += "&work_date=$dateStr";
       }
 
       if (_useFavoritesFilter) {
@@ -550,10 +522,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              // 0. 진행 중인 배차 표시 (최상단)
+              if (_activeTicket != null)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: _buildActiveTicketSection(),
+                  ),
+                ),
+
               SliverPadding(
                 padding: const EdgeInsets.all(20.0),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    // 1. 날짜 필터
+                    _buildDateFilterChips(),
+                    const SizedBox(height: 16),
                     // 2. 시군구 상세 검색 필터 탭 (전국 시군구 필터링 및 나의 관심 지역 통합 UI)
                     _buildLocationFilterPanel(),
                     const SizedBox(height: 20),
@@ -813,6 +797,292 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               }).toList(),
             ),
           ),
+      ],
+    );
+  }
+
+  // ── 진행 중인 배차 티켓 상단 섹션 ──
+  Widget _buildActiveTicketSection() {
+    final ticket = _activeTicket!;
+    final jobPost = ticket['job_post'];
+
+    final String siteName = jobPost?['site_name'] ?? '현장명 없음';
+    final String dropOffName = jobPost?['drop_off_name'] ?? '하차지명 없음';
+    final String statusLabel = ticket['status'] == 'ACCEPTED'
+        ? '수락 완료'
+        : ticket['status'] == 'DRIVING'
+            ? '운행 중'
+            : ticket['status'] == 'ARRIVED'
+                ? '도착 완료'
+                : ticket['status'] ?? '진행 중';
+    final Color statusColor = ticket['status'] == 'DRIVING'
+        ? AppColors.primary
+        : ticket['status'] == 'ARRIVED'
+            ? AppColors.warning
+            : Colors.green;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary.withAlpha(40), AppColors.warning.withAlpha(30)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primary.withAlpha(120), width: 1.5),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: statusColor.withAlpha(50),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor.withAlpha(120)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.local_shipping_rounded, color: statusColor, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Text(
+                "내 현재 배차",
+                style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Icon(Icons.circle, color: AppColors.primary, size: 10),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "상차: $siteName",
+                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(Icons.circle, color: AppColors.warning, size: 10),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "하차: $dropOffName",
+                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // 거리/시간/단가 요약
+          if (jobPost != null)
+            Row(
+              children: [
+                Icon(Icons.navigation_rounded, color: AppColors.textTertiary, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  jobPost['distance'] != null ? "${jobPost['distance']} km" : "거리 미정",
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 12),
+                Icon(Icons.access_time_rounded, color: AppColors.textTertiary, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  jobPost['estimated_time'] != null ? "${jobPost['estimated_time']}분" : "시간 미정",
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 12),
+                Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  jobPost['offered_unit_price'] != null ? "${_formatter(jobPost['offered_unit_price'])}원" : "단가 미정",
+                  style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => DriverMeterScreen(
+                      user: widget.user,
+                      token: widget.token,
+                      ticketId: ticket['id'],
+                      onDriveCompleted: (earnings) {
+                        setState(() {
+                          _activeTicket = null;
+                          _isWaitingForDispatch = true;
+                          _todayWorkCount += 1;
+                          _todayEarnings += earnings;
+                          _monthlyEarnings += earnings;
+                        });
+                        _loadOpenJobs();
+                      },
+                    ),
+                  ),
+                ).then((_) => _checkActiveTicket());
+              },
+              icon: const Icon(Icons.play_arrow_rounded, size: 18),
+              label: const Text("운행 계속하기", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 날짜 필터 칩 UI ──
+  Widget _buildDateFilterChips() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final dayAfter = today.add(const Duration(days: 2));
+
+    bool isSelected(DateTime? target) {
+      if (_selectedDate == null && target == null) return true;
+      if (_selectedDate == null || target == null) return false;
+      return _selectedDate!.year == target.year &&
+          _selectedDate!.month == target.month &&
+          _selectedDate!.day == target.day;
+    }
+
+    Widget chipBtn(String label, DateTime? date, {IconData? icon}) {
+      final selected = isSelected(date);
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: ChoiceChip(
+          avatar: icon != null ? Icon(icon, size: 14, color: selected ? AppColors.primary : AppColors.textTertiary) : null,
+          label: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          selected: selected,
+          selectedColor: AppColors.primaryLight,
+          backgroundColor: AppColors.surface,
+          side: BorderSide(color: selected ? AppColors.primary : AppColors.divider),
+          labelStyle: TextStyle(
+            color: selected ? AppColors.primary : AppColors.textSecondary,
+            fontWeight: FontWeight.bold,
+          ),
+          onSelected: (_) {
+            setState(() {
+              _selectedDate = date;
+            });
+            _loadOpenJobs(isRefresh: true);
+          },
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("📅 작업 예정일 필터", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              chipBtn("전체", null),
+              chipBtn("오늘 (${DateFormat('M/d').format(today)})", today),
+              chipBtn("내일 (${DateFormat('M/d').format(tomorrow)})", tomorrow),
+              chipBtn("모레 (${DateFormat('M/d').format(dayAfter)})", dayAfter),
+              // 달력 선택 버튼
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ActionChip(
+                  avatar: Icon(Icons.calendar_month_rounded, size: 14, color: AppColors.textTertiary),
+                  label: Text(
+                    _selectedDate != null &&
+                        !isSelected(today) &&
+                        !isSelected(tomorrow) &&
+                        !isSelected(dayAfter) &&
+                        _selectedDate != null
+                      ? DateFormat('M/d (E)').format(_selectedDate!)
+                      : "날짜 선택",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _selectedDate != null &&
+                          !isSelected(today) &&
+                          !isSelected(tomorrow) &&
+                          !isSelected(dayAfter)
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
+                    ),
+                  ),
+                  backgroundColor: _selectedDate != null &&
+                      !isSelected(today) &&
+                      !isSelected(tomorrow) &&
+                      !isSelected(dayAfter)
+                    ? AppColors.primaryLight
+                    : AppColors.surface,
+                  side: BorderSide(
+                    color: _selectedDate != null &&
+                        !isSelected(today) &&
+                        !isSelected(tomorrow) &&
+                        !isSelected(dayAfter)
+                      ? AppColors.primary
+                      : AppColors.divider,
+                  ),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _selectedDate ?? today,
+                      firstDate: today.subtract(const Duration(days: 30)),
+                      lastDate: today.add(const Duration(days: 90)),
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.dark(
+                              primary: AppColors.primary,
+                              onPrimary: Colors.white,
+                              surface: AppColors.surface,
+                              onSurface: AppColors.textPrimary,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _selectedDate = picked;
+                      });
+                      _loadOpenJobs(isRefresh: true);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

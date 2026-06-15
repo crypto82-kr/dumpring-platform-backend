@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, and_, update
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 from app.core.db import get_db
 from app.models import (
@@ -34,6 +34,7 @@ async def get_open_dispatch_jobs(
     sigungu: Optional[str] = None,
     use_favorites: Optional[bool] = False,
     search: Optional[str] = None,
+    work_date: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
@@ -97,6 +98,16 @@ async def get_open_dispatch_jobs(
             query = query.where(DropOff.address.like(f"%{sido}%"))
         if sigungu and sigungu != "전체":
             query = query.where(DropOff.address.like(f"%{sigungu}%"))
+
+    # 작업 예정일 날짜 필터 (yyyy-MM-dd 형식)
+    if work_date:
+        try:
+            target_date = date.fromisoformat(work_date)
+            day_start = datetime.combine(target_date, datetime.min.time())
+            day_end = datetime.combine(target_date + timedelta(days=1), datetime.min.time())
+            query = query.where(JobPost.work_date >= day_start, JobPost.work_date < day_end)
+        except ValueError:
+            pass  # 잘못된 날짜 형식은 무시
 
     # select(JobPost)와 함께 Site, DropOff, DropOffRequest 정보를 로드하도록 변경
     from sqlalchemy.orm import selectinload
@@ -283,13 +294,52 @@ async def get_active_ticket(
             detail="기사(DRIVER) 권한이 필요합니다."
         )
 
+    from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
         DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
     ).order_by(DispatchTicket.accepted_at.desc())
     
     result = await db.execute(query)
     ticket = result.scalars().first()
+
+    if ticket and ticket.job_post:
+        j = ticket.job_post
+        if j.offered_unit_price is None and j.drop_off_request:
+            j.offered_unit_price = j.drop_off_request.unit_price
+        if j.site:
+            j.site_name = j.site.company_name
+            j.site_latitude = j.site.latitude
+            j.site_longitude = j.site.longitude
+            if "현대" in j.site.company_name:
+                j.site_address = "인천 연수구 송도동 100-2"
+            elif "GS" in j.site.company_name:
+                j.site_address = "경기 김포시 대곶면 사토매립장 부근"
+            else:
+                j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
+        if j.matched_drop_off:
+            j.drop_off_name = j.matched_drop_off.name
+            j.drop_off_latitude = j.matched_drop_off.latitude
+            j.drop_off_longitude = j.matched_drop_off.longitude
+            j.drop_off_address = j.matched_drop_off.address
+
+        if j.distance is None or j.estimated_time is None:
+            if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
+                import math
+                lat1, lon1 = j.site.latitude, j.site.longitude
+                lat2, lon2 = j.matched_drop_off.latitude, j.matched_drop_off.longitude
+                R = 6371.0
+                dlat = math.radians(lat2 - lat1)
+                dlon = math.radians(lon2 - lon1)
+                a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+                c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                j.distance = round(R * c, 1)
+                j.estimated_time = int(j.distance * 1.5 + 5)
+
     return ticket
 
 

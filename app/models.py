@@ -490,6 +490,9 @@ class DispatchTicket(Base):
     arrived_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Relationships
+    job_post = relationship("JobPost")
+
 
 
 
