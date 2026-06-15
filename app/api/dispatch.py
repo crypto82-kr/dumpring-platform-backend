@@ -512,6 +512,43 @@ async def start_driving(
 
 
 @router.post(
+    "/tickets/{ticket_id}/cancel",
+    response_model=DispatchTicketResponse,
+    summary="[기사용] 수락한 배차 취소"
+)
+async def cancel_dispatch(
+    ticket_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(DispatchTicket).where(
+        DispatchTicket.id == ticket_id,
+        DispatchTicket.driver_id == current_user.id
+    )
+    result = await db.execute(query)
+    ticket = result.scalars().first()
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운행 티켓을 찾을 수 없습니다."
+        )
+
+    if ticket.status != "ACCEPTED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 운행을 기동하여 취소할 수 없습니다."
+        )
+
+    ticket.status = "CANCELLED"
+    ticket.completed_at = datetime.now()
+
+    await db.commit()
+    await db.refresh(ticket)
+    return ticket
+
+
+@router.post(
     "/tickets/{ticket_id}/arrive",
     response_model=DispatchTicketResponse,
     summary="[기사용] 하차지 지오펜스 진입 감지"

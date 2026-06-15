@@ -927,43 +927,123 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               ],
             ),
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => DriverMeterScreen(
-                      user: widget.user,
-                      token: widget.token,
-                      ticketId: ticket['id'],
-                      onDriveCompleted: (earnings) {
-                        setState(() {
-                          _activeTicket = null;
-                          _isWaitingForDispatch = true;
-                          _todayWorkCount += 1;
-                          _todayEarnings += earnings;
-                          _monthlyEarnings += earnings;
-                        });
-                        _loadOpenJobs();
-                      },
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              if (ticket['status'] == 'ACCEPTED') ...[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _cancelActiveTicket,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      side: BorderSide(color: AppColors.danger),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
+                    child: const Text("배차 취소", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   ),
-                ).then((_) => _checkActiveTicket());
-              },
-              icon: const Icon(Icons.play_arrow_rounded, size: 18),
-              label: const Text("운행 계속하기", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                flex: ticket['status'] == 'ACCEPTED' ? 2 : 1,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => DriverMeterScreen(
+                          user: widget.user,
+                          token: widget.token,
+                          ticketId: ticket['id'],
+                          onDriveCompleted: (earnings) {
+                            setState(() {
+                              _activeTicket = null;
+                              _isWaitingForDispatch = true;
+                              _todayWorkCount += 1;
+                              _todayEarnings += earnings;
+                              _monthlyEarnings += earnings;
+                            });
+                            _loadOpenJobs();
+                          },
+                        ),
+                      ),
+                    ).then((_) => _checkActiveTicket());
+                  },
+                  icon: Icon(ticket['status'] == 'ACCEPTED' ? Icons.play_arrow_rounded : Icons.navigation_rounded, size: 18),
+                  label: Text(ticket['status'] == 'ACCEPTED' ? "운행 시작하기" : "운행 계속하기", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  // ── 배차 취소 API 호출 ──
+  Future<void> _cancelActiveTicket() async {
+    final ticket = _activeTicket;
+    if (ticket == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("배차 취소", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text("수락하신 배차를 취소하시겠습니까?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text("아니오", style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("예", style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${ticket['id']}/cancel"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("🚀 배차가 성공적으로 취소되었습니다.")),
+        );
+        setState(() {
+          _activeTicket = null;
+        });
+        _loadOpenJobs();
+      } else {
+        final err = jsonDecode(utf8.decode(response.bodyBytes));
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("배차 취소 실패"),
+            content: Text(err['detail'] ?? "이미 다른 기사가 수락하였거나 취소할 수 없습니다."),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("배차 취소 실패: $e");
+    }
   }
   // ── 날짜 선택 헬퍼 ──
   bool _isDateSelected(DateTime? target) {
