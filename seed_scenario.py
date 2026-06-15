@@ -37,7 +37,8 @@ if DATABASE_URL.startswith("postgresql://"):
 engine = create_async_engine(DATABASE_URL, echo=False, connect_args={"statement_cache_size": 0})
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-NOW = datetime.now(tz=timezone.utc)
+KST = timezone(timedelta(hours=9))
+NOW = datetime.now(tz=KST)
 PW = get_password_hash("password123")  # 모든 샘플 계정 공통 비밀번호
 
 

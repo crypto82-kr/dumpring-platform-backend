@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
+from app.schemas import KstDateTime
 from app.schemas.jobs import JobPostResponse
 
 class FavoriteRegionCreate(BaseModel):
@@ -12,7 +13,7 @@ class FavoriteRegionResponse(BaseModel):
     user_id: int
     sido: str
     sigungu: str
-    created_at: datetime
+    created_at: KstDateTime
 
     class Config:
         orm_mode = True
@@ -27,10 +28,10 @@ class DispatchTicketResponse(BaseModel):
     accumulated_fare: int
     drive_distance_km: float
     drive_time_seconds: int
-    accepted_at: datetime
-    driving_started_at: Optional[datetime] = None
-    arrived_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    accepted_at: KstDateTime
+    driving_started_at: Optional[KstDateTime] = None
+    arrived_at: Optional[KstDateTime] = None
+    completed_at: Optional[KstDateTime] = None
     job_post: Optional[JobPostResponse] = None
 
     class Config:

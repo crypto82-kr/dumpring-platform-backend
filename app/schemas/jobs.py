@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from app.schemas import KstDateTime
 
 # --- DropOffRequest (하차지 매립 수용 공고) 스키마 ---
 
@@ -31,11 +32,11 @@ class DropOffRequestResponse(BaseModel):
     has_washing_facility: bool
     night_work_allowed: bool
     rain_work_allowed: bool
-    start_date: datetime
-    end_date: datetime
+    start_date: KstDateTime
+    end_date: KstDateTime
     status: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: KstDateTime
+    updated_at: KstDateTime
 
     class Config:
         from_attributes = True
@@ -81,11 +82,11 @@ class JobPostResponse(BaseModel):
     matched_drop_off_id: Optional[int] = None
     site_name: Optional[str] = None
     drop_off_name: Optional[str] = None
-    work_date: datetime
+    work_date: KstDateTime
     required_trucks: int
     status: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: KstDateTime
+    updated_at: KstDateTime
 
     # 추가 상세 정보 필드
     site_latitude: Optional[float] = None

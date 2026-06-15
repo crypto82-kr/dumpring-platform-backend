@@ -34,7 +34,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   List<dynamic> _openJobs = [];
   List<dynamic> _favorites = [];
   bool _isLoadingJobs = false;
-  Map<String, dynamic>? _activeTicket; // 진행 중인 배차 티켓
+  List<dynamic> _activeTickets = []; // 진행 중인 배차 티켓 목록
 
   // 날짜 필터
   DateTime? _selectedDate;
@@ -165,22 +165,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   Future<void> _checkActiveTicket() async {
     try {
       final response = await http.get(
-        Uri.parse("$_baseUrl/api/dispatch/active-ticket"),
+        Uri.parse("$_baseUrl/api/dispatch/active-tickets"),
         headers: {
           "Authorization": "Bearer ${widget.token}",
         },
       );
       if (response.statusCode == 200) {
-        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
-        if (ticket != null && ticket['id'] != null) {
-          setState(() {
-            _activeTicket = ticket;
-          });
-        } else {
-          setState(() {
-            _activeTicket = null;
-          });
-        }
+        final List<dynamic> tickets = jsonDecode(utf8.decode(response.bodyBytes));
+        setState(() {
+          _activeTickets = tickets;
+        });
       }
     } catch (e) {
       debugPrint("진행 중인 배차 확인 실패: $e");
@@ -521,11 +515,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               // 0. 진행 중인 배차 표시 (최상단)
-              if (_activeTicket != null)
+              if (_activeTickets.isNotEmpty)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                   sliver: SliverToBoxAdapter(
-                    child: _buildActiveTicketSection(),
+                    child: _buildActiveTicketsSection(),
                   ),
                 ),
 
@@ -860,216 +854,128 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       }
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primary.withAlpha(40), AppColors.warning.withAlpha(30)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DriverDispatchConfirmScreen(
+              user: widget.user,
+              token: widget.token,
+              job: jobPost,
+              isApproved: widget.isApproved,
+              ticket: ticket,
+            ),
+          ),
+        ).then((val) {
+          if (val == true) {
+            _checkActiveTicket();
+            _loadOpenJobs();
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary.withAlpha(40), AppColors.warning.withAlpha(30)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.primary.withAlpha(120), width: 1.5),
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withAlpha(120), width: 1.5),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusColor.withAlpha(50),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withAlpha(120)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.local_shipping_rounded, color: statusColor, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      statusLabel,
-                      style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              Text(
-                "작업일: $workDateStr",
-                style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Icon(Icons.circle, color: AppColors.primary, size: 10),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  "상차: $siteName",
-                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Icon(Icons.circle, color: AppColors.warning, size: 10),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  "하차: $dropOffName",
-                  style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          // 거리/시간/단가 요약
-          if (jobPost != null)
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Row(
               children: [
-                Icon(Icons.navigation_rounded, color: AppColors.textTertiary, size: 14),
-                const SizedBox(width: 4),
-                Text(
-                  jobPost['distance'] != null ? "${jobPost['distance']} km" : "거리 미정",
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: statusColor.withAlpha(50),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: statusColor.withAlpha(120)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.local_shipping_rounded, color: statusColor, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 12),
-                Icon(Icons.access_time_rounded, color: AppColors.textTertiary, size: 14),
-                const SizedBox(width: 4),
+                const Spacer(),
                 Text(
-                  jobPost['estimated_time'] != null ? "${jobPost['estimated_time']}분" : "시간 미정",
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(width: 12),
-                Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
-                const SizedBox(width: 4),
-                Text(
-                  jobPost['offered_unit_price'] != null ? "${_formatter(jobPost['offered_unit_price'])}원" : "단가 미정",
-                  style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold),
+                  "작업일: $workDateStr",
+                  style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              if (ticket['status'] == 'ACCEPTED') ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Icon(Icons.circle, color: AppColors.primary, size: 10),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _cancelActiveTicket(ticket),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                      side: BorderSide(color: AppColors.danger),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text("배차 취소", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  child: Text(
+                    "상차: $siteName",
+                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ),
-                const SizedBox(width: 12),
               ],
-              Expanded(
-                flex: ticket['status'] == 'ACCEPTED' ? 2 : 1,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => DriverMeterScreen(
-                          user: widget.user,
-                          token: widget.token,
-                          ticketId: ticket['id'],
-                          onDriveCompleted: (earnings) {
-                            setState(() {
-                              _isWaitingForDispatch = true;
-                              _todayWorkCount += 1;
-                              _todayEarnings += earnings;
-                              _monthlyEarnings += earnings;
-                            });
-                            _checkActiveTicket();
-                            _loadOpenJobs();
-                          },
-                        ),
-                      ),
-                    ).then((_) => _checkActiveTicket());
-                  },
-                  icon: Icon(ticket['status'] == 'ACCEPTED' ? Icons.play_arrow_rounded : Icons.navigation_rounded, size: 18),
-                  label: Text(ticket['status'] == 'ACCEPTED' ? "운행 시작하기" : "운행 계속하기", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.circle, color: AppColors.warning, size: 10),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "하차: $dropOffName",
+                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // 거리/시간/단가 요약
+            if (jobPost != null)
+              Row(
+                children: [
+                  Icon(Icons.navigation_rounded, color: AppColors.textTertiary, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    jobPost['distance'] != null ? "${jobPost['distance']} km" : "거리 미정",
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.access_time_rounded, color: AppColors.textTertiary, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    jobPost['estimated_time'] != null ? "${jobPost['estimated_time']}분" : "시간 미정",
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    jobPost['offered_unit_price'] != null ? "${_formatter(jobPost['offered_unit_price'])}원" : "단가 미정",
+                    style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // ── 배차 취소 API 호출 (개별 티켓 대응) ──
-  Future<void> _cancelActiveTicket(dynamic ticket) async {
-    if (ticket == null) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("배차 취소", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text("수락하신 배차를 취소하시겠습니까?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text("아니오", style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("예", style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      final response = await http.post(
-        Uri.parse("$_baseUrl/api/dispatch/tickets/${ticket['id']}/cancel"),
-        headers: {
-          "Authorization": "Bearer ${widget.token}",
-        },
-      );
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🚀 배차가 성공적으로 취소되었습니다.")),
-        );
-        _checkActiveTicket();
-        _loadOpenJobs();
-      } else {
-        final err = jsonDecode(utf8.decode(response.bodyBytes));
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("배차 취소 실패"),
-            content: Text(err['detail'] ?? "이미 다른 기사가 수락하였거나 취소할 수 없습니다."),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint("배차 취소 실패: $e");
-    }
-  }
   // ── 날짜 선택 헬퍼 ──
   bool _isDateSelected(DateTime? target) {
     if (_selectedDate == null && target == null) return true;
@@ -1304,7 +1210,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   children: [
                     Text("작업 예정일", style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
                     SizedBox(height: 2),
-                    Text(job['work_date'].toString().substring(0, 10), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    Text(_formatWorkDate(job['work_date']), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 ElevatedButton(
@@ -1406,5 +1312,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (Match m) => '${m[1]},',
         );
+  }
+
+  String _formatWorkDate(String? rawDate) {
+    if (rawDate == null || rawDate.isEmpty) return "날짜 미정";
+    try {
+      final parsed = DateTime.parse(rawDate);
+      final localDate = parsed.isUtc ? parsed.toLocal() : parsed;
+      return "${localDate.year}-${localDate.month.toString().padLeft(2, '0')}-${localDate.day.toString().padLeft(2, '0')}";
+    } catch (e) {
+      if (rawDate.length >= 10) {
+        return rawDate.substring(0, 10);
+      }
+      return rawDate;
+    }
   }
 }

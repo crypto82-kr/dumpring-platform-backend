@@ -10,6 +10,7 @@ class DriverDispatchConfirmScreen extends StatefulWidget {
   final String token;
   final Map<String, dynamic> job;
   final bool isApproved;
+  final Map<String, dynamic>? ticket;
 
   const DriverDispatchConfirmScreen({
     Key? key,
@@ -17,6 +18,7 @@ class DriverDispatchConfirmScreen extends StatefulWidget {
     required this.token,
     required this.job,
     this.isApproved = false,
+    this.ticket,
   }) : super(key: key);
 
   @override
@@ -26,6 +28,13 @@ class DriverDispatchConfirmScreen extends StatefulWidget {
 class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScreen> {
   String get _baseUrl => AppConfig.baseUrl;
   bool _isSubmitting = false;
+  Map<String, dynamic>? _ticket;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticket = widget.ticket;
+  }
 
   // 1회당 단가 포맷용
   String _formatCurrency(int amount) {
@@ -33,6 +42,20 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (Match m) => '${m[1]},',
         );
+  }
+
+  String _formatWorkDate(String? rawDate) {
+    if (rawDate == null || rawDate.isEmpty) return "날짜 미정";
+    try {
+      final parsed = DateTime.parse(rawDate);
+      final localDate = parsed.isUtc ? parsed.toLocal() : parsed;
+      return "${localDate.year}-${localDate.month.toString().padLeft(2, '0')}-${localDate.day.toString().padLeft(2, '0')}";
+    } catch (e) {
+      if (rawDate.length >= 10) {
+        return rawDate.substring(0, 10);
+      }
+      return rawDate;
+    }
   }
 
   Future<void> _acceptDispatch() async {
@@ -68,30 +91,16 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
       );
 
       if (response.statusCode == 201) {
-        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
-        
         if (!mounted) return;
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("🚀 오더 수락이 최종 확정되었습니다! 운행을 시작합니다."),
+            content: Text("🚀 배차 수락이 완료되었습니다. 내 배차 현황에서 확인 가능합니다."),
             backgroundColor: AppColors.primary,
           ),
         );
 
-        // 운행 미터기 화면으로 바로 전환
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => DriverMeterScreen(
-              user: widget.user,
-              token: widget.token,
-              ticketId: ticket['id'],
-              onDriveCompleted: (earnings) {
-                // 완료 후 홈으로 무사히 팝 처리
-              },
-            ),
-          ),
-        );
+        Navigator.pop(context, true);
       } else {
         final err = jsonDecode(utf8.decode(response.bodyBytes));
         _showErrorDialog(err['detail'] ?? "이미 다른 기사님이 수락했거나 만료된 공고입니다.");
@@ -122,6 +131,93 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
         ],
       ),
     );
+  }
+
+  Future<void> _cancelActiveTicket() async {
+    if (_ticket == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("배차 취소", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text("수락하신 배차를 취소하시겠습니까?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text("아니오", style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("예", style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${_ticket!['id']}/cancel"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("🚀 배차가 성공적으로 취소되었습니다.")),
+        );
+        Navigator.pop(context, true);
+      } else {
+        final err = jsonDecode(utf8.decode(response.bodyBytes));
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("배차 취소 실패"),
+            content: Text(err['detail'] ?? "이미 다른 기사가 수락하였거나 취소할 수 없습니다."),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("배차 취소 실패: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  void _startOrContinueDriving() {
+    if (_ticket == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => DriverMeterScreen(
+          user: widget.user,
+          token: widget.token,
+          ticketId: _ticket!['id'],
+          onDriveCompleted: (earnings) {
+            Navigator.pop(context, true);
+          },
+        ),
+      ),
+    ).then((val) {
+      if (val == true) {
+        Navigator.pop(context, true);
+      }
+    });
   }
 
   @override
@@ -161,7 +257,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "배차 현장 확인",
+          widget.ticket != null ? "배차 현황 상세" : "배차 현장 확인",
           style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 17),
         ),
         centerTitle: true,
@@ -330,7 +426,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                       children: [
                         _buildDetailRow("토사 종류", materialType, Icons.category_rounded),
                         Divider(color: AppColors.divider, height: 24),
-                        _buildDetailRow("작업 예정일", widget.job['work_date'].toString().substring(0, 10), Icons.calendar_today_rounded),
+                        _buildDetailRow("작업 예정일", _formatWorkDate(widget.job['work_date']), Icons.calendar_today_rounded),
                         Divider(color: AppColors.divider, height: 24),
                         _buildDetailRow("필요 차종", truckType, Icons.local_shipping_rounded),
                       ],
@@ -382,68 +478,143 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                   SizedBox(height: 36),
 
                   // 5. 작업 거절 & 수락 버튼 (바텀 액션 바 스타일)
-                  Row(
-                    children: [
-                      // 거절 단추
-                      Expanded(
-                        flex: 3,
-                        child: InkWell(
-                          onTap: _isSubmitting ? null : () => Navigator.pop(context),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.divider),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              "취소",
-                              style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      // 수락 및 즉시 운행 단추
-                      Expanded(
-                        flex: 7,
-                        child: InkWell(
-                          onTap: _isSubmitting ? null : _acceptDispatch,
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            height: 60,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [AppColors.warning, AppColors.warning.withAlpha(200)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                  if (_ticket == null)
+                    Row(
+                      children: [
+                        // 거절 단추
+                        Expanded(
+                          flex: 3,
+                          child: InkWell(
+                            onTap: _isSubmitting ? null : () => Navigator.pop(context),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColors.divider),
                               ),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.warning.withAlpha(76),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
+                              alignment: Alignment.center,
+                              child: Text(
+                                "취소",
+                                style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
                             ),
-                            alignment: Alignment.center,
-                            child: _isSubmitting
-                                ? CircularProgressIndicator(color: AppColors.textPrimary)
-                                : Text(
-                                    "배차",
-                                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15),
-                                  ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        SizedBox(width: 12),
+                        // 수락 및 즉시 운행 단추
+                        Expanded(
+                          flex: 7,
+                          child: InkWell(
+                            onTap: _isSubmitting ? null : _acceptDispatch,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              height: 60,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [AppColors.warning, AppColors.warning.withAlpha(200)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.warning.withAlpha(76),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: _isSubmitting
+                                  ? CircularProgressIndicator(color: AppColors.textPrimary)
+                                  : Text(
+                                      "배차",
+                                      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        if (_ticket!['status'] == 'ACCEPTED') ...[
+                          Expanded(
+                            child: InkWell(
+                              onTap: _isSubmitting ? null : _cancelActiveTicket,
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppColors.danger),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Text(
+                                  "배차 취소",
+                                  style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold, fontSize: 15),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(
+                          flex: _ticket!['status'] == 'ACCEPTED' ? 2 : 1,
+                          child: InkWell(
+                            onTap: _isSubmitting ? null : _startOrContinueDriving,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              height: 60,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [AppColors.primary, AppColors.primary.withAlpha(200)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primary.withAlpha(76),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                _ticket!['status'] == 'ACCEPTED' ? "운행 시작하기" : "운행 계속하기",
+                                style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white), fontWeight: FontWeight.w800, fontSize: 15),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
+            if (_isSubmitting)
+              Container(
+                color: Colors.black.withAlpha(128),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: AppColors.primary),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "요청을 처리 중입니다...",
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),

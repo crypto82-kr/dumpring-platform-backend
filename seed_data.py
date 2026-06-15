@@ -2,7 +2,8 @@ import asyncio
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+KST = timezone(timedelta(hours=9))
 from app.models import Base, User, ConstructionSite, SiteEmployee, UnloadingSite, Car, Driver, CommonCode, DropOff, DropOffRequest, JobPost
 from app.core.security import get_password_hash
 from dotenv import load_dotenv
@@ -325,7 +326,7 @@ async def seed_data():
                     payer_type=payer,
                     memo=memo,
                     matched_drop_off_id=m_do_id,
-                    work_date=datetime.now() + timedelta(days=days),
+                    work_date=datetime.now(tz=KST) + timedelta(days=days),
                     required_trucks=req_trucks,
                     status="OPEN"
                 )
