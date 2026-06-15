@@ -484,10 +484,11 @@ async def start_driving(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.id == ticket_id,
         DispatchTicket.driver_id == current_user.id
-    )
+    ).options(selectinload(DispatchTicket.job_post))
     result = await db.execute(query)
     ticket = result.scalars().first()
 
@@ -521,10 +522,11 @@ async def cancel_dispatch(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.id == ticket_id,
         DispatchTicket.driver_id == current_user.id
-    )
+    ).options(selectinload(DispatchTicket.job_post))
     result = await db.execute(query)
     ticket = result.scalars().first()
 
@@ -558,10 +560,11 @@ async def arrive_at_dropoff(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.id == ticket_id,
         DispatchTicket.driver_id == current_user.id
-    )
+    ).options(selectinload(DispatchTicket.job_post))
     result = await db.execute(query)
     ticket = result.scalars().first()
 
