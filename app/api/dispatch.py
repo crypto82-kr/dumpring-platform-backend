@@ -469,9 +469,16 @@ async def accept_job(
     )
     db.add(new_ticket)
     await db.commit()
-    await db.refresh(new_ticket)
-
-    return new_ticket
+    
+    # 직렬화 에러(500) 방지를 위해 selectinload 옵션으로 job_post와 관계 데이터를 함께 다시 조회
+    from sqlalchemy.orm import selectinload
+    res = await db.execute(
+        select(DispatchTicket)
+        .where(DispatchTicket.id == new_ticket.id)
+        .options(selectinload(DispatchTicket.job_post))
+    )
+    ticket_to_return = res.scalars().first()
+    return ticket_to_return
 
 
 @router.post(
