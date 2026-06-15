@@ -103,8 +103,11 @@ async def get_open_dispatch_jobs(
     if work_date:
         try:
             target_date = date.fromisoformat(work_date)
-            day_start = datetime.combine(target_date, datetime.min.time())
-            day_end = datetime.combine(target_date + timedelta(days=1), datetime.min.time())
+            # KST(UTC+9) 기준으로 해당 날짜의 시작과 끝을 UTC 시각으로 변환하여 조회
+            from datetime import timezone as tz, timedelta as td
+            kst = tz(td(hours=9))
+            day_start = datetime.combine(target_date, datetime.min.time()).replace(tzinfo=kst)
+            day_end = datetime.combine(target_date + td(days=1), datetime.min.time()).replace(tzinfo=kst)
             query = query.where(JobPost.work_date >= day_start, JobPost.work_date < day_end)
         except ValueError:
             pass  # 잘못된 날짜 형식은 무시
@@ -428,14 +431,20 @@ async def accept_job(
     active_tickets_res = await db.execute(active_tickets_query)
     active_tickets = active_tickets_res.scalars().all()
 
+    from datetime import timezone as tz, timedelta as td
+    kst = tz(td(hours=9))
+
     for at in active_tickets:
         at_job_res = await db.execute(select(JobPost).where(JobPost.id == at.job_post_id))
         at_job = at_job_res.scalars().first()
         if at_job and at_job.work_date and job.work_date:
-            if at_job.work_date.date() == job.work_date.date():
+            # 두 timezone-aware datetime을 한국 시간대(KST)로 변환하여 날짜가 같은지 비교
+            at_date = at_job.work_date.astimezone(kst).date() if at_job.work_date.tzinfo else at_job.work_date.date()
+            job_date = job.work_date.astimezone(kst).date() if job.work_date.tzinfo else job.work_date.date()
+            if at_date == job_date:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"해당 작업일({job.work_date.strftime('%Y-%m-%d')})에 이미 수락 또는 운행 중인 배차가 있습니다. 완료 또는 취소 후 신청해 주세요."
+                    detail=f"해당 작업일({job_date.strftime('%Y-%m-%d')})에 이미 수락 또는 운행 중인 배차가 있습니다. 완료 또는 취소 후 신청해 주세요."
                 )
 
     # 3.2. 동일 오더 중복 수락 방지
