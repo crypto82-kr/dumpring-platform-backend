@@ -34,7 +34,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   List<dynamic> _openJobs = [];
   List<dynamic> _favorites = [];
   bool _isLoadingJobs = false;
-  List<dynamic> _activeTickets = []; // 진행 중인 배차 티켓 목록
+  Map<String, dynamic>? _activeTicket; // 진행 중인 배차 티켓
 
   // 날짜 필터
   DateTime? _selectedDate;
@@ -165,16 +165,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   Future<void> _checkActiveTicket() async {
     try {
       final response = await http.get(
-        Uri.parse("$_baseUrl/api/dispatch/active-tickets"),
+        Uri.parse("$_baseUrl/api/dispatch/active-ticket"),
         headers: {
           "Authorization": "Bearer ${widget.token}",
         },
       );
       if (response.statusCode == 200) {
-        final List<dynamic> tickets = jsonDecode(utf8.decode(response.bodyBytes));
-        setState(() {
-          _activeTickets = tickets;
-        });
+        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
+        if (ticket != null && ticket['id'] != null) {
+          setState(() {
+            _activeTicket = ticket;
+          });
+        } else {
+          setState(() {
+            _activeTicket = null;
+          });
+        }
       }
     } catch (e) {
       debugPrint("진행 중인 배차 확인 실패: $e");
@@ -515,11 +521,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               // 0. 진행 중인 배차 표시 (최상단)
-              if (_activeTickets.isNotEmpty)
+              if (_activeTicket != null)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                   sliver: SliverToBoxAdapter(
-                    child: _buildActiveTicketsSection(),
+                    child: _buildActiveTicketSection(),
                   ),
                 ),
 
@@ -774,7 +780,38 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
           Padding(
             padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
             child: Wrap(
-            // ── 진행 중인 배차 티켓 상단 섹션 (복수형 지원) ──
+              spacing: 8.0, // 칩 간 가로 간격
+              runSpacing: 8.0, // 줄 바꿈 시 세로 간격
+              children: _favorites.map((fav) {
+                final String displayLabel = fav['sigungu'] == "전체"
+                    ? "${fav['sido']} 전체"
+                    : "${fav['sido']} ${fav['sigungu']}";
+                return InputChip(
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  label: Text(displayLabel, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: AppColors.surface,
+                  selectedColor: AppColors.primaryLight,
+                  selected: _selectedSido == fav['sido'] && _selectedSigungu == fav['sigungu'],
+                  onPressed: () {
+                    setState(() {
+                      _selectedSido = fav['sido'];
+                      _selectedSigungu = fav['sigungu'];
+                      _useFavoritesFilter = false;
+                    });
+                    _loadOpenJobs();
+                  },
+                  onDeleted: () => _deleteFavorite(fav['id']),
+                  deleteIconColor: AppColors.danger,
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── 진행 중인 배차 티켓 상단 섹션 (복수형 지원) ──
   Widget _buildActiveTicketsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -953,6 +990,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                               _todayEarnings += earnings;
                               _monthlyEarnings += earnings;
                             });
+                            _checkActiveTicket();
                             _loadOpenJobs();
                           },
                         ),
