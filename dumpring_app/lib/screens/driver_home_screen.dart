@@ -175,12 +175,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         if (ticket != null && ticket['id'] != null) {
           setState(() {
             _activeTicket = ticket;
-            _isWaitingForDispatch = false;
           });
         } else {
           setState(() {
             _activeTicket = null;
-            _isWaitingForDispatch = true;
           });
         }
       }
@@ -535,10 +533,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                 padding: const EdgeInsets.all(20.0),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    // 1. 날짜 필터
-                    _buildDateFilterChips(),
-                    const SizedBox(height: 16),
-                    // 2. 시군구 상세 검색 필터 탭 (전국 시군구 필터링 및 나의 관심 지역 통합 UI)
+                    // 검색 필터 패널 (날짜 필터 통합)
                     _buildLocationFilterPanel(),
                     const SizedBox(height: 20),
                   ]),
@@ -674,6 +669,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               ],
             ),
             SizedBox(height: 12),
+            // 날짜 필터 (검색 패널 통합)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _dateChip("전체", null),
+                  _dateChip("오늘", DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)),
+                  _dateChip("내일", DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 1))),
+                  _dateChip("모레", DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 2))),
+                  _datePickerChip(),
+                ],
+              ),
+            ),
+            SizedBox(height: 12),
             if (!_useFavoritesFilter) ...[
               Row(
                 children: [
@@ -730,7 +739,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                 ],
               ),
             ],
-            if (_selectedSido != null || _selectedSigungu != null || _searchController.text.isNotEmpty)
+            if (_selectedSido != null || _selectedSigungu != null || _searchController.text.isNotEmpty || _selectedDate != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: TextButton.icon(
@@ -738,6 +747,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                     setState(() {
                       _selectedSido = null;
                       _selectedSigungu = null;
+                      _selectedDate = null;
                       _searchController.clear();
                     });
                     _loadOpenJobs();
@@ -955,135 +965,89 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       ),
     );
   }
+  // ── 날짜 선택 헬퍼 ──
+  bool _isDateSelected(DateTime? target) {
+    if (_selectedDate == null && target == null) return true;
+    if (_selectedDate == null || target == null) return false;
+    return _selectedDate!.year == target.year &&
+        _selectedDate!.month == target.month &&
+        _selectedDate!.day == target.day;
+  }
 
-  // ── 날짜 필터 칩 UI ──
-  Widget _buildDateFilterChips() {
+  Widget _dateChip(String label, DateTime? date) {
+    final selected = _isDateSelected(date);
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        showCheckmark: false,
+        label: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+        selected: selected,
+        selectedColor: AppColors.primaryLight,
+        backgroundColor: AppColors.surface,
+        side: BorderSide(color: selected ? AppColors.primary : AppColors.divider),
+        labelStyle: TextStyle(
+          color: selected ? AppColors.primary : AppColors.textSecondary,
+          fontWeight: FontWeight.bold,
+        ),
+        onSelected: (_) {
+          setState(() { _selectedDate = date; });
+          _loadOpenJobs(isRefresh: true);
+        },
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+      ),
+    );
+  }
+
+  Widget _datePickerChip() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
-    final dayAfter = today.add(const Duration(days: 2));
+    final isCustom = _selectedDate != null &&
+        !_isDateSelected(today) &&
+        !_isDateSelected(today.add(const Duration(days: 1))) &&
+        !_isDateSelected(today.add(const Duration(days: 2)));
 
-    bool isSelected(DateTime? target) {
-      if (_selectedDate == null && target == null) return true;
-      if (_selectedDate == null || target == null) return false;
-      return _selectedDate!.year == target.year &&
-          _selectedDate!.month == target.month &&
-          _selectedDate!.day == target.day;
-    }
-
-    Widget chipBtn(String label, DateTime? date, {IconData? icon}) {
-      final selected = isSelected(date);
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: ChoiceChip(
-          avatar: icon != null ? Icon(icon, size: 14, color: selected ? AppColors.primary : AppColors.textTertiary) : null,
-          label: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          selected: selected,
-          selectedColor: AppColors.primaryLight,
-          backgroundColor: AppColors.surface,
-          side: BorderSide(color: selected ? AppColors.primary : AppColors.divider),
-          labelStyle: TextStyle(
-            color: selected ? AppColors.primary : AppColors.textSecondary,
-            fontWeight: FontWeight.bold,
-          ),
-          onSelected: (_) {
-            setState(() {
-              _selectedDate = date;
-            });
-            _loadOpenJobs(isRefresh: true);
-          },
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
+    return ActionChip(
+      avatar: isCustom ? null : Icon(Icons.calendar_month_rounded, size: 14, color: AppColors.textTertiary),
+      label: Text(
+        isCustom ? DateFormat('M/d (E)').format(_selectedDate!) : "달력",
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: isCustom ? AppColors.primary : AppColors.textSecondary,
         ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("📅 작업 예정일 필터", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-        const SizedBox(height: 10),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              chipBtn("전체", null),
-              chipBtn("오늘 (${DateFormat('M/d').format(today)})", today),
-              chipBtn("내일 (${DateFormat('M/d').format(tomorrow)})", tomorrow),
-              chipBtn("모레 (${DateFormat('M/d').format(dayAfter)})", dayAfter),
-              // 달력 선택 버튼
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ActionChip(
-                  avatar: Icon(Icons.calendar_month_rounded, size: 14, color: AppColors.textTertiary),
-                  label: Text(
-                    _selectedDate != null &&
-                        !isSelected(today) &&
-                        !isSelected(tomorrow) &&
-                        !isSelected(dayAfter) &&
-                        _selectedDate != null
-                      ? DateFormat('M/d (E)').format(_selectedDate!)
-                      : "날짜 선택",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _selectedDate != null &&
-                          !isSelected(today) &&
-                          !isSelected(tomorrow) &&
-                          !isSelected(dayAfter)
-                        ? AppColors.primary
-                        : AppColors.textSecondary,
-                    ),
-                  ),
-                  backgroundColor: _selectedDate != null &&
-                      !isSelected(today) &&
-                      !isSelected(tomorrow) &&
-                      !isSelected(dayAfter)
-                    ? AppColors.primaryLight
-                    : AppColors.surface,
-                  side: BorderSide(
-                    color: _selectedDate != null &&
-                        !isSelected(today) &&
-                        !isSelected(tomorrow) &&
-                        !isSelected(dayAfter)
-                      ? AppColors.primary
-                      : AppColors.divider,
-                  ),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _selectedDate ?? today,
-                      firstDate: today.subtract(const Duration(days: 30)),
-                      lastDate: today.add(const Duration(days: 90)),
-                      builder: (context, child) {
-                        return Theme(
-                          data: Theme.of(context).copyWith(
-                            colorScheme: ColorScheme.dark(
-                              primary: AppColors.primary,
-                              onPrimary: Colors.white,
-                              surface: AppColors.surface,
-                              onSurface: AppColors.textPrimary,
-                            ),
-                          ),
-                          child: child!,
-                        );
-                      },
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        _selectedDate = picked;
-                      });
-                      _loadOpenJobs(isRefresh: true);
-                    }
-                  },
+      ),
+      backgroundColor: isCustom ? AppColors.primaryLight : AppColors.surface,
+      side: BorderSide(color: isCustom ? AppColors.primary : AppColors.divider),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      onPressed: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate ?? today,
+          firstDate: today.subtract(const Duration(days: 30)),
+          lastDate: today.add(const Duration(days: 90)),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.dark(
+                  primary: AppColors.primary,
+                  onPrimary: Colors.white,
+                  surface: AppColors.surface,
+                  onSurface: AppColors.textPrimary,
                 ),
               ),
-            ],
-          ),
-        ),
-      ],
+              child: child!,
+            );
+          },
+        );
+        if (picked != null) {
+          setState(() { _selectedDate = picked; });
+          _loadOpenJobs(isRefresh: true);
+        }
+      },
     );
   }
 
@@ -1239,23 +1203,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   ],
                 ),
                 ElevatedButton(
-                  onPressed: _isWaitingForDispatch
-                      ? () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (context) => DriverDispatchConfirmScreen(
-                                  user: widget.user,
-                                  token: widget.token,
-                                  job: job,
-                                  isApproved: widget.isApproved,
-                                ),
-                            ),
-                          ).then((_) {
-                            _checkActiveTicket();
-                            _loadOpenJobs();
-                          });
-                        }
-                      : null,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (context) => DriverDispatchConfirmScreen(
+                                user: widget.user,
+                                token: widget.token,
+                                job: job,
+                                isApproved: widget.isApproved,
+                              ),
+                      ),
+                    ).then((_) {
+                      _checkActiveTicket();
+                      _loadOpenJobs();
+                    });
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.warning,
                     disabledBackgroundColor: AppColors.divider,
