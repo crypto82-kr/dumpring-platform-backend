@@ -283,6 +283,81 @@ async def delete_favorite_region(
 # ==========================================
 
 @router.get(
+    "/active-tickets",
+    response_model=List[DispatchTicketResponse],
+    summary="기사의 모든 진행 중인 배차 티켓 조회"
+)
+async def get_active_tickets(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    from sqlalchemy.orm import selectinload
+    query = select(DispatchTicket).where(
+        DispatchTicket.driver_id == current_user.id,
+        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+    )
+    
+    result = await db.execute(query)
+    tickets = result.scalars().all()
+
+    # 운행 우선순위 결정: DRIVING -> ARRIVED -> ACCEPTED 순
+    def get_priority(t):
+        if t.status == "DRIVING":
+            return 0
+        elif t.status == "ARRIVED":
+            return 1
+        return 2
+
+    for ticket in tickets:
+        if ticket.job_post:
+            j = ticket.job_post
+            if j.offered_unit_price is None and j.drop_off_request:
+                j.offered_unit_price = j.drop_off_request.unit_price
+            if j.site:
+                j.site_name = j.site.company_name
+                j.site_latitude = j.site.latitude
+                j.site_longitude = j.site.longitude
+                if "현대" in j.site.company_name:
+                    j.site_address = "인천 연수구 송도동 100-2"
+                elif "GS" in j.site.company_name:
+                    j.site_address = "경기 김포시 대곶면 사토매립장 부근"
+                else:
+                    j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
+            if j.matched_drop_off:
+                j.drop_off_name = j.matched_drop_off.name
+                j.drop_off_latitude = j.matched_drop_off.latitude
+                j.drop_off_longitude = j.matched_drop_off.longitude
+                j.drop_off_address = j.matched_drop_off.address
+
+            if j.distance is None or j.estimated_time is None:
+                if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
+                    import math
+                    lat1, lon1 = j.site.latitude, j.site.longitude
+                    lat2, lon2 = j.matched_drop_off.latitude, j.matched_drop_off.longitude
+                    R = 6371.0
+                    dlat = math.radians(lat2 - lat1)
+                    dlon = math.radians(lon2 - lon1)
+                    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+                    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                    j.distance = round(R * c, 1)
+                    j.estimated_time = int(j.distance * 1.5 + 5)
+
+    # 정렬: 운행 우선순위가 높은 순, 같은 순위면 작업일이 이른 순
+    tickets.sort(key=lambda t: (get_priority(t), t.job_post.work_date if t.job_post and t.job_post.work_date else datetime.max))
+    return tickets
+
+
+@router.get(
     "/active-ticket",
     response_model=Optional[DispatchTicketResponse],
     summary="기사의 현재 진행 중인 배차 티켓 조회"

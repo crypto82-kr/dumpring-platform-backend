@@ -34,7 +34,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   List<dynamic> _openJobs = [];
   List<dynamic> _favorites = [];
   bool _isLoadingJobs = false;
-  Map<String, dynamic>? _activeTicket; // 진행 중인 배차 티켓
+  List<dynamic> _activeTickets = []; // 진행 중인 배차 티켓 목록
 
   // 날짜 필터
   DateTime? _selectedDate;
@@ -165,22 +165,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   Future<void> _checkActiveTicket() async {
     try {
       final response = await http.get(
-        Uri.parse("$_baseUrl/api/dispatch/active-ticket"),
+        Uri.parse("$_baseUrl/api/dispatch/active-tickets"),
         headers: {
           "Authorization": "Bearer ${widget.token}",
         },
       );
       if (response.statusCode == 200) {
-        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
-        if (ticket != null && ticket['id'] != null) {
-          setState(() {
-            _activeTicket = ticket;
-          });
-        } else {
-          setState(() {
-            _activeTicket = null;
-          });
-        }
+        final List<dynamic> tickets = jsonDecode(utf8.decode(response.bodyBytes));
+        setState(() {
+          _activeTickets = tickets;
+        });
       }
     } catch (e) {
       debugPrint("진행 중인 배차 확인 실패: $e");
@@ -521,11 +515,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               // 0. 진행 중인 배차 표시 (최상단)
-              if (_activeTicket != null)
+              if (_activeTickets.isNotEmpty)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                   sliver: SliverToBoxAdapter(
-                    child: _buildActiveTicketSection(),
+                    child: _buildActiveTicketsSection(),
                   ),
                 ),
 
@@ -780,40 +774,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
           Padding(
             padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
             child: Wrap(
-              spacing: 8.0, // 칩 간 가로 간격
-              runSpacing: 8.0, // 줄 바꿈 시 세로 간격
-              children: _favorites.map((fav) {
-                final String displayLabel = fav['sigungu'] == "전체"
-                    ? "${fav['sido']} 전체"
-                    : "${fav['sido']} ${fav['sigungu']}";
-                return InputChip(
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                  label: Text(displayLabel, style: const TextStyle(fontSize: 11)),
-                  backgroundColor: AppColors.surface,
-                  selectedColor: AppColors.primaryLight,
-                  selected: _selectedSido == fav['sido'] && _selectedSigungu == fav['sigungu'],
-                  onPressed: () {
-                    setState(() {
-                      _selectedSido = fav['sido'];
-                      _selectedSigungu = fav['sigungu'];
-                      _useFavoritesFilter = false;
-                    });
-                    _loadOpenJobs();
-                  },
-                  onDeleted: () => _deleteFavorite(fav['id']),
-                  deleteIconColor: AppColors.danger,
-                );
-              }).toList(),
-            ),
-          ),
+            // ── 진행 중인 배차 티켓 상단 섹션 (복수형 지원) ──
+  Widget _buildActiveTicketsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          "📅 내 배차 현황 (${_activeTickets.length}건)",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 10),
+        ..._activeTickets.map((ticket) => Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: _buildSingleActiveTicketCard(ticket),
+        )).toList(),
       ],
     );
   }
 
-  // ── 진행 중인 배차 티켓 상단 섹션 ──
-  Widget _buildActiveTicketSection() {
-    final ticket = _activeTicket!;
+  Widget _buildSingleActiveTicketCard(dynamic ticket) {
     final jobPost = ticket['job_post'];
 
     final String siteName = jobPost?['site_name'] ?? '현장명 없음';
@@ -830,6 +809,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         : ticket['status'] == 'ARRIVED'
             ? AppColors.warning
             : Colors.green;
+
+    // 공고 작업 예정일 정보 포맷팅 추가
+    String workDateStr = "날짜 미정";
+    if (jobPost?['work_date'] != null) {
+      try {
+        final parsedDate = DateTime.parse(jobPost['work_date']);
+        // 로컬 시각(KST) 변환
+        final kstDate = parsedDate.toLocal();
+        workDateStr = "${kstDate.month}/${kstDate.day} (${['월', '화', '수', '목', '금', '토', '일'][kstDate.weekday - 1]})";
+      } catch (e) {
+        workDateStr = jobPost['work_date'].toString().substring(0, 10);
+      }
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -868,7 +860,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               ),
               const Spacer(),
               Text(
-                "내 현재 배차",
+                "작업일: $workDateStr",
                 style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
               ),
             ],
@@ -927,13 +919,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               ],
             ),
           const SizedBox(height: 14),
-          const SizedBox(height: 14),
           Row(
             children: [
               if (ticket['status'] == 'ACCEPTED') ...[
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: _cancelActiveTicket,
+                    onPressed: () => _cancelActiveTicket(ticket),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.danger,
                       side: BorderSide(color: AppColors.danger),
@@ -957,7 +948,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                           ticketId: ticket['id'],
                           onDriveCompleted: (earnings) {
                             setState(() {
-                              _activeTicket = null;
                               _isWaitingForDispatch = true;
                               _todayWorkCount += 1;
                               _todayEarnings += earnings;
@@ -986,9 +976,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     );
   }
 
-  // ── 배차 취소 API 호출 ──
-  Future<void> _cancelActiveTicket() async {
-    final ticket = _activeTicket;
+  // ── 배차 취소 API 호출 (개별 티켓 대응) ──
+  Future<void> _cancelActiveTicket(dynamic ticket) async {
     if (ticket == null) return;
 
     final confirm = await showDialog<bool>(
@@ -1024,9 +1013,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("🚀 배차가 성공적으로 취소되었습니다.")),
         );
-        setState(() {
-          _activeTicket = null;
-        });
+        _checkActiveTicket();
         _loadOpenJobs();
       } else {
         final err = jsonDecode(utf8.decode(response.bodyBytes));
