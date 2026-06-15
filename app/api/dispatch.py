@@ -302,10 +302,25 @@ async def get_active_ticket(
         selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
-    ).order_by(DispatchTicket.accepted_at.desc())
+    )
     
     result = await db.execute(query)
-    ticket = result.scalars().first()
+    tickets = result.scalars().all()
+    
+    ticket = None
+    if tickets:
+        # DRIVING 우선 -> ARRIVED 우선 -> ACCEPTED 중에는 accepted_at 최신순
+        driving_tickets = [t for t in tickets if t.status == "DRIVING"]
+        arrived_tickets = [t for t in tickets if t.status == "ARRIVED"]
+        accepted_tickets = [t for t in tickets if t.status == "ACCEPTED"]
+        if driving_tickets:
+            ticket = driving_tickets[0]
+        elif arrived_tickets:
+            ticket = arrived_tickets[0]
+        elif accepted_tickets:
+            # accepted_at 역순(최신순) 정렬
+            accepted_tickets.sort(key=lambda t: t.accepted_at, reverse=True)
+            ticket = accepted_tickets[0]
 
     if ticket and ticket.job_post:
         j = ticket.job_post
@@ -404,39 +419,23 @@ async def accept_job(
             detail="플랫폼 관리자의 가입 서류 심사가 대기 중이거나 반려되었습니다. 승인 완료 후 배차 수락이 가능합니다."
         )
 
-    # 3. 현재 운행 중(DRIVING/ARRIVED)인 오더가 있으면 신규 수락 차단
-    driving_ticket = select(DispatchTicket).where(
+    # 3. 같은 작업일에 이미 진행 중이거나 수락한 배차(ACCEPTED, DRIVING, ARRIVED)가 있으면 차단
+    # (이를 통해 다른 날짜의 배차는 하루에 최대 1개씩 수락할 수 있도록 허용)
+    active_tickets_query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["DRIVING", "ARRIVED"])
+        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
     )
-    driving_res = await db.execute(driving_ticket)
-    if driving_res.scalars().first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="현재 운행 중인 오더가 있습니다. 운행 완료 후 신규 배차를 수락해 주세요."
-        )
+    active_tickets_res = await db.execute(active_tickets_query)
+    active_tickets = active_tickets_res.scalars().all()
 
-    # 3.1. 같은 작업일에 이미 수락(ACCEPTED)한 배차가 있으면 차단
-    from sqlalchemy.orm import selectinload as _sl
-    accepted_tickets_query = select(DispatchTicket).join(
-        JobPost, DispatchTicket.job_post_id == JobPost.id
-    ).where(
-        DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status == "ACCEPTED"
-    )
-    accepted_res = await db.execute(accepted_tickets_query)
-    accepted_tickets = accepted_res.scalars().all()
-
-    # 수락하려는 공고의 작업일과 동일한 날짜에 이미 수락한 건이 있는지 확인
-    for at in accepted_tickets:
-        # accepted ticket의 job_post를 조회
+    for at in active_tickets:
         at_job_res = await db.execute(select(JobPost).where(JobPost.id == at.job_post_id))
         at_job = at_job_res.scalars().first()
         if at_job and at_job.work_date and job.work_date:
             if at_job.work_date.date() == job.work_date.date():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"같은 작업일({job.work_date.strftime('%Y-%m-%d')})에 이미 수락한 배차가 있습니다. 완료 또는 취소 후 신청해 주세요."
+                    detail=f"해당 작업일({job.work_date.strftime('%Y-%m-%d')})에 이미 수락 또는 운행 중인 배차가 있습니다. 완료 또는 취소 후 신청해 주세요."
                 )
 
     # 3.2. 동일 오더 중복 수락 방지
