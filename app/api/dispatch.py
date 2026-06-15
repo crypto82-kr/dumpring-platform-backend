@@ -354,7 +354,19 @@ async def accept_job(
             detail="플랫폼 관리자의 가입 서류 심사가 대기 중이거나 반려되었습니다. 승인 완료 후 배차 수락이 가능합니다."
         )
 
-    # 3. 중복 수락 방지
+    # 3. 다른 모든 오더 포함하여 진행 중인 활성 배차 중복 수락 원천 차단
+    active_any_ticket = select(DispatchTicket).where(
+        DispatchTicket.driver_id == current_user.id,
+        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+    )
+    active_any_res = await db.execute(active_any_ticket)
+    if active_any_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 다른 배차를 수락하여 주행/진행 중인 오더가 있습니다. 완료 또는 취소 후 신청해 주세요."
+        )
+
+    # 3.2. 동일 오더 중복 수락 방지
     dup_ticket = select(DispatchTicket).where(
         DispatchTicket.job_post_id == job_post_id,
         DispatchTicket.driver_id == current_user.id,

@@ -168,6 +168,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       if (response.statusCode == 200) {
         final ticket = jsonDecode(utf8.decode(response.bodyBytes));
         if (ticket != null && ticket['id'] != null) {
+          setState(() {
+            _isWaitingForDispatch = false;
+          });
+          if (!mounted) return;
           showDialog(
             context: context,
             barrierDismissible: false,
@@ -190,6 +194,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                           token: widget.token,
                           ticketId: ticket['id'],
                           onDriveCompleted: (earnings) {
+                            setState(() {
+                              _isWaitingForDispatch = true;
+                            });
                             _loadOpenJobs();
                           },
                         ),
@@ -205,6 +212,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               ],
             ),
           );
+        } else {
+          setState(() {
+            _isWaitingForDispatch = true;
+          });
         }
       }
     } catch (e) {
@@ -969,7 +980,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                                   isApproved: widget.isApproved,
                                 ),
                             ),
-                          ).then((_) => _loadOpenJobs());
+                          ).then((_) {
+                            _checkActiveTicket();
+                            _loadOpenJobs();
+                          });
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
