@@ -8,7 +8,7 @@ from datetime import datetime, date, timedelta
 from app.core.db import get_db
 from app.models import (
     User, JobPost, DropOff, DropOffRequest, ConstructionSite, 
-    DriverFavoriteRegion, DispatchTicket, Driver, Car
+    DriverFavoriteRegion, DispatchTicket, Driver, Car, CommonCode
 )
 from app.api.auth import get_current_user
 from app.schemas.dispatch import (
@@ -18,6 +18,20 @@ from app.schemas.dispatch import (
 from app.schemas.jobs import JobPostResponse
 
 router = APIRouter()
+
+async def validate_dispatch_status(status_code: str, db: AsyncSession) -> None:
+    """공통코드(common_codes) 테이블에 활성화된 DISPATCH_STATUS 코드가 존재하는지 검증"""
+    query = select(CommonCode).where(
+        CommonCode.group_code == "DISPATCH_STATUS",
+        CommonCode.code == status_code,
+        CommonCode.is_active == True
+    )
+    result = await db.execute(query)
+    if not result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"유효하지 않거나 비활성화된 운행 상태 코드입니다: {status_code}"
+        )
 
 # ==========================================
 # 1. 시군구 검색 및 즐겨찾기 지역 배차 조회 API
@@ -536,6 +550,7 @@ async def accept_job(
         )
 
     # 4. 개별 운행 매칭 티켓 발급
+    await validate_dispatch_status("ACCEPTED", db)
     new_ticket = DispatchTicket(
         job_post_id=job_post_id,
         driver_id=current_user.id,
@@ -586,6 +601,7 @@ async def start_driving(
             detail="미터기 가동을 시작할 수 없는 상태의 티켓입니다."
         )
 
+    await validate_dispatch_status("DRIVING", db)
     ticket.status = "DRIVING"
     ticket.driving_started_at = datetime.now()
 
@@ -624,6 +640,7 @@ async def cancel_dispatch(
             detail="이미 운행을 기동하여 취소할 수 없습니다."
         )
 
+    await validate_dispatch_status("CANCELLED", db)
     ticket.status = "CANCELLED"
     ticket.completed_at = datetime.now()
 
@@ -662,6 +679,7 @@ async def arrive_at_dropoff(
             detail="아직 미터기를 켜고 운행 중인 상태가 아닙니다."
         )
 
+    await validate_dispatch_status("ARRIVED", db)
     ticket.status = "ARRIVED"
     ticket.arrived_at = datetime.now()
 
@@ -732,6 +750,7 @@ async def inspect_and_confirm(
             detail="검사 결과 판정은 APPROVED 또는 REJECTED만 가능합니다."
         )
 
+    await validate_dispatch_status(decision_status, db)
     ticket.status = decision_status
     ticket.completed_at = datetime.now()
 

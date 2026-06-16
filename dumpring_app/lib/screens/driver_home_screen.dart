@@ -871,13 +871,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
     final String siteName = jobPost?['site_name'] ?? '현장명 없음';
     final String dropOffName = jobPost?['drop_off_name'] ?? '하차지명 없음';
-    final String statusLabel = ticket['status'] == 'ACCEPTED'
-        ? '수락 완료'
-        : ticket['status'] == 'DRIVING'
-            ? '운행 중'
-            : ticket['status'] == 'ARRIVED'
-                ? '도착 완료'
-                : ticket['status'] ?? '진행 중';
+    final Map<String, String> dispatchStatusMap = {
+      'ACCEPTED': '배차 수락',
+      'DRIVING': '운행 중',
+      'ARRIVED': '도착 완료',
+      'APPROVED': '반입 승인',
+      'REJECTED': '반입 반려',
+      'CANCELLED': '운행 취소',
+    };
+    final String statusLabel = dispatchStatusMap[ticket['status']] ?? (ticket['status'] ?? '진행 중');
     final Color statusColor = ticket['status'] == 'DRIVING'
         ? AppColors.primary
         : ticket['status'] == 'ARRIVED'

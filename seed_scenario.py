@@ -141,6 +141,12 @@ async def seed_scenario_data():
             ("PAYER_TYPE", "FREE", "무상", 3),
             ("PAYMENT_METHOD", "MONTHLY", "월대", 1),
             ("PAYMENT_METHOD", "DAILY", "당일지급", 2),
+            ("DISPATCH_STATUS", "ACCEPTED", "배차 수락", 1),
+            ("DISPATCH_STATUS", "DRIVING", "운행 중", 2),
+            ("DISPATCH_STATUS", "ARRIVED", "도착 완료", 3),
+            ("DISPATCH_STATUS", "APPROVED", "반입 승인", 4),
+            ("DISPATCH_STATUS", "REJECTED", "반입 반려", 5),
+            ("DISPATCH_STATUS", "CANCELLED", "운행 취소", 6),
         ]
         for gc, c, cn, do in codes:
             r = await session.execute(select(CommonCode).where(CommonCode.group_code == gc, CommonCode.code == c))
