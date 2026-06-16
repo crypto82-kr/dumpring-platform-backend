@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -84,9 +84,31 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             _currentFare = ticket['accumulated_fare'] ?? 95000;
           }
         });
+      } else {
+        String errMsg = "티켓 상태를 불러오지 못했습니다.";
+        try {
+          final err = jsonDecode(utf8.decode(response.bodyBytes));
+          errMsg = err['detail'] ?? errMsg;
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("⚠️ $errMsg (코드: ${response.statusCode})"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint("초기 티켓 상태 로드 실패: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("⚠️ 티켓 정보를 불러오는 중 오류가 발생했습니다: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -154,9 +176,31 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             });
           }
         });
+      } else {
+        String errMsg = "주행 개시에 실패했습니다.";
+        try {
+          final err = jsonDecode(utf8.decode(response.bodyBytes));
+          errMsg = err['detail'] ?? errMsg;
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("⚠️ $errMsg"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint("주행 개시 실패: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("⚠️ 네트워크 연결 오류가 발생했습니다."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

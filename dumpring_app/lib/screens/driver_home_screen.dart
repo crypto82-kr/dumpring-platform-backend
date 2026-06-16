@@ -470,104 +470,147 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background, // 피그마 다크 블루 테마 통일
-      drawer: CommonDrawer(
-        user: _currentUser,
-        token: widget.token,
-        onProfileUpdated: (newUser) {
-          setState(() {
-            _currentUser = newUser;
-          });
-        },
-      ),
-      appBar: AppBar(
-        backgroundColor: AppColors.surface, // 딥 그레이 헤더
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-        title: Text(
-          "덤프링",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: AppColors.textPrimary,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: AppColors.background, // 피그마 다크 블루 테마 통일
+        drawer: CommonDrawer(
+          user: _currentUser,
+          token: widget.token,
+          onProfileUpdated: (newUser) {
+            setState(() {
+              _currentUser = newUser;
+            });
+          },
+        ),
+        appBar: AppBar(
+          backgroundColor: AppColors.surface, // 딥 그레이 헤더
+          foregroundColor: AppColors.textPrimary,
+          elevation: 0,
+          title: Text(
+            "덤프링",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.history_rounded, color: AppColors.primary),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => DriverHistoryScreen(user: _currentUser, token: widget.token),
+                  ),
+                );
+              },
+            ),
+          ],
+          bottom: TabBar(
+            indicatorColor: AppColors.primary,
+            labelColor: AppColors.primary,
+            unselectedLabelColor: AppColors.textSecondary,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            tabs: const [
+              Tab(text: "공고 검색"),
+              Tab(text: "배차 현황"),
+            ],
           ),
         ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.history_rounded, color: AppColors.primary),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => DriverHistoryScreen(user: _currentUser, token: widget.token),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => _loadOpenJobs(isRefresh: true),
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              // 0. 진행 중인 배차 표시 (최상단)
-              if (_activeTickets.isNotEmpty)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: _buildActiveTicketsSection(),
-                  ),
-                ),
-
-              SliverPadding(
-                padding: const EdgeInsets.all(20.0),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    // 검색 필터 패널 (날짜 필터 통합)
-                    _buildLocationFilterPanel(),
-                    const SizedBox(height: 20),
-                  ]),
+        body: SafeArea(
+          child: TabBarView(
+            children: [
+              // 탭 1: 공고 검색
+              RefreshIndicator(
+                onRefresh: () => _loadOpenJobs(isRefresh: true),
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.all(20.0),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          // 검색 필터 패널 (날짜 필터 통합)
+                          _buildLocationFilterPanel(),
+                          const SizedBox(height: 20),
+                        ]),
+                      ),
+                    ),
+                    // 배차 모집 공고 리스트 (실시간 연동 데이터)
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      sliver: _buildLiveJobsSliverList(),
+                    ),
+                    const SliverPadding(
+                      padding: EdgeInsets.only(bottom: 20),
+                    ),
+                  ],
                 ),
               ),
-
-              // 4. 배차 모집 공고 리스트 (실시간 연동 데이터)
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                sliver: _buildLiveJobsSliverList(),
-              ),
-
-              SliverPadding(
-                padding: const EdgeInsets.all(20.0),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    const SizedBox(height: 20),
-                    // 5. 오늘 실적 대시보드
-                    _buildEarningsDashboard(),
-                  ]),
+              // 탭 2: 내 배차 & 정산
+              RefreshIndicator(
+                onRefresh: () async {
+                  await _checkActiveTicket();
+                },
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // 진행 중인 배차 표시 (최상단)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _activeTickets.isNotEmpty
+                            ? _buildActiveTicketsSection()
+                            : Container(
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppColors.divider),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    "현재 진행 중인 배차가 없습니다.",
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.all(20.0),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          const SizedBox(height: 20),
+                          // 오늘 실적 대시보드
+                          _buildEarningsDashboard(),
+                        ]),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
+        floatingActionButton: _showBackToTop
+            ? FloatingActionButton(
+                onPressed: () {
+                  _scrollController.animateTo(
+                    0.0,
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeInOut,
+                  );
+                },
+                backgroundColor: AppColors.primary,
+                foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                child: const Icon(Icons.arrow_upward),
+              )
+            : null,
       ),
-      floatingActionButton: _showBackToTop
-          ? FloatingActionButton(
-              onPressed: () {
-                _scrollController.animateTo(
-                  0.0,
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeInOut,
-                );
-              },
-              backgroundColor: AppColors.primary,
-              foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
-              child: const Icon(Icons.arrow_upward),
-            )
-          : null,
     );
   }
 
@@ -864,13 +907,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               job: jobPost,
               isApproved: widget.isApproved,
               ticket: ticket,
+              hasDrivingTicket: _activeTickets.any((t) => t['status'] == 'DRIVING'),
             ),
           ),
         ).then((val) {
-          if (val == true) {
-            _checkActiveTicket();
-            _loadOpenJobs();
+          if (val is Map && val['action'] == 'cancel') {
+            final ticketId = val['ticketId'];
+            setState(() {
+              _activeTickets.removeWhere((t) => t['id'] == ticketId);
+            });
           }
+          _checkActiveTicket();
+          _loadOpenJobs();
         });
       },
       borderRadius: BorderRadius.circular(20),
@@ -1222,11 +1270,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                                 token: widget.token,
                                 job: job,
                                 isApproved: widget.isApproved,
+                                hasDrivingTicket: _activeTickets.any((t) => t['status'] == 'DRIVING'),
                               ),
                       ),
-                    ).then((_) {
-                      _checkActiveTicket();
-                      _loadOpenJobs();
+                    ).then((val) {
+                      if (val != null) {
+                        _checkActiveTicket();
+                        _loadOpenJobs();
+                      }
                     });
                   },
                   style: ElevatedButton.styleFrom(

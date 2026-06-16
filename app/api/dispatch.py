@@ -693,7 +693,14 @@ async def inspect_and_confirm(
         )
 
     # 1. 티켓 조회
-    ticket_query = select(DispatchTicket).where(DispatchTicket.id == ticket_id)
+    from sqlalchemy.orm import selectinload
+    ticket_query = select(DispatchTicket).where(
+        DispatchTicket.id == ticket_id
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+    )
     ticket_result = await db.execute(ticket_query)
     ticket = ticket_result.scalars().first()
 
@@ -759,7 +766,14 @@ async def get_dispatch_ticket(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = select(DispatchTicket).where(DispatchTicket.id == ticket_id)
+    from sqlalchemy.orm import selectinload
+    query = select(DispatchTicket).where(
+        DispatchTicket.id == ticket_id
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+    )
     result = await db.execute(query)
     ticket = result.scalars().first()
 

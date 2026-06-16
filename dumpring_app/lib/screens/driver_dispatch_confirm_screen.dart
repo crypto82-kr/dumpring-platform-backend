@@ -11,6 +11,7 @@ class DriverDispatchConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> job;
   final bool isApproved;
   final Map<String, dynamic>? ticket;
+  final bool hasDrivingTicket;
 
   const DriverDispatchConfirmScreen({
     Key? key,
@@ -19,6 +20,7 @@ class DriverDispatchConfirmScreen extends StatefulWidget {
     required this.job,
     this.isApproved = false,
     this.ticket,
+    this.hasDrivingTicket = false,
   }) : super(key: key);
 
   @override
@@ -30,10 +32,61 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
   bool _isSubmitting = false;
   Map<String, dynamic>? _ticket;
 
+  bool _hasOtherDrivingTicket = false;
+
   @override
   void initState() {
     super.initState();
     _ticket = widget.ticket;
+    _hasOtherDrivingTicket = widget.hasDrivingTicket;
+    if (_ticket != null) {
+      _checkDrivingInProgress();
+      _reloadTicketStatus();
+    }
+  }
+
+  Future<void> _checkDrivingInProgress() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/active-tickets"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> tickets = jsonDecode(utf8.decode(response.bodyBytes));
+        final hasOther = tickets.any((t) => t['status'] == 'DRIVING' && t['id'] != _ticket?['id']);
+        if (mounted) {
+          setState(() {
+            _hasOtherDrivingTicket = hasOther;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("다른 운행 확인 실패: $e");
+    }
+  }
+
+  bool _isWorkDateToday() {
+    if (widget.job['work_date'] == null) return false;
+    try {
+      final parsed = DateTime.parse(widget.job['work_date']);
+      final localDate = parsed.isUtc ? parsed.toLocal() : parsed;
+      final now = DateTime.now();
+      return localDate.year == now.year &&
+          localDate.month == now.month &&
+          localDate.day == now.day;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  bool _isStartButtonEnabled() {
+    if (_ticket == null) return false;
+    if (_ticket!['status'] != 'ACCEPTED') return true;
+    if (!_isWorkDateToday()) return false;
+    if (_hasOtherDrivingTicket) return false;
+    return true;
   }
 
   // 1회당 단가 포맷용
@@ -100,7 +153,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
           ),
         );
 
-        Navigator.pop(context, true);
+        Navigator.pop(context, {'action': 'accept', 'jobId': widget.job['id']});
       } else {
         final err = jsonDecode(utf8.decode(response.bodyBytes));
         _showErrorDialog(err['detail'] ?? "이미 다른 기사님이 수락했거나 만료된 공고입니다.");
@@ -174,7 +227,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("🚀 배차가 성공적으로 취소되었습니다.")),
         );
-        Navigator.pop(context, true);
+        Navigator.pop(context, {'action': 'cancel', 'ticketId': _ticket!['id']});
       } else {
         final err = jsonDecode(utf8.decode(response.bodyBytes));
         if (!mounted) return;
@@ -209,15 +262,39 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
           token: widget.token,
           ticketId: _ticket!['id'],
           onDriveCompleted: (earnings) {
-            Navigator.pop(context, true);
+            Navigator.pop(context, {'action': 'complete'});
           },
         ),
       ),
     ).then((val) {
-      if (val == true) {
-        Navigator.pop(context, true);
+      if (val != null) {
+        Navigator.pop(context, val);
+      } else {
+        _reloadTicketStatus();
       }
     });
+  }
+
+  Future<void> _reloadTicketStatus() async {
+    if (_ticket == null) return;
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${_ticket!['id']}"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+      if (response.statusCode == 200) {
+        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _ticket = ticket;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("티켓 상태 재로드 실패: $e");
+    }
   }
 
   @override
@@ -247,15 +324,21 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                 ? '27톤 덤프 트럭'
                 : widget.job['truck_type'] ?? '미정';
 
-    return Scaffold(
-      backgroundColor: AppColors.background, // 프리미엄 다크 테마 배경
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        Navigator.pop(context, true);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background, // 프리미엄 다크 테마 배경
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
+            onPressed: () => Navigator.pop(context, true),
+          ),
         title: Text(
           widget.ticket != null ? "배차 현황 상세" : "배차 현장 확인",
           style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 17),
@@ -527,12 +610,14 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                                 ],
                               ),
                               alignment: Alignment.center,
-                              child: _isSubmitting
-                                  ? CircularProgressIndicator(color: AppColors.textPrimary)
-                                  : Text(
-                                      "배차",
-                                      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15),
-                                    ),
+                              child: Text(
+                                "배차",
+                                style: TextStyle(
+                                  color: _isSubmitting ? AppColors.textPrimary.withAlpha(128) : AppColors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -563,35 +648,56 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                           ),
                           const SizedBox(width: 12),
                         ],
-                        Expanded(
-                          flex: _ticket!['status'] == 'ACCEPTED' ? 2 : 1,
-                          child: InkWell(
-                            onTap: _isSubmitting ? null : _startOrContinueDriving,
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              height: 60,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [AppColors.primary, AppColors.primary.withAlpha(200)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
+                        Builder(
+                          builder: (context) {
+                            final bool isStartEnabled = _isStartButtonEnabled();
+                            final String buttonText = _ticket!['status'] == 'ACCEPTED'
+                                ? (isStartEnabled 
+                                    ? "운행 시작하기" 
+                                    : (!_isWorkDateToday() ? "운행일 아님" : "다른 운행 진행중"))
+                                : "운행 계속하기";
+                            return Expanded(
+                              flex: _ticket!['status'] == 'ACCEPTED' ? 2 : 1,
+                              child: InkWell(
+                                onTap: (_isSubmitting || !isStartEnabled) ? null : _startOrContinueDriving,
                                 borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.primary.withAlpha(76),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
+                                child: Container(
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    gradient: isStartEnabled
+                                        ? LinearGradient(
+                                            colors: [AppColors.primary, AppColors.primary.withAlpha(200)],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          )
+                                        : null,
+                                    color: isStartEnabled ? null : AppColors.divider,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: isStartEnabled
+                                        ? [
+                                            BoxShadow(
+                                              color: AppColors.primary.withAlpha(76),
+                                              blurRadius: 12,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ]
+                                        : null,
                                   ),
-                                ],
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    buttonText,
+                                    style: TextStyle(
+                                      color: isStartEnabled
+                                          ? (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white)
+                                          : AppColors.textSecondary,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
                               ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                _ticket!['status'] == 'ACCEPTED' ? "운행 시작하기" : "운행 계속하기",
-                                style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white), fontWeight: FontWeight.w800, fontSize: 15),
-                              ),
-                            ),
-                          ),
+                            );
+                          }
                         ),
                       ],
                     ),
@@ -618,8 +724,9 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDetailRow(String title, String value, IconData icon) {
     return Row(
