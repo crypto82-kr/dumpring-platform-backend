@@ -13,7 +13,7 @@ from app.models import (
 from app.api.auth import get_current_user
 from app.schemas.dispatch import (
     FavoriteRegionCreate, FavoriteRegionResponse,
-    DispatchTicketResponse, InspectionRequest
+    DispatchTicketResponse, InspectionRequest, ArriveRequest
 )
 from app.schemas.jobs import JobPostResponse
 
@@ -656,6 +656,7 @@ async def cancel_dispatch(
 )
 async def arrive_at_dropoff(
     ticket_id: int,
+    data: ArriveRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -663,7 +664,11 @@ async def arrive_at_dropoff(
     query = select(DispatchTicket).where(
         DispatchTicket.id == ticket_id,
         DispatchTicket.driver_id == current_user.id
-    ).options(selectinload(DispatchTicket.job_post))
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+    )
     result = await db.execute(query)
     ticket = result.scalars().first()
 
@@ -679,14 +684,59 @@ async def arrive_at_dropoff(
             detail="아직 미터기를 켜고 운행 중인 상태가 아닙니다."
         )
 
+    # 1. 공통코드에서 예외처리 규칙 조회 (기본값 설정)
+    max_offline_count = 3
+    max_single_offline = 600  # 10분
+    max_total_offline = 1800  # 30분
+
+    rules_query = select(CommonCode).where(
+        CommonCode.group_code == "METER_EXCEPTION_RULES",
+        CommonCode.is_active == True
+    )
+    rules_res = await db.execute(rules_query)
+    rules = rules_res.scalars().all()
+
+    for rule in rules:
+        try:
+            val = int(rule.code_name)
+            if rule.code == "MAX_OFFLINE_COUNT":
+                max_offline_count = val
+            elif rule.code == "MAX_SINGLE_OFFLINE_SECONDS":
+                max_single_offline = val
+            elif rule.code == "MAX_TOTAL_OFFLINE_SECONDS":
+                max_total_offline = val
+        except ValueError:
+            pass
+
+    # 2. 예외 감지 비교
+    offline_count = data.offline_count or 0
+    single_offline = data.max_single_offline_seconds or 0
+    total_offline = data.total_offline_seconds or 0
+
+    is_exception_triggered = False
+    if offline_count > max_offline_count:
+        is_exception_triggered = True
+    elif single_offline > max_single_offline:
+        is_exception_triggered = True
+    elif total_offline > max_total_offline:
+        is_exception_triggered = True
+
+    # 3. 상태 및 요금 업데이트
     await validate_dispatch_status("ARRIVED", db)
     ticket.status = "ARRIVED"
     ticket.arrived_at = datetime.now()
 
-    # 모의 덤프용 랜덤 GPS 운임 축적 완료 처리 (실제 운임 확정 전 최종 계산된 상태 시뮬레이션)
-    ticket.accumulated_fare = 75000  # 기본 거리/시간 계산 결과 모의 이체
-    ticket.drive_distance_km = 18.5
-    ticket.drive_time_seconds = 1450
+    if is_exception_triggered or not data.accumulated_fare:
+        # 비정상 꺼짐/네트워크 오류로 예외 판정되거나 데이터 누락 시 공고의 기본 단가 및 거리/시간으로 대체
+        job = ticket.job_post
+        ticket.accumulated_fare = job.offered_unit_price if (job and job.offered_unit_price) else 75000
+        ticket.drive_distance_km = job.distance if (job and job.distance) else 18.5
+        ticket.drive_time_seconds = (job.estimated_time * 60) if (job and job.estimated_time) else 1450
+    else:
+        # 정상 주행 완료인 경우 프론트엔드가 보낸 실시간 계산값 적용
+        ticket.accumulated_fare = data.accumulated_fare
+        ticket.drive_distance_km = data.drive_distance_km
+        ticket.drive_time_seconds = data.drive_time_seconds
 
     await db.commit()
     await db.refresh(ticket)
@@ -722,10 +772,10 @@ async def inspect_and_confirm(
     ticket_result = await db.execute(ticket_query)
     ticket = ticket_result.scalars().first()
 
-    if not ticket or ticket.status != "ARRIVED":
+    if not ticket or ticket.status not in ["ARRIVED", "DRIVING"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="사토장 게이트에 아직 진입/도착 대기 중인 트럭이 아닙니다."
+            detail="사토장 게이트에 아직 진입/도착 대기 중이거나 운행 중인 트럭이 아닙니다."
         )
 
     # 2. 하차지 소유주 정합 권한 검증
@@ -749,6 +799,14 @@ async def inspect_and_confirm(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="검사 결과 판정은 APPROVED 또는 REJECTED만 가능합니다."
         )
+
+    # DRIVING 상태에서 지주가 직접 승인한 경우 (기사 폰 꺼짐 등 GPS 유실 상황)
+    if ticket.status == "DRIVING":
+        ticket.arrived_at = datetime.now()
+        # 공고의 기본 계획 정산 정보를 적용하여 예외 정산 처리 (기본 요금)
+        ticket.accumulated_fare = job.offered_unit_price if (job and job.offered_unit_price) else 75000
+        ticket.drive_distance_km = job.distance if (job and job.distance) else 18.5
+        ticket.drive_time_seconds = (job.estimated_time * 60) if (job and job.estimated_time) else 1450
 
     await validate_dispatch_status(decision_status, db)
     ticket.status = decision_status

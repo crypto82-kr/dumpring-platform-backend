@@ -45,6 +45,11 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   String? _attachedPhoto;
   bool _isLoadingState = true;
 
+  // 비정상 꺼짐 / 네트워크 장애 감지용 변수
+  int _offlineCount = 0;
+  int _maxSingleOfflineSeconds = 0;
+  int _totalOfflineSeconds = 0;
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +75,10 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       await prefs.setInt("ticket_progress_${widget.ticketId}_time", _elapsedSeconds);
       await prefs.setDouble("ticket_progress_${widget.ticketId}_distance", _distanceKm);
       await prefs.setInt("ticket_progress_${widget.ticketId}_fare", _currentFare);
+      await prefs.setInt("ticket_progress_${widget.ticketId}_offline_count", _offlineCount);
+      await prefs.setInt("ticket_progress_${widget.ticketId}_max_offline_sec", _maxSingleOfflineSeconds);
+      await prefs.setInt("ticket_progress_${widget.ticketId}_total_offline_sec", _totalOfflineSeconds);
+      await prefs.setInt("ticket_progress_${widget.ticketId}_last_heartbeat", DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       debugPrint("로컬 진행 데이터 저장 에러: $e");
     }
@@ -81,6 +90,10 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       await prefs.remove("ticket_progress_${widget.ticketId}_time");
       await prefs.remove("ticket_progress_${widget.ticketId}_distance");
       await prefs.remove("ticket_progress_${widget.ticketId}_fare");
+      await prefs.remove("ticket_progress_${widget.ticketId}_offline_count");
+      await prefs.remove("ticket_progress_${widget.ticketId}_max_offline_sec");
+      await prefs.remove("ticket_progress_${widget.ticketId}_total_offline_sec");
+      await prefs.remove("ticket_progress_${widget.ticketId}_last_heartbeat");
     } catch (e) {
       debugPrint("로컬 진행 데이터 삭제 에러: $e");
     }
@@ -90,45 +103,55 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     final String status = ticket['status'];
     if (status == "ACCEPTED") {
       _driveStep = 1;
-    } else if (status == "DRIVING") {
-      _driveStep = 3;
+    } else {
+      if (status == "DRIVING") {
+        _driveStep = 3;
+      } else if (status == "ARRIVED") {
+        _driveStep = 4;
+      } else if (status == "APPROVED" || status == "COMPLETED") {
+        _driveStep = 5;
+      }
 
       final prefs = await SharedPreferences.getInstance();
       final savedTime = prefs.getInt("ticket_progress_${widget.ticketId}_time");
       final savedDistance = prefs.getDouble("ticket_progress_${widget.ticketId}_distance");
       final savedFare = prefs.getInt("ticket_progress_${widget.ticketId}_fare");
 
-      _elapsedSeconds = savedTime ?? ticket['drive_time_seconds'] ?? 0;
-      _distanceKm = savedDistance ?? (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-      _currentFare = savedFare ?? ticket['accumulated_fare'] ?? 95000;
-      _resumeMeterTimer();
-    } else if (status == "ARRIVED") {
-      _driveStep = 4;
+      // 오프라인 측정치 복원
+      _offlineCount = prefs.getInt("ticket_progress_${widget.ticketId}_offline_count") ?? 0;
+      _maxSingleOfflineSeconds = prefs.getInt("ticket_progress_${widget.ticketId}_max_offline_sec") ?? 0;
+      _totalOfflineSeconds = prefs.getInt("ticket_progress_${widget.ticketId}_total_offline_sec") ?? 0;
 
-      final prefs = await SharedPreferences.getInstance();
-      final savedTime = prefs.getInt("ticket_progress_${widget.ticketId}_time");
-      final savedDistance = prefs.getDouble("ticket_progress_${widget.ticketId}_distance");
-      final savedFare = prefs.getInt("ticket_progress_${widget.ticketId}_fare");
-
-      _elapsedSeconds = savedTime ?? ticket['drive_time_seconds'] ?? 0;
-      _distanceKm = savedDistance ?? (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-      _currentFare = savedFare ?? ticket['accumulated_fare'] ?? 95000;
-
-      _statusPollTimer?.cancel();
-      _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-        _pollTicketStatus();
-      });
-    } else if (status == "APPROVED" || status == "COMPLETED") {
-      _driveStep = 5;
-
-      final prefs = await SharedPreferences.getInstance();
-      final savedTime = prefs.getInt("ticket_progress_${widget.ticketId}_time");
-      final savedDistance = prefs.getDouble("ticket_progress_${widget.ticketId}_distance");
-      final savedFare = prefs.getInt("ticket_progress_${widget.ticketId}_fare");
+      // 마지막 통신 심박(Heartbeat) 기준으로 비정상 꺼짐/네트워크 장애 감지
+      final lastHeartbeatMs = prefs.getInt("ticket_progress_${widget.ticketId}_last_heartbeat");
+      if (lastHeartbeatMs != null && status == "DRIVING") {
+        final lastHeartbeat = DateTime.fromMillisecondsSinceEpoch(lastHeartbeatMs);
+        final gapSeconds = DateTime.now().difference(lastHeartbeat).inSeconds;
+        if (gapSeconds > 10) {
+          _offlineCount += 1;
+          _totalOfflineSeconds += gapSeconds;
+          if (gapSeconds > _maxSingleOfflineSeconds) {
+            _maxSingleOfflineSeconds = gapSeconds;
+          }
+          // 바로 로컬 저장 업데이트
+          await prefs.setInt("ticket_progress_${widget.ticketId}_offline_count", _offlineCount);
+          await prefs.setInt("ticket_progress_${widget.ticketId}_max_offline_sec", _maxSingleOfflineSeconds);
+          await prefs.setInt("ticket_progress_${widget.ticketId}_total_offline_sec", _totalOfflineSeconds);
+        }
+      }
 
       _elapsedSeconds = savedTime ?? ticket['drive_time_seconds'] ?? 0;
       _distanceKm = savedDistance ?? (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
       _currentFare = savedFare ?? ticket['accumulated_fare'] ?? 95000;
+
+      if (status == "DRIVING") {
+        _resumeMeterTimer();
+      } else if (status == "ARRIVED") {
+        _statusPollTimer?.cancel();
+        _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+          _pollTicketStatus();
+        });
+      }
     }
   }
 
@@ -287,7 +310,6 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     });
   }
 
-  // 2. 하차지 도착 감지 API 연동
   Future<void> _arrivedAtUnloadingSite() async {
     _meterTimer?.cancel();
     try {
@@ -295,7 +317,16 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
         Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/arrive"),
         headers: {
           "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
         },
+        body: jsonEncode({
+          "drive_distance_km": _distanceKm,
+          "drive_time_seconds": _elapsedSeconds,
+          "accumulated_fare": _currentFare,
+          "offline_count": _offlineCount,
+          "max_single_offline_seconds": _maxSingleOfflineSeconds,
+          "total_offline_seconds": _totalOfflineSeconds,
+        }),
       );
 
       if (response.statusCode == 200) {

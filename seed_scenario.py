@@ -147,6 +147,9 @@ async def seed_scenario_data():
             ("DISPATCH_STATUS", "APPROVED", "반입 승인", 4),
             ("DISPATCH_STATUS", "REJECTED", "반입 반려", 5),
             ("DISPATCH_STATUS", "CANCELLED", "운행 취소", 6),
+            ("METER_EXCEPTION_RULES", "MAX_OFFLINE_COUNT", "3", 1),
+            ("METER_EXCEPTION_RULES", "MAX_SINGLE_OFFLINE_SECONDS", "600", 2),
+            ("METER_EXCEPTION_RULES", "MAX_TOTAL_OFFLINE_SECONDS", "1800", 3),
         ]
         for gc, c, cn, do in codes:
             r = await session.execute(select(CommonCode).where(CommonCode.group_code == gc, CommonCode.code == c))

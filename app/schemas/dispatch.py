@@ -41,3 +41,11 @@ class DispatchTicketResponse(BaseModel):
 class InspectionRequest(BaseModel):
     decision: str = Field(..., description="APPROVED 또는 REJECTED")
     soil_type: Optional[str] = Field(None, description="지주가 육안 판정한 토사 종류 (선택사항)")
+
+class ArriveRequest(BaseModel):
+    drive_distance_km: Optional[float] = Field(None, description="실제 주행 거리 (km)")
+    drive_time_seconds: Optional[int] = Field(None, description="실제 주행 시간 (초)")
+    accumulated_fare: Optional[int] = Field(None, description="계산된 요금 (원)")
+    offline_count: Optional[int] = Field(0, description="운행 중 오프라인/꺼짐 횟수")
+    max_single_offline_seconds: Optional[int] = Field(0, description="단일 최대 오프라인 시간 (초)")
+    total_offline_seconds: Optional[int] = Field(0, description="총 오프라인 시간 (초)")
