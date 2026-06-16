@@ -3,6 +3,7 @@ import '../shared/app_config.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class DriverMeterScreen extends StatefulWidget {
@@ -47,38 +48,87 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   @override
   void initState() {
     super.initState();
+    _initMeterState();
+  }
+
+  Future<void> _initMeterState() async {
     if (widget.initialTicket != null) {
-      _applyTicketState(widget.initialTicket!);
-      _isLoadingState = false;
+      await _applyTicketState(widget.initialTicket!);
+      if (mounted) {
+        setState(() {
+          _isLoadingState = false;
+        });
+      }
     } else {
-      _loadInitialTicketState();
+      await _loadInitialTicketState();
     }
   }
 
-  void _applyTicketState(Map<String, dynamic> ticket) {
+  Future<void> _saveProgressToLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt("ticket_progress_${widget.ticketId}_time", _elapsedSeconds);
+      await prefs.setDouble("ticket_progress_${widget.ticketId}_distance", _distanceKm);
+      await prefs.setInt("ticket_progress_${widget.ticketId}_fare", _currentFare);
+    } catch (e) {
+      debugPrint("로컬 진행 데이터 저장 에러: $e");
+    }
+  }
+
+  Future<void> _clearLocalProgress() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove("ticket_progress_${widget.ticketId}_time");
+      await prefs.remove("ticket_progress_${widget.ticketId}_distance");
+      await prefs.remove("ticket_progress_${widget.ticketId}_fare");
+    } catch (e) {
+      debugPrint("로컬 진행 데이터 삭제 에러: $e");
+    }
+  }
+
+  Future<void> _applyTicketState(Map<String, dynamic> ticket) async {
     final String status = ticket['status'];
     if (status == "ACCEPTED") {
       _driveStep = 1;
     } else if (status == "DRIVING") {
       _driveStep = 3;
-      _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
-      _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-      _currentFare = ticket['accumulated_fare'] ?? 95000;
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedTime = prefs.getInt("ticket_progress_${widget.ticketId}_time");
+      final savedDistance = prefs.getDouble("ticket_progress_${widget.ticketId}_distance");
+      final savedFare = prefs.getInt("ticket_progress_${widget.ticketId}_fare");
+
+      _elapsedSeconds = savedTime ?? ticket['drive_time_seconds'] ?? 0;
+      _distanceKm = savedDistance ?? (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+      _currentFare = savedFare ?? ticket['accumulated_fare'] ?? 95000;
       _resumeMeterTimer();
     } else if (status == "ARRIVED") {
       _driveStep = 4;
-      _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
-      _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-      _currentFare = ticket['accumulated_fare'] ?? 95000;
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedTime = prefs.getInt("ticket_progress_${widget.ticketId}_time");
+      final savedDistance = prefs.getDouble("ticket_progress_${widget.ticketId}_distance");
+      final savedFare = prefs.getInt("ticket_progress_${widget.ticketId}_fare");
+
+      _elapsedSeconds = savedTime ?? ticket['drive_time_seconds'] ?? 0;
+      _distanceKm = savedDistance ?? (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+      _currentFare = savedFare ?? ticket['accumulated_fare'] ?? 95000;
+
       _statusPollTimer?.cancel();
       _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
         _pollTicketStatus();
       });
     } else if (status == "APPROVED" || status == "COMPLETED") {
       _driveStep = 5;
-      _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
-      _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-      _currentFare = ticket['accumulated_fare'] ?? 95000;
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedTime = prefs.getInt("ticket_progress_${widget.ticketId}_time");
+      final savedDistance = prefs.getDouble("ticket_progress_${widget.ticketId}_distance");
+      final savedFare = prefs.getInt("ticket_progress_${widget.ticketId}_fare");
+
+      _elapsedSeconds = savedTime ?? ticket['drive_time_seconds'] ?? 0;
+      _distanceKm = savedDistance ?? (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+      _currentFare = savedFare ?? ticket['accumulated_fare'] ?? 95000;
     }
   }
 
@@ -93,14 +143,18 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
       if (response.statusCode == 200) {
         final ticket = jsonDecode(utf8.decode(response.bodyBytes));
-        setState(() {
-          _applyTicketState(ticket);
-          _isLoadingState = false;
-        });
+        await _applyTicketState(ticket);
+        if (mounted) {
+          setState(() {
+            _isLoadingState = false;
+          });
+        }
       } else {
-        setState(() {
-          _isLoadingState = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoadingState = false;
+          });
+        }
         String errMsg = "티켓 상태를 불러오지 못했습니다.";
         try {
           final err = jsonDecode(utf8.decode(response.bodyBytes));
@@ -117,9 +171,11 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       }
     } catch (e) {
       debugPrint("초기 티켓 상태 로드 실패: $e");
-      setState(() {
-        _isLoadingState = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingState = false;
+        });
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -147,6 +203,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             _currentFare += 120;
           }
         });
+        _saveProgressToLocal();
       }
     });
   }
@@ -193,6 +250,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
                 _currentFare += 120;
               }
             });
+            _saveProgressToLocal();
           }
         });
       } else {
@@ -323,6 +381,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   }
 
   void _completeEntireDrive() {
+    _clearLocalProgress();
     widget.onDriveCompleted(_currentFare);
     Navigator.of(context).pop(); 
   }
