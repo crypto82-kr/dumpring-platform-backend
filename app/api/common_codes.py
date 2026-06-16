@@ -75,3 +75,51 @@ async def get_common_codes_by_group(
 
     result = await db.execute(query)
     return result.scalars().all()
+
+
+from app.schemas.common_codes import MeterPricingPolicyUpdate
+
+@router.put(
+    "/pricing-policy",
+    summary="미터기 요금 정산 정책 일괄 업데이트"
+)
+async def update_pricing_policy(
+    data: MeterPricingPolicyUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_admin and not current_user.is_site_manager:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="공통 코드 등록 권한이 없습니다. (관리자 권한 필요)"
+        )
+
+    policy_mappings = {
+        "CALCULATION_METHOD": data.calculation_method,
+        "CONTINUOUS_DISTANCE_UNIT_FARE": str(data.continuous_distance_unit_fare),
+        "CONTINUOUS_TIME_UNIT_FARE": str(data.continuous_time_unit_fare),
+        "OVER_PLAN_DISTANCE_UNIT_FARE": str(data.over_plan_distance_unit_fare),
+        "OVER_PLAN_TIME_UNIT_FARE": str(data.over_plan_time_unit_fare),
+    }
+
+    for key, val in policy_mappings.items():
+        query = select(CommonCode).where(
+            CommonCode.group_code == "METER_PRICING_POLICY",
+            CommonCode.code == key
+        )
+        res = await db.execute(query)
+        code_obj = res.scalars().first()
+        if code_obj:
+            code_obj.code_name = val
+        else:
+            new_code = CommonCode(
+                group_code="METER_PRICING_POLICY",
+                code=key,
+                code_name=val,
+                display_order=1,
+                is_active=True
+            )
+            db.add(new_code)
+            
+    await db.commit()
+    return {"message": "정산 정책이 성공적으로 반영되었습니다."}

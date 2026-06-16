@@ -33,6 +33,52 @@ async def validate_dispatch_status(status_code: str, db: AsyncSession) -> None:
             detail=f"유효하지 않거나 비활성화된 운행 상태 코드입니다: {status_code}"
         )
 
+async def get_active_pricing_policy(db: AsyncSession):
+    from app.schemas.dispatch import MeterPricingPolicy
+    query = select(CommonCode).where(
+        CommonCode.group_code == "METER_PRICING_POLICY",
+        CommonCode.is_active == True
+    )
+    res = await db.execute(query)
+    codes = res.scalars().all()
+    
+    # Default values
+    policy = {
+        "calculation_method": "CONTINUOUS",
+        "continuous_distance_unit_fare": 1200,
+        "continuous_time_unit_fare": 150,
+        "over_plan_distance_unit_fare": 1500,
+        "over_plan_time_unit_fare": 200,
+    }
+    
+    for c in codes:
+        try:
+            if c.code == "CALCULATION_METHOD":
+                policy["calculation_method"] = c.code_name
+            elif c.code == "CONTINUOUS_DISTANCE_UNIT_FARE":
+                policy["continuous_distance_unit_fare"] = int(c.code_name)
+            elif c.code == "CONTINUOUS_TIME_UNIT_FARE":
+                policy["continuous_time_unit_fare"] = int(c.code_name)
+            elif c.code == "OVER_PLAN_DISTANCE_UNIT_FARE":
+                policy["over_plan_distance_unit_fare"] = int(c.code_name)
+            elif c.code == "OVER_PLAN_TIME_UNIT_FARE":
+                policy["over_plan_time_unit_fare"] = int(c.code_name)
+        except ValueError:
+            pass
+            
+    return MeterPricingPolicy(**policy)
+
+async def attach_pricing_policy(ticket_or_tickets, db: AsyncSession):
+    if not ticket_or_tickets:
+        return ticket_or_tickets
+    policy = await get_active_pricing_policy(db)
+    if isinstance(ticket_or_tickets, list):
+        for ticket in ticket_or_tickets:
+            ticket.pricing_policy = policy
+    else:
+        ticket_or_tickets.pricing_policy = policy
+    return ticket_or_tickets
+
 # ==========================================
 # 1. 시군구 검색 및 즐겨찾기 지역 배차 조회 API
 # ==========================================
@@ -368,7 +414,7 @@ async def get_active_tickets(
 
     # 정렬: 운행 우선순위가 높은 순, 같은 순위면 작업일이 이른 순
     tickets.sort(key=lambda t: (get_priority(t), t.job_post.work_date if t.job_post and t.job_post.work_date else datetime.max))
-    return tickets
+    return await attach_pricing_policy(tickets, db)
 
 
 @router.get(
@@ -447,7 +493,7 @@ async def get_active_ticket(
                 j.distance = round(R * c, 1)
                 j.estimated_time = int(j.distance * 1.5 + 5)
 
-    return ticket
+    return await attach_pricing_policy(ticket, db)
 
 
 @router.post(
@@ -568,7 +614,7 @@ async def accept_job(
         .options(selectinload(DispatchTicket.job_post))
     )
     ticket_to_return = res.scalars().first()
-    return ticket_to_return
+    return await attach_pricing_policy(ticket_to_return, db)
 
 
 @router.post(
@@ -607,7 +653,7 @@ async def start_driving(
 
     await db.commit()
     await db.refresh(ticket)
-    return ticket
+    return await attach_pricing_policy(ticket, db)
 
 
 @router.post(
@@ -646,7 +692,7 @@ async def cancel_dispatch(
 
     await db.commit()
     await db.refresh(ticket)
-    return ticket
+    return await attach_pricing_policy(ticket, db)
 
 
 @router.post(
@@ -752,7 +798,7 @@ async def arrive_at_dropoff(
 
     await db.commit()
     await db.refresh(ticket)
-    return ticket
+    return await attach_pricing_policy(ticket, db)
 
 
 @router.post(
@@ -842,7 +888,7 @@ async def inspect_and_confirm(
 
     await db.commit()
     await db.refresh(ticket)
-    return ticket
+    return await attach_pricing_policy(ticket, db)
 
 
 @router.get(
@@ -871,7 +917,7 @@ async def get_dispatch_ticket(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="요청하신 운행 티켓 정보를 찾을 수 없습니다."
         )
-    return ticket
+    return await attach_pricing_policy(ticket, db)
 
 
 @router.get(
@@ -914,6 +960,7 @@ async def get_arrived_tickets(
         DispatchTicket.status == "ARRIVED"
     )
     ticket_result = await db.execute(ticket_query)
-    return ticket_result.scalars().all()
+    tickets = ticket_result.scalars().all()
+    return await attach_pricing_policy(tickets, db)
 
 

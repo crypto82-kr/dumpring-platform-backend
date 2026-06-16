@@ -19,6 +19,13 @@ class FavoriteRegionResponse(BaseModel):
         orm_mode = True
         from_attributes = True
 
+class MeterPricingPolicy(BaseModel):
+    calculation_method: str  # "CONTINUOUS" | "OVER_PLAN"
+    continuous_distance_unit_fare: int
+    continuous_time_unit_fare: int
+    over_plan_distance_unit_fare: int
+    over_plan_time_unit_fare: int
+
 class DispatchTicketResponse(BaseModel):
     id: int
     job_post_id: int
@@ -33,6 +40,7 @@ class DispatchTicketResponse(BaseModel):
     arrived_at: Optional[KstDateTime] = None
     completed_at: Optional[KstDateTime] = None
     job_post: Optional[JobPostResponse] = None
+    pricing_policy: Optional[MeterPricingPolicy] = None
 
     class Config:
         orm_mode = True

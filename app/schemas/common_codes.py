@@ -22,3 +22,10 @@ class CommonCodeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class MeterPricingPolicyUpdate(BaseModel):
+    calculation_method: str
+    continuous_distance_unit_fare: int
+    continuous_time_unit_fare: int
+    over_plan_distance_unit_fare: int
+    over_plan_time_unit_fare: int

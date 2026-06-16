@@ -151,6 +151,11 @@ async def seed_scenario_data():
             ("METER_EXCEPTION_RULES", "MAX_SINGLE_OFFLINE_SECONDS", "600", 2),
             ("METER_EXCEPTION_RULES", "MAX_TOTAL_OFFLINE_SECONDS", "1800", 3),
             ("METER_EXCEPTION_RULES", "TIME_SKEW_LIMIT_SECONDS", "300", 4),
+            ("METER_PRICING_POLICY", "CALCULATION_METHOD", "CONTINUOUS", 1),
+            ("METER_PRICING_POLICY", "CONTINUOUS_DISTANCE_UNIT_FARE", "1200", 2),
+            ("METER_PRICING_POLICY", "CONTINUOUS_TIME_UNIT_FARE", "150", 3),
+            ("METER_PRICING_POLICY", "OVER_PLAN_DISTANCE_UNIT_FARE", "1500", 4),
+            ("METER_PRICING_POLICY", "OVER_PLAN_TIME_UNIT_FARE", "200", 5),
         ]
         for gc, c, cn, do in codes:
             r = await session.execute(select(CommonCode).where(CommonCode.group_code == gc, CommonCode.code == c))

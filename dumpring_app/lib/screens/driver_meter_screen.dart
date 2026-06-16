@@ -38,6 +38,17 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   int _speedKmh = 0;
   bool _isDistanceMode = true; 
 
+  // Dynamic pricing policy & planned metrics
+  String _calculationMethod = "CONTINUOUS";
+  int _continuousDistanceFare = 1200;
+  int _continuousTimeFare = 150;
+  int _overPlanDistanceFare = 1500;
+  int _overPlanTimeFare = 200;
+
+  double _plannedDistanceKm = 10.0;
+  int _plannedTimeMinutes = 20;
+  int _baseTariff = 95000;
+
   Timer? _meterTimer;
   Timer? _statusPollTimer;
 
@@ -101,8 +112,26 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
   Future<void> _applyTicketState(Map<String, dynamic> ticket) async {
     final String status = ticket['status'];
+
+    if (ticket['pricing_policy'] != null) {
+      final policy = ticket['pricing_policy'];
+      _calculationMethod = policy['calculation_method'] ?? 'CONTINUOUS';
+      _continuousDistanceFare = policy['continuous_distance_unit_fare'] ?? 1200;
+      _continuousTimeFare = policy['continuous_time_unit_fare'] ?? 150;
+      _overPlanDistanceFare = policy['over_plan_distance_unit_fare'] ?? 1500;
+      _overPlanTimeFare = policy['over_plan_time_unit_fare'] ?? 200;
+    }
+
+    if (ticket['job_post'] != null) {
+      final jp = ticket['job_post'];
+      _baseTariff = jp['offered_unit_price'] ?? 95000;
+      _plannedDistanceKm = (jp['distance'] as num?)?.toDouble() ?? 10.0;
+      _plannedTimeMinutes = jp['estimated_time'] ?? 20;
+    }
+
     if (status == "ACCEPTED") {
       _driveStep = 1;
+      _currentFare = _baseTariff;
     } else {
       if (status == "DRIVING") {
         _driveStep = 3;
@@ -142,7 +171,10 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
       _elapsedSeconds = savedTime ?? ticket['drive_time_seconds'] ?? 0;
       _distanceKm = savedDistance ?? (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-      _currentFare = savedFare ?? ticket['accumulated_fare'] ?? 95000;
+      _currentFare = savedFare ?? ticket['accumulated_fare'] ?? _baseTariff;
+      if (_currentFare == 0) {
+        _currentFare = _baseTariff;
+      }
 
       if (status == "DRIVING") {
         _resumeMeterTimer();
@@ -210,6 +242,20 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     }
   }
 
+  int _calculateFare(double distance, int seconds) {
+    if (_calculationMethod == "CONTINUOUS") {
+      final double distanceFare = distance * _continuousDistanceFare;
+      final double timeFare = (seconds / 60.0) * _continuousTimeFare;
+      return _baseTariff + distanceFare.round() + timeFare.round();
+    } else {
+      final double overDistance = (distance - _plannedDistanceKm).clamp(0.0, double.infinity);
+      final double overTimeMinutes = ((seconds / 60.0) - _plannedTimeMinutes).clamp(0.0, double.infinity);
+      final double distanceFare = overDistance * _overPlanDistanceFare;
+      final double timeFare = overTimeMinutes * _overPlanTimeFare;
+      return _baseTariff + distanceFare.round() + timeFare.round();
+    }
+  }
+
   void _resumeMeterTimer() {
     _meterTimer?.cancel();
     _speedKmh = 60;
@@ -220,11 +266,10 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
           if (_speedKmh > 10) {
             _isDistanceMode = true;
             _distanceKm += (_speedKmh / 3600);
-            _currentFare += ((_speedKmh / 3600) * 12000).round();
           } else {
             _isDistanceMode = false;
-            _currentFare += 120;
           }
+          _currentFare = _calculateFare(_distanceKm, _elapsedSeconds);
         });
         _saveProgressToLocal();
       }
@@ -267,11 +312,10 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
               if (_speedKmh > 10) {
                 _isDistanceMode = true;
                 _distanceKm += (_speedKmh / 3600);
-                _currentFare += ((_speedKmh / 3600) * 12000).round();
               } else {
                 _isDistanceMode = false;
-                _currentFare += 120;
               }
+              _currentFare = _calculateFare(_distanceKm, _elapsedSeconds);
             });
             _saveProgressToLocal();
           }
