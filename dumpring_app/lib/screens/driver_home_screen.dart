@@ -901,28 +901,89 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     }
 
     return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => DriverDispatchConfirmScreen(
-              user: widget.user,
-              token: widget.token,
-              job: jobPost,
-              isApproved: widget.isApproved,
-              ticket: ticket,
-              hasDrivingTicket: _activeTickets.any((t) => t['status'] == 'DRIVING'),
-            ),
+      onTap: () async {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
           ),
-        ).then((val) {
-          if (val is Map && val['action'] == 'cancel') {
-            final ticketId = val['ticketId'];
-            setState(() {
-              _activeTickets.removeWhere((t) => t['id'] == ticketId);
-            });
+        );
+
+        try {
+          final response = await http.get(
+            Uri.parse("$_baseUrl/api/dispatch/tickets/${ticket['id']}"),
+            headers: {
+              "Authorization": "Bearer ${widget.token}",
+            },
+          );
+
+          if (context.mounted) {
+            Navigator.pop(context); // Dismiss loading spinner
           }
-          _checkActiveTicket();
-          _loadOpenJobs();
-        });
+
+          if (response.statusCode == 200) {
+            final latestTicket = jsonDecode(utf8.decode(response.bodyBytes));
+            final String status = latestTicket['status'];
+
+            if (!context.mounted) return;
+
+            if (status == 'DRIVING' || status == 'ARRIVED' || status == 'APPROVED') {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => DriverMeterScreen(
+                    user: widget.user,
+                    token: widget.token,
+                    ticketId: latestTicket['id'],
+                    initialTicket: latestTicket,
+                    onDriveCompleted: (earnings) {
+                      _checkActiveTicket();
+                      _loadOpenJobs();
+                    },
+                  ),
+                ),
+              ).then((_) {
+                _checkActiveTicket();
+                _loadOpenJobs();
+              });
+            } else {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => DriverDispatchConfirmScreen(
+                    user: widget.user,
+                    token: widget.token,
+                    job: jobPost,
+                    isApproved: widget.isApproved,
+                    ticket: latestTicket,
+                    hasDrivingTicket: _activeTickets.any((t) => t['status'] == 'DRIVING'),
+                  ),
+                ),
+              ).then((val) {
+                if (val is Map && val['action'] == 'cancel') {
+                  final ticketId = val['ticketId'];
+                  setState(() {
+                    _activeTickets.removeWhere((t) => t['id'] == ticketId);
+                  });
+                }
+                _checkActiveTicket();
+                _loadOpenJobs();
+              });
+            }
+          } else {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("⚠️ 티켓 정보를 불러오지 못했습니다.")),
+              );
+            }
+          }
+        } catch (e) {
+          if (context.mounted) {
+            Navigator.pop(context); // Dismiss loading spinner
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("⚠️ 에러가 발생했습니다: $e")),
+            );
+          }
+        }
       },
       borderRadius: BorderRadius.circular(20),
       child: Container(
