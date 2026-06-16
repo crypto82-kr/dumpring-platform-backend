@@ -688,6 +688,7 @@ async def arrive_at_dropoff(
     max_offline_count = 3
     max_single_offline = 600  # 10분
     max_total_offline = 1800  # 30분
+    time_skew_limit = 300     # 5분
 
     rules_query = select(CommonCode).where(
         CommonCode.group_code == "METER_EXCEPTION_RULES",
@@ -705,6 +706,8 @@ async def arrive_at_dropoff(
                 max_single_offline = val
             elif rule.code == "MAX_TOTAL_OFFLINE_SECONDS":
                 max_total_offline = val
+            elif rule.code == "TIME_SKEW_LIMIT_SECONDS":
+                time_skew_limit = val
         except ValueError:
             pass
 
@@ -720,6 +723,15 @@ async def arrive_at_dropoff(
         is_exception_triggered = True
     elif total_offline > max_total_offline:
         is_exception_triggered = True
+
+    # 단말기 시간 왜곡 검증 (TIME_SKEW_LIMIT_SECONDS)
+    if data.client_timestamp_ms is not None:
+        import time
+        server_timestamp = time.time()
+        client_timestamp = data.client_timestamp_ms / 1000.0
+        time_skew = abs(server_timestamp - client_timestamp)
+        if time_skew > time_skew_limit:
+            is_exception_triggered = True
 
     # 3. 상태 및 요금 업데이트
     await validate_dispatch_status("ARRIVED", db)

@@ -49,3 +49,4 @@ class ArriveRequest(BaseModel):
     offline_count: Optional[int] = Field(0, description="운행 중 오프라인/꺼짐 횟수")
     max_single_offline_seconds: Optional[int] = Field(0, description="단일 최대 오프라인 시간 (초)")
     total_offline_seconds: Optional[int] = Field(0, description="총 오프라인 시간 (초)")
+    client_timestamp_ms: Optional[int] = Field(None, description="기사 단말기 현재 에폭 타임스탬프 (ms)")

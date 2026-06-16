@@ -326,6 +326,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
           "offline_count": _offlineCount,
           "max_single_offline_seconds": _maxSingleOfflineSeconds,
           "total_offline_seconds": _totalOfflineSeconds,
+          "client_timestamp_ms": DateTime.now().millisecondsSinceEpoch,
         }),
       );
 
