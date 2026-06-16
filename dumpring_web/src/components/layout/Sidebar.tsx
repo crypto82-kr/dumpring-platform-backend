@@ -70,6 +70,8 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "전체 현장 지도", icon: MapPin, path: "/admin/sites" },
     { title: "하차지 배차 관리", icon: Truck, path: "/admin/dropoffs" },
     { title: "통합 정산 & 통계", icon: DollarSign, path: "/admin/settlement" },
+    { title: "공통코드 관리", icon: Database, path: "/admin/codes" },
+    { title: "시스템 설정", icon: Settings, path: "/admin/settings" },
   ],
   site_manager: [
     { title: "현장 관리 대시보드", icon: LayoutDashboard, path: "/site" },

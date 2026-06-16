@@ -23,6 +23,11 @@ class CommonCodeResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class CommonCodeUpdate(BaseModel):
+    code_name: Optional[str] = None
+    display_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
 class MeterPricingPolicyUpdate(BaseModel):
     calculation_method: str
     continuous_distance_unit_fare: int

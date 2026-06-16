@@ -92,6 +92,35 @@ export default function Home() {
     { code: "TON_30", name: "30톤 초과", desc: "특수 덤프/트레일러", baseTariff: 220000 }
   ]);
   const [simSelectedTonnage, setSimSelectedTonnage] = useState("TON_25");
+  // DB Common Codes States
+  const [dbCommonCodes, setDbCommonCodes] = useState<any[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("전체");
+  const [isCodesLoading, setIsCodesLoading] = useState(false);
+  const [newGroupCode, setNewGroupCode] = useState("");
+  const [newCodeVal, setNewCodeVal] = useState("");
+  const [newCodeName, setNewCodeName] = useState("");
+  const [newDisplayOrder, setNewDisplayOrder] = useState(0);
+
+  const fetchCommonCodes = async () => {
+    setIsCodesLoading(true);
+    try {
+      const res = await fetch("http://localhost:8000/api/common-codes");
+      if (res.ok) {
+        const data = await res.json();
+        setDbCommonCodes(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch common codes from backend:", e);
+    } finally {
+      setIsCodesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activePath === "/admin/codes" || activePath === "/dev/codes") {
+      fetchCommonCodes();
+    }
+  }, [activePath]);
   // FAQ Board States
   const [faqs, setFaqs] = useState([
     { id: 1, category: "기사", q: "제출 서류 심사는 얼마나 걸리나요?", a: "기사 면허 및 화물종사자 자격증 심사는 보통 가입 신청 후 영업일 기준 1~2시간 이내에 완료되며, 결과는 SMS로 즉시 전송됩니다." },
@@ -1879,7 +1908,7 @@ export default function Home() {
                     setPolicySaveSuccess(true);
                     setTimeout(() => setPolicySaveSuccess(false), 3000);
                     try {
-                      await fetch("http://localhost:8000/api/common_codes/pricing-policy", {
+                      await fetch("http://localhost:8000/api/common-codes/pricing-policy", {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -2974,7 +3003,430 @@ export default function Home() {
       );
     }
 
-    // 10. [준비 중인 화면들] (하차지 배차 관리 등)
+    if (activePath === "/admin/codes") {
+      const handleCreateCode = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newGroupCode || !newCodeVal || !newCodeName) {
+          alert("그룹코드, 코드 키, 표시명은 필수 입력입니다.");
+          return;
+        }
+        try {
+          const res = await fetch("http://localhost:8000/api/common-codes", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer mock-token-admin"
+            },
+            body: JSON.stringify({
+              group_code: newGroupCode.toUpperCase(),
+              code: newCodeVal.toUpperCase(),
+              code_name: newCodeName,
+              display_order: Number(newDisplayOrder),
+              is_active: true
+            })
+          });
+          if (res.ok) {
+            alert(`공통코드 [${newCodeVal}]가 데이터베이스에 성공적으로 추가되었습니다.`);
+            // Keep the group code filled, but clear code key, display name and order
+            setNewCodeVal("");
+            setNewCodeName("");
+            setNewDisplayOrder(0);
+            fetchCommonCodes();
+          } else {
+            const err = await res.json();
+            alert(`오류: ${err.detail || "등록 실패"}`);
+          }
+        } catch (e) {
+          alert("백엔드 서버 연결 오류가 발생했습니다.");
+        }
+      };
+
+      const handleUpdateCode = async (id: number, currentName: string, currentOrder: number, currentActive: boolean) => {
+        const nextName = prompt("수정할 한글 표시명을 입력하세요:", currentName);
+        if (nextName === null) return;
+        const nextOrderStr = prompt("수정할 정렬 순서를 입력하세요 (숫자):", currentOrder.toString());
+        if (nextOrderStr === null) return;
+        const nextOrder = Number(nextOrderStr);
+
+        try {
+          const res = await fetch(`http://localhost:8000/api/common-codes/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              code_name: nextName,
+              display_order: isNaN(nextOrder) ? currentOrder : nextOrder,
+              is_active: currentActive
+            })
+          });
+          if (res.ok) {
+            alert("공통코드가 성공적으로 수정되었습니다.");
+            fetchCommonCodes();
+          } else {
+            alert("수정에 실패했습니다.");
+          }
+        } catch (e) {
+          alert("서버 연결 실패");
+        }
+      };
+
+      const handleToggleActive = async (id: number, currentName: string, currentOrder: number, currentActive: boolean) => {
+        try {
+          const res = await fetch(`http://localhost:8000/api/common-codes/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              is_active: !currentActive
+            })
+          });
+          if (res.ok) {
+            fetchCommonCodes();
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      const handleDeleteCode = async (id: number, code: string) => {
+        if (!confirm(`[${code}] 공통코드를 데이터베이스에서 영구 삭제하시겠습니까?`)) return;
+        try {
+          const res = await fetch(`http://localhost:8000/api/common-codes/${id}`, {
+            method: "DELETE"
+          });
+          if (res.ok) {
+            alert("삭제되었습니다.");
+            fetchCommonCodes();
+          } else {
+            alert("삭제 권한이 없거나 실패했습니다.");
+          }
+        } catch (e) {
+          alert("서버 연결 실패");
+        }
+      };
+
+      // Unique groups extraction
+      const groupNames: Record<string, string> = {
+        "MATERIAL_TYPE": "토사 종류",
+        "TRUCK_TYPE": "차량 규격",
+        "PAYER_TYPE": "비용 지급 주체",
+        "PAYMENT_METHOD": "정산 방식"
+      };
+
+      const groups = ["전체", ...Array.from(new Set(dbCommonCodes.map(c => c.group_code)))];
+      const filteredCodes = selectedGroup === "전체"
+        ? dbCommonCodes
+        : dbCommonCodes.filter(c => c.group_code === selectedGroup);
+
+      const handleGroupSelect = (group: string) => {
+        setSelectedGroup(group);
+        if (group !== "전체") {
+          setNewGroupCode(group);
+        } else {
+          setNewGroupCode("");
+        }
+      };
+
+      return (
+        <div className="p-6 rounded-2xl bg-white border border-slate-200 space-y-6 animate-fadeIn shadow-2xl">
+          <div className="border-b border-slate-200 pb-4 flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                ⚙️ 시스템 공통코드 관리 본부
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-650 border border-blue-200 font-bold">Common Codes</span>
+              </h2>
+              <p className="text-xs text-slate-505 mt-1">데이터베이스(common_codes) 테이블의 시스템 식별 코드 및 기준 파라미터를 그룹별로 실시간 조회, 등록, 수정, 삭제합니다.</p>
+            </div>
+            <button onClick={() => setActivePath("/admin")} className="px-3.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 rounded-lg active:scale-95 transition-all">
+              ← 대시보드로 돌아가기
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Group List */}
+            <div className="lg:col-span-3 p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+                  📁 공통코드 그룹 ({groups.length - 1}개)
+                </h3>
+              </div>
+              <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
+                {groups.map((g) => {
+                  const count = g === "전체" ? dbCommonCodes.length : dbCommonCodes.filter(c => c.group_code === g).length;
+                  const isActive = selectedGroup === g;
+                  const friendlyName = g === "전체" ? "전체 목록" : (groupNames[g] || g);
+                  return (
+                    <button
+                      key={g}
+                      onClick={() => handleGroupSelect(g)}
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs transition-all flex justify-between items-center ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-md scale-[1.02]"
+                          : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      <div className="flex flex-col text-left">
+                        <span className="font-extrabold text-[12px]">{friendlyName}</span>
+                        {g !== "전체" && (
+                          <span className={`text-[9.5px] font-mono mt-0.5 ${
+                            isActive ? "text-blue-100 opacity-90" : "text-slate-400 font-medium"
+                          }`}>
+                            {g}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500 border border-slate-200"
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Middle Column: Sub-keys (Codes) Table */}
+            <div className="lg:col-span-6 p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-155 pb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-extrabold text-slate-805">
+                    🔑 {selectedGroup === "전체" ? "전체 하위 키 목록" : `[${groupNames[selectedGroup] || selectedGroup}] 하위 키 목록`} ({filteredCodes.length}건)
+                  </h3>
+                </div>
+                <button
+                  onClick={fetchCommonCodes}
+                  className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] border border-slate-250 flex items-center gap-1"
+                >
+                  🔄 새로고침
+                </button>
+              </div>
+              
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto pr-1 animate-fadeIn">
+                {isCodesLoading ? (
+                  <div className="text-center py-12 text-xs font-semibold text-slate-400">데이터베이스에서 공통코드를 로딩 중입니다...</div>
+                ) : filteredCodes.length === 0 ? (
+                  <div className="text-center py-12 text-xs font-semibold text-slate-400">등록된 하위 코드가 존재하지 않습니다. 우측 폼에서 새로 추가해 주세요.</div>
+                ) : (
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 font-bold pb-2 sticky top-0 bg-white">
+                        {selectedGroup === "전체" && <th className="py-2.5">그룹코드</th>}
+                        <th className="py-2.5">코드 키 (Key)</th>
+                        <th className="py-2.5">표시명 (Value)</th>
+                        <th className="py-2.5 text-center">정렬순서</th>
+                        <th className="py-2.5 text-center">사용여부</th>
+                        <th className="py-2.5 text-right">관리</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                      {filteredCodes.map((codeObj) => (
+                        <tr key={codeObj.id} className="hover:bg-slate-50/50">
+                          {selectedGroup === "전체" && <td className="py-3 font-bold text-slate-900 font-mono text-[10.5px]">{codeObj.group_code}</td>}
+                          <td className="py-3 font-mono text-[11px] text-blue-600 font-bold">{codeObj.code}</td>
+                          <td className="py-3 text-slate-800 font-semibold">{codeObj.code_name}</td>
+                          <td className="py-3 text-center font-mono">{codeObj.display_order}</td>
+                          <td className="py-3 text-center">
+                            <button
+                              onClick={() => handleToggleActive(codeObj.id, codeObj.code_name, codeObj.display_order, codeObj.is_active)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                codeObj.is_active
+                                  ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                                  : "bg-rose-50 text-rose-600 border border-rose-200"
+                              }`}
+                            >
+                              {codeObj.is_active ? "사용" : "미사용"}
+                            </button>
+                          </td>
+                          <td className="py-3 text-right space-x-1">
+                            <button
+                              onClick={() => handleUpdateCode(codeObj.id, codeObj.code_name, codeObj.display_order, codeObj.is_active)}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded border border-slate-250 font-bold text-[10px]"
+                            >
+                              수정
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCode(codeObj.id, codeObj.code)}
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded border border-rose-200 font-bold text-[10px]"
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column: Quick Action Info Card & Add Form */}
+            <div className="lg:col-span-3 p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-sm space-y-5 flex flex-col justify-between">
+              <form onSubmit={handleCreateCode} className="space-y-4">
+                <div className="border-b border-slate-200 pb-3">
+                  <h3 className="text-sm font-extrabold text-slate-800">➕ 신규 공통코드 등록</h3>
+                  <p className="text-[11px] text-slate-505 mt-1">시스템에서 사용할 신규 코드 쌍을 데이터베이스 테이블에 즉시 생성합니다.</p>
+                </div>
+                
+                <div className="space-y-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-slate-655 font-bold">그룹코드 (예: MATERIAL_TYPE)</label>
+                    <input
+                      type="text"
+                      placeholder="MATERIAL_TYPE"
+                      value={newGroupCode}
+                      onChange={(e) => setNewGroupCode(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono text-slate-800 focus:outline-none"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-slate-655 font-bold">코드 키 (Key) (예: MUD_SOIL)</label>
+                    <input
+                      type="text"
+                      placeholder="MUD_SOIL"
+                      value={newCodeVal}
+                      onChange={(e) => setNewCodeVal(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono text-slate-800 focus:outline-none"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-slate-655 font-bold">한글 표시명 (Value) (예: 뻘흙)</label>
+                    <input
+                      type="text"
+                      placeholder="뻘흙"
+                      value={newCodeName}
+                      onChange={(e) => setNewCodeName(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-slate-655 font-bold">정렬 순서 (Display Order)</label>
+                    <input
+                      type="number"
+                      value={newDisplayOrder}
+                      onChange={(e) => setNewDisplayOrder(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono text-slate-850 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
+                >
+                  데이터베이스에 저장
+                </button>
+              </form>
+
+              <div className="p-3.5 bg-white border border-slate-200 rounded-xl text-[10.5px] text-slate-500 leading-relaxed font-medium space-y-1.5">
+                <p className="font-extrabold text-slate-700 flex items-center gap-1">⚠️ 주의사항:</p>
+                <p>여기서 추가한 공통코드는 DB 마스터 정보가 되어, 즉각적으로 기사의 배차 운행 데이터나 현장 물품 분류 등에 연동되므로 오타에 각별히 유의해 주세요.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 12. [시스템 설정] 화면
+    if (activePath === "/admin/settings") {
+      return (
+        <div className="p-6 rounded-2xl bg-white border border-slate-200 space-y-6 animate-fadeIn shadow-2xl">
+          <div className="border-b border-slate-200 pb-4 flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                ⚙️ 글로벌 시스템 설정 및 배포 정책
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-650 border border-blue-200 font-bold">System Settings</span>
+              </h2>
+              <p className="text-xs text-slate-550 mt-1">덤프링 통합 플랫폼의 서버 가동 상태, 모바일 버전 배포 정책 및 자동 정산 연계를 정의합니다.</p>
+            </div>
+            <button onClick={() => setActivePath("/admin")} className="px-3.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 rounded-lg active:scale-95 transition-all">
+              ← 대시보드로 돌아가기
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Setting Item Lists (2 cols) */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Card 1: App Version & Push */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-4">
+                <h3 className="text-sm font-extrabold text-slate-800 border-b border-slate-150 pb-2">📱 모바일 앱 배포 및 업데이트 규정</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-1.5">
+                    <label className="text-slate-650 font-bold">최소 강제 업데이트 버전</label>
+                    <input type="text" defaultValue="v1.2.0" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono text-slate-800 font-bold focus:outline-none" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-slate-650 font-bold">실시간 GPS 업로드 주기</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-bold text-slate-850 focus:outline-none">
+                      <option value="1">1초 (최고정밀 - 배터리 소모 높음)</option>
+                      <option value="3" selected>3초 (기본값 - 권장)</option>
+                      <option value="5">5초 (여유 - 저정밀)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Virtual Account & Settlement */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-4">
+                <h3 className="text-sm font-extrabold text-slate-800 border-b border-slate-150 pb-2">💳 가상계좌 및 B2B 정산 스케줄</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-1.5">
+                    <label className="text-slate-650 font-bold">주거래 가상계좌 발급 은행</label>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {["신한은행", "하나은행", "국민은행", "우리은행"].map((bank) => (
+                        <span key={bank} className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-650 border border-blue-200 font-bold text-[10.5px] cursor-pointer hover:bg-blue-100">
+                          ✓ {bank}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-slate-650 font-bold">수수료 정산 및 발행일자</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-bold text-slate-855 focus:outline-none">
+                      <option value="1">매월 1일 일괄 정산</option>
+                      <option value="5" selected>매월 5일 일괄 정산 (기본값)</option>
+                      <option value="10">매월 10일 일괄 정산</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Config Control Panel (1 col) */}
+            <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-sm flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="border-b border-slate-200 pb-3">
+                  <h3 className="text-sm font-extrabold text-slate-800">🛑 비상 통제 설정</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">시스템 전역에 강제 비상 모드 또는 전체 점검 점검 상태를 고지합니다.</p>
+                </div>
+                <div className="space-y-4 text-xs">
+                  <div className="flex justify-between items-center p-3.5 bg-white border border-slate-200 rounded-xl">
+                    <div>
+                      <span className="font-bold text-slate-800">시스템 전체 점검 모드</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">ON 활성화 시 앱 전체 접속 차단</p>
+                    </div>
+                    <button onClick={() => alert("비상 점검 모드를 활성화하려면 어드민 2차 OTP 인증이 필요합니다.")} className="px-3 py-1.5 bg-slate-200 hover:bg-slate-350 text-slate-700 font-bold rounded-lg border border-slate-300">
+                      OFF (대기)
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-slate-650 font-bold">비상 대책 긴급 연락망</label>
+                    <input type="text" defaultValue="010-1234-5678" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 font-bold text-slate-800 focus:outline-none" />
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => alert("글로벌 시스템 설정 저장이 완벽하게 적용되었습니다.")} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95">
+                💾 설정 최종 저장 및 서비스 동기화
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 13. [준비 중인 화면들] (하차지 배차 관리 등)
     return (
       <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center py-24 animate-fadeIn">
         <h2 className="text-lg font-extrabold text-slate-800">연동 구현 진행 중인 화면</h2>
