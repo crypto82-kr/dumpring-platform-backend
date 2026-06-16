@@ -315,6 +315,9 @@ async def seed_scenario_data():
             if not jp:
                 jp = JobPost(site_id=site_id, drop_off_request_id=req_id, **kwargs)
                 session.add(jp)
+            else:
+                for k, v in kwargs.items():
+                    setattr(jp, k, v)
             return jp
 
         # OPEN 오더 (기사 모집 중)
@@ -325,7 +328,7 @@ async def seed_scenario_data():
             offered_unit_price=45000, payer_type="SITE_PAYS",
             memo="현대건설 아파트 현장. 세륜기 완비. 일 10대 모집.",
             matched_drop_off_id=do1.id,
-            work_date=NOW + timedelta(days=1), required_trucks=10, status="OPEN"
+            work_date=NOW, required_trucks=10, status="OPEN"
         )
 
         # WAITING_APPROVAL 오더 (하차지 승인 대기)
