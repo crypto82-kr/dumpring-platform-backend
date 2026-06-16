@@ -339,6 +339,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               user: widget.user,
               token: widget.token,
               ticketId: ticket['id'],
+              initialTicket: ticket,
               onDriveCompleted: (earnings) {
                 setState(() {
                   _todayWorkCount += 1;

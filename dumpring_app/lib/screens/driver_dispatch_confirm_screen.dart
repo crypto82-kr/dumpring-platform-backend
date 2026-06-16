@@ -253,26 +253,69 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
     }
   }
 
-  void _startOrContinueDriving() {
+  Future<void> _startOrContinueDriving() async {
     if (_ticket == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DriverMeterScreen(
-          user: widget.user,
-          token: widget.token,
-          ticketId: _ticket!['id'],
-          onDriveCompleted: (earnings) {
-            Navigator.pop(context, {'action': 'complete'});
-          },
-        ),
-      ),
-    ).then((val) {
-      if (val != null) {
-        Navigator.pop(context, val);
-      } else {
-        _reloadTicketStatus();
-      }
+
+    setState(() {
+      _isSubmitting = true;
     });
+
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${_ticket!['id']}"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final latestTicket = jsonDecode(utf8.decode(response.bodyBytes));
+        setState(() {
+          _ticket = latestTicket;
+          _isSubmitting = false;
+        });
+
+        if (!mounted) return;
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DriverMeterScreen(
+              user: widget.user,
+              token: widget.token,
+              ticketId: latestTicket['id'],
+              initialTicket: latestTicket,
+              onDriveCompleted: (earnings) {
+                Navigator.pop(context, {'action': 'complete'});
+              },
+            ),
+          ),
+        ).then((val) {
+          if (val != null) {
+            Navigator.pop(context, val);
+          } else {
+            _reloadTicketStatus();
+          }
+        });
+      } else {
+        setState(() {
+          _isSubmitting = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("⚠️ 최신 운행 상태를 가져오지 못했습니다.")),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isSubmitting = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("⚠️ 네트워크 에러: $e")),
+        );
+      }
+    }
   }
 
   Future<void> _reloadTicketStatus() async {

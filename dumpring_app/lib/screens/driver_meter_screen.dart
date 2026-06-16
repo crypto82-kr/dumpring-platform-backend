@@ -10,6 +10,7 @@ class DriverMeterScreen extends StatefulWidget {
   final String token;
   final int ticketId;
   final Function(int earnings) onDriveCompleted;
+  final Map<String, dynamic>? initialTicket;
 
   const DriverMeterScreen({
     Key? key,
@@ -17,6 +18,7 @@ class DriverMeterScreen extends StatefulWidget {
     required this.token,
     required this.ticketId,
     required this.onDriveCompleted,
+    this.initialTicket,
   }) : super(key: key);
 
   @override
@@ -40,11 +42,44 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
   bool _isLandownerAbsent = false;
   String? _attachedPhoto;
+  bool _isLoadingState = true;
 
   @override
   void initState() {
     super.initState();
-    _loadInitialTicketState();
+    if (widget.initialTicket != null) {
+      _applyTicketState(widget.initialTicket!);
+      _isLoadingState = false;
+    } else {
+      _loadInitialTicketState();
+    }
+  }
+
+  void _applyTicketState(Map<String, dynamic> ticket) {
+    final String status = ticket['status'];
+    if (status == "ACCEPTED") {
+      _driveStep = 1;
+    } else if (status == "DRIVING") {
+      _driveStep = 3;
+      _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
+      _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+      _currentFare = ticket['accumulated_fare'] ?? 95000;
+      _resumeMeterTimer();
+    } else if (status == "ARRIVED") {
+      _driveStep = 4;
+      _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
+      _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+      _currentFare = ticket['accumulated_fare'] ?? 95000;
+      _statusPollTimer?.cancel();
+      _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+        _pollTicketStatus();
+      });
+    } else if (status == "APPROVED" || status == "COMPLETED") {
+      _driveStep = 5;
+      _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
+      _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+      _currentFare = ticket['accumulated_fare'] ?? 95000;
+    }
   }
 
   Future<void> _loadInitialTicketState() async {
@@ -58,33 +93,14 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
       if (response.statusCode == 200) {
         final ticket = jsonDecode(utf8.decode(response.bodyBytes));
-        final String status = ticket['status'];
-        
         setState(() {
-          if (status == "ACCEPTED") {
-            _driveStep = 1;
-          } else if (status == "DRIVING") {
-            _driveStep = 3;
-            _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
-            _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-            _currentFare = ticket['accumulated_fare'] ?? 95000;
-            _resumeMeterTimer();
-          } else if (status == "ARRIVED") {
-            _driveStep = 4;
-            _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
-            _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-            _currentFare = ticket['accumulated_fare'] ?? 95000;
-            _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-              _pollTicketStatus();
-            });
-          } else if (status == "APPROVED" || status == "COMPLETED") {
-            _driveStep = 5;
-            _elapsedSeconds = ticket['drive_time_seconds'] ?? 0;
-            _distanceKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-            _currentFare = ticket['accumulated_fare'] ?? 95000;
-          }
+          _applyTicketState(ticket);
+          _isLoadingState = false;
         });
       } else {
+        setState(() {
+          _isLoadingState = false;
+        });
         String errMsg = "티켓 상태를 불러오지 못했습니다.";
         try {
           final err = jsonDecode(utf8.decode(response.bodyBytes));
@@ -101,6 +117,9 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       }
     } catch (e) {
       debugPrint("초기 티켓 상태 로드 실패: $e");
+      setState(() {
+        _isLoadingState = false;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -310,6 +329,25 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingState) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: AppColors.primary),
+              const SizedBox(height: 16),
+              const Text(
+                "운행 정보를 불러오는 중입니다...",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
