@@ -285,7 +285,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
               ticketId: latestTicket['id'],
               initialTicket: latestTicket,
               onDriveCompleted: (earnings) {
-                Navigator.pop(context, {'action': 'complete'});
+                // Do not pop here to avoid double-pop race condition.
               },
             ),
           ),

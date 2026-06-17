@@ -483,7 +483,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   void _completeEntireDrive() {
     _clearLocalProgress();
     widget.onDriveCompleted(_currentFare);
-    Navigator.of(context).pop(); 
+    Navigator.of(context).pop({'action': 'complete', 'fare': _currentFare}); 
   }
 
   @override
