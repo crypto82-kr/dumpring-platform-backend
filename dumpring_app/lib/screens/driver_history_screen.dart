@@ -269,7 +269,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                                           decoration: BoxDecoration(
                                             color: isApproved 
                                                 ? AppColors.success.withAlpha(30) 
-                                                : (status == "REJECTED" ? AppColors.error.withAlpha(30) : AppColors.divider.withAlpha(30)),
+                                                : (status == "REJECTED" ? AppColors.danger.withAlpha(30) : AppColors.divider.withAlpha(30)),
                                             borderRadius: BorderRadius.circular(12),
                                           ),
                                           child: Text(
@@ -279,7 +279,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                                             style: TextStyle(
                                               color: isApproved 
                                                   ? AppColors.success 
-                                                  : (status == "REJECTED" ? AppColors.error : AppColors.textSecondary),
+                                                  : (status == "REJECTED" ? AppColors.danger : AppColors.textSecondary),
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -362,7 +362,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
           ),
           Container(width: 1, height: 40, color: AppColors.divider),
           Expanded(
-            child: _buildSummaryItem("반려 금액 (반려)", pending, AppColors.error),
+            child: _buildSummaryItem("반려 금액 (반려)", pending, AppColors.danger),
           ),
         ],
       ),
