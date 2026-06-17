@@ -537,7 +537,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
         setState(() {
           _isLandownerAbsent = true;
           _attachedPhoto = decoded['proof_photo'];
-          _driveStep = 5;
+          _driveStep = 4;
         });
 
         ScaffoldMessenger.of(context).showSnackBar(

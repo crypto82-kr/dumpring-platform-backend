@@ -155,10 +155,20 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
 
         Navigator.pop(context, {'action': 'accept', 'jobId': widget.job['id']});
       } else {
-        final err = jsonDecode(utf8.decode(response.bodyBytes));
-        _showErrorDialog(err['detail'] ?? "이미 다른 기사님이 수락했거나 만료된 공고입니다.");
+        try {
+          final err = jsonDecode(utf8.decode(response.bodyBytes));
+          final detail = err['detail'];
+          if (detail is String) {
+            _showErrorDialog(detail);
+          } else {
+            _showErrorDialog("배차 수락 불가 (오류 코드: ${response.statusCode})");
+          }
+        } catch (_) {
+          _showErrorDialog("배차 수락에 실패했습니다. (오류 코드: ${response.statusCode})");
+        }
       }
     } catch (e) {
+      debugPrint("배차 수락 에러: $e");
       _showErrorDialog("서버 네트워크 연결에 실패했습니다.");
     } finally {
       if (mounted) {
