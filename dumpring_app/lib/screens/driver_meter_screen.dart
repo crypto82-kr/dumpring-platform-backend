@@ -439,11 +439,35 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   }
 
   // 지주 부재 시 강제 모의 승인 및 완료
-  void _landownerApproved() {
+  Future<void> _landownerApproved() async {
     _statusPollTimer?.cancel();
-    setState(() {
-      _driveStep = 5;
-    });
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/inspection"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "decision": "APPROVED",
+          "soil_type": "GOOD_SOIL",
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _driveStep = 5;
+        });
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("⚠️ 강제 승인 요청 실패 (코드: ${response.statusCode})")),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("강제 승인 요청 에러: $e");
+    }
   }
 
   void _takeLandownerAbsentPhoto() {

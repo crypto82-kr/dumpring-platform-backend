@@ -812,12 +812,6 @@ async def inspect_and_confirm(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_drop_off:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="하차지 지주(DROP_OFF) 권한이 필요합니다."
-        )
-
     # 1. 티켓 조회
     from sqlalchemy.orm import selectinload
     ticket_query = select(DispatchTicket).where(
@@ -830,26 +824,40 @@ async def inspect_and_confirm(
     ticket_result = await db.execute(ticket_query)
     ticket = ticket_result.scalars().first()
 
-    if not ticket or ticket.status not in ["ARRIVED", "DRIVING"]:
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운행 티켓을 찾을 수 없습니다."
+        )
+
+    if ticket.status not in ["ARRIVED", "DRIVING"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="사토장 게이트에 아직 진입/도착 대기 중이거나 운행 중인 트럭이 아닙니다."
         )
 
-    # 2. 하차지 소유주 정합 권한 검증
+    # 1.5. 권한 검증 (지주 또는 해당 티켓의 기사)
+    if not (current_user.is_drop_off or ticket.driver_id == current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="하차지 지주(DROP_OFF) 또는 해당 티켓의 기사(DRIVER) 권한이 필요합니다."
+        )
+
+    # 2. 하차지 소유주 정합 권한 검증 (지주 계정일 때만 체크)
     job_query = select(JobPost).where(JobPost.id == ticket.job_post_id)
     job_result = await db.execute(job_query)
     job = job_result.scalars().first()
 
-    drop_off_query = select(DropOff).where(DropOff.id == job.matched_drop_off_id)
-    drop_off_result = await db.execute(drop_off_query)
-    dropoff = drop_off_result.scalars().first()
+    if current_user.is_drop_off:
+        drop_off_query = select(DropOff).where(DropOff.id == job.matched_drop_off_id)
+        drop_off_result = await db.execute(drop_off_query)
+        dropoff = drop_off_result.scalars().first()
 
-    if not dropoff or dropoff.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 차량이 도착한 하차지 사토장의 소유주가 아닙니다."
-        )
+        if not dropoff or dropoff.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="해당 차량이 도착한 하차지 사토장의 소유주가 아닙니다."
+            )
 
     decision_status = data.decision.upper()
     if decision_status not in ["APPROVED", "REJECTED"]:
@@ -889,6 +897,77 @@ async def inspect_and_confirm(
     await db.commit()
     await db.refresh(ticket)
     return await attach_pricing_policy(ticket, db)
+
+
+
+@router.get(
+    "/tickets/history",
+    response_model=List[DispatchTicketResponse],
+    summary="기사의 운행 완료/취소 이력 목록 조회"
+)
+async def get_tickets_history(
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    from sqlalchemy.orm import selectinload
+    query = select(DispatchTicket).where(
+        DispatchTicket.driver_id == current_user.id,
+        DispatchTicket.status.in_(["APPROVED", "REJECTED", "CANCELLED"])
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+    ).order_by(
+        DispatchTicket.completed_at.desc(),
+        DispatchTicket.id.desc()
+    ).limit(limit).offset(offset)
+    
+    result = await db.execute(query)
+    tickets = result.scalars().all()
+
+    for ticket in tickets:
+        if ticket.job_post:
+            j = ticket.job_post
+            if j.offered_unit_price is None and j.drop_off_request:
+                j.offered_unit_price = j.drop_off_request.unit_price
+            if j.site:
+                j.site_name = j.site.company_name
+                j.site_latitude = j.site.latitude
+                j.site_longitude = j.site.longitude
+                if "현대" in j.site.company_name:
+                    j.site_address = "인천 연수구 송도동 100-2"
+                elif "GS" in j.site.company_name:
+                    j.site_address = "경기 김포시 대곶면 사토매립장 부근"
+                else:
+                    j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
+            if j.matched_drop_off:
+                j.drop_off_name = j.matched_drop_off.name
+                j.drop_off_latitude = j.matched_drop_off.latitude
+                j.drop_off_longitude = j.matched_drop_off.longitude
+                j.drop_off_address = j.matched_drop_off.address
+
+            if j.distance is None or j.estimated_time is None:
+                if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
+                    import math
+                    lat1, lon1 = j.site.latitude, j.site.longitude
+                    lat2, lon2 = j.matched_drop_off.latitude, j.matched_drop_off.longitude
+                    R = 6371.0
+                    dlat = math.radians(lat2 - lat1)
+                    dlon = math.radians(lon2 - lon1)
+                    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+                    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                    j.distance = round(R * c, 1)
+                    j.estimated_time = int(j.distance * 1.5 + 5)
+
+    return await attach_pricing_policy(tickets, db)
 
 
 @router.get(
@@ -962,5 +1041,3 @@ async def get_arrived_tickets(
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()
     return await attach_pricing_policy(tickets, db)
-
-
