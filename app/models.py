@@ -478,8 +478,9 @@ class DispatchTicket(Base):
     driver_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     car_id = Column(Integer, ForeignKey("cars.id", ondelete="RESTRICT"), nullable=False)
 
-    # 상태값: 'ACCEPTED'(수락), 'DRIVING'(운행중/미터기온), 'ARRIVED'(도착), 'APPROVED'(승인완료), 'REJECTED'(반려/회차), 'CANCELLED'(취소)
+    # 상태값: 'ACCEPTED'(수락), 'DRIVING'(운행중/미터기온), 'ARRIVED'(도착), 'APPROVED'(승인완료), 'REJECTED'(반려/회차), 'CANCELLED'(취소), 'WAITING_ABSENT_APPROVAL'(지주부재 승인대기)
     status = Column(String, default="ACCEPTED", nullable=False)
+    proof_photo = Column(String, nullable=True)  # 지주 부재 시 실시간 현장 증빙 사진 URL
 
     accumulated_fare = Column(Integer, default=0, nullable=False)
     drive_distance_km = Column(Float, default=0.0, nullable=False)

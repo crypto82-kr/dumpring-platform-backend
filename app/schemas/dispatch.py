@@ -32,6 +32,7 @@ class DispatchTicketResponse(BaseModel):
     driver_id: int
     car_id: int
     status: str
+    proof_photo: Optional[str] = None
     accumulated_fare: int
     drive_distance_km: float
     drive_time_seconds: int

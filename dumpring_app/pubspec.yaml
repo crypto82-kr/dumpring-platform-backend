@@ -40,6 +40,8 @@ dependencies:
   geolocator: ^13.0.2
   system_alert_window: ^2.0.11
   intl: ^0.19.0
+  image_picker: ^1.1.2
+  http_parser: ^4.0.2
 
 dev_dependencies:
   flutter_test:

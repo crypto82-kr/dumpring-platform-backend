@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
+import 'package:image_picker/image_picker.dart';
 
 class DriverMeterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -137,6 +138,10 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
         _driveStep = 3;
       } else if (status == "ARRIVED") {
         _driveStep = 4;
+      } else if (status == "WAITING_ABSENT_APPROVAL") {
+        _driveStep = 4;
+        _isLandownerAbsent = true;
+        _attachedPhoto = ticket['proof_photo'];
       } else if (status == "APPROVED" || status == "COMPLETED") {
         _driveStep = 5;
       }
@@ -178,7 +183,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
       if (status == "DRIVING") {
         _resumeMeterTimer();
-      } else if (status == "ARRIVED") {
+      } else if (status == "ARRIVED" || status == "WAITING_ABSENT_APPROVAL") {
         _statusPollTimer?.cancel();
         _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
           _pollTicketStatus();
@@ -470,14 +475,101 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
     }
   }
 
-  void _takeLandownerAbsentPhoto() {
-    setState(() {
-      _isLandownerAbsent = true;
-      _attachedPhoto = "사토장_실시간촬영_${widget.ticketId}.jpg";
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("📸 지주 부재에 따른 증빙 사진이 첨부되었습니다.")),
+  Future<void> _takeLandownerAbsentPhoto() async {
+    final ImagePicker picker = ImagePicker();
+    
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Color(0xFF004D5A)),
+              title: const Text('카메라로 촬영하기'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Color(0xFF004D5A)),
+              title: const Text('갤러리에서 선택하기'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
     );
+
+    if (source == null) return;
+
+    final XFile? image = await picker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1920,
+    );
+
+    if (image == null) return;
+
+    setState(() {
+      _isLoadingState = true;
+    });
+
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/proof-photo"),
+      );
+      
+      request.headers['Authorization'] = "Bearer ${widget.token}";
+      
+      final multipartFile = await http.MultipartFile.fromPath(
+        'file',
+        image.path,
+      );
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        setState(() {
+          _isLandownerAbsent = true;
+          _attachedPhoto = decoded['proof_photo'];
+          _driveStep = 5;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("📸 지주 부재 증빙 사진이 성공적으로 업로드되었습니다."),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // 3. 지주 실시간 반입 승인을 실시간으로 감지하기 위한 Polling 타이머 가동
+        _statusPollTimer?.cancel();
+        _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+          _pollTicketStatus();
+        });
+      } else {
+        throw Exception("증빙 업로드 실패 (HTTP ${response.statusCode})");
+      }
+    } catch (e) {
+      debugPrint("증빙 사진 업로드 에러: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🔴 증빙 사진 업로드 도중 에러가 발생했습니다."),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingState = false;
+        });
+      }
+    }
   }
 
   void _completeEntireDrive() {

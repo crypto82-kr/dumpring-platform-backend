@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'driver_pending_screen.dart';
+import 'package:image_picker/image_picker.dart';
 
 class DriverDocumentUploadScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -122,22 +123,86 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
     }
   }
 
-  void _simulateUpload(String docCode) {
+  Future<void> _pickAndUploadImage(String docCode) async {
+    final ImagePicker picker = ImagePicker();
+    
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Color(0xFF004D5A)),
+              title: const Text('카메라로 촬영하기'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Color(0xFF004D5A)),
+              title: const Text('갤러리에서 선택하기'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final XFile? image = await picker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1920,
+    );
+
+    if (image == null) return;
+
     setState(() {
       _isSubmitting = true;
     });
 
-    // 1초 뒤 업로드 완료 모사
-    Future.delayed(const Duration(milliseconds: 800), () async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse("$_baseUrl/api/files/upload"),
+      );
+      
+      request.headers['Authorization'] = "Bearer ${widget.token}";
+      request.fields['category'] = 'documents';
+      
+      final multipartFile = await http.MultipartFile.fromPath(
+        'file',
+        image.path,
+      );
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        final String uploadedUrl = decoded['url'];
+        await _uploadDocumentToServer(docCode, uploadedUrl);
+      } else {
+        throw Exception("파일 업로드 실패 (HTTP ${response.statusCode})");
+      }
+    } catch (e) {
+      debugPrint("서류 실물 업로드 에러: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🔴 서류 파일 업로드 도중 에러가 발생했습니다."),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
         });
-        final timeStr = DateTime.now().millisecondsSinceEpoch.toString().substring(8);
-        final simulatedFileName = "기사서류_${docCode}_$timeStr.jpg";
-        await _uploadDocumentToServer(docCode, simulatedFileName);
       }
-    });
+    }
   }
 
   void _submitAllDocuments() {
@@ -256,7 +321,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                                 ),
                               ),
                               child: InkWell(
-                                onTap: () => _simulateUpload(docCode),
+                                onTap: () => _pickAndUploadImage(docCode),
                                 borderRadius: BorderRadius.circular(16),
                                 child: Padding(
                                   padding: const EdgeInsets.all(20.0),

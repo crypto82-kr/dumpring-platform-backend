@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import logging
 import os
 
@@ -15,6 +16,7 @@ from app.api.jobs import router as jobs_router
 from app.api.common_codes import router as common_codes_router
 from app.api.dispatch import router as dispatch_router
 from app.api.sdui import router as sdui_router
+from app.api.files import router as files_router
 from app.models import Base, CommonCode, SduiTheme
 from app.core.db import engine, SessionLocal
 from sqlalchemy.future import select
@@ -64,6 +66,36 @@ async def startup_event():
                 db.add(new_code)
         await db.commit()
     logger.info("마스터 공통코드 동적 설정 시딩 완료.")
+
+    logger.info("배차 상태 공통코드 시딩(Seeding)...")
+    async with SessionLocal() as db:
+        dispatch_statuses = [
+            {"group_code": "DISPATCH_STATUS", "code": "ACCEPTED", "code_name": "배차 수락", "display_order": 1},
+            {"group_code": "DISPATCH_STATUS", "code": "DRIVING", "code_name": "운행 중", "display_order": 2},
+            {"group_code": "DISPATCH_STATUS", "code": "ARRIVED", "code_name": "도착 완료", "display_order": 3},
+            {"group_code": "DISPATCH_STATUS", "code": "WAITING_ABSENT_APPROVAL", "code_name": "지주부재 승인대기", "display_order": 4},
+            {"group_code": "DISPATCH_STATUS", "code": "APPROVED", "code_name": "반입 승인", "display_order": 5},
+            {"group_code": "DISPATCH_STATUS", "code": "REJECTED", "code_name": "반입 반려", "display_order": 6},
+            {"group_code": "DISPATCH_STATUS", "code": "CANCELLED", "code_name": "운행 취소", "display_order": 7},
+        ]
+        for ds in dispatch_statuses:
+            query = select(CommonCode).where(
+                CommonCode.group_code == ds["group_code"],
+                CommonCode.code == ds["code"]
+            )
+            res = await db.execute(query)
+            existing = res.scalars().first()
+            if not existing:
+                new_code = CommonCode(
+                    group_code=ds["group_code"],
+                    code=ds["code"],
+                    code_name=ds["code_name"],
+                    display_order=ds["display_order"],
+                    is_active=True
+                )
+                db.add(new_code)
+        await db.commit()
+    logger.info("배차 상태 공통코드 시딩 완료.")
 
     # SDUI 기본 테마 시딩
     logger.info("SDUI 기본 테마 시딩...")
@@ -132,7 +164,6 @@ async def startup_event():
         await db.commit()
     logger.info("SDUI 기본 테마 시딩 완료.")
 
-# 라우터 등록
 app.include_router(auth_router, prefix="/api/auth", tags=["인증/회원가입"])
 app.include_router(owner_router, prefix="/api/owner", tags=["차주 전용 관리"])
 app.include_router(site_router, prefix="/api/sites", tags=["현장 관리 및 매핑"])
@@ -143,6 +174,13 @@ app.include_router(jobs_router, prefix="/api", tags=["상하차지 B2B 매칭"])
 app.include_router(common_codes_router, prefix="/api/common-codes", tags=["공통 코드 마스터"])
 app.include_router(dispatch_router, prefix="/api/dispatch", tags=["실시간 배차 및 운행 관제"])
 app.include_router(sdui_router, prefix="/api/sdui", tags=["SDUI 서버드리븐 UI"])
+app.include_router(files_router, prefix="/api/files", tags=["파일 업로드"])
+
+# Static Files Mount
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(os.path.join(static_dir, "uploads", "documents"), exist_ok=True)
+os.makedirs(os.path.join(static_dir, "uploads", "proofs"), exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 

@@ -225,10 +225,38 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text("주행 기사 ID: ${ticket['driver_id']}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                    Text("주행 기사 ID: ${ticket['driver_id']}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black))),
                     SizedBox(height: 6),
                     Text("주행 거리: ${ticket['drive_distance_km']} km", style: TextStyle(fontSize: 13, color: Colors.grey)),
                     Text("누적 요금: ${ticket['accumulated_fare']} 원", style: TextStyle(fontSize: 13, color: Colors.grey)),
+                    if (ticket['proof_photo'] != null) ...[
+                      SizedBox(height: 16),
+                      const Text("📸 현장 증빙 사진", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange)),
+                      SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          "$_baseUrl${ticket['proof_photo']}",
+                          height: 160,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              height: 160,
+                              color: Colors.grey[200],
+                              child: const Center(child: CircularProgressIndicator(color: Colors.orange)),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              height: 160,
+                              color: Colors.grey[300],
+                              child: const Center(child: Icon(Icons.broken_image, color: Colors.red, size: 40)),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                     SizedBox(height: 16),
                     Divider(),
                     SizedBox(height: 8),
@@ -494,9 +522,36 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 ),
                 child: ListTile(
                   title: Text("덤프트럭 티켓 #${ticket['id']}", style: TextStyle(fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)))),
-                  subtitle: Text(
-                    "기사 ID: ${ticket['driver_id']} | 거리 ${ticket['drive_distance_km']}km",
-                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563))),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "기사 ID: ${ticket['driver_id']} | 거리 ${ticket['drive_distance_km']}km",
+                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563))),
+                      ),
+                      if (ticket['status'] == 'WAITING_ABSENT_APPROVAL') ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.orange),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.camera_alt_outlined, size: 12, color: Colors.orange),
+                              SizedBox(width: 4),
+                              Text(
+                                "지주 부재 (증빙 사진 제출됨)",
+                                style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   trailing: ElevatedButton(
                     onPressed: () => _processIncomingTruck(ticket),

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, and_, update
@@ -802,6 +802,96 @@ async def arrive_at_dropoff(
 
 
 @router.post(
+    "/tickets/{ticket_id}/proof-photo",
+    response_model=DispatchTicketResponse,
+    summary="[기사용] 지주 부재 시 현장 증빙 사진 업로드 및 승인 대기 처리"
+)
+async def upload_proof_photo(
+    ticket_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="기사(DRIVER) 권한이 필요합니다."
+        )
+
+    # 1. 티켓 조회
+    from sqlalchemy.orm import selectinload
+    ticket_query = select(DispatchTicket).where(
+        DispatchTicket.id == ticket_id,
+        DispatchTicket.driver_id == current_user.id
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+    )
+    result = await db.execute(ticket_query)
+    ticket = result.scalars().first()
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운행 티켓을 찾을 수 없습니다."
+        )
+
+    if ticket.status not in ["DRIVING", "ARRIVED"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="증빙 사진을 등록할 수 없는 운행 상태입니다."
+        )
+
+    # 파일 확장자 검증
+    import os
+    import uuid
+    import shutil
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    allowed_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+    if file_ext not in allowed_exts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"지원하지 않는 파일 형식입니다. {allowed_exts} 형식만 업로드 가능합니다."
+        )
+
+    # 고유 파일명 생성
+    filename = f"{uuid.uuid4().hex}{file_ext}"
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static", "uploads", "proofs"))
+    os.makedirs(base_dir, exist_ok=True)
+    
+    file_path = os.path.join(base_dir, filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"파일 저장 중 에러가 발생했습니다: {str(e)}"
+        )
+
+    static_url = f"/static/uploads/proofs/{filename}"
+    
+    # 2. 티켓 정보 업데이트 및 상태 변경
+    await validate_dispatch_status("WAITING_ABSENT_APPROVAL", db)
+    ticket.proof_photo = static_url
+    ticket.status = "WAITING_ABSENT_APPROVAL"
+    
+    # DRIVING에서 바로 증빙제출 한 경우 arrived_at 및 기본요금 계산
+    if ticket.status == "WAITING_ABSENT_APPROVAL" and not ticket.arrived_at:
+        ticket.arrived_at = datetime.now()
+        job = ticket.job_post
+        ticket.accumulated_fare = job.offered_unit_price if (job and job.offered_unit_price) else 75000
+        ticket.drive_distance_km = job.distance if (job and job.distance) else 18.5
+        ticket.drive_time_seconds = (job.estimated_time * 60) if (job and job.estimated_time) else 1450
+    
+    await db.commit()
+    await db.refresh(ticket)
+    return await attach_pricing_policy(ticket, db)
+
+
+@router.post(
     "/tickets/{ticket_id}/inspection",
     response_model=DispatchTicketResponse,
     summary="[지주용] 하차 트럭 최종 반입 검사 및 승인/반려 판정"
@@ -830,7 +920,7 @@ async def inspect_and_confirm(
             detail="해당 운행 티켓을 찾을 수 없습니다."
         )
 
-    if ticket.status not in ["ARRIVED", "DRIVING"]:
+    if ticket.status not in ["ARRIVED", "DRIVING", "WAITING_ABSENT_APPROVAL"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="사토장 게이트에 아직 진입/도착 대기 중이거나 운행 중인 트럭이 아닙니다."
@@ -1033,10 +1123,10 @@ async def get_arrived_tickets(
     if not job_ids:
         return []
 
-    # 3. 상태가 'ARRIVED'인 DispatchTicket 조회
+    # 3. 상태가 'ARRIVED' 또는 'WAITING_ABSENT_APPROVAL'인 DispatchTicket 조회
     ticket_query = select(DispatchTicket).where(
         DispatchTicket.job_post_id.in_(job_ids),
-        DispatchTicket.status == "ARRIVED"
+        DispatchTicket.status.in_(["ARRIVED", "WAITING_ABSENT_APPROVAL"])
     )
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()
