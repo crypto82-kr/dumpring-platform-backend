@@ -360,7 +360,7 @@ async def get_active_tickets(
     from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
     ).options(
         selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
@@ -370,11 +370,11 @@ async def get_active_tickets(
     result = await db.execute(query)
     tickets = result.scalars().all()
 
-    # 운행 우선순위 결정: DRIVING -> ARRIVED -> ACCEPTED 순
+    # 운행 우선순위 결정: DRIVING -> ARRIVED/WAITING_ABSENT_APPROVAL -> ACCEPTED 순
     def get_priority(t):
         if t.status == "DRIVING":
             return 0
-        elif t.status == "ARRIVED":
+        elif t.status in ["ARRIVED", "WAITING_ABSENT_APPROVAL"]:
             return 1
         return 2
 
@@ -435,7 +435,7 @@ async def get_active_ticket(
     from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
     ).options(
         selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
@@ -447,9 +447,9 @@ async def get_active_ticket(
     
     ticket = None
     if tickets:
-        # DRIVING 우선 -> ARRIVED 우선 -> ACCEPTED 중에는 accepted_at 최신순
+        # DRIVING 우선 -> ARRIVED/WAITING_ABSENT_APPROVAL 우선 -> ACCEPTED 중에는 accepted_at 최신순
         driving_tickets = [t for t in tickets if t.status == "DRIVING"]
-        arrived_tickets = [t for t in tickets if t.status == "ARRIVED"]
+        arrived_tickets = [t for t in tickets if t.status in ["ARRIVED", "WAITING_ABSENT_APPROVAL"]]
         accepted_tickets = [t for t in tickets if t.status == "ACCEPTED"]
         if driving_tickets:
             ticket = driving_tickets[0]
