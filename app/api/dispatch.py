@@ -837,7 +837,7 @@ async def upload_proof_photo(
             detail="해당 운행 티켓을 찾을 수 없습니다."
         )
 
-    if ticket.status not in ["DRIVING", "ARRIVED"]:
+    if ticket.status not in ["DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="증빙 사진을 등록할 수 없는 운행 상태입니다."
