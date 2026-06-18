@@ -1030,16 +1030,36 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.warning),
                   ),
                 ] else ...[
-                  Icon(Icons.flag, color: AppColors.primary, size: 40),
-                  SizedBox(height: 12),
+                  Icon(Icons.photo_library_outlined, color: AppColors.primary, size: 40),
+                  const SizedBox(height: 12),
                   Text(
-                    "지주 부재 대체 전표 모드",
+                    "지주 부재 대체 전표 모드 (증빙 제출완료)",
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 12),
+                  if (_attachedPhoto != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        "$_baseUrl$_attachedPhoto",
+                        height: 160,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 160,
+                            color: Colors.grey.withAlpha(50),
+                            child: const Center(
+                              child: Icon(Icons.broken_image_outlined, size: 40, color: Colors.grey),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 8),
                   Text(
-                    "증빙: $_attachedPhoto",
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+                    "지주 부재 승인 대기 중...",
+                    style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.bold),
                   ),
                 ],
               ],
@@ -1082,6 +1102,18 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
               elevation: 0,
             ),
             child: Text("현장 사진 증빙서 제출 및 완료", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _takeLandownerAbsentPhoto,
+            icon: const Icon(Icons.photo_camera),
+            label: const Text("사진 수정 / 다시 등록하기"),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.warning,
+              side: BorderSide(color: AppColors.warning),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           ),
         ],
       ],
