@@ -505,13 +505,14 @@ async def seed_scenario_data():
 
             # 3. 덤프 모집 공고 생성
             target_site = site1 if (i % 3 == 0) else site2
+            bulk_price = calculate_fair_price(target_site.latitude, target_site.longitude, bulk_do.latitude, bulk_do.longitude, "T_25")
             bulk_job = JobPost(
                 site_id=target_site.id,
                 drop_off_request_id=bulk_req.id,
                 author_id=site_mgr.id,
                 material_type=bulk_req.material_type,
                 truck_type="T_25",
-                offered_unit_price=bulk_req.unit_price,
+                offered_unit_price=bulk_price,
                 payer_type="SITE_PAYS",
                 memo=f"무한 스크롤 및 지역 검색 테스트용 데이터입니다. 현장 번호: {i}번 ({sido} {sigungu} 방면 반출)",
                 matched_drop_off_id=bulk_do.id,
