@@ -8,6 +8,7 @@ import '../shared/widgets/layouts/dr_scaffold.dart';
 import 'package:image_picker/image_picker.dart';
 import '../sdui/driver_overlay_meter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 
 class DriverMeterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -451,6 +452,56 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
 
   // 1. 미터기 주행 시작 API 연동
   Future<void> _startDriving() async {
+    // 거리가 1km 이상 벌어진 경우 주행 차단 검증 수행
+    if (_siteLat != null && _siteLng != null && _siteLat != 0.0 && _siteLng != 0.0) {
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 5),
+        );
+        final double distanceInMeters = Geolocator.distanceBetween(
+          position.latitude,
+          position.longitude,
+          _siteLat!,
+          _siteLng!,
+        );
+
+        if (distanceInMeters > 1000.0) { // 1km 초과 시 차단
+          final double distanceInKm = distanceInMeters / 1000.0;
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text("상차지 이탈 경고", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                content: Text(
+                  "상차 현장으로부터 너무 멀리 떨어져 있어 운행을 시작할 수 없습니다.\n"
+                  "공고된 상차지 좌표 부근으로 이동하여 미터기를 켜주세요.\n\n"
+                  "• 상차지와의 거리: ${distanceInKm.toStringAsFixed(2)} km\n"
+                  "• 부정 요금 부과 규정에 따라 운행 시작이 제한됩니다."
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("확인", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+          return; // 주행 시작 차단
+        }
+      } catch (e) {
+        debugPrint("위치 확인 실패로 인한 무시 및 진입 허용: $e");
+      }
+    }
+
     try {
       final response = await http.post(
         Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/start-driving"),
