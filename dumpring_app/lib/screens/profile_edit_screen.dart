@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -31,12 +32,25 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  String _preferredNavi = "tmap";
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user['name'] ?? '');
     _phoneController = TextEditingController(text: widget.user['phone_number'] ?? '');
+    _loadPreferredNavi();
+  }
+
+  Future<void> _loadPreferredNavi() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _preferredNavi = prefs.getString("preferred_navi") ?? "tmap";
+      });
+    } catch (e) {
+      debugPrint("선호 내비 로딩 실패: $e");
+    }
   }
 
   @override
@@ -54,6 +68,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("preferred_navi", _preferredNavi);
+    } catch (e) {
+      debugPrint("선호 내비 저장 실패: $e");
+    }
 
     final String endpoint = "$_baseUrl/api/auth/profile";
     final Map<String, dynamic> requestData = {
@@ -82,7 +103,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text("✨ 개인정보 및 등록정보가 성공적으로 수정되었습니다."),
             backgroundColor: Color(0xFF004D5A),
           ),
@@ -228,6 +249,49 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             ),
                           ),
                         ),
+                        SizedBox(height: 20),
+
+                        Text("선호 내비게이션", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                        SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: _preferredNavi,
+                          dropdownColor: AppColors.surface,
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: AppColors.background,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.divider),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.divider),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                            ),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: "tmap",
+                              child: Text("티맵 (TMap)"),
+                            ),
+                            DropdownMenuItem(
+                              value: "kakaonavi",
+                              child: Text("카카오내비"),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _preferredNavi = value;
+                              });
+                            }
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -280,7 +344,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           width: 20,
                           child: CircularProgressIndicator(color: AppColors.background, strokeWidth: 2),
                         )
-                      : Text("저장하기", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      : const Text("저장하기", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),

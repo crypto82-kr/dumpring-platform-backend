@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 import 'package:image_picker/image_picker.dart';
+import '../sdui/driver_overlay_meter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DriverMeterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -27,7 +29,7 @@ class DriverMeterScreen extends StatefulWidget {
   State<DriverMeterScreen> createState() => _DriverMeterScreenState();
 }
 
-class _DriverMeterScreenState extends State<DriverMeterScreen> {
+class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindingObserver {
   String get _baseUrl => AppConfig.baseUrl;
 
   // 1: 상차지 이동, 2: 대기중, 3: 미터기 가동중, 4: 하차지 도착(승인 대기), 5: 운행 완료
@@ -62,10 +64,125 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
   int _maxSingleOfflineSeconds = 0;
   int _totalOfflineSeconds = 0;
 
+  // 상하차지 좌표 및 현장명 저장을 위한 변수
+  double? _siteLat;
+  double? _siteLng;
+  String? _siteName;
+  double? _dropOffLat;
+  double? _dropOffLng;
+  String? _dropOffName;
+
+  Future<void> _launchTMap({required String destinationName, required double? lat, required double? lng}) async {
+    if (lat == null || lng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("⚠️ 목적지 좌표 정보가 유효하지 않습니다."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final String urlString = "tmap://route?rGoName=${Uri.encodeComponent(destinationName)}&rGoX=$lng&rGoY=$lat";
+    final Uri uri = Uri.parse(urlString);
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        // 티맵이 미설치된 경우 구글 플레이 스토어로 이동
+        final Uri playStoreUri = Uri.parse("market://details?id=com.skt.tmap.ku");
+        if (await canLaunchUrl(playStoreUri)) {
+          await launchUrl(playStoreUri);
+        } else {
+          await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.skt.tmap.ku"));
+        }
+      }
+    } catch (e) {
+      debugPrint("티맵 호출 에러: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("⚠️ 티맵 내비게이션을 호출하는 중 오류가 발생했습니다: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _launchKakaoNavi({required String destinationName, required double? lat, required double? lng}) async {
+    if (lat == null || lng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("⚠️ 목적지 좌표 정보가 유효하지 않습니다."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final String urlString = "kakaonavi://navigate?daddr=${Uri.encodeComponent(destinationName)}&dlat=$lat&dlng=$lng&coord_type=wgs84";
+    final Uri uri = Uri.parse(urlString);
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        // 카카오내비가 미설치된 경우 구글 플레이 스토어로 이동
+        final Uri playStoreUri = Uri.parse("market://details?id=com.locnall.KimGiSa");
+        if (await canLaunchUrl(playStoreUri)) {
+          await launchUrl(playStoreUri);
+        } else {
+          await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.locnall.KimGiSa"));
+        }
+      }
+    } catch (e) {
+      debugPrint("카카오내비 호출 에러: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("⚠️ 카카오내비를 호출하는 중 오류가 발생했습니다: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _launchPreferredNavi({required String destinationName, required double? lat, required double? lng}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String preferred = prefs.getString("preferred_navi") ?? "tmap";
+      if (preferred == "kakaonavi") {
+        await _launchKakaoNavi(destinationName: destinationName, lat: lat, lng: lng);
+      } else {
+        await _launchTMap(destinationName: destinationName, lat: lat, lng: lng);
+      }
+    } catch (e) {
+      await _launchTMap(destinationName: destinationName, lat: lat, lng: lng);
+    }
+  }
+
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initMeterState();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_driveStep == 3) { // 운행 중(미터기 가동 중)일 때만 작동
+      if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+        // 앱이 비활성화되거나 백그라운드로 이동할 때 오버레이 미터기 띄우기
+        DriverOverlayMeter.showActiveMeter(
+          currentFare: _currentFare,
+          distanceKm: _distanceKm,
+          elapsedSeconds: _elapsedSeconds,
+        );
+      } else if (state == AppLifecycleState.resumed) {
+        // 앱이 다시 포어그라운드로 돌아오면 오버레이 미터기 닫기
+        DriverOverlayMeter.closeMeter();
+      }
+    }
   }
 
   Future<void> _initMeterState() async {
@@ -128,6 +245,12 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
       _baseTariff = jp['offered_unit_price'] ?? 95000;
       _plannedDistanceKm = (jp['distance'] as num?)?.toDouble() ?? 10.0;
       _plannedTimeMinutes = jp['estimated_time'] ?? 20;
+      _siteLat = (jp['site_latitude'] as num?)?.toDouble();
+      _siteLng = (jp['site_longitude'] as num?)?.toDouble();
+      _siteName = jp['site_name'] as String?;
+      _dropOffLat = (jp['drop_off_latitude'] as num?)?.toDouble();
+      _dropOffLng = (jp['drop_off_longitude'] as num?)?.toDouble();
+      _dropOffName = jp['drop_off_name'] as String?;
     }
 
     if (status == "ACCEPTED") {
@@ -277,14 +400,21 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
           _currentFare = _calculateFare(_distanceKm, _elapsedSeconds);
         });
         _saveProgressToLocal();
+        DriverOverlayMeter.updateMeterData(
+          currentFare: _currentFare,
+          distanceKm: _distanceKm,
+          elapsedSeconds: _elapsedSeconds,
+        );
       }
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _meterTimer?.cancel();
     _statusPollTimer?.cancel();
+    DriverOverlayMeter.closeMeter();
     super.dispose();
   }
 
@@ -323,6 +453,11 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
               _currentFare = _calculateFare(_distanceKm, _elapsedSeconds);
             });
             _saveProgressToLocal();
+            DriverOverlayMeter.updateMeterData(
+              currentFare: _currentFare,
+              distanceKm: _distanceKm,
+              elapsedSeconds: _elapsedSeconds,
+            );
           }
         });
       } else {
@@ -361,6 +496,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
   Future<void> _arrivedAtUnloadingSite() async {
     _meterTimer?.cancel();
+    DriverOverlayMeter.closeMeter();
     try {
       final response = await http.post(
         Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/arrive"),
@@ -574,6 +710,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
 
   void _completeEntireDrive() {
     _clearLocalProgress();
+    DriverOverlayMeter.closeMeter();
     widget.onDriveCompleted(_currentFare);
     Navigator.of(context).pop({'action': 'complete', 'fare': _currentFare}); 
   }
@@ -763,14 +900,16 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
         SizedBox(height: 28),
         ElevatedButton.icon(
           onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("🗺️ 외부 카카오 내비게이션 앱으로 경로 안내를 실행합니다.")),
+            _launchPreferredNavi(
+              destinationName: _siteName ?? "상차 현장",
+              lat: _siteLat,
+              lng: _siteLng,
             );
           },
-          icon: Icon(Icons.map),
-          label: Text("카카오 내비게이션 경로 안내"),
+          icon: const Icon(Icons.navigation_outlined),
+          label: const Text("내비게이션 경로 안내"),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.warning,
+            backgroundColor: AppColors.primary,
             foregroundColor: AppColors.textPrimary,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -978,6 +1117,25 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
           ),
         ),
         SizedBox(height: 28),
+        ElevatedButton.icon(
+          onPressed: () {
+            _launchPreferredNavi(
+              destinationName: _dropOffName ?? "하차지 현장",
+              lat: _dropOffLat,
+              lng: _dropOffLng,
+            );
+          },
+          icon: const Icon(Icons.navigation_outlined),
+          label: const Text("내비게이션 경로 안내 (하차지)"),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.warning,
+            foregroundColor: AppColors.textPrimary,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
+          ),
+        ),
+        const SizedBox(height: 12),
         ElevatedButton(
           onPressed: _arrivedAtUnloadingSite,
           style: ElevatedButton.styleFrom(
@@ -987,7 +1145,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
           ),
-          child: Text("하차지 도착 완료 (지오펜스 작동)", style: TextStyle(fontWeight: FontWeight.bold)),
+          child: const Text("하차지 도착 완료 (지오펜스 작동)", style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );

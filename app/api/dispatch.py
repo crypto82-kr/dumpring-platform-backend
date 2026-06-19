@@ -191,18 +191,9 @@ async def get_open_dispatch_jobs(
 
         if j.site:
             j.site_name = j.site.company_name
-            if "현대" in j.site.company_name:
-                j.site_address = "인천 연수구 송도동 100-2"
-                j.site_latitude = 37.3948
-                j.site_longitude = 126.6385
-            elif "GS" in j.site.company_name:
-                j.site_address = "경기 김포시 대곶면 사토매립장 부근"
-                j.site_latitude = 37.6416
-                j.site_longitude = 126.5133
-            else:
-                j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
-                j.site_latitude = j.site.latitude
-                j.site_longitude = j.site.longitude
+            j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
+            j.site_latitude = j.site.latitude
+            j.site_longitude = j.site.longitude
         
         if j.matched_drop_off:
             j.drop_off_name = j.matched_drop_off.name
@@ -387,18 +378,9 @@ async def get_active_tickets(
                 j.offered_unit_price = j.drop_off_request.unit_price
             if j.site:
                 j.site_name = j.site.company_name
-                if "현대" in j.site.company_name:
-                    j.site_address = "인천 연수구 송도동 100-2"
-                    j.site_latitude = 37.3948
-                    j.site_longitude = 126.6385
-                elif "GS" in j.site.company_name:
-                    j.site_address = "경기 김포시 대곶면 사토매립장 부근"
-                    j.site_latitude = 37.6416
-                    j.site_longitude = 126.5133
-                else:
-                    j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
-                    j.site_latitude = j.site.latitude
-                    j.site_longitude = j.site.longitude
+                j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
+                j.site_latitude = j.site.latitude
+                j.site_longitude = j.site.longitude
             if j.matched_drop_off:
                 j.drop_off_name = j.matched_drop_off.name
                 j.drop_off_latitude = j.matched_drop_off.latitude
@@ -472,18 +454,9 @@ async def get_active_ticket(
             j.offered_unit_price = j.drop_off_request.unit_price
         if j.site:
             j.site_name = j.site.company_name
-            if "현대" in j.site.company_name:
-                j.site_address = "인천 연수구 송도동 100-2"
-                j.site_latitude = 37.3948
-                j.site_longitude = 126.6385
-            elif "GS" in j.site.company_name:
-                j.site_address = "경기 김포시 대곶면 사토매립장 부근"
-                j.site_latitude = 37.6416
-                j.site_longitude = 126.5133
-            else:
-                j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
-                j.site_latitude = j.site.latitude
-                j.site_longitude = j.site.longitude
+            j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
+            j.site_latitude = j.site.latitude
+            j.site_longitude = j.site.longitude
         if j.matched_drop_off:
             j.drop_off_name = j.matched_drop_off.name
             j.drop_off_latitude = j.matched_drop_off.latitude
@@ -1040,18 +1013,9 @@ async def get_tickets_history(
                 j.offered_unit_price = j.drop_off_request.unit_price
             if j.site:
                 j.site_name = j.site.company_name
-                if "현대" in j.site.company_name:
-                    j.site_address = "인천 연수구 송도동 100-2"
-                    j.site_latitude = 37.3948
-                    j.site_longitude = 126.6385
-                elif "GS" in j.site.company_name:
-                    j.site_address = "경기 김포시 대곶면 사토매립장 부근"
-                    j.site_latitude = 37.6416
-                    j.site_longitude = 126.5133
-                else:
-                    j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
-                    j.site_latitude = j.site.latitude
-                    j.site_longitude = j.site.longitude
+                j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
+                j.site_latitude = j.site.latitude
+                j.site_longitude = j.site.longitude
             if j.matched_drop_off:
                 j.drop_off_name = j.matched_drop_off.name
                 j.drop_off_latitude = j.matched_drop_off.latitude
@@ -1107,18 +1071,9 @@ async def get_dispatch_ticket(
             j.offered_unit_price = j.drop_off_request.unit_price
         if j.site:
             j.site_name = j.site.company_name
-            if "현대" in j.site.company_name:
-                j.site_address = "인천 연수구 송도동 100-2"
-                j.site_latitude = 37.3948
-                j.site_longitude = 126.6385
-            elif "GS" in j.site.company_name:
-                j.site_address = "경기 김포시 대곶면 사토매립장 부근"
-                j.site_latitude = 37.6416
-                j.site_longitude = 126.5133
-            else:
-                j.site_address = f"현장 주소 (현장 ID {j.site_id} 부근)"
-                j.site_latitude = j.site.latitude
-                j.site_longitude = j.site.longitude
+            j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
+            j.site_latitude = j.site.latitude
+            j.site_longitude = j.site.longitude
         if j.matched_drop_off:
             j.drop_off_name = j.matched_drop_off.name
             j.drop_off_latitude = j.matched_drop_off.latitude

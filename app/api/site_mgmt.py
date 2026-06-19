@@ -29,6 +29,7 @@ class SiteSearchResponse(BaseModel):
     company_name: str
     business_number: str
     site_key: str
+    site_address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     geofencing_radius: float = 200.0
@@ -42,6 +43,7 @@ class CreateSiteRequest(BaseModel):
     site_name: str = Field(..., description="현장명")
     company_name: str = Field(..., description="건설사/상호명")
     business_number: str = Field(..., description="사업자등록번호")
+    site_address: Optional[str] = Field(None, description="현장 주소")
     latitude: Optional[float] = Field(None, description="위도")
     longitude: Optional[float] = Field(None, description="경도")
     geofencing_radius: float = Field(200.0, description="지오펜싱 반경 (기본 200m)")
@@ -57,6 +59,7 @@ class UserMappingResponse(BaseModel):
     company_name: str
     business_number: str
     site_key: str
+    site_address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     geofencing_radius: float = 200.0
@@ -99,6 +102,7 @@ async def search_sites(
             company_name=s.company_name,
             business_number=s.business_number,
             site_key=s.site_key or "",
+            site_address=s.site_address,
             latitude=s.latitude,
             longitude=s.longitude,
             geofencing_radius=s.geofencing_radius
@@ -139,6 +143,7 @@ async def create_site(
             company_name=data.company_name,
             business_number=data.business_number,
             site_key=site_key,
+            site_address=data.site_address,
             latitude=data.latitude,
             longitude=data.longitude,
             geofencing_radius=data.geofencing_radius,
@@ -174,6 +179,7 @@ async def create_site(
         company_name=site.company_name,
         business_number=site.business_number,
         site_key=site.site_key or "",
+        site_address=site.site_address,
         latitude=site.latitude,
         longitude=site.longitude,
         geofencing_radius=site.geofencing_radius
@@ -261,6 +267,7 @@ async def get_my_mappings(
                     company_name=site.company_name,
                     business_number=site.business_number,
                     site_key=site.site_key or "",
+                    site_address=site.site_address,
                     latitude=site.latitude,
                     longitude=site.longitude,
                     geofencing_radius=site.geofencing_radius or 200.0,

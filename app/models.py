@@ -61,6 +61,7 @@ class ConstructionSite(Base):
     business_number = Column(String, nullable=False)  # 사업자등록번호 (세금계산서 발행용)
     billing_email = Column(String, nullable=False)  # 세금계산서용 이메일
     site_key = Column(String, unique=True, nullable=True, index=True)  # 현장 구분용 고유 키 (예: SITE-A1B2C3)
+    site_address = Column(String, nullable=True)  # 현장 지번/도로명 주소
     latitude = Column(Float, nullable=True)  # 현장 위도
     longitude = Column(Float, nullable=True)  # 현장 경도
     geofencing_radius = Column(Float, default=200.0, nullable=False)  # 지오펜싱 반경 (미터 단위)

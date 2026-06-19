@@ -252,7 +252,8 @@ async def seed_scenario_data():
             site1 = ConstructionSite(
                 user_id=site_mgr.id, company_name="현대건설",
                 business_number="120-00-12345", billing_email="billing@hyundai.com",
-                site_key="SITE-HD-001", latitude=37.5665, longitude=126.9780, geofencing_radius=300.0
+                site_key="SITE-HD-001", site_address="인천 연수구 송도동 100-2",
+                latitude=37.3948, longitude=126.6385, geofencing_radius=300.0
             )
             session.add(site1)
 
@@ -262,7 +263,8 @@ async def seed_scenario_data():
             site2 = ConstructionSite(
                 user_id=site_mgr.id, company_name="GS건설",
                 business_number="110-00-54321", billing_email="billing@gs.com",
-                site_key="SITE-GS-002", latitude=37.4979, longitude=127.0276, geofencing_radius=200.0
+                site_key="SITE-GS-002", site_address="경기 김포시 대곶면 사토매립장 부근",
+                latitude=37.6416, longitude=126.5133, geofencing_radius=200.0
             )
             session.add(site2)
         await session.commit()
@@ -329,12 +331,36 @@ async def seed_scenario_data():
                     setattr(jp, k, v)
             return jp
 
+        # 실제 거리 기반 단가 동적 계산 함수 정의
+        def calculate_fair_price(lat1, lon1, lat2, lon2, truck):
+            if not lat1 or not lon1 or not lat2 or not lon2:
+                return 40000 # default fallback
+            import math
+            R = 6371.0
+            dlat = math.radians(lat2 - lat1)
+            dlon = math.radians(lon2 - lon1)
+            a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            dist = R * c
+            
+            # 기본 요금 30,000원 + km당 3,500원
+            base = 30000.0 + (dist * 3500.0)
+            # 25톤/27톤 1.3배 할증
+            multiplier = 1.3 if truck in ["T_25", "T_27"] else 1.0
+            price = base * multiplier
+            
+            # 천원 단위 반올림
+            return int(round(price, -3))
+
+        price_open = calculate_fair_price(site1.latitude, site1.longitude, do1.latitude, do1.longitude, "T_25")
+        price_completed = calculate_fair_price(site2.latitude, site2.longitude, do2.latitude, do2.longitude, "T_27")
+
         # OPEN 오더 (기사 모집 중)
         jp_open = await get_or_create_job(
             session, site1.id, req1.id,
             author_id=site_mgr.id,
             material_type="GOOD_SOIL", truck_type="T_25",
-            offered_unit_price=45000, payer_type="SITE_PAYS",
+            offered_unit_price=price_open, payer_type="SITE_PAYS",
             memo="현대건설 아파트 현장. 세륜기 완비. 일 10대 모집.",
             matched_drop_off_id=do1.id,
             work_date=NOW, required_trucks=10, status="OPEN"
@@ -345,7 +371,7 @@ async def seed_scenario_data():
             session, site2.id, None,
             author_id=site_mgr.id,
             material_type="ROCK", truck_type="T_25",
-            offered_unit_price=65000, payer_type="SITE_PAYS",
+            offered_unit_price=55000, payer_type="SITE_PAYS",
             memo="GS건설 터파기 암버럭. 하차지 승인 대기 중.",
             matched_drop_off_id=None,
             work_date=NOW + timedelta(days=2), required_trucks=5, status="WAITING_APPROVAL"
@@ -367,7 +393,7 @@ async def seed_scenario_data():
             session, site2.id, req2.id,
             author_id=site_mgr.id,
             material_type="ROCK", truck_type="T_27",
-            offered_unit_price=70000, payer_type="DROP_OFF_PAYS",
+            offered_unit_price=price_completed, payer_type="DROP_OFF_PAYS",
             memo="완료된 오더. 김포 암버럭 반출 완료.",
             matched_drop_off_id=do2.id,
             work_date=NOW - timedelta(days=5), required_trucks=3, status="COMPLETED"
@@ -403,6 +429,34 @@ async def seed_scenario_data():
             "인천광역시": ["서구", "중구", "남동구", "부평구"],
             "강원도": ["춘천시", "원주시", "강릉시"]
         }
+        
+        # 각 시도/시군구별 현실적인 기본 대표 좌표 매핑
+        coords_by_region = {
+            "서울특별시": {
+                "영등포구": (37.5265, 126.8962),
+                "강남구": (37.5184, 127.0473),
+                "마포구": (37.5662, 126.9018),
+                "서초구": (37.4761, 127.0376),
+                "송파구": (37.5048, 127.1147),
+            },
+            "경기도": {
+                "김포시": (37.6153, 126.7156),
+                "고양시": (37.6584, 126.8320),
+                "성남시": (37.4449, 127.1389),
+                "수원시": (37.2636, 127.0286),
+            },
+            "인천광역시": {
+                "서구": (37.5461, 126.6766),
+                "중구": (37.4643, 126.5904),
+                "남동구": (37.4020, 126.7337),
+                "부평구": (37.5088, 126.7219),
+            },
+            "강원도": {
+                "춘천시": (37.8813, 127.7299),
+                "원주시": (37.3422, 127.9201),
+                "강릉시": (37.7518, 128.8760),
+            }
+        }
         sido_list = list(regions_map.keys())
 
         print("  ⏳ 페이징 테스트용 대량 덤프 모집 공고 및 하차지 100건 생성 중...")
@@ -410,13 +464,18 @@ async def seed_scenario_data():
             sido = sido_list[i % len(sido_list)]
             sigungu = regions_map[sido][i % len(regions_map[sido])]
             
+            # 주소 매핑에서 중심 좌표 획득 후 미세 오차(jitter) 적용하여 핀 중첩 회피
+            base_lat, base_lng = coords_by_region[sido][sigungu]
+            lat = base_lat + (i * 0.0001)
+            lng = base_lng + (i * 0.0001)
+            
             # 1. 하차지 생성 (주소에 sido와 sigungu가 들어가야 지역 검색이 가능함)
             bulk_do = DropOff(
                 owner_id=drop_owner.id,
                 name=f"벌크 하차지 {i}호 ({sido} {sigungu})",
                 address=f"{sido} {sigungu} 벌크 매립구역 {i}번지",
-                latitude=37.5 + (i * 0.005),
-                longitude=126.8 + (i * 0.005),
+                latitude=lat,
+                longitude=lng,
                 radius_meter=200.0,
                 permit_number=f"BULK-PERMIT-{i:03d}",
                 status="ACTIVE"

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'driver_meter_screen.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class DriverDispatchConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -31,18 +32,144 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
   String get _baseUrl => AppConfig.baseUrl;
   bool _isSubmitting = false;
   Map<String, dynamic>? _ticket;
-
   bool _hasOtherDrivingTicket = false;
+  late final WebViewController _webViewController;
 
   @override
   void initState() {
     super.initState();
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF1E222F))
+      ..setOnConsoleMessage((JavaScriptConsoleMessage message) {
+        debugPrint("TMap JS Console Log: ${message.message} (Level: ${message.level})");
+      });
+
     _ticket = widget.ticket;
     _hasOtherDrivingTicket = widget.hasDrivingTicket;
     if (_ticket != null) {
       _checkDrivingInProgress();
       _reloadTicketStatus();
     }
+    _initMapController();
+  }
+
+  void _initMapController() {
+    final Map<String, dynamic>? jp = _ticket?['job_post'] ?? widget.job;
+    
+    // Use coordinates returned directly from the API.
+    double siteLat = (jp?['site_latitude'] as num?)?.toDouble() ?? 37.5665;
+    double siteLng = (jp?['site_longitude'] as num?)?.toDouble() ?? 126.9780;
+    double dropOffLat = (jp?['drop_off_latitude'] as num?)?.toDouble() ?? 37.5950;
+    double dropOffLng = (jp?['drop_off_longitude'] as num?)?.toDouble() ?? 126.7200;
+
+    final String htmlContent = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <script src="https://apis.openapi.sk.com/tmap/jsv2?version=1&appKey=${AppConfig.tmapAppKey}"></script>
+  <style>
+    body, html, #map_div { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #1E222F; }
+    .tmapv2-control-container { display: none !important; }
+  </style>
+</head>
+<body onload="initTmap()">
+  <div id="map_div"></div>
+  <script type="text/javascript">
+    var map;
+    function initTmap() {
+      var centerLat = ${(siteLat + dropOffLat) / 2};
+      var centerLng = ${(siteLng + dropOffLng) / 2};
+      map = new Tmapv2.Map("map_div", {
+        center: new Tmapv2.LatLng(centerLat, centerLng),
+        width: "100%",
+        height: "100%",
+        zoom: 11,
+        zoomControl: false,
+        scrollwheel: true
+      });
+
+      // Start Marker (상차지)
+      var markerStart = new Tmapv2.Marker({
+        position: new Tmapv2.LatLng($siteLat, $siteLng),
+        icon: "https://tmapapi.sktelecom.com/upload/tmap/marker/pin_b_m_s.png",
+        iconSize: new Tmapv2.Size(24, 38),
+        map: map
+      });
+
+      // End Marker (하차지)
+      var markerEnd = new Tmapv2.Marker({
+        position: new Tmapv2.LatLng($dropOffLat, $dropOffLng),
+        icon: "https://tmapapi.sktelecom.com/upload/tmap/marker/pin_r_m_e.png",
+        iconSize: new Tmapv2.Size(24, 38),
+        map: map
+      });
+
+      // Call TMap Routing API
+      fetch("https://apis.openapi.sk.com/tmap/routes?version=1&format=json", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "appKey": "${AppConfig.tmapAppKey}"
+        },
+        body: JSON.stringify({
+          startX: "$siteLng",
+          startY: "$siteLat",
+          endX: "$dropOffLng",
+          endY: "$dropOffLat",
+          reqCoordType: "WGS84GEO",
+          resCoordType: "WGS84GEO",
+          searchOption: "0"
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (!data.features) throw new Error("No features");
+        var drawInfoArr = [];
+        var features = data.features;
+        for (var i = 0; i < features.length; i++) {
+          var geometry = features[i].geometry;
+          if (geometry.type == "LineString") {
+            for (var j = 0; j < geometry.coordinates.length; j++) {
+              var coord = geometry.coordinates[j];
+              drawInfoArr.push(new Tmapv2.LatLng(coord[1], coord[0]));
+            }
+          }
+        }
+        var polyline = new Tmapv2.Polyline({
+          path: drawInfoArr,
+          strokeColor: "#00ADB5",
+          strokeWeight: 6,
+          map: map
+        });
+
+        // Fit bounds
+        var bounds = new Tmapv2.LatLngBounds();
+        bounds.extend(new Tmapv2.LatLng($siteLat, $siteLng));
+        bounds.extend(new Tmapv2.LatLng($dropOffLat, $dropOffLng));
+        map.fitBounds(bounds);
+      })
+      .catch(function(err) {
+        // Fallback to direct straight line polyline
+        var polyline = new Tmapv2.Polyline({
+          path: [
+            new Tmapv2.LatLng($siteLat, $siteLng),
+            new Tmapv2.LatLng($dropOffLat, $dropOffLng)
+          ],
+          strokeColor: "#00ADB5",
+          strokeWeight: 6,
+          map: map
+        });
+      });
+    }
+  </script>
+</body>
+</html>
+''';
+
+    _webViewController.loadHtmlString(htmlContent, baseUrl: "http://apis.openapi.sk.com");
   }
 
   Future<void> _checkDrivingInProgress() async {
@@ -343,6 +470,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
           setState(() {
             _ticket = ticket;
           });
+          _initMapController();
         }
       }
     } catch (e) {
@@ -352,30 +480,37 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
 
   @override
   Widget build(BuildContext context) {
-    // 실제 공고 데이터(widget.job)에서 필요한 세부 정보 추출
-    final double distance = (widget.job['distance'] ?? 0.0).toDouble(); 
-    final int estimatedTimeMinutes = widget.job['estimated_time'] ?? 0;
-    final int unitPrice = widget.job['offered_unit_price'] ?? 0; // 기본 단가 설정
+    final Map<String, dynamic> activeJob = _ticket?['job_post'] ?? widget.job;
+
+    // 실제 공고 데이터(activeJob)에서 필요한 세부 정보 추출
+    final double distance = (activeJob['distance'] ?? 0.0).toDouble(); 
+    final int estimatedTimeMinutes = activeJob['estimated_time'] ?? 0;
+    final int unitPrice = activeJob['offered_unit_price'] ?? 0; // 기본 단가 설정
     final int platformFee = (unitPrice * 0.03).round(); // 수수료 3%
     final int netEarning = unitPrice - platformFee;
 
-    final String materialType = widget.job['material_type'] == 'GOOD_SOIL'
+    final String materialType = activeJob['material_type'] == 'GOOD_SOIL'
         ? '양질토'
-        : widget.job['material_type'] == 'MUD_SOIL'
+        : activeJob['material_type'] == 'MUD_SOIL'
             ? '뻘흙'
-            : widget.job['material_type'] == 'ROCK'
+            : activeJob['material_type'] == 'ROCK'
                 ? '암버럭'
-                : widget.job['material_type'] == 'MIXED'
+                : activeJob['material_type'] == 'MIXED'
                     ? '혼합'
-                    : widget.job['material_type'] ?? '미정';
+                    : activeJob['material_type'] ?? '미정';
 
-    final String truckType = widget.job['truck_type'] == 'T_15'
+    final String siteName = activeJob['site_name'] ?? activeJob['company_name'] ?? "현장명 없음";
+    final String siteAddress = activeJob['site_address'] ?? "상차지 주소 없음";
+    final String dropOffName = activeJob['drop_off_name'] ?? "하차지명 없음";
+    final String dropOffAddress = activeJob['drop_off_address'] ?? "하차지 주소 없음";
+
+    final String truckType = activeJob['truck_type'] == 'T_15'
         ? '15톤 덤프 트럭'
-        : widget.job['truck_type'] == 'T_25'
+        : activeJob['truck_type'] == 'T_25'
             ? '25.5톤 덤프 트럭'
-            : widget.job['truck_type'] == 'T_27'
+            : activeJob['truck_type'] == 'T_27'
                 ? '27톤 덤프 트럭'
-                : widget.job['truck_type'] ?? '미정';
+                : activeJob['truck_type'] ?? '미정';
 
     return PopScope(
       canPop: false,
@@ -423,12 +558,62 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                     ),
                     child: Stack(
                       children: [
-                        // 물결 치는 듯한 지도 배경 라인 그래픽 모사
                         Positioned.fill(
-                          child: Opacity(
-                            opacity: 0.15,
-                            child: CustomPaint(
-                              painter: PathMapPainter(),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(22),
+                            child: WebViewWidget(controller: _webViewController),
+                          ),
+                        ),
+                        // Zoom in/out overlay controls
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: const Color(0x991E222F),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.white10),
+                                ),
+                                child: const Icon(Icons.add, size: 16, color: Colors.white70),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: const Color(0x991E222F),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.white10),
+                                ),
+                                child: const Icon(Icons.remove, size: 16, color: Colors.white70),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Compass / GPS status on the left
+                        Positioned(
+                          top: 12,
+                          left: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0x991E222F),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white10),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.explore_outlined, size: 12, color: Color(0xFF00ADB5)),
+                                SizedBox(width: 4),
+                                Text(
+                                  "GPS ACTIVE",
+                                  style: TextStyle(color: Colors.white70, fontSize: 8, fontWeight: FontWeight.bold),
+                                )
+                              ],
                             ),
                           ),
                         ),
@@ -499,12 +684,12 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    widget.job['site_name'] ?? "현장명 없음",
+                                    siteName,
                                     style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
                                   SizedBox(height: 2),
                                   Text(
-                                    widget.job['site_address'] ?? "상차지 주소 없음",
+                                    siteAddress,
                                     style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                   ),
                                 ],
@@ -532,12 +717,12 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    widget.job['drop_off_name'] ?? "하차지명 없음",
+                                    dropOffName,
                                     style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
                                   SizedBox(height: 2),
                                   Text(
-                                    widget.job['drop_off_address'] ?? "하차지 주소 없음",
+                                    dropOffAddress,
                                     style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                   ),
                                 ],
@@ -792,44 +977,4 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
       ],
     );
   }
-}
-
-// 지도 노선 경로 효과를 내기 위한 커스텀 페인터
-class PathMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.primary.withAlpha(76)
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    path.moveTo(size.width * 0.15, size.height * 0.7);
-    path.quadraticBezierTo(
-      size.width * 0.35,
-      size.height * 0.2,
-      size.width * 0.55,
-      size.height * 0.6,
-    );
-    path.quadraticBezierTo(
-      size.width * 0.75,
-      size.height * 0.9,
-      size.width * 0.85,
-      size.height * 0.3,
-    );
-
-    canvas.drawPath(path, paint);
-
-    // 출발지 점
-    final startPaint = Paint()..color = AppColors.primary;
-    canvas.drawCircle(Offset(size.width * 0.15, size.height * 0.7), 6, startPaint);
-
-    // 도착지 점
-    final endPaint = Paint()..color = AppColors.warning;
-    canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.3), 8, endPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

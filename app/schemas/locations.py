@@ -7,6 +7,7 @@ class SiteCreate(BaseModel):
     """
     company_name: str = Field(..., description="건설사/상호명")
     business_number: str = Field(..., description="사업자등록번호")
+    site_address: Optional[str] = Field(None, description="상차지 주소")
     latitude: Optional[float] = Field(None, description="위도")
     longitude: Optional[float] = Field(None, description="경도")
     geofencing_radius: float = Field(200.0, description="지오펜싱 반경 (기본 200m)")
@@ -29,6 +30,7 @@ class SiteResponse(BaseModel):
     company_name: str
     business_number: str
     site_key: str
+    site_address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     geofencing_radius: float

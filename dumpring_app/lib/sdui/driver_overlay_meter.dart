@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:system_alert_window/system_alert_window.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// 덤프 기사가 외부 내비(티맵/카카오내비)로 경로 안내를 받고 있을 때,
 /// 화면 위에 플로팅 위젯 형식으로 미터기 실시간 데이터(요금, 거리, 시간)를 띄워주는 클래스 및 위젯.
@@ -28,14 +31,36 @@ class DriverOverlayMeter {
     required double distanceKm,
     required int elapsedSeconds,
   }) async {
+    if (_isActive) {
+      await updateMeterData(
+        currentFare: currentFare,
+        distanceKm: distanceKm,
+        elapsedSeconds: elapsedSeconds,
+      );
+      return;
+    }
+    _isActive = true;
+
     final bool hasPermission = await requestOverlayPermission();
-    if (!hasPermission) return;
+    if (!hasPermission) {
+      _isActive = false;
+      return;
+    }
 
     try {
-      // 덤프링 앱에서 오버레이 윈도우 띄우기
+      // 덤프링 앱에서 오버레이 윈도우 띄우기 전에 초기 데이터 저장 (깜빡임 방지용)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt("overlay_initial_fare", currentFare);
+        await prefs.setDouble("overlay_initial_distance", distanceKm);
+        await prefs.setInt("overlay_initial_time", elapsedSeconds);
+      } catch (e) {
+        log("오버레이 초기 데이터 저장 에러: $e");
+      }
+
       await SystemAlertWindow.showSystemWindow(
-        height: 160,
-        width: 320,
+        height: 72,
+        width: 200,
         gravity: SystemWindowGravity.TOP,
         prefMode: SystemWindowPrefMode.OVERLAY,
         layoutParamFlags: [
@@ -43,7 +68,6 @@ class DriverOverlayMeter {
           SystemWindowFlags.FLAG_NOT_TOUCH_MODAL,
         ],
       );
-      _isActive = true;
 
       // 초기 데이터 즉시 전송
       await updateMeterData(
@@ -52,6 +76,7 @@ class DriverOverlayMeter {
         elapsedSeconds: elapsedSeconds,
       );
     } catch (e) {
+      _isActive = false;
       log("오버레이 생성 에러: $e");
     }
   }
@@ -98,20 +123,39 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
   int _fare = 0;
   double _distance = 0.0;
   int _seconds = 0;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
+    _loadInitialData();
     // 메인 앱으로부터 주행 데이터 수신 리스너 등록
     SystemAlertWindow.overlayListener.listen((event) {
       if (event is Map) {
-        setState(() {
-          _fare = event['fare'] as int? ?? 0;
-          _distance = (event['distance'] as num? ?? 0.0).toDouble();
-          _seconds = event['seconds'] as int? ?? 0;
-        });
+        if (mounted) {
+          setState(() {
+            _fare = event['fare'] as int? ?? 0;
+            _distance = (event['distance'] as num? ?? 0.0).toDouble();
+            _seconds = event['seconds'] as int? ?? 0;
+            _initialized = true;
+          });
+        }
       }
     });
+  }
+
+  Future<void> _loadInitialData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted && !_initialized) {
+        setState(() {
+          _fare = prefs.getInt("overlay_initial_fare") ?? 0;
+          _distance = prefs.getDouble("overlay_initial_distance") ?? 0.0;
+          _seconds = prefs.getInt("overlay_initial_time") ?? 0;
+          _initialized = true;
+        });
+      }
+    } catch (_) {}
   }
 
   String _formatTime(int seconds) {
@@ -129,116 +173,86 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor, // 프리미엄 다크 네이비
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.3), // 은은한 골드 테두리
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 10,
-            spreadRadius: 2,
-            offset: Offset(0, 4),
-          )
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 상단 바 (헤더)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.local_shipping,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 16,
-                  ),
-                  SizedBox(width: 6),
-                  Text(
-                    "덤프링 실시간 미터기",
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                ],
-              ),
-              GestureDetector(
-                onTap: () {
-                  DriverOverlayMeter.closeMeter();
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Color(0xFF1F2937)) : Color(0xFF1F2937)).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.close,
-                    color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Color(0xFF1F2937)) : Color(0xFF1F2937)),
-                    size: 14,
-                  ),
-                ),
-              ),
-            ],
+    if (!_initialized) {
+      return const SizedBox.shrink();
+    }
+    return GestureDetector(
+      onTap: () async {
+        log("★ [Overlay] onTap triggered - invoking openApp");
+        try {
+          const channel = MethodChannel('com.example.dumpring/overlay_helper');
+          await channel.invokeMethod('openApp');
+          await DriverOverlayMeter.closeMeter();
+        } catch (e) {
+          log("★ [Overlay] openApp failed: $e");
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor, // 프리미엄 다크 네이비
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3), // 은은한 골드 테두리
+            width: 1.5,
           ),
-          SizedBox(height: 12),
-          // 중앙 요금 표시
-          Center(
-            child: Text(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 8,
+              spreadRadius: 1,
+              offset: const Offset(0, 3),
+            )
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 요금 표시
+            Text(
               "${_formatter(_fare)} 원",
-              style: TextStyle(
+              style: const TextStyle(
                 color: Color(0xFFFF7A00), // 시그니처 주황색
-                fontSize: 26,
+                fontSize: 20,
                 fontWeight: FontWeight.w900,
                 decoration: TextDecoration.none,
               ),
             ),
-          ),
-          SizedBox(height: 8),
-          // 하단 거리 및 시간 정보
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                "거리: ${_distance.toStringAsFixed(2)} km",
-                style: TextStyle(
-                  color: (Theme.of(context).brightness == Brightness.dark ? Color(0xFF8F9BB3) : Color(0xFF4B5563)),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  decoration: TextDecoration.none,
+            const SizedBox(height: 4),
+            // 거리 및 시간 표시
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "${_distance.toStringAsFixed(1)} km",
+                  style: TextStyle(
+                    color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.none,
+                  ),
                 ),
-              ),
-              SizedBox(width: 12),
-              Container(
-                width: 1,
-                height: 10,
-                color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Color(0xFF8F9BB3) : Color(0xFF4B5563)) : Color(0xFF4B5563)).withOpacity(0.3),
-              ),
-              SizedBox(width: 12),
-              Text(
-                "시간: ${_formatTime(_seconds)}",
-                style: TextStyle(
-                  color: (Theme.of(context).brightness == Brightness.dark ? Color(0xFF8F9BB3) : Color(0xFF4B5563)),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  decoration: TextDecoration.none,
+                const SizedBox(width: 8),
+                Container(
+                  width: 1.5,
+                  height: 8,
+                  color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)).withOpacity(0.3),
                 ),
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(width: 8),
+                Text(
+                  _formatTime(_seconds),
+                  style: TextStyle(
+                    color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -9,4 +9,7 @@ class AppConfig {
 
   /// WebSocket 베이스 URL (ws:// or wss://)
   static String get wsBaseUrl => baseUrl.replaceFirst("https", "wss").replaceFirst("http", "ws");
+
+  /// TMap API App Key
+  static const String tmapAppKey = "5gUKBVLN7Q2rfidZTfVZK7VA6bIg2ykN6qXXXJmQ";
 }

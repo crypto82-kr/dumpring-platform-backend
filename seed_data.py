@@ -177,11 +177,11 @@ async def seed_data():
         # 5. 공사현장 (ConstructionSite)
         print("Inserting Construction Sites...")
         sites_to_seed = [
-            ("SITE-HD-001", "현대건설", "120-00-12345", "billing@hyundai.com", 37.5665, 126.9780, 300.0),
-            ("SITE-GS-002", "GS건설", "110-00-54321", "billing@gs.com", 37.4979, 127.0276, 200.0),
+            ("SITE-HD-001", "현대건설", "120-00-12345", "billing@hyundai.com", "인천 연수구 송도동 100-2", 37.3948, 126.6385, 300.0),
+            ("SITE-GS-002", "GS건설", "110-00-54321", "billing@gs.com", "경기 김포시 대곶면 사토매립장 부근", 37.6416, 126.5133, 200.0),
         ]
         db_sites = {}
-        for site_key, comp_name, biz_num, email, lat, lng, radius in sites_to_seed:
+        for site_key, comp_name, biz_num, email, address, lat, lng, radius in sites_to_seed:
             result = await session.execute(select(ConstructionSite).where(ConstructionSite.site_key == site_key))
             existing_site = result.scalars().first()
             if existing_site:
@@ -189,6 +189,7 @@ async def seed_data():
                 existing_site.company_name = comp_name
                 existing_site.business_number = biz_num
                 existing_site.billing_email = email
+                existing_site.site_address = address
                 existing_site.latitude = lat
                 existing_site.longitude = lng
                 existing_site.geofencing_radius = radius
@@ -200,6 +201,7 @@ async def seed_data():
                     business_number=biz_num,
                     billing_email=email,
                     site_key=site_key,
+                    site_address=address,
                     latitude=lat,
                     longitude=lng,
                     geofencing_radius=radius
@@ -299,9 +301,32 @@ async def seed_data():
         
         # 8. 현장 덤프 모집 오더 (JobPost)
         print("Inserting Job Posts...")
+        
+        # 실제 거리 기반 단가 동적 계산 함수 정의
+        def calculate_fair_price(lat1, lon1, lat2, lon2, truck):
+            import math
+            R = 6371.0
+            dlat = math.radians(lat2 - lat1)
+            dlon = math.radians(lon2 - lon1)
+            a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            dist = R * c
+            
+            # 기본 요금 30,000원 + km당 3,500원
+            base = 30000.0 + (dist * 3500.0)
+            # 25톤/27톤 1.3배 할증
+            multiplier = 1.3 if truck in ["T_25", "T_27"] else 1.0
+            price = base * multiplier
+            
+            # 천원 단위 반올림
+            return int(round(price, -3))
+
+        price1 = calculate_fair_price(site_1.latitude, site_1.longitude, drop_off_1.latitude, drop_off_1.longitude, "T_25")
+        price2 = calculate_fair_price(site_2.latitude, site_2.longitude, drop_off_2.latitude, drop_off_2.longitude, "T_25")
+
         job_posts_to_seed = [
-            (site_1.id, req_1.id, site_manager.id, "GOOD_SOIL", "T_25", 45000, "SITE_PAYS", "현대건설 아파트 현장 양질토 출토. 세륜기 구비 완료.", drop_off_1.id, 1, 10),
-            (site_2.id, req_2.id, site_manager.id, "ROCK", "T_25", 60000, "DROP_OFF_PAYS", "GS건설 터파기 현장 암버럭 출토. 야간작업 진행 가능.", drop_off_2.id, 2, 5),
+            (site_1.id, req_1.id, site_manager.id, "GOOD_SOIL", "T_25", price1, "SITE_PAYS", "현대건설 아파트 현장 양질토 출토. 세륜기 구비 완료.", drop_off_1.id, 1, 10),
+            (site_2.id, req_2.id, site_manager.id, "ROCK", "T_25", price2, "DROP_OFF_PAYS", "GS건설 터파기 현장 암버럭 출토. 야간작업 진행 가능.", drop_off_2.id, 2, 5),
         ]
         for s_id, req_id, auth_id, mat, truck, price, payer, memo, m_do_id, days, req_trucks in job_posts_to_seed:
             result = await session.execute(

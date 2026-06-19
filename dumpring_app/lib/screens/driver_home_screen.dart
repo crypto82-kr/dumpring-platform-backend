@@ -928,7 +928,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
             if (!context.mounted) return;
 
-            if (status == 'DRIVING' || status == 'ARRIVED' || status == 'APPROVED') {
+            if (status == 'DRIVING' || status == 'ARRIVED' || status == 'APPROVED' || status == 'WAITING_ABSENT_APPROVAL') {
+              final confirmRoute = MaterialPageRoute<dynamic>(
+                builder: (context) => DriverDispatchConfirmScreen(
+                  user: widget.user,
+                  token: widget.token,
+                  job: jobPost,
+                  isApproved: widget.isApproved,
+                  ticket: latestTicket,
+                  hasDrivingTicket: _activeTickets.any((t) => t['status'] == 'DRIVING'),
+                ),
+              );
+
+              Navigator.of(context).push(confirmRoute).then((val) {
+                if (val is Map && val['action'] == 'cancel') {
+                  final ticketId = val['ticketId'];
+                  setState(() {
+                    _activeTickets.removeWhere((t) => t['id'] == ticketId);
+                  });
+                }
+                _checkActiveTicket();
+                _loadOpenJobs();
+              });
+
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => DriverMeterScreen(
@@ -942,9 +964,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                     },
                   ),
                 ),
-              ).then((_) {
-                _checkActiveTicket();
-                _loadOpenJobs();
+              ).then((val) {
+                if (val != null) {
+                  if (confirmRoute.isCurrent) {
+                    Navigator.of(context).pop(val);
+                  }
+                }
               });
             } else {
               Navigator.of(context).push(

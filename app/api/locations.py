@@ -72,6 +72,7 @@ async def create_site(
         company_name=data.company_name,
         business_number=data.business_number,
         site_key=site_key,
+        site_address=data.site_address,
         latitude=data.latitude,
         longitude=data.longitude,
         geofencing_radius=data.geofencing_radius,
