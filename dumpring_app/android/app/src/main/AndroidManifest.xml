@@ -16,6 +16,14 @@
         <!-- 카카오내비 외부연동 앱 가시성 정의 -->
         <package android:name="com.locnall.KimGiSa" />
         <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="tmap"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="kakaonavi"/>
+        </intent>
+        <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
