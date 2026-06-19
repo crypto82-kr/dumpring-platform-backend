@@ -73,7 +73,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   String? _dropOffName;
 
   Future<void> _launchTMap({required String destinationName, required double? lat, required double? lng}) async {
-    if (lat == null || lng == null) {
+    debugPrint("티맵 호출 목적지: $destinationName, 위도(Y): $lat, 경도(X): $lng");
+    if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("⚠️ 목적지 좌표 정보가 유효하지 않습니다."),
@@ -83,19 +84,22 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       return;
     }
 
-    final String urlString = "tmap://route?rGoName=${Uri.encodeComponent(destinationName)}&rGoX=$lng&rGoY=$lat";
+    // 티맵 공식 API 가이드 규격: rGoName = 목적지명, rGoX = 경도(Lng), rGoY = 위도(Lat)
+    // 인코딩된 문자열을 전달하여 티맵 앱 내부에서 즉시 경로 탐색 목적지로 자동 설정되도록 처리
+    final String encodedName = Uri.encodeComponent(destinationName);
+    final String urlString = "tmap://route?rGoName=$encodedName&rGoX=$lng&rGoY=$lat";
     final Uri uri = Uri.parse(urlString);
 
     try {
       if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         // 티맵이 미설치된 경우 구글 플레이 스토어로 이동
         final Uri playStoreUri = Uri.parse("market://details?id=com.skt.tmap.ku");
         if (await canLaunchUrl(playStoreUri)) {
-          await launchUrl(playStoreUri);
+          await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
         } else {
-          await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.skt.tmap.ku"));
+          await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.skt.tmap.ku"), mode: LaunchMode.externalApplication);
         }
       }
     } catch (e) {
@@ -110,7 +114,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   }
 
   Future<void> _launchKakaoNavi({required String destinationName, required double? lat, required double? lng}) async {
-    if (lat == null || lng == null) {
+    debugPrint("카카오내비 호출 목적지: $destinationName, 위도(Y): $lat, 경도(X): $lng");
+    if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("⚠️ 목적지 좌표 정보가 유효하지 않습니다."),
@@ -120,19 +125,21 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       return;
     }
 
-    final String urlString = "kakaonavi://navigate?daddr=${Uri.encodeComponent(destinationName)}&dlat=$lat&dlng=$lng&coord_type=wgs84";
+    // 카카오내비 공식 딥링크 규격: daddr = 목적지 주소/명칭, dlat = 위도, dlng = 경도
+    final String encodedName = Uri.encodeComponent(destinationName);
+    final String urlString = "kakaonavi://navigate?daddr=$encodedName&dlat=$lat&dlng=$lng&coord_type=wgs84";
     final Uri uri = Uri.parse(urlString);
 
     try {
       if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         // 카카오내비가 미설치된 경우 구글 플레이 스토어로 이동
         final Uri playStoreUri = Uri.parse("market://details?id=com.locnall.KimGiSa");
         if (await canLaunchUrl(playStoreUri)) {
-          await launchUrl(playStoreUri);
+          await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
         } else {
-          await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.locnall.KimGiSa"));
+          await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.locnall.KimGiSa"), mode: LaunchMode.externalApplication);
         }
       }
     } catch (e) {
