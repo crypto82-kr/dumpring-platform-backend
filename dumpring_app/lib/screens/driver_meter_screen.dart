@@ -92,7 +92,16 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
 
     final String encodedName = Uri.encodeComponent(destinationName);
-    final String urlString = "tmap://route?rGoName=$encodedName&rGoX=$lng&rGoY=$lat";
+    
+    // 안드로이드 실기기 규격: goalx = 경도(Lng), goaly = 위도(Lat), goalname = 목적지명, referrer = 패키지명
+    // iOS 및 기타 규격: rGoName = 목적지명, rGoX = 경도, rGoY = 위도
+    String urlString;
+    if (Theme.of(context).platform == TargetPlatform.android) {
+      urlString = "tmap://route?referrer=com.example.dumpring_app&goalx=$lng&goaly=$lat&goalname=$encodedName";
+    } else {
+      urlString = "tmap://route?rGoName=$encodedName&rGoX=$lng&rGoY=$lat";
+    }
+    
     final Uri uri = Uri.parse(urlString);
 
     try {
