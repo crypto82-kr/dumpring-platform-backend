@@ -71,12 +71,14 @@ async def startup_event():
     async with SessionLocal() as db:
         dispatch_statuses = [
             {"group_code": "DISPATCH_STATUS", "code": "ACCEPTED", "code_name": "배차 수락", "display_order": 1},
-            {"group_code": "DISPATCH_STATUS", "code": "DRIVING", "code_name": "운행 중", "display_order": 2},
-            {"group_code": "DISPATCH_STATUS", "code": "ARRIVED", "code_name": "도착 완료", "display_order": 3},
-            {"group_code": "DISPATCH_STATUS", "code": "WAITING_ABSENT_APPROVAL", "code_name": "지주부재 승인대기", "display_order": 4},
-            {"group_code": "DISPATCH_STATUS", "code": "APPROVED", "code_name": "반입 승인", "display_order": 5},
-            {"group_code": "DISPATCH_STATUS", "code": "REJECTED", "code_name": "반입 반려", "display_order": 6},
-            {"group_code": "DISPATCH_STATUS", "code": "CANCELLED", "code_name": "운행 취소", "display_order": 7},
+            {"group_code": "DISPATCH_STATUS", "code": "ARRIVED_LOADING", "code_name": "상차지 도착", "display_order": 2},
+            {"group_code": "DISPATCH_STATUS", "code": "LOADING_APPROVED", "code_name": "상차 승인 완료", "display_order": 3},
+            {"group_code": "DISPATCH_STATUS", "code": "DRIVING", "code_name": "운행 중", "display_order": 4},
+            {"group_code": "DISPATCH_STATUS", "code": "ARRIVED", "code_name": "도착 완료", "display_order": 5},
+            {"group_code": "DISPATCH_STATUS", "code": "WAITING_ABSENT_APPROVAL", "code_name": "지주부재 승인대기", "display_order": 6},
+            {"group_code": "DISPATCH_STATUS", "code": "APPROVED", "code_name": "반입 승인", "display_order": 7},
+            {"group_code": "DISPATCH_STATUS", "code": "REJECTED", "code_name": "반입 반려", "display_order": 8},
+            {"group_code": "DISPATCH_STATUS", "code": "CANCELLED", "code_name": "운행 취소", "display_order": 9},
         ]
         for ds in dispatch_statuses:
             query = select(CommonCode).where(

@@ -69,9 +69,11 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   double? _siteLat;
   double? _siteLng;
   String? _siteName;
+  String? _siteAddress;
   double? _dropOffLat;
   double? _dropOffLng;
   String? _dropOffName;
+  String? _dropOffAddress;
 
   bool _isSiteLoadingApproved = false;
 
@@ -244,6 +246,29 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     );
   }
 
+  Future<bool> _sendApproveLoadingToServer(String type) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/approve-loading"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({"approval_type": type}),
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        debugPrint("상차 승인 전송 실패: ${response.statusCode} - ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      debugPrint("상차 승인 전송 에러: $e");
+      return false;
+    }
+  }
+
   Future<void> _processQRValidation() async {
     setState(() {
       _isLoadingState = true;
@@ -298,9 +323,24 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       }
 
       // 통과 시 승인 처리
+      final ok = await _sendApproveLoadingToServer("QR");
+      if (!ok) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("⚠️ 서버에 상차 승인을 전송하지 못했습니다. 다시 시도해 주세요."),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
       setState(() {
         _isSiteLoadingApproved = true;
       });
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool("ticket_progress_${widget.ticketId}_site_loading_approved", true);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -312,12 +352,15 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       }
     } catch (e) {
       // 위치 정보 획득 에러 발생 시 테스트용으로 우회 통과 허용
+      final ok = await _sendApproveLoadingToServer("QR");
       setState(() {
         _isSiteLoadingApproved = true;
       });
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool("ticket_progress_${widget.ticketId}_site_loading_approved", true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("⚠️ 위치 획득 실패 (시뮬레이터 자동 통과 처리): $e")),
+          SnackBar(content: Text("⚠️ 위치 획득 실패 (시뮬레이터 자동 통과 처리, 서버 연동: ${ok ? '성공' : '실패'}): $e")),
         );
       }
     } finally {
@@ -329,30 +372,53 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
   }
 
-  void _remoteOfficeApproval() {
+  void _remoteOfficeApproval() async {
+    setState(() {
+      _isLoadingState = true;
+    });
+    final ok = await _sendApproveLoadingToServer("OFFICE");
+    setState(() {
+      _isLoadingState = false;
+    });
+    if (!ok) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("⚠️ 서버에 상차 원격 승인을 전송하지 못했습니다."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isSiteLoadingApproved = true;
     });
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green),
-            SizedBox(width: 8),
-            Text("사무실 원격 승인 완료", style: TextStyle(fontWeight: FontWeight.bold)),
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("ticket_progress_${widget.ticketId}_site_loading_approved", true);
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              SizedBox(width: 8),
+              Text("사무실 원격 승인 완료", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text("현장 사무소 어드민에서 해당 기사의 차량 적재 확인 및 상차 원격 승인을 완료하였습니다. 운행을 개시하세요."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("확인"),
+            ),
           ],
         ),
-        content: const Text("현장 사무소 어드민에서 해당 기사의 차량 적재 확인 및 상차 원격 승인을 완료하였습니다. 운행을 개시하세요."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("확인"),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
 
   Future<void> _launchPreferredNavi({required String destinationName, required double? lat, required double? lng}) async {
@@ -432,6 +498,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       await prefs.remove("ticket_progress_${widget.ticketId}_max_offline_sec");
       await prefs.remove("ticket_progress_${widget.ticketId}_total_offline_sec");
       await prefs.remove("ticket_progress_${widget.ticketId}_last_heartbeat");
+      await prefs.remove("ticket_progress_${widget.ticketId}_site_loading_approved");
     } catch (e) {
       debugPrint("로컬 진행 데이터 삭제 에러: $e");
     }
@@ -439,6 +506,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
 
   Future<void> _applyTicketState(Map<String, dynamic> ticket) async {
     final String status = ticket['status'];
+    final prefs = await SharedPreferences.getInstance();
+    _isSiteLoadingApproved = prefs.getBool("ticket_progress_${widget.ticketId}_site_loading_approved") ?? false;
 
     if (ticket['pricing_policy'] != null) {
       final policy = ticket['pricing_policy'];
@@ -457,13 +526,24 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       _siteLat = (jp['site_latitude'] as num?)?.toDouble();
       _siteLng = (jp['site_longitude'] as num?)?.toDouble();
       _siteName = jp['site_name'] as String?;
+      _siteAddress = jp['site_address'] as String?;
       _dropOffLat = (jp['drop_off_latitude'] as num?)?.toDouble();
       _dropOffLng = (jp['drop_off_longitude'] as num?)?.toDouble();
       _dropOffName = jp['drop_off_name'] as String?;
+      _dropOffAddress = jp['drop_off_address'] as String?;
     }
 
     if (status == "ACCEPTED") {
       _driveStep = 1;
+      _isSiteLoadingApproved = false;
+      _currentFare = _baseTariff;
+    } else if (status == "ARRIVED_LOADING") {
+      _driveStep = 2;
+      _isSiteLoadingApproved = false;
+      _currentFare = _baseTariff;
+    } else if (status == "LOADING_APPROVED") {
+      _driveStep = 2;
+      _isSiteLoadingApproved = true;
       _currentFare = _baseTariff;
     } else {
       if (status == "DRIVING") {
@@ -627,10 +707,54 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     super.dispose();
   }
 
-  void _arrivedAtLoadingSite() {
+  Future<void> _arrivedAtLoadingSite() async {
     setState(() {
-      _driveStep = 2;
+      _isLoadingState = true;
     });
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/arrive-loading"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _driveStep = 2;
+        });
+      } else {
+        String errMsg = "상차지 도착 처리에 실패했습니다.";
+        try {
+          final err = jsonDecode(utf8.decode(response.bodyBytes));
+          errMsg = err['detail'] ?? errMsg;
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("⚠️ $errMsg"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("상차지 도착 에러: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("⚠️ 네트워크 연결 오류가 발생했습니다."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingState = false;
+        });
+      }
+    }
   }
 
   // 1. 미터기 주행 시작 API 연동
@@ -1121,20 +1245,20 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(Icons.navigation_outlined, size: 70, color: AppColors.primary),
-        SizedBox(height: 20),
+        Icon(Icons.local_shipping_outlined, size: 64, color: AppColors.primary),
+        SizedBox(height: 16),
         Text(
-          "상차지로 이동해 주세요",
+          "상차지 이동",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
         SizedBox(height: 8),
         Text(
-          "안전 운행을 위해 덤프링 실시간 경로 연동을 개시합니다.",
+          "배정된 상차 현장으로 이동해 주세요.",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
         ),
-        SizedBox(height: 28),
+        SizedBox(height: 24),
         Card(
           color: AppColors.surface,
           elevation: 0,
@@ -1145,18 +1269,67 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.place, color: AppColors.primary),
-                  title: Text("티켓 ID: #${widget.ticketId} 지정 매칭 현장", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  subtitle: Text("매칭된 지도상 상차 현장 입구로 이동", style: TextStyle(fontSize: 12)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "상차 현장 정보",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        "티켓 ID: #${widget.ticketId}",
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _siteName ?? "지정 매칭 현장",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.place_outlined, size: 16, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        _siteAddress ?? "등록된 현장 주소가 없습니다.",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
-        SizedBox(height: 28),
+        SizedBox(height: 24),
         ElevatedButton.icon(
           onPressed: () {
             _launchPreferredNavi(
@@ -1166,7 +1339,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
             );
           },
           icon: const Icon(Icons.navigation_outlined),
-          label: const Text("내비게이션 경로 안내"),
+          label: const Text("내비게이션 안내 시작"),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.textPrimary,
@@ -1184,7 +1357,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: Text("상차지 현장 도착 완료 (수동)", style: TextStyle(fontWeight: FontWeight.bold)),
+          child: Text("현장 도착 완료", style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );
