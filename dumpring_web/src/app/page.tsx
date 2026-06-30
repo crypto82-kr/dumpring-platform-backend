@@ -303,6 +303,19 @@ export default function Home() {
   const [editingDispatchRequestId, setEditingDispatchRequestId] = useState<number | null>(null);
   const [dispatchRequestSearchQuery, setDispatchRequestSearchQuery] = useState("");
 
+  const resetDispatchForm = () => {
+    setDispatchFormSiteId("");
+    setDispatchFormTonTypes([]);
+    setDispatchFormTruckCount(1);
+    setDispatchFormSoilType("일반 토사");
+    setDispatchFormStartDate("");
+    setDispatchFormEndDate("");
+    setDispatchFormDropoffMode("none");
+    setDispatchFormDropoffName("");
+    setDispatchFormDropoffAddress("");
+    setEditingDispatchRequestId(null);
+  };
+
   // --- Dropoff States ---
   const [registeredDropoffList, setRegisteredDropoffList] = useState([
     {
@@ -380,7 +393,7 @@ export default function Home() {
   };
 
   // 1. 플랫폼 관리자 대시보드 렌더링 함수
-  const renderPlatformAdmin = () => {
+  const renderPlatformAdmin = (): React.ReactNode => {
     const estimatedFeePerTrip = Math.round(baseTariff * (commissionRate / 100));
     const estimatedDriverRevenue = baseTariff - estimatedFeePerTrip;
 
@@ -3690,19 +3703,6 @@ export default function Home() {
         setDispatchRequestMode("list");
       };
 
-      const resetDispatchForm = () => {
-        setDispatchFormSiteId("");
-        setDispatchFormTonTypes([]);
-        setDispatchFormTruckCount(1);
-        setDispatchFormSoilType("일반 토사");
-        setDispatchFormStartDate("");
-        setDispatchFormEndDate("");
-        setDispatchFormDropoffMode("none");
-        setDispatchFormDropoffName("");
-        setDispatchFormDropoffAddress("");
-        setEditingDispatchRequestId(null);
-      };
-
       const startEdit = (req: any) => {
         setDispatchFormSiteId(req.siteId);
         setDispatchFormTonTypes(req.tonTypes);
@@ -4045,7 +4045,7 @@ export default function Home() {
       );
     };
 
-    const renderSiteManager = () => {
+    const renderSiteManager = (): React.ReactNode => {
       if (activePath === "/site/request") {
         return renderSiteRegister();
       }
@@ -4278,7 +4278,7 @@ export default function Home() {
 
 
     // 3. 하차지 관리자 대시보드 렌더링 함수
-    const renderDropoffManager = () => {
+    const renderDropoffManager = (): React.ReactNode => {
       const renderDropoffRegister = () => {
         const handleRegister = (e: React.FormEvent) => {
           e.preventDefault();
@@ -4466,11 +4466,9 @@ export default function Home() {
         );
       };
 
-      // 3. 하차지 관리자 대시보드 렌더링 함수
-      const renderDropoffManager = () => {
-        if (activePath === "/dropoff/register") {
-          return renderDropoffRegister();
-        }
+      if (activePath === "/dropoff/register") {
+        return renderDropoffRegister();
+      }
 
         if (activePath !== "/dropoff") {
           return (
@@ -4652,16 +4650,14 @@ export default function Home() {
                 >
                   하차지 등록 및 관리 화면으로 이동
                 </button>
-              </div>
             </div>
           </div>
-        );
-      };
-
+        </div>
+      );
     };
 
     // 4. 차주/운송사 대시보드 렌더링 함수
-    const renderOwner = () => {
+    const renderOwner = (): React.ReactNode => {
       // 1. 운송사 대시보드 메인 (/owner)
       if (activePath === "/owner") {
         return (
@@ -4940,7 +4936,7 @@ export default function Home() {
     };
 
     // 5. 개발자 대시보드 렌더링 함수
-    const renderDeveloper = () => {
+    const renderDeveloper = (): React.ReactNode => {
       // Filter menus based on target system and selected role
       const filteredMenus = developerMenus.filter(
         (m) => m.target === menuTarget && m.role === menuSelectedRole
