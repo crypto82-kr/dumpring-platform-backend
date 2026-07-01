@@ -18,6 +18,8 @@ interface AuthContextType {
   logout: () => void;
   activePath: string;
   setActivePath: (path: string) => void;
+  isSidebarOpen: boolean;
+  setIsSidebarOpen: (open: boolean) => void;
 }
 
 const roleNames: Record<UserRole, string> = {
@@ -33,6 +35,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activePath, setActivePath] = useState<string>("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
   useEffect(() => {
     // 기본 로그인 유저 세팅 (첫 상태: 플랫폼 관리자)
@@ -45,6 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     setActivePath("/admin");
   }, []);
+
+  // 페이지 이동 시 모바일 사이드바를 자동으로 닫습니다.
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [activePath]);
 
   const changeRole = (role: UserRole) => {
     setUser({
@@ -70,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, changeRole, logout, activePath, setActivePath }}>
+    <AuthContext.Provider value={{ user, changeRole, logout, activePath, setActivePath, isSidebarOpen, setIsSidebarOpen }}>
       {children}
     </AuthContext.Provider>
   );

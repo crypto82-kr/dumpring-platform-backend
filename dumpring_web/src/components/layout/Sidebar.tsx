@@ -125,7 +125,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
 };
 
 export default function Sidebar() {
-  const { user, changeRole, activePath, setActivePath } = useAuth();
+  const { user, changeRole, activePath, setActivePath, isSidebarOpen, setIsSidebarOpen } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ "승인 관리": true });
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -172,7 +172,18 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-72 bg-white dark:bg-black border-r border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 flex flex-col justify-between h-screen sticky top-0 transition-colors duration-250">
+    <>
+      {/* Backdrop overlay for mobile */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-black border-r border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 flex flex-col justify-between h-screen transition-transform duration-300 ease-in-out md:sticky md:top-0 md:translate-x-0 ${
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
       <div>
         {/* Logo / Header with Dark Mode Toggle */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
@@ -352,5 +363,6 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

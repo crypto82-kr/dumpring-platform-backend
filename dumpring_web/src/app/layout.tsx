@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Sidebar from "@/components/layout/Sidebar";
+import MobileHeader from "@/components/layout/MobileHeader";
 
 export const metadata: Metadata = {
   title: "덤프링 통합 관리 시스템 (DUMPRING Integrated Admin Portal)",
@@ -37,6 +38,7 @@ export default function RootLayout({
             
             {/* Main Content Area */}
             <main className="flex-1 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
+              <MobileHeader />
               {children}
             </main>
           </div>
