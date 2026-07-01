@@ -25,18 +25,6 @@ export default function Home() {
   const { user, changeRole, activePath, setActivePath } = useAuth();
   const [inputText, setInputText] = useState("");
 
-  useEffect(() => {
-    if (activePath === "/admin/approve-driver") {
-      setApprovalTab("driver");
-    } else if (activePath === "/admin/approve-owner") {
-      setApprovalTab("owner");
-    } else if (activePath === "/admin/approve-site") {
-      setApprovalTab("site");
-    } else if (activePath === "/admin/approve-dropoff") {
-      setApprovalTab("dropoff");
-    }
-  }, [activePath]);
-
   // Dynamic User Uploaded Document Preview URLs
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
 
@@ -163,6 +151,19 @@ export default function Home() {
   const [policySaveSuccess, setPolicySaveSuccess] = useState(false);
 
   const [approvalTab, setApprovalTab] = useState<"driver" | "owner" | "site" | "dropoff">("driver");
+
+  useEffect(() => {
+    if (activePath === "/admin/approve-driver") {
+      setApprovalTab("driver");
+    } else if (activePath === "/admin/approve-owner") {
+      setApprovalTab("owner");
+    } else if (activePath === "/admin/approve-site") {
+      setApprovalTab("site");
+    } else if (activePath === "/admin/approve-dropoff") {
+      setApprovalTab("dropoff");
+    }
+  }, [activePath]);
+
   const [drivers, setDrivers] = useState([
     { id: 1, name: "이순신 기사", phone: "010-9999-8888", license: "1종대형면허", status: "대기" },
     { id: 2, name: "강감찬 기사", phone: "010-1111-2222", license: "1종대형면허", status: "승인됨" },
