@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { ShieldCheck, Truck, MapPin, BarChart3, Lock, Phone, AlertCircle, Loader2 } from "lucide-react";
+import { ShieldCheck, Truck, MapPin, BarChart3, Lock, Phone, AlertCircle, Loader2, Terminal } from "lucide-react";
 import RegisterScreen from "./RegisterScreen";
 
 export default function LoginScreen() {
@@ -97,6 +97,17 @@ export default function LoginScreen() {
       textColor: "text-amber-600 dark:text-amber-400",
       bgColor: "bg-amber-50 dark:bg-amber-950/35",
       borderColor: "border-amber-150 dark:border-amber-900/50"
+    },
+    {
+      role: "developer",
+      roleName: "개발자 (시스템 관제)",
+      phone: "010-9999-9999",
+      name: "개발자",
+      icon: Terminal,
+      color: "from-slate-700 to-slate-900",
+      textColor: "text-slate-700 dark:text-slate-300",
+      bgColor: "bg-slate-50 dark:bg-slate-900/35",
+      borderColor: "border-slate-200 dark:border-slate-800"
     }
   ];
 
