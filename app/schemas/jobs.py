@@ -38,6 +38,10 @@ class DropOffRequestResponse(BaseModel):
     created_at: KstDateTime
     updated_at: KstDateTime
 
+    # 추가 필드 (상세 정보 노출용)
+    drop_off_name: Optional[str] = None
+    drop_off_address: Optional[str] = None
+
     class Config:
         from_attributes = True
 

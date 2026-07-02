@@ -140,7 +140,17 @@ async def get_open_drop_off_requests(
 
     query = select(DropOffRequest).where(DropOffRequest.status == "OPEN")
     result = await db.execute(query)
-    return result.scalars().all()
+    requests = result.scalars().all()
+
+    for r in requests:
+        drop_off_query = select(DropOff).where(DropOff.id == r.drop_off_id)
+        drop_off_result = await db.execute(drop_off_query)
+        dropoff = drop_off_result.scalars().first()
+        if dropoff:
+            r.drop_off_name = dropoff.name
+            r.drop_off_address = dropoff.address
+
+    return requests
 
 
 # ==========================================

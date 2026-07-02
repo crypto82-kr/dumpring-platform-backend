@@ -263,6 +263,176 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     }
   }
 
+  String _getDropOffRequestDisplayText(int requestId) {
+    final req = _openDropOffRequests.firstWhere((r) => r['id'] == requestId, orElse: () => null);
+    if (req == null) return "하차지 공고를 검색해 선택하세요";
+    final name = req['drop_off_name'] ?? '하차지';
+    final mat = _translateMaterial(req['material_type']);
+    final trk = _translateTruck(req['truck_type']);
+    final price = req['unit_price'];
+    return "$name ($mat / $trk / $price원)";
+  }
+
+  void _openDropOffSearchDialog(StateSetter parentSetState) {
+    String searchQuery = "";
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            final filtered = _openDropOffRequests.where((r) {
+              final name = (r['drop_off_name'] ?? '').toLowerCase();
+              final addr = (r['drop_off_address'] ?? '').toLowerCase();
+              final query = searchQuery.toLowerCase();
+              return name.contains(query) || addr.contains(query);
+            }).toList();
+
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.search, color: AppColors.success),
+                  const SizedBox(width: 8),
+                  Text("하차지 공고 상세 검색", style: AppTextStyles.h3),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: Column(
+                  children: [
+                    TextField(
+                      style: TextStyle(color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: "하차지명 또는 주소 검색",
+                        hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                        prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.success),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.divider)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.divider)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: AppColors.primary, width: 1.5)),
+                      onChanged: (val) {
+                        setPopupState(() {
+                          searchQuery = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text(
+                                "검색 결과가 없습니다.",
+                                style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final r = filtered[index];
+                                final hasWash = r['has_washing_facility'] == true;
+                                final allowNight = r['night_work_allowed'] == true;
+                                final allowRain = r['rain_work_allowed'] == true;
+
+                                return Card(
+                                  color: AppColors.background,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(color: AppColors.divider),
+                                  ),
+                                  child: InkWell(
+                                    onTap: () {
+                                      parentSetState(() {
+                                        _selectedDropOffRequestId = r['id'];
+                                      });
+                                      Navigator.of(context).pop();
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            r['drop_off_name'] ?? '하차지',
+                                            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            r['drop_off_address'] ?? '주소 미등록',
+                                            style: AppTextStyles.caption,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.between,
+                                            children: [
+                                              Text(
+                                                "${_translateMaterial(r['material_type'])} / ${_translateTruck(r['truck_type'])}",
+                                                style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                                              ),
+                                              Text(
+                                                "${r['unit_price']}원",
+                                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Wrap(
+                                            spacing: 6,
+                                            children: [
+                                              _buildTag("세륜기", hasWash),
+                                              _buildTag("야간작업", allowNight),
+                                              _buildTag("우천작업", allowRain),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTag(String label, bool isEnabled) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isEnabled ? AppColors.success.withOpacity(0.15) : AppColors.divider.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isEnabled ? AppColors.success : AppColors.textSecondary,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   void _clearJobControllers() {
     _jobRequiredTrucksController.text = "10";
     _jobUnitPriceController.text = "50000";
@@ -408,7 +578,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                           children: [
                             Expanded(
                               child: RadioListTile<bool>(
-                                title: const Text("매칭 대기", style: TextStyle(fontSize: 13, color: Colors.white)),
+                                title: Text("매칭 대기", style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
                                 value: false,
                                 groupValue: _isDirectMatching,
                                 contentPadding: EdgeInsets.zero,
@@ -418,7 +588,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                             ),
                             Expanded(
                               child: RadioListTile<bool>(
-                                title: const Text("하차지 직접 선택", style: TextStyle(fontSize: 13, color: Colors.white)),
+                                title: Text("하차지 직접 선택", style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
                                 value: true,
                                 groupValue: _isDirectMatching,
                                 contentPadding: EdgeInsets.zero,
@@ -439,30 +609,32 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                               child: Text("선택할 수 있는 활성 하차지 공고가 없습니다.", style: AppTextStyles.caption),
                             )
                           else
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: AppColors.background,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.divider),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<int>(
-                                  value: _selectedDropOffRequestId,
-                                  dropdownColor: AppColors.surface,
-                                  isExpanded: true,
-                                  style: AppTextStyles.body1.copyWith(color: AppColors.textPrimary),
-                                  onChanged: (value) => setDialogState(() => _selectedDropOffRequestId = value),
-                                  items: _openDropOffRequests.map<DropdownMenuItem<int>>((r) {
-                                    return DropdownMenuItem<int>(
-                                      value: r['id'],
+                            InkWell(
+                              onTap: () => _openDropOffSearchDialog(setDialogState),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.divider),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
                                       child: Text(
-                                        "${r['drop_off_name']} (${_translateMaterial(r['material_type'])} / ${_translateTruck(r['truck_type'])} / ${r['unit_price']}원)",
-                                        style: const TextStyle(fontSize: 12),
+                                        _selectedDropOffRequestId == null
+                                            ? "하차지 공고를 검색해 선택하세요"
+                                            : _getDropOffRequestDisplayText(_selectedDropOffRequestId!),
+                                        style: TextStyle(
+                                          color: _selectedDropOffRequestId == null ? AppColors.textTertiary : AppColors.textPrimary,
+                                          fontSize: 13,
+                                        ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                    );
-                                  }).toList(),
+                                    ),
+                                    const Icon(Icons.search, color: AppColors.success, size: 20),
+                                  ],
                                 ),
                               ),
                             ),
@@ -859,13 +1031,28 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          "${_translateMaterial(job['material_type'])} • ${_translateTruck(job['truck_type'])}",
-                                          style: AppTextStyles.h3,
+                                        Builder(
+                                          builder: (context) {
+                                            final siteName = job['site_name'] ?? '현장명 없음';
+                                            final mat = _translateMaterial(job['material_type']);
+                                            final trk = _translateTruck(job['truck_type']);
+                                            final hasDropOff = job['matched_drop_off_id'] != null || job['drop_off_name'] != null;
+                                            final dropOffName = job['drop_off_name'] ?? '';
+
+                                            if (hasDropOff) {
+                                              return Text(
+                                                "[$siteName] ➔ [$dropOffName]\n$mat 운반 ($trk)",
+                                                style: AppTextStyles.h3.copyWith(fontSize: 13, height: 1.3),
+                                              );
+                                            } else {
+                                              return Text(
+                                                "[$siteName] $mat 반출\n(하차지 매칭 대기) • $trk",
+                                                style: AppTextStyles.h3.copyWith(fontSize: 13, height: 1.3),
+                                              );
+                                            }
+                                          },
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text("현장명: ${job['site_name'] ?? '현장명 없음'}", style: AppTextStyles.caption),
-                                        const SizedBox(height: 2),
+                                        const SizedBox(height: 6),
                                         Text("작업일: ${job['work_date']?.split("T")?.first ?? ''}", style: AppTextStyles.caption),
                                         const SizedBox(height: 6),
                                         Text(
