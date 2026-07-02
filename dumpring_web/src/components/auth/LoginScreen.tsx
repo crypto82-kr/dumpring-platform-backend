@@ -97,28 +97,6 @@ export default function LoginScreen() {
       textColor: "text-amber-600 dark:text-amber-400",
       bgColor: "bg-amber-50 dark:bg-amber-950/35",
       borderColor: "border-amber-150 dark:border-amber-900/50"
-    },
-    {
-      role: "owner_unapproved",
-      roleName: "미승인 차주 (심사 대기)",
-      phone: "010-1111-2222",
-      name: "박차주 (미승인)",
-      icon: ShieldCheck,
-      color: "from-rose-500 to-red-500",
-      textColor: "text-rose-600 dark:text-rose-400",
-      bgColor: "bg-rose-50/50 dark:bg-rose-950/20",
-      borderColor: "border-rose-150 dark:border-rose-900/30"
-    },
-    {
-      role: "driver_unapproved",
-      roleName: "미승인 기사 (심사 대기)",
-      phone: "010-2222-2222",
-      name: "최기사 (미승인)",
-      icon: Truck,
-      color: "from-rose-500 to-red-500",
-      textColor: "text-rose-600 dark:text-rose-400",
-      bgColor: "bg-rose-50/50 dark:bg-rose-950/20",
-      borderColor: "border-rose-150 dark:border-rose-900/30"
     }
   ];
 
