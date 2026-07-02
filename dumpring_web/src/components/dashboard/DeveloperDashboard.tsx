@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Activity, Terminal, Database, AlertCircle } from "lucide-react";
 
 interface DeveloperDashboardProps {
@@ -16,6 +16,8 @@ interface DeveloperDashboardProps {
   setApmLoadTesting: (val: boolean) => void;
   inputText: string;
   setInputText: (val: string) => void;
+  dbCommonCodes: any[];
+  fetchCommonCodes: () => Promise<void>;
 }
 
 export function DeveloperDashboard({
@@ -33,7 +35,15 @@ export function DeveloperDashboard({
   setApmLoadTesting,
   inputText,
   setInputText,
+  dbCommonCodes,
+  fetchCommonCodes,
 }: DeveloperDashboardProps) {
+  // Fetch common codes when mounting this view
+  useEffect(() => {
+    if (activePath === "/dev/codes") {
+      fetchCommonCodes();
+    }
+  }, [activePath]);
   // Filter menus based on target system and selected role
   const filteredMenus = developerMenus.filter(
     (m) => m.target === menuTarget && m.role === menuSelectedRole
@@ -325,25 +335,37 @@ export function DeveloperDashboard({
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-slate-200 font-bold text-slate-500 pb-2">
-                <th className="py-2">코드 분류</th>
+                <th className="py-2">그룹 코드</th>
+                <th className="py-2">코드</th>
                 <th className="py-2">코드명</th>
-                <th className="py-2">설정값</th>
-                <th className="py-2 text-right">수정일자</th>
+                <th className="py-2">정렬 순서</th>
+                <th className="py-2 text-right">상태</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              <tr>
-                <td className="py-3 font-semibold text-slate-900">SYSTEM_FEE</td>
-                <td className="py-3">기본 중개 수수료</td>
-                <td className="py-3 font-mono text-blue-600 font-bold">8.5%</td>
-                <td className="py-3 text-right font-mono text-slate-400">2026-06-02</td>
-              </tr>
-              <tr>
-                <td className="py-3 font-semibold text-slate-900">BASE_TARIFF</td>
-                <td className="py-3">기본 운임</td>
-                <td className="py-3 font-mono text-blue-600 font-bold">180,000 원</td>
-                <td className="py-3 text-right font-mono text-slate-400">2026-06-02</td>
-              </tr>
+              {dbCommonCodes && dbCommonCodes.length > 0 ? (
+                dbCommonCodes.map((codeItem: any) => (
+                  <tr key={codeItem.id}>
+                    <td className="py-3 font-semibold text-slate-900">{codeItem.group_code}</td>
+                    <td className="py-3 font-mono text-slate-600">{codeItem.code}</td>
+                    <td className="py-3 font-medium text-slate-800">{codeItem.code_name}</td>
+                    <td className="py-3 font-mono text-slate-500">{codeItem.display_order}</td>
+                    <td className="py-3 text-right">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        codeItem.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
+                      }`}>
+                        {codeItem.is_active ? "활성" : "비활성"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                    조회된 공통 코드가 없습니다.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -862,6 +862,8 @@ export default function Home() {
           setApmLoadTesting={setApmLoadTesting}
           inputText={inputText}
           setInputText={setInputText}
+          dbCommonCodes={dbCommonCodes}
+          fetchCommonCodes={fetchCommonCodes}
         />
       )}
     </div>
