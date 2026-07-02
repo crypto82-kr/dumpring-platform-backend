@@ -426,7 +426,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                             border: Border.all(color: AppColors.divider),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.between,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text("${_selectedWorkDate.year}년 ${_selectedWorkDate.month}월 ${_selectedWorkDate.day}일"),
                               const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.success),
