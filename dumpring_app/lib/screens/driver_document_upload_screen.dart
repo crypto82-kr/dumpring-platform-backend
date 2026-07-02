@@ -333,9 +333,11 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                                         child: Icon(
                                           docCode == 'LICENSE'
                                               ? Icons.badge_outlined
-                                              : docCode == 'QUALIFICATION'
-                                                  ? Icons.local_shipping_outlined
-                                                  : Icons.account_balance_wallet_outlined,
+                                              : docCode == 'SAFETY_TRAINING'
+                                                  ? Icons.security_outlined
+                                                  : docCode == 'SPECIAL_LABOR_TRAINING'
+                                                      ? Icons.assignment_turned_in_outlined
+                                                      : Icons.description_outlined,
                                           color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFF718096),
                                           size: 26,
                                         ),

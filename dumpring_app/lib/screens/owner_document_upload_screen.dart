@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -269,7 +269,13 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                                         radius: 26,
                                         backgroundColor: isUploaded ? const Color(0xFFFFF4E5) : const Color(0xFFF7FAFC),
                                         child: Icon(
-                                          docCode == 'BIZ_LICENSE' ? Icons.business_outlined : Icons.account_balance_wallet_outlined,
+                                          docCode == 'BIZ_LICENSE'
+                                              ? Icons.business_outlined
+                                              : docCode == 'MACHINERY_REG'
+                                                  ? Icons.local_shipping_outlined
+                                                  : docCode == 'INSURANCE'
+                                                      ? Icons.verified_user_outlined
+                                                      : Icons.description_outlined,
                                           color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFF718096),
                                           size: 26,
                                         ),

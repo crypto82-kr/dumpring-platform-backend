@@ -9,7 +9,7 @@ import logging
 import uuid
 
 from app.core.db import get_db
-from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus
+from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus, UserUploadedDocument
 from app.schemas.auth import (
     DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse,
     SiteManagerRegister, SiteWorkerRegister, DropOffRegister
@@ -30,7 +30,7 @@ router = APIRouter()
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="덤프 트럭 기사 회원가입 및 선등록 연동",
-    description="기사가 본인인증(CI) 및 폰 번호로 회원 가입을 수행합니다. 가입 시 차주가 기사의 폰 번호로 선등록해 둔 차량/차주 정보가 있다면 자동으로 연동(매칭)됩니다."
+    description="기사가 본인인증(CI) 및 폰 번호로 회원 가입을 수행합니다. 가입 시 필수 서류 3종을 반드시 함께 제출해야 합니다."
 )
 async def register_driver(
     data: DriverRegister,
@@ -43,7 +43,6 @@ async def register_driver(
     
     if existing_user:
         logger.warning(f"회원 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
-        # 중복 휴대폰 번호에 대한 프론트엔드 맞춤형 커스텀 에러 처리
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
@@ -60,40 +59,46 @@ async def register_driver(
             password=hashed_password,
             name=data.name,
             ci=data.ci,
-            is_driver=True,  # 기사 가입이므로 기사 권한 토글을 기본 활성화
+            is_driver=True,  # 기사 권한 활성화
             is_owner=False,
             is_site_manager=False,
             is_admin=False
         )
         
         db.add(new_user)
-        # ID를 발급받기 위해 트랜잭션을 commit하지 않고 임시 반영(flush) 수행
+        # ID를 발급받기 위해 flush 수행
         await db.flush()
         
         logger.info(f"신규 기사 유저 생성 성공: ID {new_user.id}, 이름: {new_user.name}")
 
-        # 3. 차주 선등록 매칭 로직 작동
-        # drivers 테이블에서 가입하려는 기사의 휴대폰 번호로 선등록된 건이 있는지 비동기 조회
+        # 3. 필수 제출 서류 업로드 기록 추가
+        docs = [
+            UserUploadedDocument(user_id=new_user.id, document_code="LICENSE", file_name=data.license_file),
+            UserUploadedDocument(user_id=new_user.id, document_code="SAFETY_TRAINING", file_name=data.safety_training_file),
+            UserUploadedDocument(user_id=new_user.id, document_code="SPECIAL_LABOR_TRAINING", file_name=data.special_labor_training_file),
+        ]
+        db.add_all(docs)
+
+        # 4. 차주 선등록 매칭 로직 작동
         driver_query = select(Driver).where(Driver.registered_phone == data.phone_number)
         driver_result = await db.execute(driver_query)
         pre_registered_driver = driver_result.scalars().first()
         
         if pre_registered_driver:
-            # 일치하는 선등록 레코드가 있는 경우, 기사 레코드와 유저 계정을 1:1 매칭 연동
+            # 선등록 기사 데이터가 존재할 경우 연동
             pre_registered_driver.user_id = new_user.id
             logger.info(f"★ [매칭 성공] 차주 선등록 기사 데이터 발견 및 매칭 연동 완료 (Driver ID: {pre_registered_driver.id} -> User ID: {new_user.id})")
         else:
-            # 선등록 정보가 아직 없는 기사인 경우, 신규 기사 프로필 레코드를 생성하여 등록
-            # 추후 차주가 차량을 매칭하거나 신규 등록할 수 있는 여지를 확보합니다.
+            # 선등록 데이터가 없을 시 신규 Driver 프로필 생성
             new_driver_profile = Driver(
                 user_id=new_user.id,
                 registered_phone=data.phone_number,
-                is_approved=False  # 본사/차주 승인 대기 기본값
+                is_approved=False
             )
             db.add(new_driver_profile)
             logger.info(f"기사 선등록 데이터가 없어 신규 Driver 프로필을 생성했습니다. (User ID: {new_user.id})")
 
-        # 4. 최종 커밋 반영
+        # 5. 최종 커밋 반영
         await db.commit()
         await db.refresh(new_user)
         
@@ -110,7 +115,7 @@ async def register_driver(
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="덤프 트럭 차주 회원가입",
-    description="차주 사장님이 본인인증(CI) 및 폰 번호로 가입합니다. 차주 사장님이 직접 운전(is_direct_driver=True)하시는 경우 기사 권한도 자동으로 함께 세팅됩니다."
+    description="차주 사장님이 본인인증(CI) 및 폰 번호로 가입합니다. 가입 시 필수 서류 3종을 제출해야 하며 직접 운전 시 기사 서류 3종도 제출해야 합니다."
 )
 async def register_owner(
     data: OwnerRegister,
@@ -139,17 +144,50 @@ async def register_owner(
             password=hashed_password,
             name=data.name,
             ci=data.ci,
-            is_owner=True,  # 차주 권한 활성화
-            is_driver=data.is_direct_driver,  # 직접 운전 시 기사 권한 동시 켜기
+            is_owner=True,
+            is_driver=data.is_direct_driver,
             is_site_manager=False,
             is_admin=False
         )
         
         db.add(new_user)
+        await db.flush()
+        
+        logger.info(f"신규 차주 유저 생성 성공: ID {new_user.id}, 직접운전여부: {data.is_direct_driver}")
+
+        # 3. 필수 제출 서류 업로드 기록 추가 (차주 공통 3종)
+        docs = [
+            UserUploadedDocument(user_id=new_user.id, document_code="BIZ_LICENSE", file_name=data.biz_license_file),
+            UserUploadedDocument(user_id=new_user.id, document_code="MACHINERY_REG", file_name=data.machinery_reg_file),
+            UserUploadedDocument(user_id=new_user.id, document_code="INSURANCE", file_name=data.insurance_file),
+        ]
+
+        # 4. 차주 직접 운전(기사 겸직) 시 기사 필수 서류 3종 추가 및 기사 프로필 추가 생성
+        if data.is_direct_driver:
+            if not data.license_file or not data.safety_training_file or not data.special_labor_training_file:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="직접 운전하시는 경우 운전면허증, 기초안전교육 이수증, 교육실시확인서가 모두 필요합니다."
+                )
+            docs.extend([
+                UserUploadedDocument(user_id=new_user.id, document_code="LICENSE", file_name=data.license_file),
+                UserUploadedDocument(user_id=new_user.id, document_code="SAFETY_TRAINING", file_name=data.safety_training_file),
+                UserUploadedDocument(user_id=new_user.id, document_code="SPECIAL_LABOR_TRAINING", file_name=data.special_labor_training_file),
+            ])
+            
+            # 기사 프로필 등록
+            new_driver_profile = Driver(
+                user_id=new_user.id,
+                registered_phone=data.phone_number,
+                is_approved=False
+            )
+            db.add(new_driver_profile)
+            logger.info(f"직접 운전하는 차주용 Driver 프로필을 함께 생성했습니다. (User ID: {new_user.id})")
+
+        db.add_all(docs)
         await db.commit()
         await db.refresh(new_user)
         
-        logger.info(f"신규 차주 유저 생성 성공: ID {new_user.id}, 직접운전여부: {data.is_direct_driver}")
         return new_user
 
     except Exception as e:
@@ -235,6 +273,13 @@ async def signup_site_manager(
             status=SiteUserStatus.APPROVED
         )
         db.add(mapping)
+        
+        # 필수 서류 업로드 기록 추가
+        docs = [
+            UserUploadedDocument(user_id=new_user.id, document_code="DUST_REPORT", file_name=data.dust_report_file),
+            UserUploadedDocument(user_id=new_user.id, document_code="CONSTRUCTION_CONTRACT", file_name=data.construction_contract_file),
+        ]
+        db.add_all(docs)
         
         await db.commit()
         await db.refresh(new_user)
@@ -391,6 +436,13 @@ async def signup_drop_off(
         )
         db.add(new_profile)
         
+        # 필수 서류 업로드 기록 추가
+        docs = [
+            UserUploadedDocument(user_id=new_user.id, document_code="DEVELOPMENT_PERMIT", file_name=data.development_permit_file),
+            UserUploadedDocument(user_id=new_user.id, document_code="LAND_USE_AGREEMENT", file_name=data.land_use_agreement_file),
+        ]
+        db.add_all(docs)
+        
         await db.commit()
         await db.refresh(new_user)
         
@@ -525,7 +577,17 @@ async def get_required_documents(
     role: str,
     db: AsyncSession = Depends(get_db)
 ):
-    group_code = "REQUIRED_DOC_DRIVER" if role.lower() == "driver" else "REQUIRED_DOC_OWNER"
+    r = role.lower()
+    if r == "driver":
+        group_code = "REQUIRED_DOC_DRIVER"
+    elif r == "owner":
+        group_code = "REQUIRED_DOC_OWNER"
+    elif r == "site_manager":
+        group_code = "REQUIRED_DOC_SITE"
+    elif r == "drop_off":
+        group_code = "REQUIRED_DOC_DROPOFF"
+    else:
+        group_code = "REQUIRED_DOC_DRIVER"
     
     query = select(CommonCode).where(
         CommonCode.group_code == group_code,
@@ -590,8 +652,18 @@ async def get_member_status(
     db: AsyncSession = Depends(get_db)
 ):
     # 1. 역할 구분
-    role = "owner" if current_user.is_owner else "driver"
-    group_code = "REQUIRED_DOC_DRIVER" if role == "driver" else "REQUIRED_DOC_OWNER"
+    if current_user.is_site_manager:
+        role = "site_manager"
+        group_code = "REQUIRED_DOC_SITE"
+    elif current_user.is_drop_off:
+        role = "drop_off"
+        group_code = "REQUIRED_DOC_DROPOFF"
+    elif current_user.is_owner:
+        role = "owner"
+        group_code = "REQUIRED_DOC_OWNER"
+    else:
+        role = "driver"
+        group_code = "REQUIRED_DOC_DRIVER"
     
     # 2. 필수 공통코드 가져오기
     codes_query = select(CommonCode).where(
