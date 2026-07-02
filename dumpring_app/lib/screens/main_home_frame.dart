@@ -7,6 +7,8 @@ import 'dashboard_screen.dart';
 import 'drop_off_home_screen.dart';
 import 'admin_home_screen.dart';
 import 'common_drawer.dart';
+import 'site_management_screen.dart';
+import 'job_management_screen.dart';
 
 /// 로그인 이후 역할별 홈 화면으로 분기 및 공통 레이아웃(DRScaffold + BottomNav)을 제공하는 통합 프레임.
 class MainHomeFrame extends StatefulWidget {
@@ -131,7 +133,14 @@ class _MainHomeFrameState extends State<MainHomeFrame> {
           currentIndex: _currentNavIndex,
           onTap: (index) => setState(() => _currentNavIndex = index),
         ),
-        body: DashboardScreen(user: _currentUser, token: widget.token),
+        body: IndexedStack(
+          index: _currentNavIndex,
+          children: [
+            SiteManagementScreen(user: _currentUser, token: widget.token),
+            JobManagementScreen(user: _currentUser, token: widget.token),
+            DashboardScreen(user: _currentUser, token: widget.token),
+          ],
+        ),
       );
     }
 

@@ -438,3 +438,62 @@ async def get_my_unloading_sites(
     result = await db.execute(query)
     sites = result.scalars().all()
     return sites
+
+
+from app.schemas.locations import SiteUpdate
+
+@router.patch(
+    "/{site_id}",
+    response_model=SiteSearchResponse,
+    summary="공사현장 정보 수정",
+    description="현장관리자가 자신이 개설한 공사현장의 세부 정보(건설사명/현장명, 사업자번호, 주소, GPS 좌표, 반경)를 수정합니다."
+)
+async def update_site(
+    site_id: int,
+    data: SiteUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_site_manager and not current_user.is_site_worker:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="현장관리자(소장님) 또는 현장담당자만 현장 정보를 수정할 수 있습니다."
+        )
+
+    # 현장 조회
+    query = select(ConstructionSite).where(ConstructionSite.id == site_id)
+    result = await db.execute(query)
+    site = result.scalars().first()
+
+    if not site:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="공사현장을 찾을 수 없습니다."
+        )
+
+    if site.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="본인이 개설한 공사현장만 수정할 수 있습니다."
+        )
+
+    # 데이터 업데이트
+    update_data = data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(site, key, value)
+
+    await db.commit()
+    await db.refresh(site)
+
+    return SiteSearchResponse(
+        id=site.id,
+        site_name=site.company_name,
+        company_name=site.company_name,
+        business_number=site.business_number,
+        site_key=site.site_key or "",
+        site_address=site.site_address,
+        latitude=site.latitude,
+        longitude=site.longitude,
+        geofencing_radius=site.geofencing_radius
+    )
+

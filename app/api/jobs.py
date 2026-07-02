@@ -652,3 +652,52 @@ async def get_my_job_posts(
     query = select(JobPost).where(JobPost.author_id == current_user.id)
     result = await db.execute(query)
     return result.scalars().all()
+
+
+from app.schemas.jobs import JobPostUpdate
+
+@router.patch(
+    "/jobs/{job_id}",
+    response_model=JobPostResponse,
+    summary="내가 작성한 모집 공고 수정 (상차지 관리자용)",
+    description="현장관리자(SITE_MANAGER)가 본인이 작성한 특정 기사 모집 공고를 수정합니다. (작업일, 대수, 단가, 메모, 토종 등)"
+)
+async def update_job_post(
+    job_id: int,
+    data: JobPostUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_site_manager:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="현장관리자(SITE_MANAGER) 권한이 필요합니다."
+        )
+
+    # 공고 조회 및 권한 검증
+    query = select(JobPost).where(JobPost.id == job_id)
+    result = await db.execute(query)
+    job = result.scalars().first()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="모집 공고를 찾을 수 없습니다."
+        )
+
+    if job.author_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="본인이 등록한 공고만 수정할 수 있습니다."
+        )
+
+    # 데이터 업데이트
+    update_data = data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(job, key, value)
+
+    await db.commit()
+    await db.refresh(job)
+
+    return job
+
