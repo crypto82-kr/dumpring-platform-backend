@@ -14,6 +14,7 @@ import 'owner_document_upload_screen.dart';
 import 'owner_pending_screen.dart';
 import 'sdui_screen.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
+import 'main_home_frame.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -134,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } else {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => DashboardScreen(user: user, token: token)),
+          MaterialPageRoute(builder: (context) => MainHomeFrame(user: user, token: token)),
         );
       }
       return;
