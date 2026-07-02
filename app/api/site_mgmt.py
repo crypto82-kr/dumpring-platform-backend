@@ -438,3 +438,156 @@ async def get_my_unloading_sites(
     result = await db.execute(query)
     sites = result.scalars().all()
     return sites
+
+
+# --- B2B ConstructionSite CRUD APIs for Admin/Managers ---
+
+class ConstructionSiteDetailResponse(BaseModel):
+    id: int
+    user_id: int
+    company_name: str
+    site_name: Optional[str] = None
+    business_number: str
+    billing_email: str
+    site_key: Optional[str]
+    site_address: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    geofencing_radius: float
+
+    class Config:
+        from_attributes = True
+
+
+class UpdateSiteRequest(BaseModel):
+    company_name: Optional[str] = None
+    site_name: Optional[str] = None
+    business_number: Optional[str] = None
+    site_address: Optional[str] = None
+    billing_email: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    geofencing_radius: Optional[float] = None
+
+
+@router.get(
+    "/admin-sites",
+    response_model=List[ConstructionSiteDetailResponse],
+    summary="[어드민/현장관리자] 전체 공사현장 목록 조회"
+)
+async def list_all_sites(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 플랫폼 어드민인 경우 전체 현장 리턴
+    if current_user.is_admin:
+        query = select(ConstructionSite)
+        result = await db.execute(query)
+        sites = result.scalars().all()
+        return sites
+        
+    # 현장 관리자/담당자인 경우 본인이 속해(매핑)되어 있는 현장만 리턴
+    # 1. 본인이 생성한 현장 (ConstructionSite.user_id == current_user.id)
+    # 2. 혹은 매핑 테이블(SiteUserMapping)을 통해 매핑된 현장 중 APPROVED 상태인 것
+    mapped_query = select(SiteUserMapping.site_id).where(
+        SiteUserMapping.user_id == current_user.id,
+        SiteUserMapping.status == SiteUserStatus.APPROVED
+    )
+    mapped_result = await db.execute(mapped_query)
+    mapped_site_ids = mapped_result.scalars().all()
+    
+    query = select(ConstructionSite).where(
+        (ConstructionSite.user_id == current_user.id) | 
+        (ConstructionSite.id.in_(mapped_site_ids))
+    )
+    result = await db.execute(query)
+    sites = result.scalars().all()
+    return sites
+
+
+@router.post(
+    "/admin-sites",
+    response_model=ConstructionSiteDetailResponse,
+    summary="[어드민/현장관리자] 신규 공사현장 등록"
+)
+async def admin_create_site(
+    data: CreateSiteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    site_key = uuid.uuid4().hex[:6].upper()
+    site = ConstructionSite(
+        user_id=current_user.id,
+        company_name=data.company_name,
+        site_name=data.site_name,
+        business_number=data.business_number,
+        site_key=site_key,
+        site_address=data.site_address,
+        latitude=data.latitude or 37.5665,
+        longitude=data.longitude or 126.9780,
+        geofencing_radius=data.geofencing_radius,
+        billing_email=f"billing@{current_user.phone_number}.com"
+    )
+    db.add(site)
+    await db.commit()
+    await db.refresh(site)
+    return site
+
+
+@router.put(
+    "/admin-sites/{site_id}",
+    response_model=ConstructionSiteDetailResponse,
+    summary="[어드민/현장관리자] 공사현장 수정"
+)
+async def update_site_detail(
+    site_id: int,
+    data: UpdateSiteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(ConstructionSite).where(ConstructionSite.id == site_id)
+    result = await db.execute(query)
+    site = result.scalars().first()
+    if not site:
+        raise HTTPException(status_code=404, detail="해당 현장을 찾을 수 없습니다.")
+
+    if data.company_name is not None:
+        site.company_name = data.company_name
+    if data.site_name is not None:
+        site.site_name = data.site_name
+    if data.business_number is not None:
+        site.business_number = data.business_number
+    if data.site_address is not None:
+        site.site_address = data.site_address
+    if data.billing_email is not None:
+        site.billing_email = data.billing_email
+    if data.latitude is not None:
+        site.latitude = data.latitude
+    if data.longitude is not None:
+        site.longitude = data.longitude
+    if data.geofencing_radius is not None:
+        site.geofencing_radius = data.geofencing_radius
+
+    await db.commit()
+    await db.refresh(site)
+    return site
+
+
+@router.delete(
+    "/admin-sites/{site_id}",
+    summary="[어드민/현장관리자] 공사현장 삭제"
+)
+async def delete_site(
+    site_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(ConstructionSite).where(ConstructionSite.id == site_id)
+    result = await db.execute(query)
+    site = result.scalars().first()
+    if not site:
+        raise HTTPException(status_code=404, detail="해당 현장을 찾을 수 없습니다.")
+
+    await db.delete(site)
+    await db.commit()
+    return {"message": "현장이 성공적으로 삭제되었습니다."}
