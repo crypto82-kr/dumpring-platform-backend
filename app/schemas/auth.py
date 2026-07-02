@@ -26,6 +26,8 @@ class UserResponse(BaseModel):
     is_driver: bool
     is_drop_off: bool
     is_admin: bool
+    is_approved: bool
+    reject_reason: Optional[str] = None
     
     created_at: datetime
     updated_at: datetime
@@ -120,4 +122,19 @@ class MemberStatusResponse(BaseModel):
     reject_reason: Optional[str] = None
     uploaded_documents: list[str] = []
     missing_documents: list[RequiredDocumentResponse] = []
+
+
+class SubmitApprovalRequest(BaseModel):
+    company_name: Optional[str] = None
+    site_name: Optional[str] = None
+    business_number: Optional[str] = None
+    address: Optional[str] = None
+    detail_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    
+    location_name: Optional[str] = None
+    permit_number: Optional[str] = None
+    
+    is_direct_driver: Optional[bool] = None
 

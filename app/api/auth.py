@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from jose import jwt, JWTError
 from typing import List, Optional
 import logging
@@ -513,7 +514,7 @@ async def get_current_admin(
 # ==========================================
 
 from app.models import CommonCode, UserUploadedDocument
-from app.schemas.auth import RequiredDocumentResponse, DocumentUploadRequest, MemberStatusResponse
+from app.schemas.auth import RequiredDocumentResponse, DocumentUploadRequest, MemberStatusResponse, SubmitApprovalRequest
 
 @router.get(
     "/required-documents",
@@ -589,24 +590,37 @@ async def get_member_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. 역할 구분
-    role = "owner" if current_user.is_owner else "driver"
-    group_code = "REQUIRED_DOC_DRIVER" if role == "driver" else "REQUIRED_DOC_OWNER"
+    # 1. 역할 구분 및 필수 서류 그룹 설정
+    if current_user.is_site_manager:
+        role = "site_manager"
+        group_code = "REQUIRED_DOC_SITE_MANAGER"
+    elif current_user.is_drop_off:
+        role = "drop_off"
+        group_code = None
+    elif current_user.is_owner:
+        role = "owner"
+        group_code = "REQUIRED_DOC_OWNER"
+    else:
+        role = "driver"
+        group_code = "REQUIRED_DOC_DRIVER"
     
     # 2. 필수 공통코드 가져오기
-    codes_query = select(CommonCode).where(
-        CommonCode.group_code == group_code,
-        CommonCode.is_active == True
-    ).order_by(CommonCode.display_order.asc())
-    codes_result = await db.execute(codes_query)
-    req_codes = codes_result.scalars().all()
+    req_codes = []
+    if group_code:
+        codes_query = select(CommonCode).where(
+            CommonCode.group_code == group_code,
+            CommonCode.is_active == True
+        ).order_by(CommonCode.display_order.asc())
+        codes_result = await db.execute(codes_query)
+        req_codes = codes_result.scalars().all()
     
     # 3. 유저가 제출한 서류 목록
-    uploaded_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
-    uploaded_result = await db.execute(uploaded_query)
-    uploaded_docs = uploaded_result.scalars().all()
-    
-    uploaded_codes = [d.document_code for d in uploaded_docs]
+    uploaded_codes = []
+    if group_code:
+        uploaded_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
+        uploaded_result = await db.execute(uploaded_query)
+        uploaded_docs = uploaded_result.scalars().all()
+        uploaded_codes = [d.document_code for d in uploaded_docs]
     
     # 4. 미제출 서류 목록 도출
     missing_docs = []
@@ -642,6 +656,115 @@ async def get_member_status(
         uploaded_documents=uploaded_codes,
         missing_documents=missing_docs
     )
+
+
+@router.post(
+    "/submit-approval",
+    summary="회원 상세정보 제출 및 승인 요청",
+    description="회원이 역할별 필수 상세 정보를 입력하고 최종 승인을 요청합니다."
+)
+async def submit_approval(
+    data: SubmitApprovalRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    
+    if current_user.is_site_manager:
+        # Site Profile
+        sp_query = select(SiteProfile).where(SiteProfile.user_id == current_user.id)
+        sp_res = await db.execute(sp_query)
+        profile = sp_res.scalars().first()
+        if not profile:
+            profile = SiteProfile(
+                user_id=current_user.id,
+                company_name=data.company_name or "",
+                site_name=data.site_name or "",
+                business_number=data.business_number or ""
+            )
+            db.add(profile)
+        else:
+            if data.company_name: profile.company_name = data.company_name
+            if data.site_name: profile.site_name = data.site_name
+            if data.business_number: profile.business_number = data.business_number
+            
+        # Construction Site
+        cs_query = select(ConstructionSite).where(ConstructionSite.user_id == current_user.id)
+        cs_res = await db.execute(cs_query)
+        site = cs_res.scalars().first()
+        if not site:
+            site_key = f"SITE-{uuid.uuid4().hex[:6].upper()}"
+            site = ConstructionSite(
+                user_id=current_user.id,
+                company_name=data.company_name or "",
+                business_number=data.business_number or "",
+                billing_email=f"billing@{current_user.phone_number}.com",
+                site_key=site_key,
+                site_address=data.address or "",
+                latitude=data.latitude or 37.5665,
+                longitude=data.longitude or 126.9780
+            )
+            db.add(site)
+            await db.flush()
+            
+            # Site Mapping
+            mapping = SiteUserMapping(
+                site_id=site.id,
+                user_id=current_user.id,
+                status=SiteUserStatus.APPROVED
+            )
+            db.add(mapping)
+        else:
+            if data.company_name: site.company_name = data.company_name
+            if data.business_number: site.business_number = data.business_number
+            if data.address: site.site_address = data.address
+            if data.latitude is not None: site.latitude = data.latitude
+            if data.longitude is not None: site.longitude = data.longitude
+
+    elif current_user.is_drop_off:
+        # Drop Off Profile
+        dp_query = select(DropOffProfile).where(DropOffProfile.user_id == current_user.id)
+        dp_res = await db.execute(dp_query)
+        profile = dp_res.scalars().first()
+        if not profile:
+            profile = DropOffProfile(
+                user_id=current_user.id,
+                location_name=data.location_name or "",
+                address=data.address or "",
+                permit_number=data.permit_number or ""
+            )
+            db.add(profile)
+        else:
+            if data.location_name: profile.location_name = data.location_name
+            if data.address: profile.address = data.address
+            if data.permit_number: profile.permit_number = data.permit_number
+            
+        # Drop Off Site
+        do_query = select(DropOff).where(DropOff.owner_id == current_user.id)
+        do_res = await db.execute(do_query)
+        drop_off = do_res.scalars().first()
+        if not drop_off:
+            drop_off = DropOff(
+                owner_id=current_user.id,
+                name=data.location_name or "",
+                address=data.address or "",
+                latitude=data.latitude or 37.5665,
+                longitude=data.longitude or 126.9780,
+                permit_number=data.permit_number or ""
+            )
+            db.add(drop_off)
+        else:
+            if data.location_name: drop_off.name = data.location_name
+            if data.address: drop_off.address = data.address
+            if data.permit_number: drop_off.permit_number = data.permit_number
+            if data.latitude is not None: drop_off.latitude = data.latitude
+            if data.longitude is not None: drop_off.longitude = data.longitude
+
+    elif current_user.is_owner:
+        if data.is_direct_driver is not None:
+            current_user.is_driver = data.is_direct_driver
+            
+    await db.commit()
+    return {"message": "승인 요청 제출이 완료되었습니다."}
 
 
 @router.get(
@@ -710,6 +833,51 @@ async def get_pending_members(
             "docs": doc_summary or "미제출",
             "created_at": o.created_at
         })
+
+    # 현장관리자 중 아직 미승인(is_approved = False) 유저 검색 (site_profile 조인)
+    site_mgr_query = select(User).options(selectinload(User.site_profile), selectinload(User.construction_sites)).where(User.is_site_manager == True, User.is_approved == False)
+    site_mgr_res = await db.execute(site_mgr_query)
+    site_managers = site_mgr_res.scalars().all()
+
+    for sm in site_managers:
+        if sm.is_admin:
+            continue
+
+        doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == sm.id)
+        doc_res = await db.execute(doc_query)
+        docs = doc_res.scalars().all()
+        doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+
+        company = "협력 도급사"
+        site_name_val = f"{sm.name}의 현장"
+        biz_no = "미등록"
+        address_val = "현장 주소 미등록"
+
+        if sm.site_profile:
+            if sm.site_profile.company_name:
+                company = sm.site_profile.company_name
+            if sm.site_profile.site_name:
+                site_name_val = sm.site_profile.site_name
+            if sm.site_profile.business_number:
+                biz_no = sm.site_profile.business_number
+
+        if sm.construction_sites:
+            first_site = sm.construction_sites[0]
+            if first_site.site_address:
+                address_val = first_site.site_address
+
+        response_list.append({
+            "id": sm.id,
+            "type": "현장관리자 가입",
+            "name": sm.name,
+            "phone_number": sm.phone_number,
+            "docs": doc_summary or "미제출",
+            "created_at": sm.created_at,
+            "company_name": company,
+            "site_name": site_name_val,
+            "business_number": biz_no,
+            "address": address_val
+        })
         
     return response_list
 
@@ -743,7 +911,7 @@ async def approve_member(
             driver.is_approved = True
             driver.reject_reason = None
             
-    if user.is_owner:
+    if user.is_owner or user.is_site_manager or user.is_drop_off:
         user.is_approved = True
         user.reject_reason = None
         
@@ -781,7 +949,7 @@ async def reject_member(
             driver.is_approved = False
             driver.reject_reason = reject_reason
             
-    if user.is_owner:
+    if user.is_owner or user.is_site_manager or user.is_drop_off:
         user.is_approved = False
         user.reject_reason = reject_reason
         
