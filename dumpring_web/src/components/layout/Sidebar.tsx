@@ -76,7 +76,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   site_manager: [
     { title: "현장 관리 대시보드", icon: LayoutDashboard, path: "/site" },
     { title: "현장관리자 권한 관리", icon: Users, path: "/site/org-hierarchy" },
-    { title: "현장 등록", icon: MapPin, path: "/site/request" },
+    { title: "현장 관리", icon: MapPin, path: "/site/request" },
     {
       title: "배차 관리",
       icon: Truck,
@@ -125,7 +125,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
 };
 
 export default function Sidebar() {
-  const { user, changeRole, activePath, setActivePath } = useAuth();
+  const { user, changeRole, logout, activePath, setActivePath } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ "승인 관리": true });
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -200,16 +200,27 @@ export default function Sidebar() {
 
         {/* Current Active User Profile info */}
         <div className="m-4 p-4 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 flex flex-col gap-2">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center font-bold text-sm text-brand-500 font-sans">
-              {user.name[0]}
-            </div>
-            <div>
-              <div className="font-semibold text-sm text-gray-800 dark:text-gray-200">{user.name}</div>
-              <div className="text-[11px] text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2.5 py-0.5 rounded-full inline-block mt-0.5 border border-brand-100 dark:border-brand-500/20">
-                {user.roleName}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center font-bold text-sm text-brand-500 font-sans">
+                {user.name[0]}
+              </div>
+              <div>
+                <div className="font-semibold text-sm text-gray-800 dark:text-gray-200">{user.name}</div>
+                <div className="text-[11px] text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2.5 py-0.5 rounded-full inline-block mt-0.5 border border-brand-100 dark:border-brand-500/20">
+                  {user.roleName}
+                </div>
               </div>
             </div>
+            
+            {/* Logout button */}
+            <button
+              onClick={() => logout()}
+              className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-gray-400 transition-all active:scale-95"
+              title="로그아웃"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -290,66 +301,6 @@ export default function Sidebar() {
             );
           })}
         </nav>
-      </div>
-
-      {/* Role Quick Selector at Footer */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.02] transition-colors">
-        <div className="text-[11px] font-bold text-gray-450 dark:text-gray-500 mb-2.5 flex items-center gap-1.5 px-1">
-          <RefreshCw className="w-3 h-3 animate-spin-slow text-brand-500" />
-          <span>권한 빠른 시뮬레이션</span>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-          <button
-            onClick={() => changeRole("platform_admin")}
-            className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
-              user.role === "platform_admin"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            플랫폼 관리자
-          </button>
-          <button
-            onClick={() => changeRole("site_manager")}
-            className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
-              user.role === "site_manager"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            현장 관리자
-          </button>
-          <button
-            onClick={() => changeRole("dropoff_manager")}
-            className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
-              user.role === "dropoff_manager"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            하차지 관리자
-          </button>
-          <button
-            onClick={() => changeRole("owner")}
-            className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
-              user.role === "owner"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            차주/운송사
-          </button>
-          <button
-            onClick={() => changeRole("developer")}
-            className={`col-span-2 px-2 py-1.5 rounded-lg border text-center font-medium transition-colors ${
-              user.role === "developer"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-650 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            시스템 개발자 (Developer)
-          </button>
-        </div>
       </div>
     </aside>
   );

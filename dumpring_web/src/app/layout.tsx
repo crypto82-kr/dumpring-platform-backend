@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Sidebar from "@/components/layout/Sidebar";
+import AppContent from "@/components/layout/AppContent";
 
 export const metadata: Metadata = {
   title: "덤프링 통합 관리 시스템 (DUMPRING Integrated Admin Portal)",
@@ -31,15 +31,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full bg-gray-50 dark:bg-gray-950 font-sans flex text-gray-900 dark:text-gray-100 antialiased selection:bg-brand-500/20 selection:text-brand-900">
         <AuthProvider>
-          <div className="flex w-full min-h-screen">
-            {/* Sidebar */}
-            <Sidebar />
-            
-            {/* Main Content Area */}
-            <main className="flex-1 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
-              {children}
-            </main>
-          </div>
+          <AppContent>{children}</AppContent>
         </AuthProvider>
       </body>
     </html>
