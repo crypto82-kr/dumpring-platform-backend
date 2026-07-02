@@ -195,6 +195,35 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     }
   }
 
+  // 하차지 매칭 최종 승인 API 호출
+  Future<void> _approveMatch(int jobId) async {
+    setState(() => _isLoading = true);
+    final endpoint = "$_baseUrl/api/jobs/$jobId/confirm-match";
+    try {
+      final response = await http.patch(
+        Uri.parse(endpoint),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("🎉 하차지 매칭이 승인되어 기사 모집이 시작되었습니다.")),
+        );
+        _fetchMyJobs();
+      } else {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        _showErrorDialog(decoded["detail"] ?? "매칭 승인에 실패했습니다.");
+      }
+    } catch (e) {
+      _showErrorDialog("서버 연결 실패. 네트워크 상태를 확인해 주세요.");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   void _clearJobControllers() {
     _jobRequiredTrucksController.text = "10";
     _jobUnitPriceController.text = "50000";
@@ -523,6 +552,20 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                 _buildDetailItem("작업 희망일", job['work_date']?.split("T")?.first ?? ''),
                 _buildDetailItem("공고 상태", _translateStatus(job['status']), isHighlight: true),
                 _buildDetailItem("기사 안내 메모", job['memo'] ?? '메모 없음'),
+                if (job['matched_drop_off_id'] != null) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.link, size: 18, color: AppColors.success),
+                      const SizedBox(width: 4),
+                      Text("연결된 하차지 정보", style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDetailItem("하차지명", job['drop_off_name']),
+                  _buildDetailItem("하차지 주소", job['drop_off_address']),
+                  _buildDetailItem("예상 운행 거리 / 시간", "${job['distance'] ?? '-'} km / ${job['estimated_time'] ?? '-'} 분"),
+                ],
               ],
             ),
           ),
@@ -531,6 +574,15 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
               onPressed: () => Navigator.of(context).pop(),
               child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
             ),
+            if (job['status'] == 'WAITING_APPROVAL' && job['matched_drop_off_id'] != null)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _approveMatch(job['id']);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                child: const Text("매칭 승인", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
             if (job['status'] == 'OPEN' || job['status'] == 'WAITING_MATCH' || job['status'] == 'WAITING_APPROVAL')
               ElevatedButton(
                 onPressed: () {
