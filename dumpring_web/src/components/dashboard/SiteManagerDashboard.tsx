@@ -883,13 +883,18 @@ export function SiteManagerDashboard({
     );
   }
 
+  // Find active site from the list
+  const activeSite = registeredSiteList && registeredSiteList.length > 0 ? registeredSiteList[0] : null;
+  const displaySiteName = activeSite ? activeSite.name : "인천 검단 3공구";
+  const displaySiteKey = activeSite ? activeSite.siteKey : "GD-3-DUMP";
+
   return (
     <div className="space-y-6">
       {/* Header section */}
       <div className="p-6 rounded-2xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900">[인천 검단 3공구] 현장 관리 본부</h2>
-          <p className="text-xs text-slate-600 mt-1">현장 고유 인증 코드: <span className="text-blue-600 font-mono font-bold">GD-3-DUMP</span></p>
+          <h2 className="text-xl font-extrabold text-slate-900">[{displaySiteName}] 현장 관리 본부</h2>
+          <p className="text-xs text-slate-600 mt-1">현장 고유 인증 코드: <span className="text-blue-600 font-mono font-bold">{displaySiteKey}</span></p>
         </div>
         <div className="flex gap-2">
           <button
