@@ -23,10 +23,13 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   bool _isLoading = false;
   List<dynamic> _siteMappings = [];
   List<dynamic> _myJobs = [];
+  List<dynamic> _openDropOffRequests = [];
 
   // 공고 등록 및 수정에 필요한 상태 변수 및 컨트롤러
   final _jobFormKey = GlobalKey<FormState>();
   int? _selectedSiteId;
+  int? _selectedDropOffRequestId;
+  bool _isDirectMatching = false; // 기본값은 하차지 미지정 (지주 매칭 대기)
   String _selectedMaterialType = "GOOD_SOIL";
   String _selectedTruckType = "T_25";
   String _selectedPayerType = "SITE_PAYS";
@@ -41,6 +44,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     super.initState();
     _fetchMySites();
     _fetchMyJobs();
+    _fetchOpenDropOffRequests();
   }
 
   @override
@@ -102,6 +106,30 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     }
   }
 
+  Future<void> _fetchOpenDropOffRequests() async {
+    final endpoint = "$_baseUrl/api/drop-offs/requests";
+    try {
+      final response = await http.get(
+        Uri.parse(endpoint),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        setState(() {
+          _openDropOffRequests = decoded;
+          if (_openDropOffRequests.isNotEmpty) {
+            _selectedDropOffRequestId = _openDropOffRequests.first['id'];
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("열려있는 하차지 수용 공고 조회 실패: $e");
+    }
+  }
+
   // 신규 기사 모집 공고(JobPost) 등록 API 호출
   Future<void> _registerJobPost() async {
     if (!_jobFormKey.currentState!.validate()) return;
@@ -111,17 +139,28 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     }
 
     setState(() => _isLoading = true);
-    final endpoint = "$_baseUrl/api/jobs/site-post";
-    final requestData = {
-      "site_id": _selectedSiteId,
-      "material_type": _selectedMaterialType,
-      "truck_type": _selectedTruckType,
-      "work_date": _selectedWorkDate.toIso8601String(),
-      "required_trucks": int.tryParse(_jobRequiredTrucksController.text.trim()) ?? 10,
-      "offered_unit_price": int.tryParse(_jobUnitPriceController.text.trim()) ?? 50000,
-      "payer_type": _selectedPayerType,
-      "memo": _jobMemoController.text.trim().isEmpty ? null : _jobMemoController.text.trim(),
-    };
+    
+    final String endpoint = _isDirectMatching 
+        ? "$_baseUrl/api/jobs" 
+        : "$_baseUrl/api/jobs/site-post";
+
+    final Map<String, dynamic> requestData = _isDirectMatching
+        ? {
+            "site_id": _selectedSiteId,
+            "drop_off_request_id": _selectedDropOffRequestId,
+            "work_date": _selectedWorkDate.toIso8601String(),
+            "required_trucks": int.tryParse(_jobRequiredTrucksController.text.trim()) ?? 10,
+          }
+        : {
+            "site_id": _selectedSiteId,
+            "material_type": _selectedMaterialType,
+            "truck_type": _selectedTruckType,
+            "work_date": _selectedWorkDate.toIso8601String(),
+            "required_trucks": int.tryParse(_jobRequiredTrucksController.text.trim()) ?? 10,
+            "offered_unit_price": int.tryParse(_jobUnitPriceController.text.trim()) ?? 50000,
+            "payer_type": _selectedPayerType,
+            "memo": _jobMemoController.text.trim().isEmpty ? null : _jobMemoController.text.trim(),
+          };
 
     try {
       final response = await http.post(
@@ -363,83 +402,151 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                             ),
                           ),
                         const SizedBox(height: 12),
+                        Text("하차지 설정 방식", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: RadioListTile<bool>(
+                                title: const Text("매칭 대기", style: TextStyle(fontSize: 13, color: Colors.white)),
+                                value: false,
+                                groupValue: _isDirectMatching,
+                                contentPadding: EdgeInsets.zero,
+                                activeColor: AppColors.primary,
+                                onChanged: (val) => setDialogState(() => _isDirectMatching = val!),
+                              ),
+                            ),
+                            Expanded(
+                              child: RadioListTile<bool>(
+                                title: const Text("하차지 직접 선택", style: TextStyle(fontSize: 13, color: Colors.white)),
+                                value: true,
+                                groupValue: _isDirectMatching,
+                                contentPadding: EdgeInsets.zero,
+                                activeColor: AppColors.primary,
+                                onChanged: (val) => setDialogState(() => _isDirectMatching = val!),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (_isDirectMatching) ...[
+                          Text("매칭할 하차지 공고", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          if (_openDropOffRequests.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                              child: Text("선택할 수 있는 활성 하차지 공고가 없습니다.", style: AppTextStyles.caption),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.divider),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<int>(
+                                  value: _selectedDropOffRequestId,
+                                  dropdownColor: AppColors.surface,
+                                  isExpanded: true,
+                                  style: AppTextStyles.body1.copyWith(color: AppColors.textPrimary),
+                                  onChanged: (value) => setDialogState(() => _selectedDropOffRequestId = value),
+                                  items: _openDropOffRequests.map<DropdownMenuItem<int>>((r) {
+                                    return DropdownMenuItem<int>(
+                                      value: r['id'],
+                                      child: Text(
+                                        "${r['drop_off_name']} (${_translateMaterial(r['material_type'])} / ${_translateTruck(r['truck_type'])} / ${r['unit_price']}원)",
+                                        style: const TextStyle(fontSize: 12),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                        ],
                       ],
-                      Text("토사 종류", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedMaterialType,
-                            dropdownColor: AppColors.surface,
-                            isExpanded: true,
-                            style: AppTextStyles.body1.copyWith(color: AppColors.textPrimary),
-                            onChanged: (value) => setDialogState(() => _selectedMaterialType = value!),
-                            items: const [
-                              DropdownMenuItem(value: "GOOD_SOIL", child: Text("양질토")),
-                              DropdownMenuItem(value: "MUD_SOIL", child: Text("뻘흙")),
-                              DropdownMenuItem(value: "ROCK", child: Text("암버럭")),
-                              DropdownMenuItem(value: "MIXED", child: Text("혼합 토사")),
-                            ],
+                      if (!_isDirectMatching || isEdit) ...[
+                        Text("토사 종류", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedMaterialType,
+                              dropdownColor: AppColors.surface,
+                              isExpanded: true,
+                              style: AppTextStyles.body1.copyWith(color: AppColors.textPrimary),
+                              onChanged: (value) => setDialogState(() => _selectedMaterialType = value!),
+                              items: const [
+                                DropdownMenuItem(value: "GOOD_SOIL", child: Text("양질토")),
+                                DropdownMenuItem(value: "MUD_SOIL", child: Text("뻘흙")),
+                                DropdownMenuItem(value: "ROCK", child: Text("암버럭")),
+                                DropdownMenuItem(value: "MIXED", child: Text("혼합 토사")),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text("차량 규격", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedTruckType,
-                            dropdownColor: AppColors.surface,
-                            isExpanded: true,
-                            style: AppTextStyles.body1.copyWith(color: AppColors.textPrimary),
-                            onChanged: (value) => setDialogState(() => _selectedTruckType = value!),
-                            items: const [
-                              DropdownMenuItem(value: "T_15", child: Text("15톤")),
-                              DropdownMenuItem(value: "T_25", child: Text("25톤")),
-                              DropdownMenuItem(value: "T_27", child: Text("27톤")),
-                            ],
+                        const SizedBox(height: 12),
+                        Text("차량 규격", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedTruckType,
+                              dropdownColor: AppColors.surface,
+                              isExpanded: true,
+                              style: AppTextStyles.body1.copyWith(color: AppColors.textPrimary),
+                              onChanged: (value) => setDialogState(() => _selectedTruckType = value!),
+                              items: const [
+                                DropdownMenuItem(value: "T_15", child: Text("15톤")),
+                                DropdownMenuItem(value: "T_25", child: Text("25톤")),
+                                DropdownMenuItem(value: "T_27", child: Text("27톤")),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text("비용 지급 주체", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedPayerType,
-                            dropdownColor: AppColors.surface,
-                            isExpanded: true,
-                            style: AppTextStyles.body1.copyWith(color: AppColors.textPrimary),
-                            onChanged: (value) => setDialogState(() => _selectedPayerType = value!),
-                            items: const [
-                              DropdownMenuItem(value: "SITE_PAYS", child: Text("현장 지불")),
-                              DropdownMenuItem(value: "DROP_OFF_PAYS", child: Text("하차지 지불")),
-                              DropdownMenuItem(value: "FREE", child: Text("무상")),
-                            ],
+                        const SizedBox(height: 12),
+                        Text("비용 지급 주체", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedPayerType,
+                              dropdownColor: AppColors.surface,
+                              isExpanded: true,
+                              style: AppTextStyles.body1.copyWith(color: AppColors.textPrimary),
+                              onChanged: (value) => setDialogState(() => _selectedPayerType = value!),
+                              items: const [
+                                DropdownMenuItem(value: "SITE_PAYS", child: Text("현장 지불")),
+                                DropdownMenuItem(value: "DROP_OFF_PAYS", child: Text("하차지 지불")),
+                                DropdownMenuItem(value: "FREE", child: Text("무상")),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
+                        const SizedBox(height: 12),
+                      ],
                       Text("작업 희망일", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 6),
                       InkWell(
@@ -473,25 +580,26 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                         decoration: _buildInputDecoration("대수 숫자 입력"),
                         validator: (value) => value == null || int.tryParse(value.trim()) == null ? "대수를 입력해 주세요" : null,
                       ),
-                      const SizedBox(height: 12),
-                      Text("상차지 제시 단가 (원)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _jobUnitPriceController,
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(color: AppColors.textPrimary),
-                        decoration: _buildInputDecoration("단가 입력 (예: 50000)"),
-                        validator: (value) => value == null || int.tryParse(value.trim()) == null ? "단가를 입력해 주세요" : null,
-                      ),
-                      const SizedBox(height: 12),
-                      Text("안내 메모", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _jobMemoController,
-                        maxLines: 2,
-                        style: TextStyle(color: AppColors.textPrimary),
-                        decoration: _buildInputDecoration("기사 요청 메모"),
-                      ),
+                      if (!_isDirectMatching || isEdit) ...[
+                        Text("상차지 제시 단가 (원)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: _jobUnitPriceController,
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(color: AppColors.textPrimary),
+                          decoration: _buildInputDecoration("단가 입력 (예: 50000)"),
+                          validator: (value) => value == null || int.tryParse(value.trim()) == null ? "단가를 입력해 주세요" : null,
+                        ),
+                        const SizedBox(height: 12),
+                        Text("안내 메모", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: _jobMemoController,
+                          maxLines: 2,
+                          style: TextStyle(color: AppColors.textPrimary),
+                          decoration: _buildInputDecoration("기사 요청 메모"),
+                        ),
+                      ],
                     ],
                   ),
                 ),
