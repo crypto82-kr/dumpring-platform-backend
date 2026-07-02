@@ -114,9 +114,78 @@ export function SiteManagerDashboard({
   // 현장 수정을 위한 로컬 상태 정의
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
   const [siteFormBizRegNo, setSiteFormBizRegNo] = useState("");
-  const [isCreatingOrEditingSite, setIsCreatingOrEditingSite] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Find active site from the list to pull baseline corporate details
+  const activeSite = registeredSiteList && registeredSiteList.length > 0 ? registeredSiteList[0] : null;
+
+  // Load Daum Postcode Script dynamically on mount
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const script = document.createElement("script");
+      script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+      script.async = true;
+      document.head.appendChild(script);
+      return () => {
+        document.head.removeChild(script);
+      };
+    }
+  }, []);
+
+  // Fetch common codes from backend for dynamic dropdowns (Tonnage / Soil type)
+  const [dbCommonCodes, setDbCommonCodes] = useState<any[]>([]);
+  React.useEffect(() => {
+    const fetchCodes = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/common-codes");
+        if (res.ok) {
+          const data = await res.json();
+          setDbCommonCodes(data);
+        }
+      } catch (e) {
+        console.error("Failed to load common codes inside SiteManagerDashboard", e);
+      }
+    };
+    fetchCodes();
+  }, []);
+
+  // Auto populate company details in modal on open (React Hook moved to top-level to satisfy Rules of Hooks)
+  React.useEffect(() => {
+    if (isModalOpen) {
+      try {
+        const storedProfile = localStorage.getItem("userProfile");
+        if (storedProfile) {
+          const parsed = JSON.parse(storedProfile);
+          if (editingSiteId === null) {
+            const defaultCompany = activeSite?.companyName || parsed.company_name || "";
+            const defaultBizNo = activeSite?.bizRegNo || parsed.business_number || "";
+            if (defaultCompany) setSiteFormCompanyName(defaultCompany);
+            if (defaultBizNo) setSiteFormBizRegNo(defaultBizNo);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to read userProfile for auto-population", e);
+      }
+    }
+  }, [isModalOpen, editingSiteId, activeSite, setSiteFormCompanyName]);
+
+  const handleAddressSearch = () => {
+    if (typeof window !== "undefined" && (window as any).daum && (window as any).daum.Postcode) {
+      new (window as any).daum.Postcode({
+        oncomplete: function (data: any) {
+          const roadAddr = data.roadAddress || data.address;
+          setSiteFormAddress(roadAddr);
+          setSiteFormSearchQuery(roadAddr);
+        },
+      }).open();
+    } else {
+      alert("우편번호 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.");
+    }
+  };
 
   const renderSiteRegister = () => {
+    const selectedSite = registeredSiteList.find(s => s.id === editingSiteId) || null;
+
     const handleRegister = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!siteFormName || !siteFormAddress) {
@@ -126,11 +195,11 @@ export function SiteManagerDashboard({
 
       const payload = {
         name: siteFormName,
-        companyName: siteFormCompanyName,
+        companyName: siteFormCompanyName || activeSite?.companyName || "담다건설",
         address: siteFormAddress,
         roadDesc: siteFormRoadDesc,
         managers: siteFormManagers,
-        bizRegNo: siteFormBizRegNo || "000-00-00000"
+        bizRegNo: siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678"
       };
 
       let success = false;
@@ -142,7 +211,6 @@ export function SiteManagerDashboard({
 
       if (success) {
         alert(editingSiteId !== null ? "현장 정보가 성공적으로 수정되었습니다." : "신규 현장이 성공적으로 등록되었습니다.");
-        // Clear forms
         setSiteFormName("");
         setSiteFormCompanyName("");
         setSiteFormAddress("");
@@ -150,14 +218,11 @@ export function SiteManagerDashboard({
         setSiteFormManagers("");
         setSiteFormBizRegNo("");
         setEditingSiteId(null);
-        setIsCreatingOrEditingSite(false);
+        setIsModalOpen(false);
       } else {
         alert("처리에 실패했습니다. 입력 값이나 서버 로그를 확인해주세요.");
       }
     };
-
-    // Find currently selected site for detail panel view
-    const selectedSite = registeredSiteList.find(s => s.id === editingSiteId) || null;
 
     return (
       <div className="space-y-6 animate-fadeIn">
@@ -173,13 +238,13 @@ export function SiteManagerDashboard({
             type="button"
             onClick={() => {
               setSiteFormName("");
-              setSiteFormCompanyName("");
+              setSiteFormCompanyName(activeSite?.companyName || "");
               setSiteFormAddress("");
               setSiteFormRoadDesc("");
               setSiteFormManagers("");
-              setSiteFormBizRegNo("");
+              setSiteFormBizRegNo(activeSite?.bizRegNo || "");
               setEditingSiteId(null);
-              setIsCreatingOrEditingSite(true);
+              setIsModalOpen(true);
             }}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-blue-500/10"
           >
@@ -207,7 +272,6 @@ export function SiteManagerDashboard({
                       setSiteFormRoadDesc(site.roadDesc || "");
                       setSiteFormManagers(site.managers?.join(", ") || "");
                       setSiteFormBizRegNo(site.bizRegNo || "");
-                      setIsCreatingOrEditingSite(false);
                     }}
                     className={`p-4 rounded-xl border text-left cursor-pointer transition-all duration-200 group active:scale-98 ${
                       isSelected
@@ -239,200 +303,129 @@ export function SiteManagerDashboard({
             </div>
           </div>
 
-          {/* Right Column: Site Form & Map Preview / Verification Details (Detail Card) */}
+          {/* Right Column: Site Form & Map Preview / Verification Details (Detail Card - Clean ReadOnly Panel) */}
           <div className="lg:col-span-2 space-y-6">
-            
-            {/* If Creating New or editing site form */}
-            {(isCreatingOrEditingSite || selectedSite) ? (
-              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-4">
+            {selectedSite ? (
+              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-5">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                   <div>
                     <h3 className="font-extrabold text-sm text-slate-900">
-                      {isCreatingOrEditingSite ? "신규 현장 상세 정보 등록" : `[${selectedSite?.name}] 현장 상세 내역 검증 및 수정`}
+                      [{selectedSite.name}] 현장 상세 내역
                     </h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">사업자 인증 서류 및 도급 내역 검증</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">실물 서류 대조 및 지오펜싱 관제 상세</p>
                   </div>
-                  {isCreatingOrEditingSite && (
+                  <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => {
-                        setSiteFormName("");
-                        setSiteFormCompanyName("");
-                        setSiteFormAddress("");
-                        setSiteFormRoadDesc("");
-                        setSiteFormManagers("");
-                        setSiteFormBizRegNo("");
-                        setEditingSiteId(null);
-                        setIsCreatingOrEditingSite(false);
+                        setSiteFormName(selectedSite.name);
+                        setSiteFormCompanyName(selectedSite.companyName || "");
+                        setSiteFormAddress(selectedSite.address);
+                        setSiteFormRoadDesc(selectedSite.roadDesc || "");
+                        setSiteFormManagers(selectedSite.managers?.join(", ") || "");
+                        setSiteFormBizRegNo(selectedSite.bizRegNo || "");
+                        setIsModalOpen(true);
                       }}
-                      className="px-2.5 py-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-200"
+                      className="px-3 py-1.5 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-black rounded-lg border border-blue-200 active:scale-95 transition-all"
                     >
-                      취소
+                      정보 수정
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm(`[${selectedSite.name}] 현장을 정말 삭제처리 하시겠습니까?`)) {
+                          const ok = await handleDeleteSite(selectedSite.id);
+                          if (ok) {
+                            alert("현장이 정상 삭제되었습니다.");
+                            setSiteFormName("");
+                            setSiteFormAddress("");
+                            setSiteFormRoadDesc("");
+                            setSiteFormManagers("");
+                            setSiteFormBizRegNo("");
+                            setEditingSiteId(null);
+                          } else {
+                            alert("삭제 처리에 실패했습니다.");
+                          }
+                        }
+                      }}
+                      className="px-3 py-1.5 text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 font-black rounded-lg border border-rose-200 active:scale-95 transition-all"
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </div>
 
-                <form onSubmit={handleRegister} className="space-y-4 text-xs">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-slate-700 font-bold block">현장명 <span className="text-rose-500">*</span></label>
-                      <input
-                        type="text"
-                        value={siteFormName}
-                        onChange={(e) => setSiteFormName(e.target.value)}
-                        placeholder="예: 검단 3공구 신축공사"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                      />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                  {/* Left Specs */}
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">공사 현장명</span>
+                        <div className="text-sm font-bold text-slate-800 mt-0.5">{selectedSite.name}</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">소속 건설업체</span>
+                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedSite.companyName || "미지정"}</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">사업자등록번호</span>
+                        <div className="text-xs font-mono font-semibold text-slate-700 mt-0.5">{selectedSite.bizRegNo || "미등록"}</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">현장 구분 인증키</span>
+                        <div className="text-xs font-mono font-bold text-blue-600 mt-0.5">{selectedSite.siteKey}</div>
+                      </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-slate-700 font-bold block">건설업체명 (회사명) <span className="text-rose-500">*</span></label>
-                      <input
-                        type="text"
-                        value={siteFormCompanyName}
-                        onChange={(e) => setSiteFormCompanyName(e.target.value)}
-                        placeholder="예: 현대건설"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-slate-700 font-bold block">사업자등록번호 <span className="text-rose-500">*</span></label>
-                      <input
-                        type="text"
-                        value={siteFormBizRegNo}
-                        onChange={(e) => setSiteFormBizRegNo(e.target.value)}
-                        placeholder="예: 120-81-45678"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-slate-700 font-bold block">현장 주소 (비산먼지 배출신고 기준지) <span className="text-rose-500">*</span></label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={siteFormAddress}
-                        onChange={(e) => setSiteFormAddress(e.target.value)}
-                        placeholder="예: 인천광역시 서구 검단동 123-45"
-                        className="flex-1 bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!siteFormAddress) {
-                            alert("검색할 주소를 입력해 주세요.");
-                            return;
-                          }
-                          setSiteFormSearchQuery(siteFormAddress);
-                          alert("입력한 주소를 기반으로 지도가 맵핑되었습니다.");
-                        }}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-750 font-bold text-white rounded-lg transition-colors"
-                      >
-                        주소 조회
-                      </button>
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">소재지 주소</span>
+                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedSite.address}</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">현장 진입 가이드</span>
+                        <div className="text-xs font-semibold text-slate-650 mt-0.5">{selectedSite.roadDesc || "등록된 가이드가 없습니다."}</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">담당 연락처 / 이메일</span>
+                        <div className="text-xs font-semibold text-slate-600 mt-0.5">{selectedSite.managers?.join(", ") || "지정 대기"}</div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Right Verification Status */}
+                  <div className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-slate-700 font-bold block">현장 담당자 이메일 / 명단 (쉼표로 구분)</label>
-                      <input
-                        type="text"
-                        value={siteFormManagers}
-                        onChange={(e) => setSiteFormManagers(e.target.value)}
-                        placeholder="예: billing@dumpring.com"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-slate-700 font-bold block">진입 가이드 (배차 정보)</label>
-                      <input
-                        type="text"
-                        value={siteFormRoadDesc}
-                        onChange={(e) => setSiteFormRoadDesc(e.target.value)}
-                        placeholder="예: 정문 차단기 통과 후 우회전하여 진입"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Document & Map Mockup Area (Like Platform Admin Documents checklist) */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
-                    
-                    {/* Left: Map Preview Box */}
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">지오펜싱 관제 지도 매칭</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">지오펜싱 관제 지도</span>
                       <MockMap
                         title="현장"
-                        address={siteFormAddress || siteFormSearchQuery}
-                        pinned={!!siteFormSearchQuery}
-                        onPinClick={() => {
-                          if (siteFormAddress) setSiteFormSearchQuery(siteFormAddress);
-                        }}
+                        address={selectedSite.address}
+                        pinned={true}
+                        onPinClick={() => {}}
                       />
                     </div>
 
-                    {/* Right: Docs Check & Controls */}
-                    <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold text-blue-600 block uppercase">실물 증빙 서류 대조 체크</span>
-                        <div className="space-y-1 text-[11px] font-medium text-slate-600">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                            <span>사업자등록증 원본 대조 완료</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                            <span>비산먼지 배출신고 필증 검증</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" defaultChecked={!!selectedSite} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                            <span>대표 법인 계좌 거래 은행 확인</span>
-                          </label>
+                    <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 space-y-3">
+                      <span className="text-[10px] font-bold text-blue-700 uppercase block">실물 서류 검증 체크 상태</span>
+                      <div className="space-y-2 text-[11px] text-slate-600 font-semibold">
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-500 font-bold">✓</span>
+                          <span>사업자등록증 사본 검증 완료</span>
                         </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-200/50 flex gap-2">
-                        <button
-                          type="submit"
-                          className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-md shadow-blue-500/10 active:scale-95"
-                        >
-                          {editingSiteId !== null ? "검증 완료 및 정보 갱신" : "정식 가동 등록 완료"}
-                        </button>
-                        {editingSiteId !== null && (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (confirm(`[${selectedSite?.name}] 현장을 삭제처리 하시겠습니까?`)) {
-                                const ok = await handleDeleteSite(selectedSite!.id);
-                                if (ok) {
-                                  alert("현장이 정상 삭제되었습니다.");
-                                  setSiteFormName("");
-                                  setSiteFormAddress("");
-                                  setSiteFormRoadDesc("");
-                                  setSiteFormManagers("");
-                                  setSiteFormBizRegNo("");
-                                  setEditingSiteId(null);
-                                } else {
-                                  alert("삭제 처리에 실패했습니다.");
-                                }
-                              }
-                            }}
-                            className="px-3.5 py-2.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs transition-colors"
-                          >
-                            삭제
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-500 font-bold">✓</span>
+                          <span>비산먼지 배출신고 필증 일치</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-500 font-bold">✓</span>
+                          <span>대표 거래 법인계좌 검토 통과</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </form>
+                </div>
               </div>
             ) : (
-              // Empty Details Fallback (Platform Admin style)
               <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center py-24 shadow-xl space-y-3 flex flex-col items-center justify-center min-h-[380px]">
                 <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                   📄
@@ -445,6 +438,173 @@ export function SiteManagerDashboard({
             )}
           </div>
         </div>
+
+        {/* ==================== CREATE/EDIT MODAL POPUP ==================== */}
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden animate-scaleUp">
+              {/* Modal Header */}
+              <div className="px-6 py-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    {editingSiteId !== null ? `[${siteFormName}] 현장 정보 수정` : "신규 B2B 공사 현장 등록"}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 mt-0.5">현장의 고유 운영 정보와 비산먼지 주소를 정확히 작성해 주세요.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSiteFormName("");
+                    setSiteFormCompanyName("");
+                    setSiteFormAddress("");
+                    setSiteFormRoadDesc("");
+                    setSiteFormManagers("");
+                    setSiteFormBizRegNo("");
+                    setEditingSiteId(null);
+                    setIsModalOpen(false);
+                  }}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-650 flex items-center justify-center font-bold text-xs active:scale-90 transition-all"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal Form */}
+              <form onSubmit={handleRegister} className="p-6 space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-slate-700 font-bold block">현장명 <span className="text-rose-500">*</span></label>
+                    <input
+                      type="text"
+                      value={siteFormName}
+                      onChange={(e) => setSiteFormName(e.target.value)}
+                      placeholder="예: 검단 3공구 신축공사"
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-slate-700 font-bold block">소속 건설사 (소속 고정) <span className="text-slate-400 font-normal">(수정 불가)</span></label>
+                    <input
+                      type="text"
+                      value={siteFormCompanyName || activeSite?.companyName || "담다건설"}
+                      readOnly
+                      disabled
+                      className="w-full bg-slate-100 border border-slate-205 rounded-lg px-3 py-2 text-slate-500 font-bold cursor-not-allowed select-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 col-span-1">
+                    <label className="text-slate-700 font-bold block">사업자등록번호 <span className="text-slate-400 font-normal">(수정 불가)</span></label>
+                    <input
+                      type="text"
+                      value={siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678"}
+                      readOnly
+                      disabled
+                      className="w-full bg-slate-100 border border-slate-205 rounded-lg px-3 py-2 text-slate-500 font-bold cursor-not-allowed select-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 col-span-1">
+                    <label className="text-slate-700 font-bold block">담당자 이메일 / 명단 (쉼표 구분)</label>
+                    <input
+                      type="text"
+                      value={siteFormManagers}
+                      onChange={(e) => setSiteFormManagers(e.target.value)}
+                      placeholder="예: billing@dumpring.com"
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-slate-700 font-bold block">현장 주소 (비산먼지 배출신고지 기준) <span className="text-rose-500">*</span></label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={siteFormAddress}
+                      onChange={(e) => setSiteFormAddress(e.target.value)}
+                      placeholder="예: 인천광역시 서구 검단동 123-45"
+                      className="flex-1 bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddressSearch}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-750 font-bold text-white rounded-lg transition-colors active:scale-95"
+                    >
+                      주소 조회
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-slate-700 font-bold block">진입 가이드 (기사용 진입 안내문)</label>
+                  <input
+                    type="text"
+                    value={siteFormRoadDesc}
+                    onChange={(e) => setSiteFormRoadDesc(e.target.value)}
+                    placeholder="예: 정문 차단기 통과 후 우회전하여 100m 진입"
+                    className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  />
+                </div>
+
+                {/* Interactive MockMap inside Modal */}
+                <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                  <label className="text-slate-700 font-bold block">현장 지오펜싱 관제 구역 지정 (지도 핀찍기)</label>
+                  <MockMap
+                    title="현장 등록용"
+                    address={siteFormAddress || siteFormSearchQuery || "현장 주소를 입력 후 검색하거나 지도를 탭하세요"}
+                    pinned={!!siteFormSearchQuery || !!siteFormAddress}
+                    onPinClick={() => {
+                      if (!siteFormAddress) {
+                        alert("먼저 현장 주소를 입력한 후 지도 핀을 지정해 주세요.");
+                        return;
+                      }
+                      setSiteFormSearchQuery(siteFormAddress);
+                      alert(`[${siteFormAddress}] 위치에 지오펜싱 중앙 관제 핀이 지정되었습니다!`);
+                    }}
+                  />
+                </div>
+
+                {/* Document checklist mockup for modal */}
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-black text-blue-600 block uppercase mb-1">실물 증빙 서류 지침</span>
+                  <p className="text-[10px] text-slate-500 leading-normal">
+                    * 신규 개설 시 제출하신 소장님 가입 서류(사업자등록증, 비산먼지 필증)와 본사 등록 내역이 플랫폼 관리자 검토를 통해 확인 대조됩니다.
+                  </p>
+                </div>
+
+                {/* Modal Footer Controls */}
+                <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteFormName("");
+                      setSiteFormCompanyName("");
+                      setSiteFormAddress("");
+                      setSiteFormRoadDesc("");
+                      setSiteFormManagers("");
+                      setSiteFormBizRegNo("");
+                      setEditingSiteId(null);
+                      setIsModalOpen(false);
+                    }}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-200 active:scale-95 transition-all"
+                  >
+                    닫기
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-blue-500/10"
+                  >
+                    {editingSiteId !== null ? "정보 갱신 완료" : "B2B 현장 개설 신청"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -576,8 +736,8 @@ export function SiteManagerDashboard({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 p-6 rounded-2xl bg-white border border-slate-200 shadow-xl">
+          <div className="grid grid-cols-1 gap-6">
+            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl">
               <form onSubmit={handleSaveRequest} className="space-y-5 text-xs">
                 {/* Site Selection */}
                 <div className="space-y-1.5">
@@ -597,20 +757,30 @@ export function SiteManagerDashboard({
                 {/* Vehicle Specs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-slate-700 font-bold block">필요 차량 톤수 (중복 선택) <span className="text-rose-500">*</span></label>
-                    <div className="flex gap-3 pt-1">
-                      {["25.5톤", "25톤", "15톤"].map(ton => (
-                        <label key={ton} className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={dispatchFormTonTypes.includes(ton)}
-                            onChange={() => toggleTonType(ton)}
-                            className="w-4 h-4 rounded text-blue-600 focus:ring-0 accent-blue-600 font-bold"
-                          />
-                          {ton}
-                        </label>
-                      ))}
-                    </div>
+                    <label className="text-slate-700 font-bold block">필요 차량 톤수 (중복 불가) <span className="text-rose-500">*</span></label>
+                    <select
+                      value={dispatchFormTonTypes[0] || ""}
+                      onChange={(e) => setDispatchFormTonTypes(e.target.value ? [e.target.value] : [])}
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">톤수를 선택해 주세요</option>
+                      {/* Filter TRUCK_TYPE code types from seeded common codes */}
+                      {dbCommonCodes
+                        .filter(codeItem => codeItem.group_code === "TRUCK_TYPE")
+                        .map(codeItem => (
+                          <option key={codeItem.code} value={codeItem.code_name}>
+                            {codeItem.code_name}
+                          </option>
+                        ))}
+                      {/* Baselines in case database has different filters */}
+                      {dbCommonCodes.filter(codeItem => codeItem.group_code === "TRUCK_TYPE").length === 0 && (
+                        <>
+                          <option value="15톤">15톤</option>
+                          <option value="25톤">25톤</option>
+                          <option value="27톤">27톤</option>
+                        </>
+                      )}
+                    </select>
                   </div>
 
                   <div className="space-y-1.5">
@@ -627,7 +797,7 @@ export function SiteManagerDashboard({
                 </div>
 
                 {/* Work Specs */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-slate-700 font-bold block">반출 토사 종류 <span className="text-rose-500">*</span></label>
                     <select
@@ -635,109 +805,72 @@ export function SiteManagerDashboard({
                       onChange={(e) => setDispatchFormSoilType(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
                     >
-                      <option value="일반 토사">일반 토사</option>
-                      <option value="혼합골재">혼합골재</option>
-                      <option value="풍화암">풍화암</option>
-                      <option value="사토">사토</option>
+                      {/* Load MATERIAL_TYPE soil types from common codes */}
+                      {dbCommonCodes
+                        .filter(codeItem => codeItem.group_code === "MATERIAL_TYPE")
+                        .map(codeItem => (
+                          <option key={codeItem.code} value={codeItem.code_name}>
+                            {codeItem.code_name}
+                          </option>
+                        ))}
+                      {dbCommonCodes.filter(codeItem => codeItem.group_code === "MATERIAL_TYPE").length === 0 && (
+                        <>
+                          <option value="양질토">양질토</option>
+                          <option value="갯벌/뻘흙">갯벌/뻘흙</option>
+                          <option value="풍화암/돌">풍화암/돌</option>
+                          <option value="혼합골재">혼합골재</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-slate-700 font-bold block">작업 시작일 <span className="text-rose-500">*</span></label>
+                    <label className="text-slate-700 font-bold block">작업일 <span className="text-rose-500">*</span></label>
                     <input
                       type="date"
                       value={dispatchFormStartDate}
-                      onChange={(e) => setDispatchFormStartDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-slate-700 font-bold block">작업 종료일 <span className="text-rose-500">*</span></label>
-                    <input
-                      type="date"
-                      value={dispatchFormEndDate}
-                      onChange={(e) => setDispatchFormEndDate(e.target.value)}
+                      onChange={(e) => {
+                        setDispatchFormStartDate(e.target.value);
+                        setDispatchFormEndDate(e.target.value); // Single work date synchronizes start & end
+                      }}
                       className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
 
-                {/* Drop-off Selection */}
+                {/* Drop-off Selection (Search Only) */}
                 <div className="space-y-2.5 border-t border-slate-100 pt-4">
-                  <label className="text-slate-700 font-bold block">하차지 정보 등록 <span className="text-rose-500">*</span></label>
-                  <div className="flex gap-4 mb-2">
-                    {[
-                      { val: "none", label: "없음" },
-                      { val: "search", label: "덤프링 등록 하차지 검색" },
-                      { val: "direct", label: "직접 등록 (사토장 신설)" }
-                    ].map(opt => (
-                      <label key={opt.val} className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
-                        <input
-                          type="radio"
-                          name="dropoffMode"
-                          checked={dispatchFormDropoffMode === opt.val}
-                          onChange={() => {
-                            setDispatchFormDropoffMode(opt.val as any);
-                            setDispatchFormDropoffName("");
-                            setDispatchFormDropoffAddress("");
-                          }}
-                          className="w-4 h-4 text-blue-600 focus:ring-0 accent-blue-600 font-bold"
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
+                  <div className="flex justify-between items-center">
+                    <label className="text-slate-700 font-bold block">하차지 정보 등록 <span className="text-rose-500">*</span></label>
+                    <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded">등록 하차지 검색 자동 강제</span>
                   </div>
 
-                  {dispatchFormDropoffMode === "search" && (
-                    <div className="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                      <label className="text-slate-600 font-bold block">하차지 검색 & 선택</label>
-                      <select
-                        onChange={(e) => {
-                          const drop = registeredDropoffList.find(d => d.id === Number(e.target.value));
-                          if (drop) {
-                            setDispatchFormDropoffName(drop.name);
-                            setDispatchFormDropoffAddress(drop.address);
-                          }
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                      >
-                        <option value="">하차지를 지정해 주세요</option>
-                        {registeredDropoffList.map(drop => (
-                          <option key={drop.id} value={drop.id}>
-                            {drop.name} ({drop.soilDealType === "buy" ? "구매/돈 줌" : "판매/돈 받음"}) - {drop.address}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {dispatchFormDropoffMode === "direct" && (
-                    <div className="space-y-3.5 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label className="text-slate-600 font-semibold block">직접등록 하차지명</label>
-                          <input
-                            type="text"
-                            value={dispatchFormDropoffName}
-                            onChange={(e) => setDispatchFormDropoffName(e.target.value)}
-                            placeholder="예: 김포 고촌 사토장"
-                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-slate-600 font-semibold block">하차지 주소</label>
-                          <input
-                            type="text"
-                            value={dispatchFormDropoffAddress}
-                            onChange={(e) => setDispatchFormDropoffAddress(e.target.value)}
-                            placeholder="예: 경기도 김포시 고촌읍 신곡리"
-                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <div className="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <label className="text-slate-600 font-bold block">하차지 검색 & 선택</label>
+                    <select
+                      value={registeredDropoffList.find(d => d.name === dispatchFormDropoffName)?.id || ""}
+                      onChange={(e) => {
+                        const drop = registeredDropoffList.find(d => d.id === Number(e.target.value));
+                        if (drop) {
+                          setDispatchFormDropoffMode("search");
+                          setDispatchFormDropoffName(drop.name);
+                          setDispatchFormDropoffAddress(drop.address);
+                        } else {
+                          setDispatchFormDropoffMode("none");
+                          setDispatchFormDropoffName("");
+                          setDispatchFormDropoffAddress("");
+                        }
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">하차지를 검색/선택해 주세요</option>
+                      {registeredDropoffList.map(drop => (
+                        <option key={drop.id} value={drop.id}>
+                          {drop.name} ({drop.soilDealType === "buy" ? "구매/돈 줌" : "판매/돈 받음"}) - {drop.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="pt-4 flex gap-2">
@@ -756,14 +889,6 @@ export function SiteManagerDashboard({
                   </button>
                 </div>
               </form>
-            </div>
-
-            <div className="lg:col-span-1">
-              <MockMap
-                title="하차지"
-                address={dispatchFormDropoffAddress}
-                pinned={!!dispatchFormDropoffAddress}
-              />
             </div>
           </div>
         </div>
@@ -883,8 +1008,6 @@ export function SiteManagerDashboard({
     );
   }
 
-  // Find active site from the list
-  const activeSite = registeredSiteList && registeredSiteList.length > 0 ? registeredSiteList[0] : null;
   const displaySiteName = activeSite ? activeSite.name : "인천 검단 3공구";
   const displaySiteKey = activeSite ? activeSite.siteKey : "GD-3-DUMP";
 
