@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Activity, Terminal, Database, AlertCircle } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Activity, Terminal, Database, AlertCircle, PlusCircle, Search, Edit2, Trash2 } from "lucide-react";
 
 interface DeveloperDashboardProps {
   activePath: string;
@@ -44,6 +44,18 @@ export function DeveloperDashboard({
       fetchCommonCodes();
     }
   }, [activePath]);
+
+  // Local states for common codes CRUD
+  const [codesSearchQuery, setCodesSearchQuery] = useState("");
+  const [isAddingCode, setIsAddingCode] = useState(false);
+  const [editingCodeId, setEditingCodeId] = useState<number | null>(null);
+
+  // Form states
+  const [formGroupCode, setFormGroupCode] = useState("");
+  const [formCode, setFormCode] = useState("");
+  const [formCodeName, setFormCodeName] = useState("");
+  const [formDisplayOrder, setFormDisplayOrder] = useState(0);
+  const [formIsActive, setFormIsActive] = useState(true);
   // Filter menus based on target system and selected role
   const filteredMenus = developerMenus.filter(
     (m) => m.target === menuTarget && m.role === menuSelectedRole
@@ -320,6 +332,120 @@ export function DeveloperDashboard({
 
   // 4. 공통 코드 설정 (/dev/codes)
   if (activePath === "/dev/codes") {
+    // 1) Search Filter
+    const filteredCodes = dbCommonCodes.filter((codeItem: any) => {
+      const query = codesSearchQuery.toLowerCase().trim();
+      if (!query) return true;
+      return (
+        codeItem.group_code.toLowerCase().includes(query) ||
+        codeItem.code.toLowerCase().includes(query) ||
+        codeItem.code_name.toLowerCase().includes(query)
+      );
+    });
+
+    const handleCreateCode = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!formGroupCode || !formCode || !formCodeName) {
+        alert("모든 필수 입력 값을 입력해 주세요.");
+        return;
+      }
+
+      try {
+        const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+        const res = await fetch("http://localhost:8000/api/common-codes", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            group_code: formGroupCode.toUpperCase(),
+            code: formCode.toUpperCase(),
+            code_name: formCodeName,
+            display_order: Number(formDisplayOrder),
+            is_active: formIsActive
+          })
+        });
+
+        if (res.ok) {
+          alert("신규 공통 코드가 성공적으로 등록되었습니다!");
+          setFormGroupCode("");
+          setFormCode("");
+          setFormCodeName("");
+          setFormDisplayOrder(0);
+          setFormIsActive(true);
+          setIsAddingCode(false);
+          await fetchCommonCodes();
+        } else {
+          const err = await res.json();
+          alert(err.detail || "공통 코드 생성에 실패했습니다.");
+        }
+      } catch (e) {
+        console.error("Failed to create code:", e);
+      }
+    };
+
+    const handleUpdateCode = async (id: number) => {
+      if (!formCodeName) {
+        alert("코드명은 필수 입력 항목입니다.");
+        return;
+      }
+
+      try {
+        const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+        const res = await fetch(`http://localhost:8000/api/common-codes/${id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            code_name: formCodeName,
+            display_order: Number(formDisplayOrder),
+            is_active: formIsActive
+          })
+        });
+
+        if (res.ok) {
+          alert("공통 코드가 성공적으로 수정되었습니다.");
+          setEditingCodeId(null);
+          setFormCodeName("");
+          setFormDisplayOrder(0);
+          setFormIsActive(true);
+          await fetchCommonCodes();
+        } else {
+          const err = await res.json();
+          alert(err.detail || "수정에 실패했습니다.");
+        }
+      } catch (e) {
+        console.error("Failed to update code:", e);
+      }
+    };
+
+    const handleDeleteCode = async (id: number) => {
+      if (!confirm("정말 이 공통 코드를 영구 삭제하시겠습니까?")) return;
+
+      try {
+        const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+        const res = await fetch(`http://localhost:8000/api/common-codes/${id}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        if (res.ok) {
+          alert("공통 코드가 정상 삭제되었습니다.");
+          await fetchCommonCodes();
+        } else {
+          const err = await res.json();
+          alert(err.detail || "삭제에 실패했습니다.");
+        }
+      } catch (e) {
+        console.error("Failed to delete code:", e);
+      }
+    };
+
     return (
       <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-6 animate-fadeIn">
         <div className="border-b border-slate-200 pb-4 flex justify-between items-center">
@@ -331,6 +457,112 @@ export function DeveloperDashboard({
             ← 대시보드로 돌아가기
           </button>
         </div>
+
+        {/* Search and Action Bar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50 p-4 rounded-xl border border-slate-205">
+          <div className="relative flex-1 max-w-md">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
+            </span>
+            <input
+              type="text"
+              value={codesSearchQuery}
+              onChange={(e) => setCodesSearchQuery(e.target.value)}
+              placeholder="그룹 코드, 코드값, 코드명 검색..."
+              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <button
+            onClick={() => {
+              setIsAddingCode(true);
+              setEditingCodeId(null);
+              setFormGroupCode("");
+              setFormCode("");
+              setFormCodeName("");
+              setFormDisplayOrder(0);
+              setFormIsActive(true);
+            }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-500/10 transition-all active:scale-95"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            신규 공통 코드 등록
+          </button>
+        </div>
+
+        {/* Inline Create Form */}
+        {isAddingCode && (
+          <form onSubmit={handleCreateCode} className="p-4 rounded-xl border border-blue-200 bg-blue-50/5 space-y-3.5 animate-fadeIn">
+            <div className="text-xs font-bold text-blue-600 border-b border-blue-100 pb-1 flex justify-between items-center">
+              <span>+ 신규 공통 코드 추가 설정</span>
+              <button type="button" onClick={() => setIsAddingCode(false)} className="text-slate-400 hover:text-slate-600">닫기</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 block">그룹 코드 (GROUP_CODE)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="예: MATERIAL_TYPE"
+                  value={formGroupCode}
+                  onChange={(e) => setFormGroupCode(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 block">코드값 (CODE)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="예: GOOD_SOIL"
+                  value={formCode}
+                  onChange={(e) => setFormCode(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 block">코드 한글명 (CODE_NAME)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="예: 양질토"
+                  value={formCodeName}
+                  onChange={(e) => setFormCodeName(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded focus:outline-none focus:border-blue-500 font-medium"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 block">정렬 순서 (ORDER)</label>
+                <input
+                  type="number"
+                  value={formDisplayOrder}
+                  onChange={(e) => setFormDisplayOrder(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 block">상태</label>
+                <select
+                  value={formIsActive ? "active" : "inactive"}
+                  onChange={(e) => setFormIsActive(e.target.value === "active")}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded focus:outline-none focus:border-blue-500 font-semibold"
+                >
+                  <option value="active">활성</option>
+                  <option value="inactive">비활성</option>
+                </select>
+              </div>
+            </div>
+            <div className="text-right">
+              <button
+                type="submit"
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg active:scale-95 shadow-md shadow-blue-500/10"
+              >
+                저장 및 API 전송
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Dynamic Codes Table */}
         <div className="overflow-x-auto text-xs">
           <table className="w-full text-left">
             <thead>
@@ -339,29 +571,107 @@ export function DeveloperDashboard({
                 <th className="py-2">코드</th>
                 <th className="py-2">코드명</th>
                 <th className="py-2">정렬 순서</th>
-                <th className="py-2 text-right">상태</th>
+                <th className="py-2">상태</th>
+                <th className="py-2 text-right">관리</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {dbCommonCodes && dbCommonCodes.length > 0 ? (
-                dbCommonCodes.map((codeItem: any) => (
-                  <tr key={codeItem.id}>
-                    <td className="py-3 font-semibold text-slate-900">{codeItem.group_code}</td>
-                    <td className="py-3 font-mono text-slate-600">{codeItem.code}</td>
-                    <td className="py-3 font-medium text-slate-800">{codeItem.code_name}</td>
-                    <td className="py-3 font-mono text-slate-500">{codeItem.display_order}</td>
-                    <td className="py-3 text-right">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        codeItem.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
-                      }`}>
-                        {codeItem.is_active ? "활성" : "비활성"}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+              {filteredCodes && filteredCodes.length > 0 ? (
+                filteredCodes.map((codeItem: any) => {
+                  const isEditing = editingCodeId === codeItem.id;
+                  return (
+                    <tr key={codeItem.id} className="hover:bg-slate-50/50">
+                      <td className="py-3 font-semibold text-slate-900">{codeItem.group_code}</td>
+                      <td className="py-3 font-mono text-slate-650">{codeItem.code}</td>
+                      <td className="py-3">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={formCodeName}
+                            onChange={(e) => setFormCodeName(e.target.value)}
+                            className="px-2 py-1 border border-slate-350 rounded focus:outline-none"
+                          />
+                        ) : (
+                          <span className="font-medium text-slate-800">{codeItem.code_name}</span>
+                        )}
+                      </td>
+                      <td className="py-3 font-mono">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={formDisplayOrder}
+                            onChange={(e) => setFormDisplayOrder(Number(e.target.value))}
+                            className="w-16 px-2 py-1 border border-slate-350 rounded focus:outline-none"
+                          />
+                        ) : (
+                          <span>{codeItem.display_order}</span>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        {isEditing ? (
+                          <select
+                            value={formIsActive ? "active" : "inactive"}
+                            onChange={(e) => setFormIsActive(e.target.value === "active")}
+                            className="px-2 py-1 border border-slate-355 rounded text-xs"
+                          >
+                            <option value="active">활성</option>
+                            <option value="inactive">비활성</option>
+                          </select>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            codeItem.is_active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
+                          }`}>
+                            {codeItem.is_active ? "활성" : "비활성"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-right">
+                        {isEditing ? (
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => handleUpdateCode(codeItem.id)}
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold"
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => setEditingCodeId(null)}
+                              className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingCodeId(codeItem.id);
+                                setIsAddingCode(false);
+                                setFormCodeName(codeItem.code_name);
+                                setFormDisplayOrder(codeItem.display_order);
+                                setFormIsActive(codeItem.is_active);
+                              }}
+                              className="p-1 text-slate-500 hover:text-blue-600 transition-colors"
+                              title="코드 수정"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCode(codeItem.id)}
+                              className="p-1 text-slate-500 hover:text-rose-600 transition-colors"
+                              title="코드 삭제"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                  <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
                     조회된 공통 코드가 없습니다.
                   </td>
                 </tr>
