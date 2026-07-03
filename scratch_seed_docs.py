@@ -25,8 +25,8 @@ async def seed_documents():
         # 이기사 필수 서류 3종
         required_docs = [
             {"code": "LICENSE", "file": "driver_license_test.jpg"},
-            {"code": "QUALIFICATION", "file": "truck_qualification_test.jpg"},
-            {"code": "BANKBOOK", "file": "driver_bankbook_test.jpg"}
+            {"code": "SAFETY_TRAINING", "file": "driver_safety_training_test.jpg"},
+            {"code": "SPECIAL_LABOR_TRAINING", "file": "driver_special_labor_training_test.jpg"}
         ]
         
         for doc in required_docs:

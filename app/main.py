@@ -43,11 +43,18 @@ async def startup_event():
         required_codes = [
             # 기사 필수서류
             {"group_code": "REQUIRED_DOC_DRIVER", "code": "LICENSE", "code_name": "운전면허증 (대형/1종)", "display_order": 1},
-            {"group_code": "REQUIRED_DOC_DRIVER", "code": "QUALIFICATION", "code_name": "화물운송종사 자격증", "display_order": 2},
-            {"group_code": "REQUIRED_DOC_DRIVER", "code": "BANKBOOK", "code_name": "은행 통장 사본 (기사 본인 명의)", "display_order": 3},
+            {"group_code": "REQUIRED_DOC_DRIVER", "code": "SAFETY_TRAINING", "code_name": "건설업 기초안전교육 이수증", "display_order": 2},
+            {"group_code": "REQUIRED_DOC_DRIVER", "code": "SPECIAL_LABOR_TRAINING", "code_name": "교육실시확인서 (특수형태근로자)", "display_order": 3},
             # 차주 필수서류
             {"group_code": "REQUIRED_DOC_OWNER", "code": "BIZ_LICENSE", "code_name": "사업자등록증", "display_order": 1},
-            {"group_code": "REQUIRED_DOC_OWNER", "code": "BANKBOOK", "code_name": "은행 통장 사본 (차주 본인 명의)", "display_order": 2},
+            {"group_code": "REQUIRED_DOC_OWNER", "code": "MACHINERY_REG", "code_name": "건설기계 등록증·검사증", "display_order": 2},
+            {"group_code": "REQUIRED_DOC_OWNER", "code": "INSURANCE", "code_name": "보험가입증", "display_order": 3},
+            # 현장관리자 필수서류
+            {"group_code": "REQUIRED_DOC_SITE", "code": "DUST_REPORT", "code_name": "비산먼지 배출신고서", "display_order": 1},
+            {"group_code": "REQUIRED_DOC_SITE", "code": "CONSTRUCTION_CONTRACT", "code_name": "공사 계약서", "display_order": 2},
+            # 하차지 지주 필수서류
+            {"group_code": "REQUIRED_DOC_DROPOFF", "code": "DEVELOPMENT_PERMIT", "code_name": "개발행위 허가증", "display_order": 1},
+            {"group_code": "REQUIRED_DOC_DROPOFF", "code": "LAND_USE_AGREEMENT", "code_name": "토지 사용 승낙서 / 토지 대장", "display_order": 2},
         ]
         for rc in required_codes:
             query = select(CommonCode).where(
@@ -72,12 +79,14 @@ async def startup_event():
     async with SessionLocal() as db:
         dispatch_statuses = [
             {"group_code": "DISPATCH_STATUS", "code": "ACCEPTED", "code_name": "배차 수락", "display_order": 1},
-            {"group_code": "DISPATCH_STATUS", "code": "DRIVING", "code_name": "운행 중", "display_order": 2},
-            {"group_code": "DISPATCH_STATUS", "code": "ARRIVED", "code_name": "도착 완료", "display_order": 3},
-            {"group_code": "DISPATCH_STATUS", "code": "WAITING_ABSENT_APPROVAL", "code_name": "지주부재 승인대기", "display_order": 4},
-            {"group_code": "DISPATCH_STATUS", "code": "APPROVED", "code_name": "반입 승인", "display_order": 5},
-            {"group_code": "DISPATCH_STATUS", "code": "REJECTED", "code_name": "반입 반려", "display_order": 6},
-            {"group_code": "DISPATCH_STATUS", "code": "CANCELLED", "code_name": "운행 취소", "display_order": 7},
+            {"group_code": "DISPATCH_STATUS", "code": "ARRIVED_LOADING", "code_name": "상차지 도착", "display_order": 2},
+            {"group_code": "DISPATCH_STATUS", "code": "LOADING_APPROVED", "code_name": "상차 승인 완료", "display_order": 3},
+            {"group_code": "DISPATCH_STATUS", "code": "DRIVING", "code_name": "운행 중", "display_order": 4},
+            {"group_code": "DISPATCH_STATUS", "code": "ARRIVED", "code_name": "도착 완료", "display_order": 5},
+            {"group_code": "DISPATCH_STATUS", "code": "WAITING_ABSENT_APPROVAL", "code_name": "지주부재 승인대기", "display_order": 6},
+            {"group_code": "DISPATCH_STATUS", "code": "APPROVED", "code_name": "반입 승인", "display_order": 7},
+            {"group_code": "DISPATCH_STATUS", "code": "REJECTED", "code_name": "반입 반려", "display_order": 8},
+            {"group_code": "DISPATCH_STATUS", "code": "CANCELLED", "code_name": "운행 취소", "display_order": 9},
         ]
         for ds in dispatch_statuses:
             query = select(CommonCode).where(

@@ -32,6 +32,7 @@ class DispatchTicketResponse(BaseModel):
     driver_id: int
     car_id: int
     status: str
+    loading_approval_type: Optional[str] = None
     proof_photo: Optional[str] = None
     accumulated_fare: int
     drive_distance_km: float
@@ -46,6 +47,9 @@ class DispatchTicketResponse(BaseModel):
     class Config:
         orm_mode = True
         from_attributes = True
+
+class ApproveLoadingRequest(BaseModel):
+    approval_type: str = Field(..., description="'QR' 또는 'OFFICE'")
 
 class InspectionRequest(BaseModel):
     decision: str = Field(..., description="APPROVED 또는 REJECTED")

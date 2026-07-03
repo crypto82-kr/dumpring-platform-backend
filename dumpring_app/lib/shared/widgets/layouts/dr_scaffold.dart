@@ -393,8 +393,8 @@ class SiteBottomNav extends StatelessWidget {
       currentIndex: currentIndex,
       onTap: onTap,
       items: const [
-        _NavItem(icon: Icons.business_outlined, activeIcon: Icons.business, label: '현장'),
-        _NavItem(icon: Icons.location_on_outlined, activeIcon: Icons.location_on, label: '대기 현황'),
+        _NavItem(icon: Icons.business_outlined, activeIcon: Icons.business, label: '현장 관리'),
+        _NavItem(icon: Icons.assignment_outlined, activeIcon: Icons.assignment, label: '공고 관리'),
         _NavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: '마이페이지'),
       ],
     );

@@ -10,6 +10,11 @@ class DriverRegister(BaseModel):
     password: str = Field(..., description="비밀번호", min_length=4)
     name: str = Field(..., description="기사 실명")
     ci: Optional[str] = Field(None, description="본인인증 고유 키(CI)")
+    
+    # 필수 제출 서류 파일명/경로
+    license_file: str = Field(..., description="운전면허증 (대형/1종) 파일명")
+    safety_training_file: str = Field(..., description="건설업 기초안전교육 이수증 파일명")
+    special_labor_training_file: str = Field(..., description="교육실시확인서 (특수형태근로자) 파일명")
 
 class UserResponse(BaseModel):
     """
@@ -44,6 +49,16 @@ class OwnerRegister(BaseModel):
     name: str = Field(..., description="차주 실명/담당자명")
     ci: Optional[str] = Field(None, description="본인인증 고유 키(CI)")
     is_direct_driver: bool = Field(False, description="차주 사장님이 현장에서 덤프를 직접 운행(기사 겸직)하는지 여부")
+    
+    # 필수 제출 서류 파일명/경로
+    biz_license_file: str = Field(..., description="사업자등록증 파일명")
+    machinery_reg_file: str = Field(..., description="건설기계 등록증·검사증 파일명")
+    insurance_file: str = Field(..., description="보험가입증 파일명")
+    
+    # 직접 운행 시 기사용 필수 서류
+    license_file: Optional[str] = Field(None, description="운전면허증 파일명 (직접운전 시 필수)")
+    safety_training_file: Optional[str] = Field(None, description="건설업 기초안전교육 이수증 파일명 (직접운전 시 필수)")
+    special_labor_training_file: Optional[str] = Field(None, description="교육실시확인서 (특수형태근로자) 파일명 (직접운전 시 필수)")
 
 class LoginRequest(BaseModel):
     """
@@ -80,6 +95,10 @@ class SiteManagerRegister(BaseModel):
     company_name: str = Field(..., description="건설사/상호명")
     site_name: str = Field(..., description="현장명")
     business_number: str = Field(..., description="사업자등록번호")
+    
+    # 필수 제출 서류 파일명/경로
+    dust_report_file: str = Field(..., description="비산먼지 배출신고서 파일명")
+    construction_contract_file: str = Field(..., description="공사 계약서 파일명")
 
 
 class SiteWorkerRegister(BaseModel):
@@ -106,6 +125,10 @@ class DropOffRegister(BaseModel):
     location_name: str = Field(..., description="하차지/사토장 명칭")
     address: str = Field(..., description="하차지 주소")
     permit_number: str = Field(..., description="개발행위/토사 반입 허가증 번호")
+    
+    # 필수 제출 서류 파일명/경로
+    development_permit_file: str = Field(..., description="개발행위 허가증 파일명")
+    land_use_agreement_file: str = Field(..., description="토지 사용 승낙서 / 토지 대장 파일명")
 
 
 class RequiredDocumentResponse(BaseModel):

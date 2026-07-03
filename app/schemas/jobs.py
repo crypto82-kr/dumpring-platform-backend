@@ -38,6 +38,10 @@ class DropOffRequestResponse(BaseModel):
     created_at: KstDateTime
     updated_at: KstDateTime
 
+    # 추가 필드 (상세 정보 노출용)
+    drop_off_name: Optional[str] = None
+    drop_off_address: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -100,3 +104,17 @@ class JobPostResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class JobPostUpdate(BaseModel):
+    """
+    모집공고 수정용 Pydantic 스키마
+    """
+    material_type: Optional[str] = Field(None, description="토사 종류 코드 (예: GOOD_SOIL, ROCK)")
+    truck_type: Optional[str] = Field(None, description="차량 규격 코드 (예: T_15, T_25)")
+    work_date: Optional[datetime] = Field(None, description="작업 희망 날짜 및 시간")
+    required_trucks: Optional[int] = Field(None, description="필요한 덤프 대수")
+    offered_unit_price: Optional[int] = Field(None, description="상차지 제시 단가")
+    payer_type: Optional[str] = Field(None, description="비용 지급 주체 코드 (예: SITE_PAYS, FREE)")
+    memo: Optional[str] = Field(None, description="메모 / 특이사항")
+

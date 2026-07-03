@@ -13,7 +13,8 @@ from app.models import (
 from app.api.auth import get_current_user
 from app.schemas.dispatch import (
     FavoriteRegionCreate, FavoriteRegionResponse,
-    DispatchTicketResponse, InspectionRequest, ArriveRequest
+    DispatchTicketResponse, InspectionRequest, ArriveRequest,
+    ApproveLoadingRequest
 )
 from app.schemas.jobs import JobPostResponse
 
@@ -353,7 +354,7 @@ async def get_active_tickets(
     from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
     ).options(
         selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
@@ -363,13 +364,17 @@ async def get_active_tickets(
     result = await db.execute(query)
     tickets = result.scalars().all()
 
-    # 운행 우선순위 결정: DRIVING -> ARRIVED/WAITING_ABSENT_APPROVAL -> ACCEPTED 순
+    # 운행 우선순위 결정: DRIVING -> ARRIVED/WAITING_ABSENT_APPROVAL -> LOADING_APPROVED -> ARRIVED_LOADING -> ACCEPTED 순
     def get_priority(t):
         if t.status == "DRIVING":
             return 0
         elif t.status in ["ARRIVED", "WAITING_ABSENT_APPROVAL"]:
             return 1
-        return 2
+        elif t.status == "LOADING_APPROVED":
+            return 2
+        elif t.status == "ARRIVED_LOADING":
+            return 3
+        return 4
 
     for ticket in tickets:
         if ticket.job_post:
@@ -423,7 +428,7 @@ async def get_active_ticket(
     from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
     ).options(
         selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
@@ -435,10 +440,10 @@ async def get_active_ticket(
     
     ticket = None
     if tickets:
-        # DRIVING 우선 -> ARRIVED/WAITING_ABSENT_APPROVAL 우선 -> ACCEPTED 중에는 accepted_at 최신순
+        # DRIVING 우선 -> ARRIVED/WAITING_ABSENT_APPROVAL 우선 -> ACCEPTED/ARRIVED_LOADING/LOADING_APPROVED 중에는 accepted_at 최신순
         driving_tickets = [t for t in tickets if t.status == "DRIVING"]
         arrived_tickets = [t for t in tickets if t.status in ["ARRIVED", "WAITING_ABSENT_APPROVAL"]]
-        accepted_tickets = [t for t in tickets if t.status == "ACCEPTED"]
+        accepted_tickets = [t for t in tickets if t.status in ["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED"]]
         if driving_tickets:
             ticket = driving_tickets[0]
         elif arrived_tickets:
@@ -511,7 +516,7 @@ async def accept_job(
     # 현재 취소되거나 반려되지 않은 활성 배차 티켓 수량 조회
     active_tickets_query = select(DispatchTicket).where(
         DispatchTicket.job_post_id == job_post_id,
-        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED", "APPROVED"])
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "APPROVED"])
     )
     active_tickets_res = await db.execute(active_tickets_query)
     active_count = len(active_tickets_res.scalars().all())
@@ -544,7 +549,7 @@ async def accept_job(
     # (이를 통해 다른 날짜의 배차는 하루에 최대 1개씩 수락할 수 있도록 허용)
     active_tickets_query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED"])
     )
     active_tickets_res = await db.execute(active_tickets_query)
     active_tickets = active_tickets_res.scalars().all()
@@ -569,7 +574,7 @@ async def accept_job(
     dup_ticket = select(DispatchTicket).where(
         DispatchTicket.job_post_id == job_post_id,
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["ACCEPTED", "DRIVING", "ARRIVED"])
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED"])
     )
     dup_res = await db.execute(dup_ticket)
     if dup_res.scalars().first():
@@ -601,6 +606,82 @@ async def accept_job(
 
 
 @router.post(
+    "/tickets/{ticket_id}/arrive-loading",
+    response_model=DispatchTicketResponse,
+    summary="[기사용] 상차지 도착 완료 처리"
+)
+async def arrive_loading(
+    ticket_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from sqlalchemy.orm import selectinload
+    query = select(DispatchTicket).where(
+        DispatchTicket.id == ticket_id,
+        DispatchTicket.driver_id == current_user.id
+    ).options(selectinload(DispatchTicket.job_post))
+    result = await db.execute(query)
+    ticket = result.scalars().first()
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운행 티켓을 찾을 수 없습니다."
+        )
+
+    if ticket.status != "ACCEPTED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="상차지 도착 처리를 할 수 없는 상태입니다."
+        )
+
+    await validate_dispatch_status("ARRIVED_LOADING", db)
+    ticket.status = "ARRIVED_LOADING"
+    await db.commit()
+    await db.refresh(ticket)
+    return await attach_pricing_policy(ticket, db)
+
+
+@router.post(
+    "/tickets/{ticket_id}/approve-loading",
+    response_model=DispatchTicketResponse,
+    summary="[기사용] 상차 승인 완료 처리 (QR 또는 OFFICE)"
+)
+async def approve_loading(
+    ticket_id: int,
+    req: ApproveLoadingRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from sqlalchemy.orm import selectinload
+    query = select(DispatchTicket).where(
+        DispatchTicket.id == ticket_id,
+        DispatchTicket.driver_id == current_user.id
+    ).options(selectinload(DispatchTicket.job_post))
+    result = await db.execute(query)
+    ticket = result.scalars().first()
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운행 티켓을 찾을 수 없습니다."
+        )
+
+    if ticket.status != "ARRIVED_LOADING":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="상차 승인을 처리할 수 없는 상태입니다."
+        )
+
+    await validate_dispatch_status("LOADING_APPROVED", db)
+    ticket.status = "LOADING_APPROVED"
+    ticket.loading_approval_type = req.approval_type
+    await db.commit()
+    await db.refresh(ticket)
+    return await attach_pricing_policy(ticket, db)
+
+
+@router.post(
     "/tickets/{ticket_id}/start-driving",
     response_model=DispatchTicketResponse,
     summary="[기사용] GPS 미터기 가동 및 주행 시작"
@@ -624,10 +705,10 @@ async def start_driving(
             detail="해당 운행 티켓을 찾을 수 없습니다."
         )
 
-    if ticket.status != "ACCEPTED":
+    if ticket.status != "LOADING_APPROVED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="미터기 가동을 시작할 수 없는 상태의 티켓입니다."
+            detail="상차 승인(QR 촬영 또는 원격 승인)이 완료되어야 운행을 시작할 수 있습니다."
         )
 
     await validate_dispatch_status("DRIVING", db)
@@ -663,7 +744,7 @@ async def cancel_dispatch(
             detail="해당 운행 티켓을 찾을 수 없습니다."
         )
 
-    if ticket.status != "ACCEPTED":
+    if ticket.status not in ["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="이미 운행을 기동하여 취소할 수 없습니다."

@@ -72,3 +72,16 @@ class DropOffUpdate(BaseModel):
     radius_meter: Optional[float] = Field(None, description="도착 감지 반경")
     permit_number: Optional[str] = Field(None, description="인허가번호")
     status: Optional[str] = Field(None, description="상태 (ACTIVE, PAUSED 등)")
+
+
+class SiteUpdate(BaseModel):
+    """
+    상차지 수정용 Pydantic 스키마
+    """
+    company_name: Optional[str] = Field(None, description="건설사/상호명")
+    business_number: Optional[str] = Field(None, description="사업자등록번호")
+    site_address: Optional[str] = Field(None, description="상차지 주소")
+    latitude: Optional[float] = Field(None, description="위도")
+    longitude: Optional[float] = Field(None, description="경도")
+    geofencing_radius: Optional[float] = Field(None, description="지오펜싱 반경")
+

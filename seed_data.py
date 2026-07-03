@@ -1,5 +1,12 @@
 import asyncio
 import os
+import sys
+
+# Windows 환경에서 콘솔 출력 시 cp949 코덱 에러(UnicodeEncodeError) 방지
+if sys.platform.startswith('win'):
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta, timezone

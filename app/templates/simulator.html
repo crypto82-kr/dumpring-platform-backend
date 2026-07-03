@@ -3614,14 +3614,19 @@
                 const isUploaded = uploadedFilesMap[doc.code] ? true : false;
                 const fileName = uploadedFilesMap[doc.code];
                 
-                // 문서 코드별 아이콘 지정
-                let iconClass = 'fa-solid fa-wallet';
+                let iconClass = 'fa-solid fa-file-pdf';
                 if (doc.code === 'LICENSE') {
                     iconClass = 'fa-solid fa-id-card';
-                } else if (doc.code === 'QUALIFICATION') {
-                    iconClass = 'fa-solid fa-truck-moving';
+                } else if (doc.code === 'SAFETY_TRAINING') {
+                    iconClass = 'fa-solid fa-shield-halved';
+                } else if (doc.code === 'SPECIAL_LABOR_TRAINING') {
+                    iconClass = 'fa-solid fa-user-shield';
                 } else if (doc.code === 'BIZ_LICENSE') {
                     iconClass = 'fa-solid fa-file-invoice';
+                } else if (doc.code === 'MACHINERY_REG') {
+                    iconClass = 'fa-solid fa-truck-moving';
+                } else if (doc.code === 'INSURANCE') {
+                    iconClass = 'fa-solid fa-building-shield';
                 }
 
                 container.innerHTML += `
