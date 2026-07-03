@@ -195,7 +195,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     if (!_jobFormKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-    final endpoint = "$_baseUrl/api/jobs/jobs/$jobId";
+    final endpoint = "$_baseUrl/api/jobs/$jobId";
     final requestData = {
       "material_type": _selectedMaterialType,
       "truck_type": _selectedTruckType,
