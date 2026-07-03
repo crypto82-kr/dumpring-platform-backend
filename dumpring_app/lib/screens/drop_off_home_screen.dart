@@ -205,7 +205,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   // 매칭 대기 중인 상차지 공고 조회 (흐름 B)
   Future<void> _fetchWaitingMatchJobs() async {
     setState(() => _isLoadingWaitingMatch = true);
-    final endpoint = "$_baseUrl/api/jobs/jobs/waiting-match";
+    final endpoint = "$_baseUrl/api/jobs/waiting-match";
     try {
       final response = await http.get(
         Uri.parse(endpoint),
@@ -252,7 +252,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
   // 상차지 매칭 요청 (지주 -> 현장공고)
   Future<void> _requestMatch(int jobId, int dropOffId) async {
-    final endpoint = "$_baseUrl/api/jobs/jobs/$jobId/match";
+    final endpoint = "$_baseUrl/api/jobs/$jobId/match";
     try {
       final response = await http.patch(
         Uri.parse(endpoint),
@@ -311,7 +311,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
   // 하차지 수용 조건 공고(DropOffRequest) 발행
   Future<void> _createDropOffRequest(int dropOffId, Map<String, dynamic> data) async {
-    final endpoint = "$_baseUrl/api/jobs/drop-offs/$dropOffId/requests";
+    final endpoint = "$_baseUrl/api/drop-offs/$dropOffId/requests";
     try {
       final response = await http.post(
         Uri.parse(endpoint),
