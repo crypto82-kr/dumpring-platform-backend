@@ -353,6 +353,324 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     );
   }
 
+  // 직원 목록 데이터
+  List<dynamic> _employees = [];
+  bool _isLoadingEmployees = false;
+
+  Future<void> _fetchEmployees(int siteId, StateSetter setDialogState) async {
+    setDialogState(() => _isLoadingEmployees = true);
+    final endpoint = "$_baseUrl/api/sites/$siteId/employees";
+    try {
+      final response = await http.get(
+        Uri.parse(endpoint),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        setDialogState(() {
+          _employees = decoded;
+        });
+      }
+    } catch (e) {
+      debugPrint("직원 목록 조회 에러: $e");
+    } finally {
+      setDialogState(() => _isLoadingEmployees = false);
+    }
+  }
+
+  Future<void> _registerEmployee(int siteId, String phone, String role, StateSetter setDialogState) async {
+    if (phone.isEmpty) return;
+    setDialogState(() => _isLoadingEmployees = true);
+    final endpoint = "$_baseUrl/api/sites/$siteId/employees";
+    try {
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "phone_number": phone,
+          "employee_role": role,
+        }),
+      );
+      if (response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("🎉 현장 직원이 성공적으로 등록되었습니다.")),
+        );
+        await _fetchEmployees(siteId, setDialogState);
+      } else {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        _showErrorMsg(decoded['detail'] ?? "직원 등록에 실패했습니다.");
+      }
+    } catch (e) {
+      debugPrint("직원 등록 에러: $e");
+    } finally {
+      setDialogState(() => _isLoadingEmployees = false);
+    }
+  }
+
+  Future<void> _deleteEmployee(int siteId, int employeeId, StateSetter setDialogState) async {
+    setDialogState(() => _isLoadingEmployees = true);
+    final endpoint = "$_baseUrl/api/sites/$siteId/employees/$employeeId";
+    try {
+      final response = await http.delete(
+        Uri.parse(endpoint),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("정상적으로 직원이 소속 해제되었습니다.")),
+        );
+        await _fetchEmployees(siteId, setDialogState);
+      } else {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        _showErrorMsg(decoded['detail'] ?? "직원 해제에 실패했습니다.");
+      }
+    } catch (e) {
+      debugPrint("직원 해제 에러: $e");
+    } finally {
+      setDialogState(() => _isLoadingEmployees = false);
+    }
+  }
+
+  void _showErrorMsg(String msg) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("오류"),
+        content: Text(msg),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))
+        ],
+      ),
+    );
+  }
+
+  void _openEmployeeManagementDialog(int siteId, String siteName) {
+    final TextEditingController phoneController = TextEditingController();
+    String selectedRole = "staff"; // 기본값: 일반 현장직원
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // 최초 1회 로딩
+            if (_employees.isEmpty && !_isLoadingEmployees && phoneController.text.isEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _fetchEmployees(siteId, setDialogState);
+              });
+            }
+
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  const Icon(Icons.people_outline, color: AppColors.success),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "$siteName 직원 관리",
+                      style: AppTextStyles.h3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width > 600 ? 550 : MediaQuery.of(context).size.width * 0.95,
+                height: 520,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 신규 직원 등록 섹션
+                    Card(
+                      color: AppColors.background,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: AppColors.divider),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("➕ 신규 직원 선등록", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: TextField(
+                                    controller: phoneController,
+                                    keyboardType: TextInputType.phone,
+                                    style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                                    decoration: InputDecoration(
+                                      hintText: "휴대폰 번호 입력",
+                                      hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  flex: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: AppColors.divider),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: selectedRole,
+                                        dropdownColor: AppColors.surface,
+                                        style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                                        isExpanded: true,
+                                        onChanged: (val) {
+                                          setDialogState(() {
+                                            selectedRole = val!;
+                                          });
+                                        },
+                                        items: const [
+                                          DropdownMenuItem(value: "staff", child: Text("일반 직원")),
+                                          DropdownMenuItem(value: "admin", child: Text("부관리자")),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    final phone = phoneController.text.trim();
+                                    if (phone.isNotEmpty) {
+                                      _registerEmployee(siteId, phone, selectedRole, setDialogState);
+                                      phoneController.clear();
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text("등록", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text("👥 소속 직원 목록", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: _isLoadingEmployees
+                          ? const Center(child: CircularProgressIndicator(color: AppColors.success))
+                          : _employees.isEmpty
+                              ? Center(
+                                  child: Text("등록된 직원이 없습니다.", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                )
+                              : ListView.builder(
+                                  itemCount: _employees.length,
+                                  itemBuilder: (context, idx) {
+                                    final emp = _employees[idx];
+                                    final isJoined = emp['status'] == '가입 완료';
+                                    final isStaff = emp['employee_role'] == 'staff';
+
+                                    return Card(
+                                      color: AppColors.background,
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        side: BorderSide(color: AppColors.divider),
+                                      ),
+                                      child: ListTile(
+                                        dense: true,
+                                        leading: CircleAvatar(
+                                          backgroundColor: isStaff ? AppColors.primaryLight : AppColors.success.withOpacity(0.2),
+                                          radius: 16,
+                                          child: Icon(
+                                            isStaff ? Icons.person : Icons.admin_panel_settings,
+                                            color: isStaff ? AppColors.primary : AppColors.success,
+                                            size: 16,
+                                          ),
+                                        ),
+                                        title: Row(
+                                          children: [
+                                            Text(
+                                              emp['name'] ?? '가입 대기',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: isJoined ? AppColors.textPrimary : AppColors.textTertiary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: isJoined ? AppColors.success.withOpacity(0.15) : Colors.orange.withOpacity(0.15),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                emp['status'],
+                                                style: TextStyle(
+                                                  color: isJoined ? AppColors.success : Colors.orange,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        subtitle: Text(
+                                          "${emp['registered_phone']} • ${isStaff ? '일반 직원' : '부관리자'}",
+                                          style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                                        ),
+                                        trailing: IconButton(
+                                          icon: const Icon(Icons.person_remove, color: AppColors.danger, size: 18),
+                                          onPressed: () {
+                                            _deleteEmployee(siteId, emp['id'], setDialogState);
+                                          },
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    // 팝업 닫을 때 리스트 초기화해서 타 현장 오픈 시 캐싱 문제 예방
+                    _employees = [];
+                    Navigator.of(context).pop();
+                  },
+                  child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   // 상세 보기 다이얼로그
   void _showSiteDetails(Map<String, dynamic> site) {
     showDialog(
@@ -542,7 +860,20 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(height: 12),
+                                      const SizedBox(height: 8),
+                                      if (isApproved)
+                                        TextButton.icon(
+                                          onPressed: () => _openEmployeeManagementDialog(site['site_id'], site['site_name'] ?? '현장'),
+                                          icon: const Icon(Icons.people_outline, size: 14),
+                                          label: const Text("직원 관리", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: AppColors.success,
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                        ),
+                                      const SizedBox(height: 8),
                                       Row(
                                         children: [
                                           Text("상세보기", style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
