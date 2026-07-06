@@ -825,54 +825,58 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: Theme.of(context).cardColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Text("신규 하차지(사토장) 등록", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: nameController,
-                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                    decoration: const InputDecoration(labelText: "하차지명 (예: 김포 검단 사토장)"),
-                    validator: (v) => v == null || v.trim().isEmpty ? "하차지명을 입력하세요" : null,
-                  ),
-                  TextFormField(
-                    controller: addressController,
-                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                    decoration: const InputDecoration(labelText: "주소 입력"),
-                    validator: (v) => v == null || v.trim().isEmpty ? "주소를 입력하세요" : null,
-                  ),
-                  TextFormField(
-                    controller: permitController,
-                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                    decoration: const InputDecoration(labelText: "토사반입 인허가번호"),
-                    validator: (v) => v == null || v.trim().isEmpty ? "인허가번호를 입력하세요" : null,
-                  ),
-                  TextFormField(
-                    controller: latController,
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                    decoration: const InputDecoration(labelText: "하차지 위도 (GPS Latitude)"),
-                    validator: (v) => double.tryParse(v ?? '') == null ? "위도 숫자를 입력하세요" : null,
-                  ),
-                  TextFormField(
-                    controller: lngController,
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                    decoration: const InputDecoration(labelText: "하차지 경도 (GPS Longitude)"),
-                    validator: (v) => double.tryParse(v ?? '') == null ? "경도 숫자를 입력하세요" : null,
-                  ),
-                  TextFormField(
-                    controller: radiusController,
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                    decoration: const InputDecoration(labelText: "감지 범위 반경 (m)"),
-                    validator: (v) => int.tryParse(v ?? '') == null ? "범위를 입력하세요" : null,
-                  ),
-                ],
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width > 600 ? 500 : MediaQuery.of(context).size.width * 0.95,
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: nameController,
+                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                      decoration: const InputDecoration(labelText: "하차지명 (예: 김포 검단 사토장)"),
+                      validator: (v) => v == null || v.trim().isEmpty ? "하차지명을 입력하세요" : null,
+                    ),
+                    TextFormField(
+                      controller: addressController,
+                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                      decoration: const InputDecoration(labelText: "주소 입력"),
+                      validator: (v) => v == null || v.trim().isEmpty ? "주소를 입력하세요" : null,
+                    ),
+                    TextFormField(
+                      controller: permitController,
+                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                      decoration: const InputDecoration(labelText: "토사반입 인허가번호"),
+                      validator: (v) => v == null || v.trim().isEmpty ? "인허가번호를 입력하세요" : null,
+                    ),
+                    TextFormField(
+                      controller: latController,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                      decoration: const InputDecoration(labelText: "하차지 위도 (GPS Latitude)"),
+                      validator: (v) => double.tryParse(v ?? '') == null ? "위도 숫자를 입력하세요" : null,
+                    ),
+                    TextFormField(
+                      controller: lngController,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                      decoration: const InputDecoration(labelText: "하차지 경도 (GPS Longitude)"),
+                      validator: (v) => double.tryParse(v ?? '') == null ? "경도 숫자를 입력하세요" : null,
+                    ),
+                    TextFormField(
+                      controller: radiusController,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                      decoration: const InputDecoration(labelText: "감지 범위 반경 (m)"),
+                      validator: (v) => int.tryParse(v ?? '') == null ? "범위를 입력하세요" : null,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -931,105 +935,109 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: Theme.of(context).cardColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               title: const Text("하차지 수용 공고 등록", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              content: SingleChildScrollView(
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("수용 토사 종류", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                      DropdownButton<String>(
-                        value: selectedMaterial,
-                        dropdownColor: Theme.of(context).cardColor,
-                        isExpanded: true,
-                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
-                        onChanged: (v) => setDialogState(() => selectedMaterial = v!),
-                        items: const [
-                          DropdownMenuItem(value: "GOOD_SOIL", child: Text("양질토")),
-                          DropdownMenuItem(value: "MUD_SOIL", child: Text("뻘흙")),
-                          DropdownMenuItem(value: "ROCK", child: Text("암버럭")),
-                          DropdownMenuItem(value: "MIXED", child: Text("혼합 토사")),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      const Text("수용 차량 종류", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                      DropdownButton<String>(
-                        value: selectedTruck,
-                        dropdownColor: Theme.of(context).cardColor,
-                        isExpanded: true,
-                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
-                        onChanged: (v) => setDialogState(() => selectedTruck = v!),
-                        items: const [
-                          DropdownMenuItem(value: "T_15", child: Text("15톤")),
-                          DropdownMenuItem(value: "T_25", child: Text("25톤")),
-                          DropdownMenuItem(value: "T_27", child: Text("27톤")),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: unitPriceController,
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                        decoration: const InputDecoration(labelText: "수용 단가 (원)"),
-                        validator: (v) => int.tryParse(v ?? '') == null ? "수용 단가를 입력하세요" : null,
-                      ),
-                      TextFormField(
-                        controller: targetQtyController,
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                        decoration: const InputDecoration(labelText: "목표 수량 (대수)"),
-                        validator: (v) => int.tryParse(v ?? '') == null ? "목표 수량을 입력하세요" : null,
-                      ),
-                      const SizedBox(height: 10),
-                      const Text("비용 지급 주체", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                      DropdownButton<String>(
-                        value: selectedPayer,
-                        dropdownColor: Theme.of(context).cardColor,
-                        isExpanded: true,
-                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
-                        onChanged: (v) => setDialogState(() => selectedPayer = v!),
-                        items: const [
-                          DropdownMenuItem(value: "SITE_PAYS", child: Text("상차지(현장) 지불")),
-                          DropdownMenuItem(value: "DROP_OFF_PAYS", child: Text("하차지(지주) 지불")),
-                          DropdownMenuItem(value: "FREE", child: Text("무상")),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      const Text("정산 방식", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                      DropdownButton<String>(
-                        value: selectedPaymentMethod,
-                        dropdownColor: Theme.of(context).cardColor,
-                        isExpanded: true,
-                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
-                        onChanged: (v) => setDialogState(() => selectedPaymentMethod = v!),
-                        items: const [
-                          DropdownMenuItem(value: "MONTHLY", child: Text("월정산")),
-                          DropdownMenuItem(value: "DAILY", child: Text("주정산/일정산")),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      CheckboxListTile(
-                        title: const Text("세륜시설 구비", style: TextStyle(fontSize: 12)),
-                        value: hasWashing,
-                        contentPadding: EdgeInsets.zero,
-                        onChanged: (v) => setDialogState(() => hasWashing = v!),
-                      ),
-                      CheckboxListTile(
-                        title: const Text("야간작업 수용 가능", style: TextStyle(fontSize: 12)),
-                        value: allowNight,
-                        contentPadding: EdgeInsets.zero,
-                        onChanged: (v) => setDialogState(() => allowNight = v!),
-                      ),
-                      CheckboxListTile(
-                        title: const Text("우천작업 수용 가능", style: TextStyle(fontSize: 12)),
-                        value: allowRain,
-                        contentPadding: EdgeInsets.zero,
-                        onChanged: (v) => setDialogState(() => allowRain = v!),
-                      ),
-                    ],
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width > 600 ? 500 : MediaQuery.of(context).size.width * 0.95,
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("수용 토사 종류", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        DropdownButton<String>(
+                          value: selectedMaterial,
+                          dropdownColor: Theme.of(context).cardColor,
+                          isExpanded: true,
+                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
+                          onChanged: (v) => setDialogState(() => selectedMaterial = v!),
+                          items: const [
+                            DropdownMenuItem(value: "GOOD_SOIL", child: Text("양질토")),
+                            DropdownMenuItem(value: "MUD_SOIL", child: Text("뻘흙")),
+                            DropdownMenuItem(value: "ROCK", child: Text("암버럭")),
+                            DropdownMenuItem(value: "MIXED", child: Text("혼합 토사")),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Text("수용 차량 종류", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        DropdownButton<String>(
+                          value: selectedTruck,
+                          dropdownColor: Theme.of(context).cardColor,
+                          isExpanded: true,
+                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
+                          onChanged: (v) => setDialogState(() => selectedTruck = v!),
+                          items: const [
+                            DropdownMenuItem(value: "T_15", child: Text("15톤")),
+                            DropdownMenuItem(value: "T_25", child: Text("25톤")),
+                            DropdownMenuItem(value: "T_27", child: Text("27톤")),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: unitPriceController,
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                          decoration: const InputDecoration(labelText: "수용 단가 (원)"),
+                          validator: (v) => int.tryParse(v ?? '') == null ? "수용 단가를 입력하세요" : null,
+                        ),
+                        TextFormField(
+                          controller: targetQtyController,
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                          decoration: const InputDecoration(labelText: "목표 수량 (대수)"),
+                          validator: (v) => int.tryParse(v ?? '') == null ? "목표 수량을 입력하세요" : null,
+                        ),
+                        const SizedBox(height: 10),
+                        const Text("비용 지급 주체", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        DropdownButton<String>(
+                          value: selectedPayer,
+                          dropdownColor: Theme.of(context).cardColor,
+                          isExpanded: true,
+                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
+                          onChanged: (v) => setDialogState(() => selectedPayer = v!),
+                          items: const [
+                            DropdownMenuItem(value: "SITE_PAYS", child: Text("상차지(현장) 지불")),
+                            DropdownMenuItem(value: "DROP_OFF_PAYS", child: Text("하차지(지주) 지불")),
+                            DropdownMenuItem(value: "FREE", child: Text("무상")),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Text("정산 방식", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        DropdownButton<String>(
+                          value: selectedPaymentMethod,
+                          dropdownColor: Theme.of(context).cardColor,
+                          isExpanded: true,
+                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
+                          onChanged: (v) => setDialogState(() => selectedPaymentMethod = v!),
+                          items: const [
+                            DropdownMenuItem(value: "MONTHLY", child: Text("월정산")),
+                            DropdownMenuItem(value: "DAILY", child: Text("주정산/일정산")),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        CheckboxListTile(
+                          title: const Text("세륜시설 구비", style: TextStyle(fontSize: 12)),
+                          value: hasWashing,
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (v) => setDialogState(() => hasWashing = v!),
+                        ),
+                        CheckboxListTile(
+                          title: const Text("야간작업 수용 가능", style: TextStyle(fontSize: 12)),
+                          value: allowNight,
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (v) => setDialogState(() => allowNight = v!),
+                        ),
+                        CheckboxListTile(
+                          title: const Text("우천작업 수용 가능", style: TextStyle(fontSize: 12)),
+                          value: allowRain,
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (v) => setDialogState(() => allowRain = v!),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
