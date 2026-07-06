@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -33,17 +34,19 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
   bool _isSubmitting = false;
   Map<String, dynamic>? _ticket;
   bool _hasOtherDrivingTicket = false;
-  late final WebViewController _webViewController;
+  WebViewController? _webViewController;
 
   @override
   void initState() {
     super.initState();
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF1E222F))
-      ..setOnConsoleMessage((JavaScriptConsoleMessage message) {
-        debugPrint("TMap JS Console Log: ${message.message} (Level: ${message.level})");
-      });
+    if (!kIsWeb) {
+      _webViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0xFF1E222F))
+        ..setOnConsoleMessage((JavaScriptConsoleMessage message) {
+          debugPrint("TMap JS Console Log: ${message.message} (Level: ${message.level})");
+        });
+    }
 
     _ticket = widget.ticket;
     _hasOtherDrivingTicket = widget.hasDrivingTicket;
@@ -55,6 +58,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
   }
 
   void _initMapController() {
+    if (kIsWeb) return;
     final Map<String, dynamic>? jp = _ticket?['job_post'] ?? widget.job;
     
     // Use coordinates returned directly from the API.
@@ -169,7 +173,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
 </html>
 ''';
 
-    _webViewController.loadHtmlString(htmlContent, baseUrl: "http://apis.openapi.sk.com");
+    _webViewController?.loadHtmlString(htmlContent, baseUrl: "http://apis.openapi.sk.com");
   }
 
   Future<void> _checkDrivingInProgress() async {
@@ -561,7 +565,24 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                         Positioned.fill(
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(22),
-                            child: WebViewWidget(controller: _webViewController),
+                            child: kIsWeb
+                                ? Container(
+                                    color: const Color(0xFF1E222F),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.map_outlined, color: AppColors.primary, size: 36),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            "티맵 경로 미리보기 (모바일 앱 전용)",
+                                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : WebViewWidget(controller: _webViewController!),
                           ),
                         ),
                         // Zoom in/out overlay controls

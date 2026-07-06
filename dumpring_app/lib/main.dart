@@ -30,6 +30,50 @@ class WebScrollBehavior extends MaterialScrollBehavior {
       };
 }
 
+// 데스크톱 브라우저 환경에서 앱을 모바일 프레임 내부로 보기 좋게 격리하는 래퍼 클래스
+class WebFrameWrapper extends StatelessWidget {
+  final Widget child;
+  const WebFrameWrapper({Key? key, required this.child}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final bool isDesktopWeb = screenWidth > 600;
+
+    if (!isDesktopWeb) {
+      return child;
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A), // 세련된 다크 블루 외곽 배경
+      body: Center(
+        child: Container(
+          width: 430,
+          margin: const EdgeInsets.symmetric(vertical: 24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.6),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
+            border: Border.all(
+              color: const Color(0xFF334155),
+              width: 8,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -40,6 +84,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false, // 디버그 띠 제거
       theme: SduiService.currentTheme.toThemeData(),
       scrollBehavior: WebScrollBehavior(), // 웹 드래그 스크롤 행동 양식 바인딩
+      builder: (context, child) {
+        return WebFrameWrapper(child: child ?? const SizedBox());
+      },
       home: const LoginScreen(), // 첫 스크린으로 로그인 화면 출력
     );
   }
