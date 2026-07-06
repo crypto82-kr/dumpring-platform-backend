@@ -455,7 +455,6 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
 
   void _openEmployeeManagementDialog(int siteId, String siteName) {
     final TextEditingController phoneController = TextEditingController();
-    String selectedRole = "staff"; // 기본값: 일반 현장직원
 
     showDialog(
       context: context,
@@ -487,7 +486,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                 ],
               ),
               content: SizedBox(
-                width: MediaQuery.of(context).size.width > 600 ? 550 : MediaQuery.of(context).size.width * 0.95,
+                width: MediaQuery.of(context).size.width > 600 ? 500 : MediaQuery.of(context).size.width * 0.95,
                 height: 520,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -510,7 +509,6 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                             Row(
                               children: [
                                 Expanded(
-                                  flex: 3,
                                   child: TextField(
                                     controller: phoneController,
                                     keyboardType: TextInputType.phone,
@@ -524,46 +522,18 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  flex: 2,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: AppColors.divider),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: selectedRole,
-                                        dropdownColor: AppColors.surface,
-                                        style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
-                                        isExpanded: true,
-                                        onChanged: (val) {
-                                          setDialogState(() {
-                                            selectedRole = val!;
-                                          });
-                                        },
-                                        items: const [
-                                          DropdownMenuItem(value: "staff", child: Text("일반 직원")),
-                                          DropdownMenuItem(value: "admin", child: Text("부관리자")),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 8),
                                 ElevatedButton(
                                   onPressed: () {
                                     final phone = phoneController.text.trim();
                                     if (phone.isNotEmpty) {
-                                      _registerEmployee(siteId, phone, selectedRole, setDialogState);
+                                      _registerEmployee(siteId, phone, "staff", setDialogState);
                                       phoneController.clear();
                                     }
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
                                   child: const Text("등록", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
@@ -589,7 +559,6 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                   itemBuilder: (context, idx) {
                                     final emp = _employees[idx];
                                     final isJoined = emp['status'] == '가입 완료';
-                                    final isStaff = emp['employee_role'] == 'staff';
 
                                     return Card(
                                       color: AppColors.background,
@@ -601,11 +570,11 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                       child: ListTile(
                                         dense: true,
                                         leading: CircleAvatar(
-                                          backgroundColor: isStaff ? AppColors.primaryLight : AppColors.success.withOpacity(0.2),
+                                          backgroundColor: AppColors.primaryLight,
                                           radius: 16,
                                           child: Icon(
-                                            isStaff ? Icons.person : Icons.admin_panel_settings,
-                                            color: isStaff ? AppColors.primary : AppColors.success,
+                                            Icons.person,
+                                            color: AppColors.primary,
                                             size: 16,
                                           ),
                                         ),
@@ -637,7 +606,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                           ],
                                         ),
                                         subtitle: Text(
-                                          "${emp['registered_phone']} • ${isStaff ? '일반 직원' : '부관리자'}",
+                                          emp['registered_phone'],
                                           style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                                         ),
                                         trailing: IconButton(
