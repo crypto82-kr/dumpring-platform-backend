@@ -21,6 +21,8 @@ interface AuthContextType {
   activePath: string;
   setActivePath: (path: string) => void;
   updateApprovalStatus: (approved: boolean) => void;
+  isSidebarOpen: boolean;
+  setIsSidebarOpen: (open: boolean) => void;
 }
 
 const roleNames: Record<UserRole, string> = {
@@ -36,8 +38,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activePath, setActivePath] = useState<string>("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
-
+  // 페이지 이동 시 모바일 사이드바를 자동으로 닫습니다.
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [activePath]);
 
   const changeRole = (role: UserRole) => {
     setUser({
@@ -150,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, changeRole, login, logout, activePath, setActivePath, updateApprovalStatus }}>
+    <AuthContext.Provider value={{ user, changeRole, login, logout, activePath, setActivePath, updateApprovalStatus, isSidebarOpen, setIsSidebarOpen }}>
       {children}
     </AuthContext.Provider>
   );
