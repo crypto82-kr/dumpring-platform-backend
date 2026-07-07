@@ -147,14 +147,30 @@ export default function Home() {
             code: `GD-${item.id}-DUMP`,
             status: "대기",
             phone: item.phone_number,
+            managerName: item.name || "미지정",
             bizRegNo: item.business_number || "미등록",
             address: item.address || "현장 주소 미등록",
             registeredSites: [item.site_name || `${item.name || "미지정"}의 현장`]
           }));
 
+        const backendDropoffs = data
+          .filter((item: any) => item.type && item.type.includes("하차지"))
+          .map((item: any) => ({
+            id: item.id,
+            name: item.location_name || `${item.name || "미지정"}의 사토장`,
+            company: item.company_name || "개인지주 법인",
+            status: "대기",
+            capacity: item.capacity || "80,000 ㎥",
+            phone: item.phone_number,
+            bizRegNo: item.permit_number || "허가증 미등록",
+            address: item.address || "하차지 주소 미등록",
+            registeredLandfills: [item.location_name || `${item.name || "미지정"}의 사토장`]
+          }));
+
         setDrivers(backendDrivers);
         setOwners(backendOwners);
         setSites(backendSites);
+        setDropoffSites(backendDropoffs);
       }
     } catch (e) {
       console.error("Failed to fetch pending members from backend:", e);
@@ -278,7 +294,7 @@ export default function Home() {
     if (activePath === "/admin/codes" || activePath === "/dev/codes") {
       fetchCommonCodes();
     }
-    if (activePath === "/admin/approve-driver" || activePath === "/admin/approve-owner" || activePath === "/admin/approve-site" || activePath === "/admin") {
+    if (activePath === "/admin/approve-driver" || activePath === "/admin/approve-owner" || activePath === "/admin/approve-site" || activePath === "/admin/approve-dropoff" || activePath === "/admin") {
       fetchPendingMembers();
     }
     if (activePath === "/site" || activePath === "/site/request") {
@@ -328,23 +344,10 @@ export default function Home() {
   const [policySaveSuccess, setPolicySaveSuccess] = useState(false);
 
   const [approvalTab, setApprovalTab] = useState<"driver" | "owner" | "site" | "dropoff">("driver");
-  const [drivers, setDrivers] = useState([
-    { id: 1, name: "이순신 기사", phone: "010-9999-8888", license: "1종대형면허", status: "대기" },
-    { id: 2, name: "강감찬 기사", phone: "010-1111-2222", license: "1종대형면허", status: "승인됨" },
-  ]);
-  const [owners, setOwners] = useState([
-    { id: 1, name: "홍길동 차주 (개인)", phone: "010-3333-4444", vehicle: "인천 80바 4531 (25.5톤)", status: "대기" },
-    { id: 2, name: "대진운송 (법인)", phone: "010-5555-6666", vehicle: "경기 82자 7732 외 15대", status: "승인됨" },
-  ]);
-  const [sites, setSites] = useState<any[]>([
-    { id: 1, name: "인천 검단 3공구 현장", company: "삼부토건", code: "미발급", status: "대기", phone: "010-1234-5678", bizRegNo: "120-81-45678", registeredSites: ["인천 검단 3공구"] },
-    { id: 2, name: "영종도 A지구 현장", company: "현대건설", code: "YJ-A-DUMP", status: "승인됨", phone: "010-8765-4321", bizRegNo: "110-85-12345", registeredSites: ["영종도 A지구"] },
-  ]);
-  const [dropoffSites, setDropoffSites] = useState<any[]>([
-    { id: 1, name: "인천 송도 남측 매립지 B구역", company: "삼부토건", status: "대기", capacity: "80,000 ㎥", phone: "010-9999-1111", bizRegNo: "135-85-12345", registeredLandfills: ["인천 송도 남측 매립지 B구역"] },
-    { id: 2, name: "경기 김포 고촌 신축 사토장", company: "대우건설", status: "대기", capacity: "45,000 ㎥", phone: "010-8888-2222", bizRegNo: "140-88-22222", registeredLandfills: ["경기 김포 고촌 신축 사토장"] },
-    { id: 3, name: "인천 청라 지구 매립지", company: "현대건설", status: "승인됨", capacity: "120,000 ㎥", phone: "010-7777-3333", bizRegNo: "150-89-33333", registeredLandfills: ["인천 청라 지구 매립지"] },
-  ]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [owners, setOwners] = useState<any[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
+  const [dropoffSites, setDropoffSites] = useState<any[]>([]);
 
   // Disputes & Support States
   const [disputes, setDisputes] = useState([

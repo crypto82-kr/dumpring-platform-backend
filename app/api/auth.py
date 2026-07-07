@@ -13,7 +13,7 @@ from app.core.db import get_db
 from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus
 from app.schemas.auth import (
     DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse,
-    SiteManagerRegister, SiteWorkerRegister, DropOffRegister
+    SiteManagerRegister, SiteWorkerRegister, DropOffRegister, PreRegisterRequest
 )
 from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM
 from app.core.config import settings
@@ -245,6 +245,71 @@ async def signup_site_manager(
 
     except Exception as e:
         logger.error(f"현장관리자 회원가입 중 에러 발생: {str(e)}")
+        await db.rollback()
+        raise e
+
+
+@router.post(
+    "/pre-register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="회원가입 약식 신청 및 가계정 개설",
+    description="가입 승인 요청을 접수하기 전, 본인 확인 완료 상태의 약식 통합 계정을 개설합니다."
+)
+async def pre_register(
+    data: PreRegisterRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(User).where(User.phone_number == data.phone_number)
+    result = await db.execute(query)
+    existing_user = result.scalars().first()
+
+    if existing_user:
+        logger.warning(f"pre-register 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error_code": "ALREADY_REGISTERED",
+                "message": "이미 가입된 휴대폰 번호입니다. 로그인해 주세요."
+            }
+        )
+
+    try:
+        hashed_password = get_password_hash(data.password)
+        
+        # 권한 매핑 분기 설정
+        is_site_manager = False
+        is_drop_off = False
+        is_owner = False
+        
+        if data.role == "site_manager":
+            is_site_manager = True
+        elif data.role == "dropoff_manager":
+            is_drop_off = True
+        elif data.role == "owner":
+            is_owner = True
+
+        new_user = User(
+            phone_number=data.phone_number,
+            password=hashed_password,
+            name=data.name,
+            is_site_manager=is_site_manager,
+            is_site_worker=False,
+            is_owner=is_owner,
+            is_driver=False,
+            is_drop_off=is_drop_off,
+            is_admin=False,
+            is_approved=False
+        )
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+
+        logger.info(f"약식 가입 성공: ID {new_user.id}, 권한: {data.role}")
+        return new_user
+
+    except Exception as e:
+        logger.error(f"약식 가입 중 에러 발생: {str(e)}")
         await db.rollback()
         raise e
 
@@ -593,10 +658,10 @@ async def get_member_status(
     # 1. 역할 구분 및 필수 서류 그룹 설정
     if current_user.is_site_manager:
         role = "site_manager"
-        group_code = "REQUIRED_DOC_SITE_MANAGER"
+        group_code = "REQUIRED_DOC_SITE"
     elif current_user.is_drop_off:
         role = "drop_off"
-        group_code = None
+        group_code = "REQUIRED_DOC_DROPOFF"
     elif current_user.is_owner:
         role = "owner"
         group_code = "REQUIRED_DOC_OWNER"
@@ -634,8 +699,9 @@ async def get_member_status(
                 )
             )
             
-    # 5. 심사 승인 여부 확인
+    # 5. 심사 승인 여부 및 실제 정보 제출 완료 상태 확인
     is_approved = False
+    is_submitted = False
     reject_reason = None
     
     if role == "driver":
@@ -645,13 +711,35 @@ async def get_member_status(
         if driver:
             is_approved = driver.is_approved
             reject_reason = driver.reject_reason
+            # 기사는 서류가 다 제출되면 제출된 것으로 봄
+            is_submitted = (len(missing_docs) == 0)
+    elif role == "site_manager":
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+        
+        # SiteProfile이 실제로 존재하는지 체크
+        sp_query = select(SiteProfile).where(SiteProfile.user_id == current_user.id)
+        sp_res = await db.execute(sp_query)
+        sp = sp_res.scalars().first()
+        is_submitted = (sp is not None)
+    elif role == "drop_off":
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+        
+        # DropOffProfile이 실제로 존재하는지 체크
+        dp_query = select(DropOffProfile).where(DropOffProfile.user_id == current_user.id)
+        dp_res = await db.execute(dp_query)
+        dp = dp_res.scalars().first()
+        is_submitted = (dp is not None)
     else:
         # 차주
         is_approved = current_user.is_approved
         reject_reason = current_user.reject_reason
+        is_submitted = True # 차주는 회원가입 단계에서 정보가 다 기입됨
         
     return MemberStatusResponse(
         is_approved=is_approved,
+        is_submitted=is_submitted,
         reject_reason=reject_reason,
         uploaded_documents=uploaded_codes,
         missing_documents=missing_docs
@@ -877,6 +965,56 @@ async def get_pending_members(
             "site_name": site_name_val,
             "business_number": biz_no,
             "address": address_val
+        })
+
+    # 하차지 관리자 중 아직 미승인(is_approved = False) 유저 검색 (drop_off_profile 및 drop_offs 조인)
+    dropoff_query = select(User).options(selectinload(User.drop_off_profile), selectinload(User.drop_offs)).where(User.is_drop_off == True, User.is_approved == False)
+    dropoff_res = await db.execute(dropoff_query)
+    dropoff_managers = dropoff_res.scalars().all()
+
+    for dm in dropoff_managers:
+        if dm.is_admin:
+            continue
+
+        doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == dm.id)
+        doc_res = await db.execute(doc_query)
+        docs = doc_res.scalars().all()
+        doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+
+        company = "개인지주"
+        location_val = f"{dm.name}의 하차지"
+        permit_no = "미등록"
+        address_val = "하차지 주소 미등록"
+        capacity_val = "80,000 ㎥" # 기본값
+
+        if dm.drop_off_profile:
+            if dm.drop_off_profile.location_name:
+                location_val = dm.drop_off_profile.location_name
+                company = dm.drop_off_profile.location_name + " 유한회사"
+            if dm.drop_off_profile.permit_number:
+                permit_no = dm.drop_off_profile.permit_number
+            if dm.drop_off_profile.address:
+                address_val = dm.drop_off_profile.address
+
+        if dm.drop_offs:
+            first_do = dm.drop_offs[0]
+            if first_do.address:
+                address_val = first_do.address
+            if first_do.permit_number:
+                permit_no = first_do.permit_number
+
+        response_list.append({
+            "id": dm.id,
+            "type": "하차지 가입",
+            "name": dm.name,
+            "phone_number": dm.phone_number,
+            "docs": doc_summary or "미제출",
+            "created_at": dm.created_at,
+            "company_name": company,
+            "location_name": location_val,
+            "permit_number": permit_no,
+            "address": address_val,
+            "capacity": capacity_val
         })
         
     return response_list

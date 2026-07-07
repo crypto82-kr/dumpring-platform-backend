@@ -142,6 +142,7 @@ class DocumentUploadRequest(BaseModel):
 
 class MemberStatusResponse(BaseModel):
     is_approved: bool
+    is_submitted: bool = False
     reject_reason: Optional[str] = None
     uploaded_documents: list[str] = []
     missing_documents: list[RequiredDocumentResponse] = []
@@ -160,4 +161,11 @@ class SubmitApprovalRequest(BaseModel):
     permit_number: Optional[str] = None
     
     is_direct_driver: Optional[bool] = None
+
+
+class PreRegisterRequest(BaseModel):
+    phone_number: str = Field(..., description="휴대폰 번호", min_length=10, max_length=15)
+    password: str = Field(..., description="비밀번호", min_length=4)
+    name: str = Field(..., description="사용자 실명")
+    role: str = Field(..., description="선택 권한 (site_manager / dropoff_manager / owner)")
 

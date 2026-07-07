@@ -1216,7 +1216,9 @@ export function PlatformAdminDashboard({
                       </div>
                       <div>
                         <span className="text-slate-400 font-medium block text-[9px] uppercase">담당자 휴대폰</span>
-                        <span className="text-slate-900 font-mono font-extrabold">{selectedSiteForVerify.phone || "미등록"}</span>
+                        <span className="text-slate-900 font-mono font-extrabold">
+                          {selectedSiteForVerify.managerName ? `${selectedSiteForVerify.managerName} (${selectedSiteForVerify.phone || "미등록"})` : (selectedSiteForVerify.phone || "미등록")}
+                        </span>
                       </div>
                       <div>
                         <span className="text-slate-400 font-medium block text-[9px] uppercase">임시 정산코드</span>
