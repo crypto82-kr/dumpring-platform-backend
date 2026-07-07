@@ -3,16 +3,17 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from jose import jwt, JWTError
 from typing import List, Optional
 import logging
 import uuid
 
 from app.core.db import get_db
-from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus, UserUploadedDocument
+from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus
 from app.schemas.auth import (
     DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse,
-    SiteManagerRegister, SiteWorkerRegister, DropOffRegister
+    SiteManagerRegister, SiteWorkerRegister, DropOffRegister, PreRegisterRequest
 )
 from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM
 from app.core.config import settings
@@ -30,7 +31,7 @@ router = APIRouter()
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="덤프 트럭 기사 회원가입 및 선등록 연동",
-    description="기사가 본인인증(CI) 및 폰 번호로 회원 가입을 수행합니다. 가입 시 필수 서류 3종을 반드시 함께 제출해야 합니다."
+    description="기사가 본인인증(CI) 및 폰 번호로 회원 가입을 수행합니다. 가입 시 차주가 기사의 폰 번호로 선등록해 둔 차량/차주 정보가 있다면 자동으로 연동(매칭)됩니다."
 )
 async def register_driver(
     data: DriverRegister,
@@ -43,6 +44,7 @@ async def register_driver(
     
     if existing_user:
         logger.warning(f"회원 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        # 중복 휴대폰 번호에 대한 프론트엔드 맞춤형 커스텀 에러 처리
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
@@ -59,46 +61,40 @@ async def register_driver(
             password=hashed_password,
             name=data.name,
             ci=data.ci,
-            is_driver=True,  # 기사 권한 활성화
+            is_driver=True,  # 기사 가입이므로 기사 권한 토글을 기본 활성화
             is_owner=False,
             is_site_manager=False,
             is_admin=False
         )
         
         db.add(new_user)
-        # ID를 발급받기 위해 flush 수행
+        # ID를 발급받기 위해 트랜잭션을 commit하지 않고 임시 반영(flush) 수행
         await db.flush()
         
         logger.info(f"신규 기사 유저 생성 성공: ID {new_user.id}, 이름: {new_user.name}")
 
-        # 3. 필수 제출 서류 업로드 기록 추가
-        docs = [
-            UserUploadedDocument(user_id=new_user.id, document_code="LICENSE", file_name=data.license_file),
-            UserUploadedDocument(user_id=new_user.id, document_code="SAFETY_TRAINING", file_name=data.safety_training_file),
-            UserUploadedDocument(user_id=new_user.id, document_code="SPECIAL_LABOR_TRAINING", file_name=data.special_labor_training_file),
-        ]
-        db.add_all(docs)
-
-        # 4. 차주 선등록 매칭 로직 작동
+        # 3. 차주 선등록 매칭 로직 작동
+        # drivers 테이블에서 가입하려는 기사의 휴대폰 번호로 선등록된 건이 있는지 비동기 조회
         driver_query = select(Driver).where(Driver.registered_phone == data.phone_number)
         driver_result = await db.execute(driver_query)
         pre_registered_driver = driver_result.scalars().first()
         
         if pre_registered_driver:
-            # 선등록 기사 데이터가 존재할 경우 연동
+            # 일치하는 선등록 레코드가 있는 경우, 기사 레코드와 유저 계정을 1:1 매칭 연동
             pre_registered_driver.user_id = new_user.id
             logger.info(f"★ [매칭 성공] 차주 선등록 기사 데이터 발견 및 매칭 연동 완료 (Driver ID: {pre_registered_driver.id} -> User ID: {new_user.id})")
         else:
-            # 선등록 데이터가 없을 시 신규 Driver 프로필 생성
+            # 선등록 정보가 아직 없는 기사인 경우, 신규 기사 프로필 레코드를 생성하여 등록
+            # 추후 차주가 차량을 매칭하거나 신규 등록할 수 있는 여지를 확보합니다.
             new_driver_profile = Driver(
                 user_id=new_user.id,
                 registered_phone=data.phone_number,
-                is_approved=False
+                is_approved=False  # 본사/차주 승인 대기 기본값
             )
             db.add(new_driver_profile)
             logger.info(f"기사 선등록 데이터가 없어 신규 Driver 프로필을 생성했습니다. (User ID: {new_user.id})")
 
-        # 5. 최종 커밋 반영
+        # 4. 최종 커밋 반영
         await db.commit()
         await db.refresh(new_user)
         
@@ -115,7 +111,7 @@ async def register_driver(
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="덤프 트럭 차주 회원가입",
-    description="차주 사장님이 본인인증(CI) 및 폰 번호로 가입합니다. 가입 시 필수 서류 3종을 제출해야 하며 직접 운전 시 기사 서류 3종도 제출해야 합니다."
+    description="차주 사장님이 본인인증(CI) 및 폰 번호로 가입합니다. 차주 사장님이 직접 운전(is_direct_driver=True)하시는 경우 기사 권한도 자동으로 함께 세팅됩니다."
 )
 async def register_owner(
     data: OwnerRegister,
@@ -144,50 +140,17 @@ async def register_owner(
             password=hashed_password,
             name=data.name,
             ci=data.ci,
-            is_owner=True,
-            is_driver=data.is_direct_driver,
+            is_owner=True,  # 차주 권한 활성화
+            is_driver=data.is_direct_driver,  # 직접 운전 시 기사 권한 동시 켜기
             is_site_manager=False,
             is_admin=False
         )
         
         db.add(new_user)
-        await db.flush()
-        
-        logger.info(f"신규 차주 유저 생성 성공: ID {new_user.id}, 직접운전여부: {data.is_direct_driver}")
-
-        # 3. 필수 제출 서류 업로드 기록 추가 (차주 공통 3종)
-        docs = [
-            UserUploadedDocument(user_id=new_user.id, document_code="BIZ_LICENSE", file_name=data.biz_license_file),
-            UserUploadedDocument(user_id=new_user.id, document_code="MACHINERY_REG", file_name=data.machinery_reg_file),
-            UserUploadedDocument(user_id=new_user.id, document_code="INSURANCE", file_name=data.insurance_file),
-        ]
-
-        # 4. 차주 직접 운전(기사 겸직) 시 기사 필수 서류 3종 추가 및 기사 프로필 추가 생성
-        if data.is_direct_driver:
-            if not data.license_file or not data.safety_training_file or not data.special_labor_training_file:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="직접 운전하시는 경우 운전면허증, 기초안전교육 이수증, 교육실시확인서가 모두 필요합니다."
-                )
-            docs.extend([
-                UserUploadedDocument(user_id=new_user.id, document_code="LICENSE", file_name=data.license_file),
-                UserUploadedDocument(user_id=new_user.id, document_code="SAFETY_TRAINING", file_name=data.safety_training_file),
-                UserUploadedDocument(user_id=new_user.id, document_code="SPECIAL_LABOR_TRAINING", file_name=data.special_labor_training_file),
-            ])
-            
-            # 기사 프로필 등록
-            new_driver_profile = Driver(
-                user_id=new_user.id,
-                registered_phone=data.phone_number,
-                is_approved=False
-            )
-            db.add(new_driver_profile)
-            logger.info(f"직접 운전하는 차주용 Driver 프로필을 함께 생성했습니다. (User ID: {new_user.id})")
-
-        db.add_all(docs)
         await db.commit()
         await db.refresh(new_user)
         
+        logger.info(f"신규 차주 유저 생성 성공: ID {new_user.id}, 직접운전여부: {data.is_direct_driver}")
         return new_user
 
     except Exception as e:
@@ -274,13 +237,6 @@ async def signup_site_manager(
         )
         db.add(mapping)
         
-        # 필수 서류 업로드 기록 추가
-        docs = [
-            UserUploadedDocument(user_id=new_user.id, document_code="DUST_REPORT", file_name=data.dust_report_file),
-            UserUploadedDocument(user_id=new_user.id, document_code="CONSTRUCTION_CONTRACT", file_name=data.construction_contract_file),
-        ]
-        db.add_all(docs)
-        
         await db.commit()
         await db.refresh(new_user)
         
@@ -289,6 +245,71 @@ async def signup_site_manager(
 
     except Exception as e:
         logger.error(f"현장관리자 회원가입 중 에러 발생: {str(e)}")
+        await db.rollback()
+        raise e
+
+
+@router.post(
+    "/pre-register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="회원가입 약식 신청 및 가계정 개설",
+    description="가입 승인 요청을 접수하기 전, 본인 확인 완료 상태의 약식 통합 계정을 개설합니다."
+)
+async def pre_register(
+    data: PreRegisterRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(User).where(User.phone_number == data.phone_number)
+    result = await db.execute(query)
+    existing_user = result.scalars().first()
+
+    if existing_user:
+        logger.warning(f"pre-register 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error_code": "ALREADY_REGISTERED",
+                "message": "이미 가입된 휴대폰 번호입니다. 로그인해 주세요."
+            }
+        )
+
+    try:
+        hashed_password = get_password_hash(data.password)
+        
+        # 권한 매핑 분기 설정
+        is_site_manager = False
+        is_drop_off = False
+        is_owner = False
+        
+        if data.role == "site_manager":
+            is_site_manager = True
+        elif data.role == "dropoff_manager":
+            is_drop_off = True
+        elif data.role == "owner":
+            is_owner = True
+
+        new_user = User(
+            phone_number=data.phone_number,
+            password=hashed_password,
+            name=data.name,
+            is_site_manager=is_site_manager,
+            is_site_worker=False,
+            is_owner=is_owner,
+            is_driver=False,
+            is_drop_off=is_drop_off,
+            is_admin=False,
+            is_approved=False
+        )
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+
+        logger.info(f"약식 가입 성공: ID {new_user.id}, 권한: {data.role}")
+        return new_user
+
+    except Exception as e:
+        logger.error(f"약식 가입 중 에러 발생: {str(e)}")
         await db.rollback()
         raise e
 
@@ -436,13 +457,6 @@ async def signup_drop_off(
         )
         db.add(new_profile)
         
-        # 필수 서류 업로드 기록 추가
-        docs = [
-            UserUploadedDocument(user_id=new_user.id, document_code="DEVELOPMENT_PERMIT", file_name=data.development_permit_file),
-            UserUploadedDocument(user_id=new_user.id, document_code="LAND_USE_AGREEMENT", file_name=data.land_use_agreement_file),
-        ]
-        db.add_all(docs)
-        
         await db.commit()
         await db.refresh(new_user)
         
@@ -565,7 +579,7 @@ async def get_current_admin(
 # ==========================================
 
 from app.models import CommonCode, UserUploadedDocument
-from app.schemas.auth import RequiredDocumentResponse, DocumentUploadRequest, MemberStatusResponse
+from app.schemas.auth import RequiredDocumentResponse, DocumentUploadRequest, MemberStatusResponse, SubmitApprovalRequest
 
 @router.get(
     "/required-documents",
@@ -577,17 +591,7 @@ async def get_required_documents(
     role: str,
     db: AsyncSession = Depends(get_db)
 ):
-    r = role.lower()
-    if r == "driver":
-        group_code = "REQUIRED_DOC_DRIVER"
-    elif r == "owner":
-        group_code = "REQUIRED_DOC_OWNER"
-    elif r == "site_manager":
-        group_code = "REQUIRED_DOC_SITE"
-    elif r == "drop_off":
-        group_code = "REQUIRED_DOC_DROPOFF"
-    else:
-        group_code = "REQUIRED_DOC_DRIVER"
+    group_code = "REQUIRED_DOC_DRIVER" if role.lower() == "driver" else "REQUIRED_DOC_OWNER"
     
     query = select(CommonCode).where(
         CommonCode.group_code == group_code,
@@ -651,7 +655,7 @@ async def get_member_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. 역할 구분
+    # 1. 역할 구분 및 필수 서류 그룹 설정
     if current_user.is_site_manager:
         role = "site_manager"
         group_code = "REQUIRED_DOC_SITE"
@@ -666,19 +670,22 @@ async def get_member_status(
         group_code = "REQUIRED_DOC_DRIVER"
     
     # 2. 필수 공통코드 가져오기
-    codes_query = select(CommonCode).where(
-        CommonCode.group_code == group_code,
-        CommonCode.is_active == True
-    ).order_by(CommonCode.display_order.asc())
-    codes_result = await db.execute(codes_query)
-    req_codes = codes_result.scalars().all()
+    req_codes = []
+    if group_code:
+        codes_query = select(CommonCode).where(
+            CommonCode.group_code == group_code,
+            CommonCode.is_active == True
+        ).order_by(CommonCode.display_order.asc())
+        codes_result = await db.execute(codes_query)
+        req_codes = codes_result.scalars().all()
     
     # 3. 유저가 제출한 서류 목록
-    uploaded_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
-    uploaded_result = await db.execute(uploaded_query)
-    uploaded_docs = uploaded_result.scalars().all()
-    
-    uploaded_codes = [d.document_code for d in uploaded_docs]
+    uploaded_codes = []
+    if group_code:
+        uploaded_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
+        uploaded_result = await db.execute(uploaded_query)
+        uploaded_docs = uploaded_result.scalars().all()
+        uploaded_codes = [d.document_code for d in uploaded_docs]
     
     # 4. 미제출 서류 목록 도출
     missing_docs = []
@@ -692,8 +699,9 @@ async def get_member_status(
                 )
             )
             
-    # 5. 심사 승인 여부 확인
+    # 5. 심사 승인 여부 및 실제 정보 제출 완료 상태 확인
     is_approved = False
+    is_submitted = False
     reject_reason = None
     
     if role == "driver":
@@ -703,17 +711,148 @@ async def get_member_status(
         if driver:
             is_approved = driver.is_approved
             reject_reason = driver.reject_reason
+            # 기사는 서류가 다 제출되면 제출된 것으로 봄
+            is_submitted = (len(missing_docs) == 0)
+    elif role == "site_manager":
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+        
+        # SiteProfile이 실제로 존재하는지 체크
+        sp_query = select(SiteProfile).where(SiteProfile.user_id == current_user.id)
+        sp_res = await db.execute(sp_query)
+        sp = sp_res.scalars().first()
+        is_submitted = (sp is not None)
+    elif role == "drop_off":
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+        
+        # DropOffProfile이 실제로 존재하는지 체크
+        dp_query = select(DropOffProfile).where(DropOffProfile.user_id == current_user.id)
+        dp_res = await db.execute(dp_query)
+        dp = dp_res.scalars().first()
+        is_submitted = (dp is not None)
     else:
         # 차주
         is_approved = current_user.is_approved
         reject_reason = current_user.reject_reason
+        is_submitted = True # 차주는 회원가입 단계에서 정보가 다 기입됨
         
     return MemberStatusResponse(
         is_approved=is_approved,
+        is_submitted=is_submitted,
         reject_reason=reject_reason,
         uploaded_documents=uploaded_codes,
         missing_documents=missing_docs
     )
+
+
+@router.post(
+    "/submit-approval",
+    summary="회원 상세정보 제출 및 승인 요청",
+    description="회원이 역할별 필수 상세 정보를 입력하고 최종 승인을 요청합니다."
+)
+async def submit_approval(
+    data: SubmitApprovalRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    
+    if current_user.is_site_manager:
+        # Site Profile
+        sp_query = select(SiteProfile).where(SiteProfile.user_id == current_user.id)
+        sp_res = await db.execute(sp_query)
+        profile = sp_res.scalars().first()
+        if not profile:
+            profile = SiteProfile(
+                user_id=current_user.id,
+                company_name=data.company_name or "",
+                site_name=data.site_name or "",
+                business_number=data.business_number or ""
+            )
+            db.add(profile)
+        else:
+            if data.company_name: profile.company_name = data.company_name
+            if data.site_name: profile.site_name = data.site_name
+            if data.business_number: profile.business_number = data.business_number
+            
+        # Construction Site
+        cs_query = select(ConstructionSite).where(ConstructionSite.user_id == current_user.id)
+        cs_res = await db.execute(cs_query)
+        site = cs_res.scalars().first()
+        if not site:
+            site_key = f"SITE-{uuid.uuid4().hex[:6].upper()}"
+            site = ConstructionSite(
+                user_id=current_user.id,
+                company_name=data.company_name or "",
+                business_number=data.business_number or "",
+                billing_email=f"billing@{current_user.phone_number}.com",
+                site_key=site_key,
+                site_address=data.address or "",
+                latitude=data.latitude or 37.5665,
+                longitude=data.longitude or 126.9780
+            )
+            db.add(site)
+            await db.flush()
+            
+            # Site Mapping
+            mapping = SiteUserMapping(
+                site_id=site.id,
+                user_id=current_user.id,
+                status=SiteUserStatus.APPROVED
+            )
+            db.add(mapping)
+        else:
+            if data.company_name: site.company_name = data.company_name
+            if data.business_number: site.business_number = data.business_number
+            if data.address: site.site_address = data.address
+            if data.latitude is not None: site.latitude = data.latitude
+            if data.longitude is not None: site.longitude = data.longitude
+
+    elif current_user.is_drop_off:
+        # Drop Off Profile
+        dp_query = select(DropOffProfile).where(DropOffProfile.user_id == current_user.id)
+        dp_res = await db.execute(dp_query)
+        profile = dp_res.scalars().first()
+        if not profile:
+            profile = DropOffProfile(
+                user_id=current_user.id,
+                location_name=data.location_name or "",
+                address=data.address or "",
+                permit_number=data.permit_number or ""
+            )
+            db.add(profile)
+        else:
+            if data.location_name: profile.location_name = data.location_name
+            if data.address: profile.address = data.address
+            if data.permit_number: profile.permit_number = data.permit_number
+            
+        # Drop Off Site
+        do_query = select(DropOff).where(DropOff.owner_id == current_user.id)
+        do_res = await db.execute(do_query)
+        drop_off = do_res.scalars().first()
+        if not drop_off:
+            drop_off = DropOff(
+                owner_id=current_user.id,
+                name=data.location_name or "",
+                address=data.address or "",
+                latitude=data.latitude or 37.5665,
+                longitude=data.longitude or 126.9780,
+                permit_number=data.permit_number or ""
+            )
+            db.add(drop_off)
+        else:
+            if data.location_name: drop_off.name = data.location_name
+            if data.address: drop_off.address = data.address
+            if data.permit_number: drop_off.permit_number = data.permit_number
+            if data.latitude is not None: drop_off.latitude = data.latitude
+            if data.longitude is not None: drop_off.longitude = data.longitude
+
+    elif current_user.is_owner:
+        if data.is_direct_driver is not None:
+            current_user.is_driver = data.is_direct_driver
+            
+    await db.commit()
+    return {"message": "승인 요청 제출이 완료되었습니다."}
 
 
 @router.get(
@@ -782,6 +921,101 @@ async def get_pending_members(
             "docs": doc_summary or "미제출",
             "created_at": o.created_at
         })
+
+    # 현장관리자 중 아직 미승인(is_approved = False) 유저 검색 (site_profile 조인)
+    site_mgr_query = select(User).options(selectinload(User.site_profile), selectinload(User.construction_sites)).where(User.is_site_manager == True, User.is_approved == False)
+    site_mgr_res = await db.execute(site_mgr_query)
+    site_managers = site_mgr_res.scalars().all()
+
+    for sm in site_managers:
+        if sm.is_admin:
+            continue
+
+        doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == sm.id)
+        doc_res = await db.execute(doc_query)
+        docs = doc_res.scalars().all()
+        doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+
+        company = "협력 도급사"
+        site_name_val = f"{sm.name}의 현장"
+        biz_no = "미등록"
+        address_val = "현장 주소 미등록"
+
+        if sm.site_profile:
+            if sm.site_profile.company_name:
+                company = sm.site_profile.company_name
+            if sm.site_profile.site_name:
+                site_name_val = sm.site_profile.site_name
+            if sm.site_profile.business_number:
+                biz_no = sm.site_profile.business_number
+
+        if sm.construction_sites:
+            first_site = sm.construction_sites[0]
+            if first_site.site_address:
+                address_val = first_site.site_address
+
+        response_list.append({
+            "id": sm.id,
+            "type": "현장관리자 가입",
+            "name": sm.name,
+            "phone_number": sm.phone_number,
+            "docs": doc_summary or "미제출",
+            "created_at": sm.created_at,
+            "company_name": company,
+            "site_name": site_name_val,
+            "business_number": biz_no,
+            "address": address_val
+        })
+
+    # 하차지 관리자 중 아직 미승인(is_approved = False) 유저 검색 (drop_off_profile 및 drop_offs 조인)
+    dropoff_query = select(User).options(selectinload(User.drop_off_profile), selectinload(User.drop_offs)).where(User.is_drop_off == True, User.is_approved == False)
+    dropoff_res = await db.execute(dropoff_query)
+    dropoff_managers = dropoff_res.scalars().all()
+
+    for dm in dropoff_managers:
+        if dm.is_admin:
+            continue
+
+        doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == dm.id)
+        doc_res = await db.execute(doc_query)
+        docs = doc_res.scalars().all()
+        doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+
+        company = "개인지주"
+        location_val = f"{dm.name}의 하차지"
+        permit_no = "미등록"
+        address_val = "하차지 주소 미등록"
+        capacity_val = "80,000 ㎥" # 기본값
+
+        if dm.drop_off_profile:
+            if dm.drop_off_profile.location_name:
+                location_val = dm.drop_off_profile.location_name
+                company = dm.drop_off_profile.location_name + " 유한회사"
+            if dm.drop_off_profile.permit_number:
+                permit_no = dm.drop_off_profile.permit_number
+            if dm.drop_off_profile.address:
+                address_val = dm.drop_off_profile.address
+
+        if dm.drop_offs:
+            first_do = dm.drop_offs[0]
+            if first_do.address:
+                address_val = first_do.address
+            if first_do.permit_number:
+                permit_no = first_do.permit_number
+
+        response_list.append({
+            "id": dm.id,
+            "type": "하차지 가입",
+            "name": dm.name,
+            "phone_number": dm.phone_number,
+            "docs": doc_summary or "미제출",
+            "created_at": dm.created_at,
+            "company_name": company,
+            "location_name": location_val,
+            "permit_number": permit_no,
+            "address": address_val,
+            "capacity": capacity_val
+        })
         
     return response_list
 
@@ -815,7 +1049,7 @@ async def approve_member(
             driver.is_approved = True
             driver.reject_reason = None
             
-    if user.is_owner:
+    if user.is_owner or user.is_site_manager or user.is_drop_off:
         user.is_approved = True
         user.reject_reason = None
         
@@ -853,7 +1087,7 @@ async def reject_member(
             driver.is_approved = False
             driver.reject_reason = reject_reason
             
-    if user.is_owner:
+    if user.is_owner or user.is_site_manager or user.is_drop_off:
         user.is_approved = False
         user.reject_reason = reject_reason
         
