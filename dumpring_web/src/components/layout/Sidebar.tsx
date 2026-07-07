@@ -207,9 +207,17 @@ export default function Sidebar() {
               </div>
               <div>
                 <div className="font-semibold text-sm text-gray-800 dark:text-gray-200">{user.name}</div>
-                <div className="text-[11px] text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2.5 py-0.5 rounded-full inline-block mt-0.5 border border-brand-100 dark:border-brand-500/20">
-                  {user.roleName}
-                </div>
+                <select
+                  value={user.role}
+                  onChange={(e) => changeRole(e.target.value as any)}
+                  className="text-[11px] text-brand-600 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2 py-0.5 rounded-lg mt-1 border border-brand-150 dark:border-brand-500/20 focus:outline-none cursor-pointer"
+                >
+                  <option value="platform_admin">🔧 플랫폼 관리자</option>
+                  <option value="site_manager">🚧 현장 관리자</option>
+                  <option value="dropoff_manager">🚚 하차지 관리자</option>
+                  <option value="owner">🚛 차주 / 운송사</option>
+                  <option value="developer">💻 개발자 (관제)</option>
+                </select>
               </div>
             </div>
             

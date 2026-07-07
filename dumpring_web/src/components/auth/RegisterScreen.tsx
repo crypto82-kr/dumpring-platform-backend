@@ -94,7 +94,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
         }, 3000);
       } else {
         const err = await res.json();
-        setErrorMsg(err.message || "회원가입 중 에러가 발생했습니다. 입력 정보를 확인해 주세요.");
+        setErrorMsg(err.detail || err.message || "회원가입 중 에러가 발생했습니다. 입력 정보를 확인해 주세요.");
       }
     } catch (e) {
       setErrorMsg("인증 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.");
