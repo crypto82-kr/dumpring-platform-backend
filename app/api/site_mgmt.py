@@ -783,6 +783,13 @@ async def get_admin_sites(
         sp = sp_res.scalars().first()
         site_name_val = sp.site_name if (sp and sp.site_name) else site.company_name
         
+        # 실제 개설자의 연락처와 이름을 조회
+        user_query = select(User).where(User.id == site.user_id)
+        user_res = await db.execute(user_query)
+        creator = user_res.scalars().first()
+        
+        contact_info = f"{creator.name} ({creator.phone_number})" if creator else "지정 대기"
+        
         response.append(
             AdminSiteResponse(
                 id=site.id,
@@ -794,7 +801,7 @@ async def get_admin_sites(
                 latitude=site.latitude,
                 longitude=site.longitude,
                 geofencing_radius=site.geofencing_radius,
-                billing_email=site.billing_email,
+                billing_email=contact_info,
                 road_desc="정문 차단기 통과 후 진입"
             )
         )
@@ -859,6 +866,8 @@ async def create_admin_site(
     await db.commit()
     await db.refresh(site)
     
+    contact_info = f"{current_user.name} ({current_user.phone_number})"
+    
     return AdminSiteResponse(
         id=site.id,
         site_name=data.site_name,
@@ -869,7 +878,7 @@ async def create_admin_site(
         latitude=site.latitude,
         longitude=site.longitude,
         geofencing_radius=site.geofencing_radius,
-        billing_email=site.billing_email,
+        billing_email=contact_info,
         road_desc="정문 차단기 통과 후 진입"
     )
 
@@ -922,7 +931,12 @@ async def update_admin_site(
     await db.commit()
     await db.refresh(site)
     
-    site_name_val = sp.site_name if sp else (data.site_name or site.company_name)
+    # 실제 개설자의 연락처와 이름을 조회
+    user_query = select(User).where(User.id == site.user_id)
+    user_res = await db.execute(user_query)
+    creator = user_res.scalars().first()
+    
+    contact_info = f"{creator.name} ({creator.phone_number})" if creator else "지정 대기"
     
     return AdminSiteResponse(
         id=site.id,
@@ -934,7 +948,7 @@ async def update_admin_site(
         latitude=site.latitude,
         longitude=site.longitude,
         geofencing_radius=site.geofencing_radius,
-        billing_email=site.billing_email,
+        billing_email=contact_info,
         road_desc="정문 차단기 통과 후 진입"
     )
 
