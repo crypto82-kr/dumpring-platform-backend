@@ -313,65 +313,7 @@ export default function Sidebar() {
         </nav>
       </div>
 
-      {/* Role Quick Selector at Footer */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.02] transition-colors">
-        <div className="text-[11px] font-bold text-gray-450 dark:text-gray-500 mb-2.5 flex items-center gap-1.5 px-1">
-          <RefreshCw className="w-3 h-3 animate-spin-slow text-brand-500" />
-          <span>권한 빠른 시뮬레이션</span>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-          <button
-            onClick={() => changeRole("platform_admin")}
-            className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
-              user.role === "platform_admin"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            플랫폼 관리자
-          </button>
-          <button
-            onClick={() => changeRole("site_manager")}
-            className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
-              user.role === "site_manager"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            현장 관리자
-          </button>
-          <button
-            onClick={() => changeRole("dropoff_manager")}
-            className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
-              user.role === "dropoff_manager"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            하차지 관리자
-          </button>
-          <button
-            onClick={() => changeRole("owner")}
-            className={`px-2 py-1.5 rounded-lg border text-left font-medium transition-colors ${
-              user.role === "owner"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            차주/운송사
-          </button>
-          <button
-            onClick={() => changeRole("developer")}
-            className={`col-span-2 px-2 py-1.5 rounded-lg border text-center font-medium transition-colors ${
-              user.role === "developer"
-                ? "bg-brand-50 border-brand-200 text-brand-500 dark:bg-brand-500/10 dark:border-brand-500/20 dark:text-brand-400"
-                : "bg-white dark:bg-black border-gray-200 dark:border-gray-800 text-gray-650 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-            }`}
-          >
-            시스템 개발자 (Developer)
-          </button>
-        </div>
-      </div>
+      {/* Sidebar Footer space */}
     </aside>
     </>
   );
