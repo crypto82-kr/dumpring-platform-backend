@@ -41,6 +41,16 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
     }, 1000);
   };
 
+  const getApiBaseUrl = () => {
+    if (typeof window !== "undefined") {
+      if (window.location.hostname.includes("vercel.app") || !window.location.hostname.includes("localhost")) {
+        return "https://dumpring-api.onrender.com";
+      }
+    }
+    return "http://localhost:8000";
+  };
+  const API_BASE_URL = getApiBaseUrl();
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
@@ -74,7 +84,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/pre-register", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/pre-register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -14,6 +14,17 @@ export default function Home() {
   const { user, changeRole, activePath, setActivePath } = useAuth();
   const [inputText, setInputText] = useState("");
 
+  const getApiBaseUrl = () => {
+    if (typeof window !== "undefined") {
+      if (window.location.hostname.includes("vercel.app") || !window.location.hostname.includes("localhost")) {
+        return "https://dumpring-api.onrender.com";
+      }
+    }
+    return "http://localhost:8000";
+  };
+  const API_BASE_URL = getApiBaseUrl();
+
+
   useEffect(() => {
     if (activePath === "/admin/approve-driver") {
       setApprovalTab("driver");
@@ -95,7 +106,7 @@ export default function Home() {
   const fetchCommonCodes = async () => {
     setIsCodesLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/common-codes");
+      const res = await fetch(`${API_BASE_URL}/api/common-codes`);
       if (res.ok) {
         const data = await res.json();
         setDbCommonCodes(data);
@@ -110,7 +121,7 @@ export default function Home() {
   const fetchPendingMembers = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch("http://localhost:8000/api/auth/admin/pending-members", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/pending-members`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -180,7 +191,7 @@ export default function Home() {
   const fetchRegisteredSites = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch("http://localhost:8000/api/sites/admin-sites", {
+      const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -213,7 +224,7 @@ export default function Home() {
   const handleCreateSite = async (siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch("http://localhost:8000/api/sites/admin-sites", {
+      const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -241,7 +252,7 @@ export default function Home() {
   const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:8000/api/sites/admin-sites/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -268,7 +279,7 @@ export default function Home() {
   const handleDeleteSite = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:8000/api/sites/admin-sites/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites/${id}`, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`
