@@ -50,7 +50,6 @@ export function MockMap({ title, address, pinned, onPinClick }: MockMapProps) {
       </div>
       <div className="text-[10px] text-slate-500 flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200">
         <span>* 진로 진입 시 차량의 상세 위경도 데이터를 안내합니다.</span>
-        <button type="button" className="text-blue-600 font-bold hover:underline">상세 지도 앱 열기</button>
       </div>
     </div>
   );
