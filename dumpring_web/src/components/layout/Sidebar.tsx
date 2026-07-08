@@ -125,7 +125,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
 };
 
 export default function Sidebar() {
-  const { user, changeRole, activePath, setActivePath, isSidebarOpen, setIsSidebarOpen } = useAuth();
+  const { user, changeRole, activePath, setActivePath, isSidebarOpen, setIsSidebarOpen, logout } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ "승인 관리": true });
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -211,16 +211,26 @@ export default function Sidebar() {
 
         {/* Current Active User Profile info */}
         <div className="m-4 p-4 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 flex flex-col gap-2">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center font-bold text-sm text-brand-500 font-sans">
-              {user.name[0]}
-            </div>
-            <div>
-              <div className="font-semibold text-sm text-gray-800 dark:text-gray-200">{user.name}</div>
-              <div className="text-[11px] text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2.5 py-0.5 rounded-full inline-block mt-0.5 border border-brand-100 dark:border-brand-500/20">
-                {user.roleName}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center font-bold text-sm text-brand-500 font-sans">
+                {user.name ? user.name[0] : "U"}
+              </div>
+              <div>
+                <div className="font-semibold text-sm text-gray-800 dark:text-gray-200">{user.name}</div>
+                <div className="text-[11px] text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2.5 py-0.5 rounded-full inline-block mt-0.5 border border-brand-100 dark:border-brand-500/20">
+                  {user.roleName}
+                </div>
               </div>
             </div>
+            {/* Logout button */}
+            <button
+              onClick={logout}
+              className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors active:scale-95 animate-fadeIn"
+              title="로그아웃"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
