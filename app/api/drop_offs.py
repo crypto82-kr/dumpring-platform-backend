@@ -58,7 +58,6 @@ async def create_drop_off(
         radius_meter=data.radius_meter,
         permit_number=data.permit_number,
         capacity=data.capacity,
-        soil_deal_type=data.soil_deal_type or "sell",
         status="ACTIVE"
     )
     db.add(new_dropoff)

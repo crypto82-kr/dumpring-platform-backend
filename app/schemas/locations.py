@@ -24,7 +24,6 @@ class DropOffCreate(BaseModel):
     radius_meter: float = Field(200.0, description="도착 감지 반경 (기본 200m)")
     permit_number: str = Field(..., description="인허가번호")
     capacity: Optional[int] = Field(80000, description="허용 용량")
-    soil_deal_type: Optional[str] = Field("sell", description="토사 거래 방식 구분 (sell, buy, free)")
 
 
 class SiteResponse(BaseModel):
@@ -57,7 +56,6 @@ class DropOffResponse(BaseModel):
     permit_number: str
     status: str
     capacity: Optional[int] = 80000
-    soil_deal_type: Optional[str] = "sell"
 
     class Config:
         from_attributes = True
@@ -77,7 +75,6 @@ class DropOffUpdate(BaseModel):
     permit_number: Optional[str] = Field(None, description="인허가번호")
     status: Optional[str] = Field(None, description="상태 (ACTIVE, PAUSED 등)")
     capacity: Optional[int] = Field(None, description="허용 용량")
-    soil_deal_type: Optional[str] = Field(None, description="토사 거래 방식 구분")
 
 
 class SiteUpdate(BaseModel):

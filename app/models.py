@@ -349,7 +349,6 @@ class DropOff(Base):
     permit_number = Column(String, nullable=False)  # 인허가번호
     status = Column(String, default="ACTIVE", nullable=False)  # 상태 (기본 'ACTIVE')
     capacity = Column(Integer, default=80000, nullable=True)  # 허용 매립 용량 (㎥)
-    soil_deal_type = Column(String, default="sell", nullable=False)  # 토사 거래 방식 구분 ('sell', 'buy', 'free')
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
