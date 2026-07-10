@@ -57,6 +57,8 @@ async def create_drop_off(
         longitude=data.longitude,
         radius_meter=data.radius_meter,
         permit_number=data.permit_number,
+        capacity=data.capacity,
+        soil_deal_type=data.soil_deal_type or "sell",
         status="ACTIVE"
     )
     db.add(new_dropoff)
@@ -125,7 +127,9 @@ async def update_drop_off(
         )
 
     update_dict = data.dict(exclude_unset=True)
+    print("====== UPDATE DROPOFF PAYLOAD ======", update_dict)
     for key, value in update_dict.items():
+        print(f"Setting key {key} to {value}")
         setattr(dropoff, key, value)
 
     await db.commit()
