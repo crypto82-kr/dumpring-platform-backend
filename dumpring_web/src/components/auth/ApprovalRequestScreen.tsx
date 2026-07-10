@@ -7,16 +7,6 @@ import { MapPin, Truck, ShieldCheck, AlertCircle, Loader2, Check, RefreshCw, Log
 export default function ApprovalRequestScreen() {
   const { user, logout, updateApprovalStatus } = useAuth();
   
-  const getApiBaseUrl = () => {
-    if (typeof window !== "undefined") {
-      if (window.location.hostname.includes("vercel.app") || !window.location.hostname.includes("localhost")) {
-        return "https://dumpring-api.onrender.com";
-      }
-    }
-    return "http://localhost:8000";
-  };
-  const API_BASE_URL = getApiBaseUrl();
-
   // 폼 입력 상태
   const [companyName, setCompanyName] = useState("");
   const [siteName, setSiteName] = useState("");
@@ -70,7 +60,7 @@ export default function ApprovalRequestScreen() {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/api/auth/member-status`, {
+      const res = await fetch("http://localhost:8000/api/auth/member-status", {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Cache-Control": "no-cache",
@@ -122,7 +112,7 @@ export default function ApprovalRequestScreen() {
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/api/auth/upload-document`, {
+      const res = await fetch("http://localhost:8000/api/auth/upload-document", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -244,7 +234,7 @@ export default function ApprovalRequestScreen() {
         body.is_direct_driver = isDirectDriver;
       }
 
-      const res = await fetch(`${API_BASE_URL}/api/auth/submit-approval`, {
+      const res = await fetch("http://localhost:8000/api/auth/submit-approval", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

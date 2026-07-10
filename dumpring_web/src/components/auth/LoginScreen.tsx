@@ -13,16 +13,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
 
-  const getApiBaseUrl = () => {
-    if (typeof window !== "undefined") {
-      if (window.location.hostname.includes("vercel.app") || !window.location.hostname.includes("localhost")) {
-        return "https://dumpring-api.onrender.com";
-      }
-    }
-    return "http://localhost:8000";
-  };
-  const API_BASE_URL = getApiBaseUrl();
-
   const handleLogin = async (phone: string, pass: string) => {
     if (!phone || !pass) {
       setErrorMsg("휴대폰 번호와 비밀번호를 입력해 주세요.");
@@ -32,7 +22,7 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const res = await fetch("http://localhost:8000/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

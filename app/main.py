@@ -36,6 +36,7 @@ async def startup_event():
     logger.info("덤프링 플랫폼 백엔드 구동 시동 및 테이블 생성...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        pass
         
     logger.info("덤프 기사 및 차주 필수 서류 마스터 공통코드 시딩(Seeding)...")
     async with SessionLocal() as db:
@@ -281,4 +282,5 @@ async def websocket_endpoint(websocket: WebSocket, taxi_id: str):
         # 끊김 알림 브로드캐스트 등 추가 비즈니스 로직 작성 가능
     except Exception as e:
         logger.error(f"WebSocket 에러 발생 ({taxi_id}): {str(e)}")
-        manager.disconnect(websocket)
+# WebSocket endpoint for real-time truck tracking and taximeter simulation.
+# Force reload token: 2026-07-01T15:45

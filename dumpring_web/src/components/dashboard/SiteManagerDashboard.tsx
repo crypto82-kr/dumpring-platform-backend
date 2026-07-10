@@ -387,8 +387,8 @@ export function SiteManagerDashboard({
                         <div className="text-xs font-semibold text-slate-650 mt-0.5">{selectedSite.roadDesc || "등록된 가이드가 없습니다."}</div>
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">담당자 연락처</span>
-                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedSite.managers?.join(", ") || "지정 대기"}</div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">담당 연락처 / 이메일</span>
+                        <div className="text-xs font-semibold text-slate-600 mt-0.5">{selectedSite.managers?.join(", ") || "지정 대기"}</div>
                       </div>
                     </div>
                   </div>
@@ -507,12 +507,12 @@ export function SiteManagerDashboard({
                   </div>
 
                   <div className="space-y-1.5 col-span-1">
-                    <label className="text-slate-700 font-bold block">담당자 연락처 (성명/연락처)</label>
+                    <label className="text-slate-700 font-bold block">담당자 이메일 / 명단 (쉼표 구분)</label>
                     <input
                       type="text"
                       value={siteFormManagers}
                       onChange={(e) => setSiteFormManagers(e.target.value)}
-                      placeholder="예: 홍길동 (010-1234-5678)"
+                      placeholder="예: billing@dumpring.com"
                       className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
                     />
                   </div>

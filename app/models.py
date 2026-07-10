@@ -58,6 +58,7 @@ class ConstructionSite(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # 현장을 개설한 마스터 관리자
     company_name = Column(String, nullable=False)  # 건설사/상호명 (예: 현대건설)
+    site_name = Column(String, nullable=True)  # 현장명 (예: 검단 3공구 신축공사)
     business_number = Column(String, nullable=False)  # 사업자등록번호 (세금계산서 발행용)
     billing_email = Column(String, nullable=False)  # 세금계산서용 이메일
     site_key = Column(String, unique=True, nullable=True, index=True)  # 현장 구분용 고유 키 (예: SITE-A1B2C3)

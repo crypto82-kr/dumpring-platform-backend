@@ -471,521 +471,154 @@ async def get_my_unloading_sites(
     return sites
 
 
-from app.schemas.locations import SiteUpdate
+# --- B2B ConstructionSite CRUD APIs for Admin/Managers ---
 
-@router.patch(
-    "/{site_id}",
-    response_model=SiteSearchResponse,
-    summary="공사현장 정보 수정",
-    description="현장관리자가 자신이 개설한 공사현장의 세부 정보(건설사명/현장명, 사업자번호, 주소, GPS 좌표, 반경)를 수정합니다."
+class ConstructionSiteDetailResponse(BaseModel):
+    id: int
+    user_id: int
+    company_name: str
+    site_name: Optional[str] = None
+    business_number: str
+    billing_email: str
+    site_key: Optional[str]
+    site_address: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    geofencing_radius: float
+
+    class Config:
+        from_attributes = True
+
+
+class UpdateSiteRequest(BaseModel):
+    company_name: Optional[str] = None
+    site_name: Optional[str] = None
+    business_number: Optional[str] = None
+    site_address: Optional[str] = None
+    billing_email: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    geofencing_radius: Optional[float] = None
+
+
+@router.get(
+    "/admin-sites",
+    response_model=List[ConstructionSiteDetailResponse],
+    summary="[어드민/현장관리자] 전체 공사현장 목록 조회"
 )
-async def update_site(
-    site_id: int,
-    data: SiteUpdate,
+async def list_all_sites(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager and not current_user.is_site_worker:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자(소장님) 또는 현장담당자만 현장 정보를 수정할 수 있습니다."
-        )
-
-    # 현장 조회
-    query = select(ConstructionSite).where(ConstructionSite.id == site_id)
+    # 플랫폼 어드민인 경우 전체 현장 리턴
+    if current_user.is_admin:
+        query = select(ConstructionSite)
+        result = await db.execute(query)
+        sites = result.scalars().all()
+        return sites
+        
+    # 현장 관리자/담당자인 경우 본인이 속해(매핑)되어 있는 현장만 리턴
+    # 1. 본인이 생성한 현장 (ConstructionSite.user_id == current_user.id)
+    # 2. 혹은 매핑 테이블(SiteUserMapping)을 통해 매핑된 현장 중 APPROVED 상태인 것
+    mapped_query = select(SiteUserMapping.site_id).where(
+        SiteUserMapping.user_id == current_user.id,
+        SiteUserMapping.status == SiteUserStatus.APPROVED
+    )
+    mapped_result = await db.execute(mapped_query)
+    mapped_site_ids = mapped_result.scalars().all()
+    
+    query = select(ConstructionSite).where(
+        (ConstructionSite.user_id == current_user.id) | 
+        (ConstructionSite.id.in_(mapped_site_ids))
+    )
     result = await db.execute(query)
-    site = result.scalars().first()
-
-    if not site:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="공사현장을 찾을 수 없습니다."
-        )
-
-    if site.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인이 개설한 공사현장만 수정할 수 있습니다."
-        )
-
-    # 데이터 업데이트
-    update_data = data.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(site, key, value)
-
-    await db.commit()
-    await db.refresh(site)
-
-    return SiteSearchResponse(
-        id=site.id,
-        site_name=site.company_name,
-        company_name=site.company_name,
-        business_number=site.business_number,
-        site_key=site.site_key or "",
-        site_address=site.site_address,
-        latitude=site.latitude,
-        longitude=site.longitude,
-        geofencing_radius=site.geofencing_radius
-    )
-
-
-from app.models import SiteEmployee
-from app.schemas.site_mgmt import SiteEmployeeCreate, SiteEmployeeResponse
-
-@router.get(
-    "/{site_id}/employees",
-    response_model=List[SiteEmployeeResponse],
-    summary="공사현장의 소속 직원 목록 조회",
-    description="현장관리자 전용 기능: 해당 현장에 소속되거나 선등록된 직원 목록을 조회합니다."
-)
-async def get_site_employees(
-    site_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    # 권한 검사: 현재 사용자가 해당 현장에 승인된 관리자 또는 담당자/소장인지 확인
-    check_query = select(SiteUserMapping).where(
-        SiteUserMapping.site_id == site_id,
-        SiteUserMapping.user_id == current_user.id,
-        SiteUserMapping.status == SiteUserStatus.APPROVED
-    )
-    check_result = await db.execute(check_query)
-    is_manager = check_result.scalars().first()
-
-    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 직원 목록을 조회할 수 있습니다."
-        )
-
-    # SiteEmployee 조회
-    emp_query = select(SiteEmployee).where(SiteEmployee.site_id == site_id)
-    emp_result = await db.execute(emp_query)
-    employees = emp_result.scalars().all()
-
-    response_list = []
-    for emp in employees:
-        user_name = "가입 대기"
-        status_str = "가입 대기"
-        if emp.user_id:
-            user_query = select(User).where(User.id == emp.user_id)
-            user_result = await db.execute(user_query)
-            user_obj = user_result.scalars().first()
-            if user_obj:
-                user_name = user_obj.name
-                status_str = "가입 완료"
-
-        response_list.append(
-            SiteEmployeeResponse(
-                id=emp.id,
-                site_id=emp.site_id,
-                registered_phone=emp.registered_phone,
-                employee_role=emp.employee_role,
-                user_id=emp.user_id,
-                name=user_name,
-                status=status_str
-            )
-        )
-    return response_list
-
-
-@router.post(
-    "/{site_id}/employees",
-    response_model=SiteEmployeeResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="공사현장에 신규 직원 선등록",
-    description="현장관리자 전용 기능: 해당 현장에 소속될 직원을 휴대폰 번호로 선등록합니다."
-)
-async def register_site_employee(
-    site_id: int,
-    data: SiteEmployeeCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    # 권한 검사
-    check_query = select(SiteUserMapping).where(
-        SiteUserMapping.site_id == site_id,
-        SiteUserMapping.user_id == current_user.id,
-        SiteUserMapping.status == SiteUserStatus.APPROVED
-    )
-    check_result = await db.execute(check_query)
-    is_manager = check_result.scalars().first()
-
-    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 직원을 선등록할 수 있습니다."
-        )
-
-    # 중복 등록 확인
-    exist_query = select(SiteEmployee).where(
-        SiteEmployee.site_id == site_id,
-        SiteEmployee.registered_phone == data.phone_number
-    )
-    exist_result = await db.execute(exist_query)
-    existing_emp = exist_result.scalars().first()
-    if existing_emp:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="이미 이 현장에 등록되어 있는 휴대폰 번호입니다."
-        )
-
-    # 해당 휴대폰 번호의 기 가입 유저가 있는지 체크
-    user_query = select(User).where(User.phone_number == data.phone_number)
-    user_result = await db.execute(user_query)
-    matched_user = user_result.scalars().first()
-
-    target_user_id = None
-    user_name = "가입 대기"
-    status_str = "가입 대기"
-
-    if matched_user:
-        target_user_id = matched_user.id
-        user_name = matched_user.name
-        status_str = "가입 완료"
-        
-        # 기 가입 유저인 경우 현장직원(is_site_worker) 권한 설정 보장
-        matched_user.is_site_worker = True
-        
-        # 현장과 매핑 자동 생성 (APPROVED 상태)
-        map_query = select(SiteUserMapping).where(
-            SiteUserMapping.site_id == site_id,
-            SiteUserMapping.user_id == matched_user.id
-        )
-        map_res = await db.execute(map_query)
-        existing_map = map_res.scalars().first()
-        if not existing_map:
-            new_map = SiteUserMapping(
-                site_id=site_id,
-                user_id=matched_user.id,
-                status=SiteUserStatus.APPROVED
-            )
-            db.add(new_map)
-        else:
-            existing_map.status = SiteUserStatus.APPROVED
-
-    new_emp = SiteEmployee(
-        site_id=site_id,
-        user_id=target_user_id,
-        registered_phone=data.phone_number,
-        employee_role=data.employee_role
-    )
-    db.add(new_emp)
-    await db.commit()
-    await db.refresh(new_emp)
-
-    return SiteEmployeeResponse(
-        id=new_emp.id,
-        site_id=new_emp.site_id,
-        registered_phone=new_emp.registered_phone,
-        employee_role=new_emp.employee_role,
-        user_id=new_emp.user_id,
-        name=user_name,
-        status=status_str
-    )
-
-
-@router.delete(
-    "/{site_id}/employees/{employee_id}",
-    summary="공사현장 소속 직원 삭제/해제",
-    description="현장관리자 전용 기능: 해당 현장에서 소속된 직원을 해제(삭제)합니다."
-)
-async def delete_site_employee(
-    site_id: int,
-    employee_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    # 권한 검사
-    check_query = select(SiteUserMapping).where(
-        SiteUserMapping.site_id == site_id,
-        SiteUserMapping.user_id == current_user.id,
-        SiteUserMapping.status == SiteUserStatus.APPROVED
-    )
-    check_result = await db.execute(check_query)
-    is_manager = check_result.scalars().first()
-
-    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 직원을 해제할 수 있습니다."
-        )
-
-    # 직원 조회
-    emp_query = select(SiteEmployee).where(
-        SiteEmployee.id == employee_id,
-        SiteEmployee.site_id == site_id
-    )
-    emp_result = await db.execute(emp_query)
-    employee = emp_result.scalars().first()
-
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="해당 현장 직원을 찾을 수 없습니다."
-        )
-
-    # 만약 유저가 매핑되어 있었다면 현장 매핑 삭제 또는 상태 해제
-    if employee.user_id:
-        map_query = select(SiteUserMapping).where(
-            SiteUserMapping.site_id == site_id,
-            SiteUserMapping.user_id == employee.user_id
-        )
-        map_res = await db.execute(map_query)
-        mapping = map_res.scalars().first()
-        if mapping:
-            await db.delete(mapping)
-
-    await db.delete(employee)
-    await db.commit()
-
-    return {"message": "성공적으로 현장 직원이 소속 해제되었습니다."}
-
-
-@router.get(
-    "/admin-sites",
-    response_model=List[AdminSiteResponse],
-    summary="[프론트 전용] 현장관리자 본인의 개설/소속 공사현장 목록 조회"
-)
-async def get_admin_sites(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    if not current_user.is_site_manager and not current_user.is_site_worker:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자 또는 현장담당자 권한이 필요합니다."
-        )
-    # 1. 사용자가 직접 생성한 현장들 조회
-    query_created = select(ConstructionSite).where(ConstructionSite.user_id == current_user.id)
-    res_created = await db.execute(query_created)
-    created_sites = res_created.scalars().all()
-    
-    # 2. 사용자가 매핑된 현장들 조회
-    query_mapped = select(ConstructionSite).join(
-        SiteUserMapping, SiteUserMapping.site_id == ConstructionSite.id
-    ).where(
-        SiteUserMapping.user_id == current_user.id,
-        SiteUserMapping.status == SiteUserStatus.APPROVED
-    )
-    res_mapped = await db.execute(query_mapped)
-    mapped_sites = res_mapped.scalars().all()
-    
-    # 중복 제거 (ID 기준)
-    all_sites_dict = {s.id: s for s in created_sites + mapped_sites}
-    all_sites = list(all_sites_dict.values())
-    
-    response = []
-    for site in all_sites:
-        # 해당 현장 개설자의 SiteProfile을 조회하여 site_name을 가져옴
-        sp_query = select(SiteProfile).where(SiteProfile.user_id == site.user_id)
-        sp_res = await db.execute(sp_query)
-        sp = sp_res.scalars().first()
-        site_name_val = sp.site_name if (sp and sp.site_name) else site.company_name
-        
-        # 실제 개설자의 연락처와 이름을 조회
-        user_query = select(User).where(User.id == site.user_id)
-        user_res = await db.execute(user_query)
-        creator = user_res.scalars().first()
-        
-        contact_info = f"{creator.name} ({creator.phone_number})" if creator else "지정 대기"
-        
-        response.append(
-            AdminSiteResponse(
-                id=site.id,
-                site_name=site_name_val,
-                company_name=site.company_name,
-                business_number=site.business_number,
-                site_key=site.site_key or "",
-                site_address=site.site_address,
-                latitude=site.latitude,
-                longitude=site.longitude,
-                geofencing_radius=site.geofencing_radius,
-                billing_email=contact_info,
-                road_desc="정문 차단기 통과 후 진입"
-            )
-        )
-    return response
+    sites = result.scalars().all()
+    return sites
 
 
 @router.post(
     "/admin-sites",
-    response_model=AdminSiteResponse,
-    summary="[프론트 전용] 신규 현장 개설"
+    response_model=ConstructionSiteDetailResponse,
+    summary="[어드민/현장관리자] 신규 공사현장 등록"
 )
-async def create_admin_site(
-    data: AdminSiteCreateRequest,
+async def admin_create_site(
+    data: CreateSiteRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager and not current_user.is_site_worker:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자 또는 현장담당자만 현장을 개설할 수 있습니다."
-        )
-    
     site_key = uuid.uuid4().hex[:6].upper()
     site = ConstructionSite(
         user_id=current_user.id,
         company_name=data.company_name,
+        site_name=data.site_name,
         business_number=data.business_number,
         site_key=site_key,
         site_address=data.site_address,
-        latitude=37.5665,
-        longitude=126.9780,
+        latitude=data.latitude or 37.5665,
+        longitude=data.longitude or 126.9780,
         geofencing_radius=data.geofencing_radius,
         billing_email=f"billing@{current_user.phone_number}.com"
     )
     db.add(site)
-    await db.flush()
-    
-    # 유저의 SiteProfile 에도 반영 (기존에 있으면 업데이트, 없으면 생성)
-    sp_query = select(SiteProfile).where(SiteProfile.user_id == current_user.id)
-    sp_res = await db.execute(sp_query)
-    sp = sp_res.scalars().first()
-    if not sp:
-        sp = SiteProfile(
-            user_id=current_user.id,
-            company_name=data.company_name,
-            site_name=data.site_name,
-            business_number=data.business_number
-        )
-        db.add(sp)
-    else:
-        sp.site_name = data.site_name
-        sp.company_name = data.company_name
-        sp.business_number = data.business_number
-        
-    # 매핑 생성
-    mapping = SiteUserMapping(
-        site_id=site.id,
-        user_id=current_user.id,
-        status=SiteUserStatus.APPROVED
-    )
-    db.add(mapping)
     await db.commit()
     await db.refresh(site)
-    
-    contact_info = f"{current_user.name} ({current_user.phone_number})"
-    
-    return AdminSiteResponse(
-        id=site.id,
-        site_name=data.site_name,
-        company_name=site.company_name,
-        business_number=site.business_number,
-        site_key=site.site_key or "",
-        site_address=site.site_address,
-        latitude=site.latitude,
-        longitude=site.longitude,
-        geofencing_radius=site.geofencing_radius,
-        billing_email=contact_info,
-        road_desc="정문 차단기 통과 후 진입"
-    )
+    return site
 
 
 @router.put(
     "/admin-sites/{site_id}",
-    response_model=AdminSiteResponse,
-    summary="[프론트 전용] 현장 정보 수정"
+    response_model=ConstructionSiteDetailResponse,
+    summary="[어드민/현장관리자] 공사현장 수정"
 )
-async def update_admin_site(
+async def update_site_detail(
     site_id: int,
-    data: AdminSiteUpdateRequest,
+    data: UpdateSiteRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager and not current_user.is_site_worker:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자 또는 현장담당자만 현장 정보를 수정할 수 있습니다."
-        )
-        
     query = select(ConstructionSite).where(ConstructionSite.id == site_id)
     result = await db.execute(query)
     site = result.scalars().first()
     if not site:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="현장을 찾을 수 없습니다."
-        )
-        
-    if site.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인이 개설한 현장만 수정할 수 있습니다."
-        )
-        
-    if data.company_name is not None: site.company_name = data.company_name
-    if data.business_number is not None: site.business_number = data.business_number
-    if data.site_address is not None: site.site_address = data.site_address
-    
-    # SiteProfile도 연쇄 업데이트
-    sp_query = select(SiteProfile).where(SiteProfile.user_id == site.user_id)
-    sp_res = await db.execute(sp_query)
-    sp = sp_res.scalars().first()
-    if sp:
-        if data.site_name is not None: sp.site_name = data.site_name
-        if data.company_name is not None: sp.company_name = data.company_name
-        if data.business_number is not None: sp.business_number = data.business_number
-        
+        raise HTTPException(status_code=404, detail="해당 현장을 찾을 수 없습니다.")
+
+    if data.company_name is not None:
+        site.company_name = data.company_name
+    if data.site_name is not None:
+        site.site_name = data.site_name
+    if data.business_number is not None:
+        site.business_number = data.business_number
+    if data.site_address is not None:
+        site.site_address = data.site_address
+    if data.billing_email is not None:
+        site.billing_email = data.billing_email
+    if data.latitude is not None:
+        site.latitude = data.latitude
+    if data.longitude is not None:
+        site.longitude = data.longitude
+    if data.geofencing_radius is not None:
+        site.geofencing_radius = data.geofencing_radius
+
     await db.commit()
     await db.refresh(site)
-    
-    # 실제 개설자의 연락처와 이름을 조회
-    user_query = select(User).where(User.id == site.user_id)
-    user_res = await db.execute(user_query)
-    creator = user_res.scalars().first()
-    
-    contact_info = f"{creator.name} ({creator.phone_number})" if creator else "지정 대기"
-    
-    return AdminSiteResponse(
-        id=site.id,
-        site_name=site_name_val,
-        company_name=site.company_name,
-        business_number=site.business_number,
-        site_key=site.site_key or "",
-        site_address=site.site_address,
-        latitude=site.latitude,
-        longitude=site.longitude,
-        geofencing_radius=site.geofencing_radius,
-        billing_email=contact_info,
-        road_desc="정문 차단기 통과 후 진입"
-    )
+    return site
 
 
 @router.delete(
     "/admin-sites/{site_id}",
-    summary="[프론트 전용] 현장 삭제"
+    summary="[어드민/현장관리자] 공사현장 삭제"
 )
-async def delete_admin_site(
+async def delete_site(
     site_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager and not current_user.is_site_worker:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자 또는 현장담당자만 현장을 삭제할 수 있습니다."
-        )
-        
     query = select(ConstructionSite).where(ConstructionSite.id == site_id)
     result = await db.execute(query)
     site = result.scalars().first()
     if not site:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="현장을 찾을 수 없습니다."
-        )
-        
-    if site.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인이 개설한 현장만 삭제할 수 있습니다."
-        )
-        
+        raise HTTPException(status_code=404, detail="해당 현장을 찾을 수 없습니다.")
+
     await db.delete(site)
     await db.commit()
-    return {"message": "성공적으로 삭제되었습니다."}
-
-
-
+    return {"message": "현장이 성공적으로 삭제되었습니다."}

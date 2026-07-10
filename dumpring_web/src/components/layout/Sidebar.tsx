@@ -76,7 +76,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   site_manager: [
     { title: "현장 관리 대시보드", icon: LayoutDashboard, path: "/site" },
     { title: "현장관리자 권한 관리", icon: Users, path: "/site/org-hierarchy" },
-    { title: "현장 등록", icon: MapPin, path: "/site/request" },
+    { title: "현장 관리", icon: MapPin, path: "/site/request" },
     {
       title: "배차 관리",
       icon: Truck,
@@ -125,7 +125,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
 };
 
 export default function Sidebar() {
-  const { user, changeRole, activePath, setActivePath, isSidebarOpen, setIsSidebarOpen, logout } = useAuth();
+  const { user, changeRole, logout, activePath, setActivePath } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ "승인 관리": true });
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -172,18 +172,7 @@ export default function Sidebar() {
   };
 
   return (
-    <>
-      {/* Backdrop overlay for mobile */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-black border-r border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 flex flex-col justify-between h-screen transition-transform duration-300 ease-in-out md:sticky md:top-0 md:translate-x-0 ${
-        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-      }`}>
+    <aside className="w-72 bg-white dark:bg-black border-r border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 flex flex-col justify-between h-screen sticky top-0 transition-colors duration-250">
       <div>
         {/* Logo / Header with Dark Mode Toggle */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
@@ -211,22 +200,31 @@ export default function Sidebar() {
 
         {/* Current Active User Profile info */}
         <div className="m-4 p-4 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center font-bold text-sm text-brand-500 font-sans">
-                {user.name ? user.name[0] : "U"}
+                {user.name[0]}
               </div>
               <div>
                 <div className="font-semibold text-sm text-gray-800 dark:text-gray-200">{user.name}</div>
-                <div className="text-[11px] text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2.5 py-0.5 rounded-full inline-block mt-0.5 border border-brand-100 dark:border-brand-500/20">
-                  {user.roleName}
-                </div>
+                <select
+                  value={user.role}
+                  onChange={(e) => changeRole(e.target.value as any)}
+                  className="text-[11px] text-brand-600 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-500/15 px-2 py-0.5 rounded-lg mt-1 border border-brand-150 dark:border-brand-500/20 focus:outline-none cursor-pointer"
+                >
+                  <option value="platform_admin">🔧 플랫폼 관리자</option>
+                  <option value="site_manager">🚧 현장 관리자</option>
+                  <option value="dropoff_manager">🚚 하차지 관리자</option>
+                  <option value="owner">🚛 차주 / 운송사</option>
+                  <option value="developer">💻 개발자 (관제)</option>
+                </select>
               </div>
             </div>
+            
             {/* Logout button */}
             <button
-              onClick={logout}
-              className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors active:scale-95 animate-fadeIn"
+              onClick={() => logout()}
+              className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-gray-400 transition-all active:scale-95"
               title="로그아웃"
             >
               <LogOut className="w-4 h-4" />
@@ -312,9 +310,6 @@ export default function Sidebar() {
           })}
         </nav>
       </div>
-
-      {/* Sidebar Footer space */}
     </aside>
-    </>
   );
 }

@@ -41,16 +41,6 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
     }, 1000);
   };
 
-  const getApiBaseUrl = () => {
-    if (typeof window !== "undefined") {
-      if (window.location.hostname.includes("vercel.app") || !window.location.hostname.includes("localhost")) {
-        return "https://dumpring-api.onrender.com";
-      }
-    }
-    return "http://localhost:8000";
-  };
-  const API_BASE_URL = getApiBaseUrl();
-
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
@@ -84,7 +74,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/pre-register`, {
+      const res = await fetch("http://localhost:8000/api/auth/pre-register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -104,7 +94,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
         }, 3000);
       } else {
         const err = await res.json();
-        setErrorMsg(err.message || "회원가입 중 에러가 발생했습니다. 입력 정보를 확인해 주세요.");
+        setErrorMsg(err.detail || err.message || "회원가입 중 에러가 발생했습니다. 입력 정보를 확인해 주세요.");
       }
     } catch (e) {
       setErrorMsg("인증 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.");

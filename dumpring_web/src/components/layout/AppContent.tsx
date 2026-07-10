@@ -6,8 +6,6 @@ import Sidebar from "./Sidebar";
 import LoginScreen from "../auth/LoginScreen";
 import ApprovalRequestScreen from "../auth/ApprovalRequestScreen";
 
-import MobileHeader from "./MobileHeader";
-
 export default function AppContent({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
 
@@ -27,7 +25,6 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
       
       {/* Main Content Area */}
       <main className="flex-1 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
-        <MobileHeader />
         {children}
       </main>
     </div>
