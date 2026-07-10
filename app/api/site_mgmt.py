@@ -73,37 +73,6 @@ class PendingWorkerResponse(BaseModel):
     status: str
     mapping_id: int
 
-from app.models import SiteProfile
-
-class AdminSiteResponse(BaseModel):
-    id: int
-    site_name: str
-    company_name: str
-    business_number: str
-    site_key: str
-    site_address: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    geofencing_radius: float = 200.0
-    billing_email: Optional[str] = None
-    road_desc: Optional[str] = None
-    class Config:
-        from_attributes = True
-
-class AdminSiteCreateRequest(BaseModel):
-    site_name: str
-    company_name: str
-    business_number: str
-    site_address: Optional[str] = None
-    geofencing_radius: float = 200.0
-
-class AdminSiteUpdateRequest(BaseModel):
-    site_name: Optional[str] = None
-    company_name: Optional[str] = None
-    business_number: Optional[str] = None
-    site_address: Optional[str] = None
-
-
 
 # --- Endpoints ---
 

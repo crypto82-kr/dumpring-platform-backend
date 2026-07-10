@@ -54,7 +54,7 @@ export default function ApprovalRequestScreen() {
     setErrorMsg("");
     
     try {
-      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("authToken") || localStorage.getItem("accessToken");
+      const token = sessionStorage.getItem("dumpring_token");
       if (!token) {
         setChecking(false);
         return;
@@ -63,36 +63,28 @@ export default function ApprovalRequestScreen() {
       const res = await fetch("http://localhost:8000/api/auth/member-status", {
         headers: {
           "Authorization": `Bearer ${token}`,
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache"
         },
       });
 
       if (res.ok) {
         const data = await res.json();
-        console.log("checkMemberStatus raw response data:", data);
-
+        
         // 1. 이미 승인 완료된 경우 즉시 대시보드로 유입
         if (data.is_approved) {
           updateApprovalStatus(true);
           return;
         }
-        
+
         setRejectReason(data.reject_reason || null);
         setUploadedDocs(data.uploaded_documents || []);
         setMissingDocs(data.missing_documents || []);
 
-        // 2. 백엔드에서 정보 입력 제출(is_submitted) 처리가 완전히 완료되었는지 감지
-        if (data.is_submitted) {
-          console.log("Setting isSubmitted to TRUE based on backend is_submitted status");
+        // 2. 누락된 서류가 없고 업로드 완료된 서류가 존재하면 승인 제출 완료 상태로 봄
+        if (data.missing_documents && data.missing_documents.length === 0 && data.uploaded_documents && data.uploaded_documents.length > 0) {
           setIsSubmitted(true);
-        } else {
-          console.log("Setting isSubmitted to FALSE based on backend is_submitted status");
-          setIsSubmitted(false);
         }
       }
     } catch (e) {
-      console.error("checkMemberStatus fetch error:", e);
       setErrorMsg("서버로부터 회원 상태 정보를 불러오지 못했습니다.");
     } finally {
       setChecking(false);
@@ -106,7 +98,7 @@ export default function ApprovalRequestScreen() {
     setUploadingDocCode(docCode);
 
     try {
-      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("authToken") || localStorage.getItem("accessToken");
+      const token = sessionStorage.getItem("dumpring_token");
       if (!token) {
         setErrorMsg("인증 세션이 만료되었습니다. 다시 로그인해 주세요.");
         return;
@@ -141,7 +133,7 @@ export default function ApprovalRequestScreen() {
   // 이미 프로필이 생성되어 있는지 체크하는 함수
   const checkExistingProfile = async () => {
     try {
-      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("authToken") || localStorage.getItem("accessToken");
+      const token = sessionStorage.getItem("dumpring_token");
       // profiles 조회 API가 별도로 없으므로 member-status API 결과를 활용하거나
       // user 객체의 기본 데이터를 분석합니다.
       // 가가입 유저 상태에 대해 check
@@ -152,12 +144,8 @@ export default function ApprovalRequestScreen() {
   };
 
   useEffect(() => {
-    if (user) {
-      checkMemberStatus(true);
-    }
-  }, [user]);
+    checkMemberStatus(true);
 
-  useEffect(() => {
     // Daum 우편번호 검색 스크립트 동적 로드
     const script = document.createElement("script");
     script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
@@ -199,7 +187,7 @@ export default function ApprovalRequestScreen() {
     }
 
     try {
-      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("authToken") || localStorage.getItem("accessToken");
+      const token = sessionStorage.getItem("dumpring_token");
       if (!token) {
         setErrorMsg("인증 세션이 만료되었습니다. 다시 로그인해 주세요.");
         setLoading(false);

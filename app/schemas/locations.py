@@ -23,7 +23,6 @@ class DropOffCreate(BaseModel):
     longitude: float = Field(..., description="경도")
     radius_meter: float = Field(200.0, description="도착 감지 반경 (기본 200m)")
     permit_number: str = Field(..., description="인허가번호")
-    capacity: Optional[int] = Field(80000, description="허용 용량")
 
 
 class SiteResponse(BaseModel):
@@ -55,7 +54,6 @@ class DropOffResponse(BaseModel):
     radius_meter: float
     permit_number: str
     status: str
-    capacity: Optional[int] = 80000
 
     class Config:
         from_attributes = True
@@ -74,7 +72,6 @@ class DropOffUpdate(BaseModel):
     radius_meter: Optional[float] = Field(None, description="도착 감지 반경")
     permit_number: Optional[str] = Field(None, description="인허가번호")
     status: Optional[str] = Field(None, description="상태 (ACTIVE, PAUSED 등)")
-    capacity: Optional[int] = Field(None, description="허용 용량")
 
 
 class SiteUpdate(BaseModel):

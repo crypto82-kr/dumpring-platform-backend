@@ -257,7 +257,6 @@ class DropOffProfile(Base):
     location_name = Column(String, nullable=False)  # 하차지/사토장 명칭
     address = Column(String, nullable=False)  # 하차지 상세 주소
     permit_number = Column(String, nullable=False)  # 개발행위/토사 반입 허가증 번호
-    capacity = Column(Integer, default=80000, nullable=True)  # 허용 매립 용량 (㎥)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -349,7 +348,6 @@ class DropOff(Base):
     radius_meter = Column(Float, default=200.0, nullable=False)  # 도착 감지 반경
     permit_number = Column(String, nullable=False)  # 인허가번호
     status = Column(String, default="ACTIVE", nullable=False)  # 상태 (기본 'ACTIVE')
-    capacity = Column(Integer, default=80000, nullable=True)  # 허용 매립 용량 (㎥)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
