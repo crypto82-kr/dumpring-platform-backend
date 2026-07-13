@@ -1534,6 +1534,84 @@ export function PlatformAdminDashboard({
                     </span>
                   </div>
 
+                  {/* 하차지 상세 메타정보 및 주소조회 카드 */}
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-[11px] text-slate-700 font-semibold shadow-inner">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                      <div>
+                        <span className="text-slate-400 font-medium block text-[9px] uppercase">운영사 (법인명)</span>
+                        <span className="text-slate-900 font-extrabold">{selectedDropoffForVerify.company || "개인지주 법인"}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-medium block text-[9px] uppercase">인허가 번호</span>
+                        <span className="text-slate-900 font-mono font-extrabold">{selectedDropoffForVerify.bizRegNo || "인허가증 미등록"}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-medium block text-[9px] uppercase">하차 담당 연락처</span>
+                        <span className="text-slate-900 font-mono font-extrabold">{selectedDropoffForVerify.phone || "연락처 미등록"}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-medium block text-[9px] uppercase">용량 한도 (계약량)</span>
+                        <span className="text-blue-600 font-mono font-extrabold">{selectedDropoffForVerify.capacity || "80,000 ㎥"}</span>
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-200/60 pt-2 mt-1.5 flex flex-col gap-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400 font-medium text-[9px] uppercase">상세 주소 조회 및 갱신</span>
+                        <button
+                          onClick={() => {
+                            // Load Kakao/Daum Postcode script dynamically
+                            const scriptId = "daum-postcode-script-admin";
+                            let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+                            
+                            const openPostcode = () => {
+                              if (window.daum && window.daum.Postcode) {
+                                new window.daum.Postcode({
+                                  oncomplete: (data: any) => {
+                                    const fullAddr = data.roadAddress || data.address;
+                                    // Update the address in the active dropoff list directly
+                                    setDropoffSites(prev =>
+                                      prev.map(item =>
+                                        item.id === selectedDropoffForVerify.id
+                                          ? { ...item, address: fullAddr }
+                                          : item
+                                      )
+                                    );
+                                    // Update the selected reference state as well
+                                    setSelectedDropoffForVerify((prev: any) =>
+                                      prev ? { ...prev, address: fullAddr } : null
+                                    );
+                                    alert(`주소가 [${fullAddr}]로 성공적으로 변경되었습니다.`);
+                                  }
+                                }).open();
+                              } else {
+                                alert("우편번호 서비스 스크립트가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.");
+                              }
+                            };
+
+                            if (!script) {
+                              script = document.createElement("script");
+                              script.id = scriptId;
+                              script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+                              script.async = true;
+                              script.onload = () => {
+                                setTimeout(openPostcode, 200);
+                              };
+                              document.body.appendChild(script);
+                            } else {
+                              openPostcode();
+                            }
+                          }}
+                          className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[9px] font-black rounded-lg active:scale-95 transition-all shadow-sm flex items-center gap-1"
+                        >
+                          🔍 주소조회
+                        </button>
+                      </div>
+                      <span className="text-slate-900 font-bold block bg-white px-2 py-1.5 rounded border border-slate-200/80 leading-normal">
+                        {selectedDropoffForVerify.address || "하차지 주소 미등록"}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Document Selector Tabs */}
                   <div className="flex border-b border-slate-200 text-xs">
                     <button
