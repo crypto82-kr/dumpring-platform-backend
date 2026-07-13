@@ -1554,58 +1554,8 @@ export function PlatformAdminDashboard({
                         <span className="text-blue-600 font-mono font-extrabold">{selectedDropoffForVerify.capacity || "80,000 ㎥"}</span>
                       </div>
                     </div>
-                    <div className="border-t border-slate-200/60 pt-2 mt-1.5 flex flex-col gap-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-400 font-medium text-[9px] uppercase">상세 주소 조회 및 갱신</span>
-                        <button
-                          onClick={() => {
-                            // Load Kakao/Daum Postcode script dynamically
-                            const scriptId = "daum-postcode-script-admin";
-                            let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-                            
-                            const openPostcode = () => {
-                              if (window.daum && window.daum.Postcode) {
-                                new window.daum.Postcode({
-                                  oncomplete: (data: any) => {
-                                    const fullAddr = data.roadAddress || data.address;
-                                    // Update the address in the active dropoff list directly
-                                    setDropoffSites(prev =>
-                                      prev.map(item =>
-                                        item.id === selectedDropoffForVerify.id
-                                          ? { ...item, address: fullAddr }
-                                          : item
-                                      )
-                                    );
-                                    // Update the selected reference state as well
-                                    setSelectedDropoffForVerify((prev: any) =>
-                                      prev ? { ...prev, address: fullAddr } : null
-                                    );
-                                    alert(`주소가 [${fullAddr}]로 성공적으로 변경되었습니다.`);
-                                  }
-                                }).open();
-                              } else {
-                                alert("우편번호 서비스 스크립트가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.");
-                              }
-                            };
-
-                            if (!script) {
-                              script = document.createElement("script");
-                              script.id = scriptId;
-                              script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
-                              script.async = true;
-                              script.onload = () => {
-                                setTimeout(openPostcode, 200);
-                              };
-                              document.body.appendChild(script);
-                            } else {
-                              openPostcode();
-                            }
-                          }}
-                          className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[9px] font-black rounded-lg active:scale-95 transition-all shadow-sm flex items-center gap-1"
-                        >
-                          🔍 주소조회
-                        </button>
-                      </div>
+                    <div className="border-t border-slate-200/60 pt-2 mt-1.5 flex flex-col gap-1">
+                      <span className="text-slate-400 font-medium text-[9px] uppercase">하차지 주소</span>
                       <span className="text-slate-900 font-bold block bg-white px-2 py-1.5 rounded border border-slate-200/80 leading-normal">
                         {selectedDropoffForVerify.address || "하차지 주소 미등록"}
                       </span>
