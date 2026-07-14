@@ -15,17 +15,17 @@ interface DropoffManagerDashboardProps {
   setDropoffFormSoilTypes: (val: string[]) => void;
   dropoffFormCapacity: string;
   setDropoffFormCapacity: (val: string) => void;
-  dropoffFormSoilDealType: string;
-  setDropoffFormSoilDealType: (val: string) => void;
+  dropoffFormSoilDealType: "buy" | "sell";
+  setDropoffFormSoilDealType: (val: "buy" | "sell") => void;
   registeredDropoffList: any[];
   setRegisteredDropoffList: React.Dispatch<React.SetStateAction<any[]>>;
   inboundTrucks: any[];
   handleVerifyInbound: (id: number) => void;
   dropoffVerifiedCount: number;
-  dbCommonCodes: any[];
-  handleCreateDropoff: (payload: any) => Promise<boolean>;
-  handleDeleteDropoff: (id: number) => Promise<boolean>;
-  handleUpdateDropoff: (id: number, payload: any) => Promise<boolean>;
+  dbCommonCodes?: any[];
+  handleCreateDropoff?: (payload: any) => Promise<boolean>;
+  handleDeleteDropoff?: (id: number) => Promise<boolean>;
+  handleUpdateDropoff?: (id: number, payload: any) => Promise<boolean>;
 }
 
 export function DropoffManagerDashboard({
@@ -187,7 +187,7 @@ export function DropoffManagerDashboard({
           managers: dropoffFormManagers
         };
         console.log("Calling handleUpdateDropoff with:", editingDropId, payload);
-        const success = await handleUpdateDropoff(editingDropId, payload);
+        const success = handleUpdateDropoff ? await handleUpdateDropoff(editingDropId, payload) : false;
         if (success) {
           // Explicitly update selectedDropId to trigger detail pane re-render with updated values
           setSelectedDropId(editingDropId);
@@ -203,7 +203,7 @@ export function DropoffManagerDashboard({
           soilDealType: dropoffFormSoilDealType,
           managers: dropoffFormManagers
         };
-        const success = await handleCreateDropoff(payload);
+        const success = handleCreateDropoff ? await handleCreateDropoff(payload) : false;
         if (success) {
           // Reset selectedDropId to force selecting the new item
           setSelectedDropId(null);
@@ -218,14 +218,14 @@ export function DropoffManagerDashboard({
       setDropoffFormAddress("");
       setDropoffFormManagers("");
       setDropoffFormCapacity("");
-      setDropoffFormSoilDealType("SITE_PAYS");
+      setDropoffFormSoilDealType("sell");
       setEditingDropId(null);
       setIsModalOpen(false);
     };
 
     const handleDeleteDrop = async (id: number) => {
       if (confirm("정말로 이 하차지를 삭제하시겠습니까?")) {
-        const success = await handleDeleteDropoff(id);
+        const success = handleDeleteDropoff ? await handleDeleteDropoff(id) : false;
         if (success) {
           if (editingDropId === id) {
             setEditingDropId(null);
@@ -254,7 +254,7 @@ export function DropoffManagerDashboard({
               setDropoffFormAddress("");
               setDropoffFormManagers("");
               setDropoffFormCapacity("");
-              setDropoffFormSoilDealType("SITE_PAYS");
+              setDropoffFormSoilDealType("sell");
               setEditingDropId(null);
               setIsModalOpen(true);
             }}
@@ -436,7 +436,7 @@ export function DropoffManagerDashboard({
                     setDropoffFormAddress("");
                     setDropoffFormManagers("");
                     setDropoffFormCapacity("");
-                    setDropoffFormSoilDealType("SITE_PAYS");
+                    setDropoffFormSoilDealType("sell");
                     setEditingDropId(null);
                     setIsModalOpen(false);
                   }}
@@ -589,7 +589,7 @@ export function DropoffManagerDashboard({
                       setDropoffFormAddress("");
                       setDropoffFormManagers("");
                       setDropoffFormCapacity("");
-                      setDropoffFormSoilDealType("SITE_PAYS");
+                      setDropoffFormSoilDealType("sell");
                       setEditingDropId(null);
                       setIsModalOpen(false);
                     }}

@@ -5,13 +5,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Menu } from "lucide-react";
 
 export default function MobileHeader() {
-  const { setIsSidebarOpen } = useAuth();
-
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white dark:bg-black border-b border-gray-200 dark:border-gray-800 md:hidden sticky top-0 z-30 transition-colors">
       <div className="flex items-center gap-3">
         <button
-          onClick={() => setIsSidebarOpen(true)}
+          onClick={() => {}}
           className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-700 dark:text-gray-450 transition-colors active:scale-95"
           aria-label="메뉴 열기"
         >
