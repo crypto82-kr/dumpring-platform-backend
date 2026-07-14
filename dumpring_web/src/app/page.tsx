@@ -304,7 +304,7 @@ export default function Home() {
   const fetchDispatchRequests = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/jobs/jobs/my-posts`, {
+      const res = await fetch(`${API_BASE_URL}/api/jobs/my-posts`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -349,7 +349,7 @@ export default function Home() {
   const fetchOpenDropOffRequests = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/jobs/drop-offs/requests`, {
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs/requests`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -393,11 +393,11 @@ export default function Home() {
     payerType: string;
     memo: string;
     dropOffRequestId?: number; // 흐름 A: 하차지 공고 지정 시
-  }) => {
+  }): Promise<{ success: boolean; message?: string }> => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
 
-      let endpoint = `${API_BASE_URL}/api/jobs/jobs/site-post`;
+      let endpoint = `${API_BASE_URL}/api/jobs/site-post`;
       let body: any = {
         site_id: formData.siteId,
         material_type: formData.materialType,
@@ -411,7 +411,7 @@ export default function Home() {
 
       // 흐름 A: 하차지 수용 공고를 지정한 경우
       if (formData.dropOffRequestId) {
-        endpoint = `${API_BASE_URL}/api/jobs/jobs`;
+        endpoint = `${API_BASE_URL}/api/jobs`;
         body = {
           site_id: formData.siteId,
           drop_off_request_id: formData.dropOffRequestId,
@@ -430,14 +430,19 @@ export default function Home() {
       });
       if (res.ok) {
         await fetchDispatchRequests();
-        return true;
+        return { success: true };
       }
       const errText = await res.text();
       console.error("handleCreateDispatch failed:", res.status, errText);
-      return false;
+      try {
+        const errJson = JSON.parse(errText);
+        return { success: false, message: errJson.detail || "등록 요청 중 오류가 발생했습니다." };
+      } catch (parseErr) {
+        return { success: false, message: `등록 실패 (상태코드: ${res.status})` };
+      }
     } catch (e) {
       console.error("handleCreateDispatch error:", e);
-      return false;
+      return { success: false, message: "네트워크 오류가 발생했습니다." };
     }
   };
 
@@ -453,7 +458,7 @@ export default function Home() {
   }) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/jobs/jobs/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -626,7 +631,7 @@ export default function Home() {
   const [dispatchFormSiteId, setDispatchFormSiteId] = useState<number | "">("");
   const [dispatchFormTonTypes, setDispatchFormTonTypes] = useState<string[]>([]);
   const [dispatchFormTruckCount, setDispatchFormTruckCount] = useState(1);
-  const [dispatchFormSoilType, setDispatchFormSoilType] = useState("일반 토사");
+  const [dispatchFormSoilType, setDispatchFormSoilType] = useState("GOOD_SOIL");
   const [dispatchFormStartDate, setDispatchFormStartDate] = useState("");
   const [dispatchFormEndDate, setDispatchFormEndDate] = useState("");
   const [dispatchFormDropoffMode, setDispatchFormDropoffMode] = useState<"direct" | "search" | "none">("none");
@@ -634,6 +639,8 @@ export default function Home() {
   const [dispatchFormDropoffAddress, setDispatchFormDropoffAddress] = useState("");
   const [dispatchFormDropoffCapacity, setDispatchFormDropoffCapacity] = useState("");
   const [dispatchFormDropoffSoilType, setDispatchFormDropoffSoilType] = useState("일반 토사");
+  const [dispatchFormPayerType, setDispatchFormPayerType] = useState("SITE_PAYS");
+  const [dispatchFormOfferedUnitPrice, setDispatchFormOfferedUnitPrice] = useState<number>(0);
   const [dispatchRequestMode, setDispatchRequestMode] = useState<"list" | "create" | "edit" | "detail">("list");
   const [editingDispatchRequestId, setEditingDispatchRequestId] = useState<number | null>(null);
   const [dispatchRequestSearchQuery, setDispatchRequestSearchQuery] = useState("");
@@ -982,6 +989,10 @@ export default function Home() {
           handleUpdateDispatch={handleUpdateDispatch}
           handleDeleteDispatch={handleDeleteDispatch}
           fetchDispatchRequests={fetchDispatchRequests}
+          dispatchFormPayerType={dispatchFormPayerType}
+          setDispatchFormPayerType={setDispatchFormPayerType}
+          dispatchFormOfferedUnitPrice={dispatchFormOfferedUnitPrice}
+          setDispatchFormOfferedUnitPrice={setDispatchFormOfferedUnitPrice}
         />
       )}
       {user.role === "dropoff_manager" && (

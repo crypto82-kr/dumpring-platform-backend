@@ -153,6 +153,59 @@ async def get_open_drop_off_requests(
     return requests
 
 
+@router.get(
+    "/drop-offs/requests/search-by-code",
+    response_model=DropOffRequestResponse,
+    summary="초대코드로 특정 하차지 매립 공고 검색",
+    description="현장관리자(SITE_MANAGER)가 직접매칭을 위해 공유받은 초대코드(예: DR-5 또는 5)로 공고를 검색합니다."
+)
+async def search_drop_off_request_by_code(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_site_manager:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="현장관리자(SITE_MANAGER) 권한이 필요합니다."
+        )
+
+    # 초대코드 분석 (DR-5, dr-5 또는 단순 숫자 5 등)
+    clean_code = code.strip().upper()
+    if clean_code.startswith("DR-"):
+        clean_code = clean_code.replace("DR-", "")
+    
+    try:
+        request_id = int(clean_code)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="올바르지 않은 초대코드 형식입니다. (예: DR-5 또는 5)"
+        )
+
+    query = select(DropOffRequest).where(
+        DropOffRequest.id == request_id,
+        DropOffRequest.status == "OPEN"
+    )
+    result = await db.execute(query)
+    req = result.scalars().first()
+
+    if not req:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 초대코드에 해당하는 활성화된 하차지 공고를 찾을 수 없습니다."
+        )
+
+    drop_off_query = select(DropOff).where(DropOff.id == req.drop_off_id)
+    drop_off_result = await db.execute(drop_off_query)
+    dropoff = drop_off_result.scalars().first()
+    if dropoff:
+        req.drop_off_name = dropoff.name
+        req.drop_off_address = dropoff.address
+
+    return req
+
+
 # ==========================================
 # 흐름 A: 하차지 먼저 → 상차지 오더 (기존)
 # ==========================================
@@ -162,7 +215,7 @@ async def get_open_drop_off_requests(
     status_code=status.HTTP_201_CREATED,
     response_model=JobPostResponse,
     summary="[흐름A] 하차지 공고 지정 → 현장 오더 작성",
-    description="현장관리자(SITE_MANAGER)가 특정 하차지 매립 수용 공고를 지정하여 오더를 등록합니다. 초기 상태는 'WAITING_APPROVAL'입니다."
+    description="현장관리자(SITE_MANAGER)가 특정 하차지 매립 수용 공고를 지정하여 오더를 등록합니다. 직접매칭일 시 즉시 'OPEN' 상태가 됩니다."
 )
 async def create_job_post(
     data: JobPostCreate,
@@ -233,13 +286,20 @@ async def create_job_post(
         distance = round(R * c, 1)
         est_time = int(distance * 1.5 + 5)
 
+    # 직접매칭일 경우 승인대기 없이 즉시 OPEN 설정 및 수량 누적
+    initial_status = "OPEN" if data.is_direct_match else "WAITING_APPROVAL"
+    if data.is_direct_match:
+        dropoff_request.current_quantity += data.required_trucks
+        if dropoff_request.current_quantity >= dropoff_request.target_quantity:
+            dropoff_request.status = "CLOSED"
+
     new_job = JobPost(
         site_id=data.site_id,
         drop_off_request_id=data.drop_off_request_id,
         author_id=current_user.id,
         work_date=data.work_date,
         required_trucks=data.required_trucks,
-        status="WAITING_APPROVAL",
+        status=initial_status,
         distance=distance,
         estimated_time=est_time
     )

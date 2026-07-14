@@ -65,7 +65,7 @@ interface SiteManagerDashboardProps {
     payerType: string;
     memo: string;
     dropOffRequestId?: number;
-  }) => Promise<boolean>;
+  }) => Promise<{ success: boolean; message?: string }>;
   handleUpdateDispatch: (id: number, formData: {
     materialType?: string;
     truckType?: string;
@@ -77,6 +77,10 @@ interface SiteManagerDashboardProps {
   }) => Promise<boolean>;
   handleDeleteDispatch: (id: number) => Promise<boolean>;
   fetchDispatchRequests: () => Promise<void>;
+  dispatchFormPayerType: string;
+  setDispatchFormPayerType: (val: string) => void;
+  dispatchFormOfferedUnitPrice: number;
+  setDispatchFormOfferedUnitPrice: (val: number) => void;
 }
 
 export function SiteManagerDashboard({
@@ -136,6 +140,10 @@ export function SiteManagerDashboard({
   handleUpdateDispatch,
   handleDeleteDispatch,
   fetchDispatchRequests,
+  dispatchFormPayerType,
+  setDispatchFormPayerType,
+  dispatchFormOfferedUnitPrice,
+  setDispatchFormOfferedUnitPrice,
 }: SiteManagerDashboardProps) {
   // 현장 수정을 위한 로컬 상태 정의
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
@@ -653,9 +661,13 @@ export function SiteManagerDashboard({
       }
 
       // 하차지 수용 공고 선택 여부 확인 (흐름 A vs 흐름 B)
-      const selectedDropoff = registeredDropoffList.find(
-        d => d.name === dispatchFormDropoffName
-      );
+      const selectedDropoff = dispatchFormDropoffMode === "search"
+        ? registeredDropoffList.find(d => d.name === dispatchFormDropoffName)
+        : null;
+
+      const memoText = dispatchFormDropoffMode === "direct"
+        ? `[직접매칭 하차지] 명칭: ${dispatchFormDropoffName}, 주소: ${dispatchFormDropoffAddress}`
+        : "";
 
       const formData = {
         siteId: Number(dispatchFormSiteId),
@@ -663,23 +675,29 @@ export function SiteManagerDashboard({
         truckType: dispatchFormTonTypes[0] || "T_25",
         workDate: dispatchFormStartDate ? `${dispatchFormStartDate}T00:00:00` : new Date().toISOString(),
         requiredTrucks: Number(dispatchFormTruckCount),
-        offeredUnitPrice: 0,
-        payerType: "SITE_PAYS",
-        memo: "",
-        ...(selectedDropoff?.id && { dropOffRequestId: selectedDropoff.id }),
+        offeredUnitPrice: Number(dispatchFormOfferedUnitPrice),
+        payerType: dispatchFormPayerType,
+        memo: memoText,
+        ...(dispatchFormDropoffMode === "search" && selectedDropoff?.id && { dropOffRequestId: selectedDropoff.id }),
       };
 
       let success = false;
       if (dispatchRequestMode === "create") {
-        success = await handleCreateDispatch(formData);
-        if (success) alert("배차 요청이 등록되었습니다.");
-        else alert("배차 요청 등록에 실패했습니다. 다시 시도해 주세요.");
+        const result = await handleCreateDispatch(formData);
+        success = result.success;
+        if (success) {
+          alert("배차 요청이 등록되었습니다.");
+        } else {
+          alert(`배차 요청 등록에 실패했습니다.\n사유: ${result.message || "알 수 없는 에러"}`);
+        }
       } else if (dispatchRequestMode === "edit" && editingDispatchRequestId !== null) {
         success = await handleUpdateDispatch(editingDispatchRequestId, {
           materialType: formData.materialType,
           truckType: formData.truckType,
           workDate: formData.workDate,
           requiredTrucks: formData.requiredTrucks,
+          offeredUnitPrice: formData.offeredUnitPrice,
+          payerType: formData.payerType,
         });
         if (success) alert("배차 요청이 수정되었습니다.");
         else alert("배차 요청 수정에 실패했습니다. 다시 시도해 주세요.");
@@ -695,12 +713,14 @@ export function SiteManagerDashboard({
       setDispatchFormSiteId("");
       setDispatchFormTonTypes([]);
       setDispatchFormTruckCount(1);
-      setDispatchFormSoilType("일반 토사");
+      setDispatchFormSoilType("GOOD_SOIL");
       setDispatchFormStartDate("");
       setDispatchFormEndDate("");
       setDispatchFormDropoffMode("none");
       setDispatchFormDropoffName("");
       setDispatchFormDropoffAddress("");
+      setDispatchFormPayerType("SITE_PAYS");
+      setDispatchFormOfferedUnitPrice(0);
       setEditingDispatchRequestId(null);
     };
 
@@ -714,6 +734,8 @@ export function SiteManagerDashboard({
       setDispatchFormDropoffMode(req.dropoffMode);
       setDispatchFormDropoffName(req.dropoffName);
       setDispatchFormDropoffAddress(req.dropoffAddress || "");
+      setDispatchFormPayerType(req.payerType || "SITE_PAYS");
+      setDispatchFormOfferedUnitPrice(req.offeredUnitPrice || 0);
       setEditingDispatchRequestId(req.id);
       setDispatchRequestMode("edit");
       setIsDispatchModalOpen(true);
@@ -808,9 +830,26 @@ export function SiteManagerDashboard({
                         {req.status}
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-505 mt-2 font-semibold truncate">토사 종류: {req.soilType}</p>
+                    <p className="text-[10px] text-slate-500 mt-2 font-semibold truncate">
+                      토사 종류: {(() => {
+                        switch (req.soilType) {
+                          case "GOOD_SOIL": return "양질토";
+                          case "MUD_SOIL": return "뻘흙";
+                          case "ROCK": return "암버럭";
+                          case "MIXED": return "혼합";
+                          default: return req.soilType;
+                        }
+                      })()}
+                    </p>
                     <div className="flex justify-between items-center text-[9px] text-slate-400 mt-3 pt-2 border-t border-slate-200/50">
-                      <span>차종: {req.tonTypes.join(", ")} ({req.truckCount}대)</span>
+                      <span>
+                        차종: {req.tonTypes.map((t: string) => {
+                          if (t === "T_15") return "15톤";
+                          if (t === "T_25") return "25톤";
+                          if (t === "T_27") return "27톤";
+                          return t;
+                        }).join(", ")} ({req.truckCount}대)
+                      </span>
                       <span className="text-slate-500 font-mono">{req.startDate}</span>
                     </div>
                   </div>
@@ -862,7 +901,14 @@ export function SiteManagerDashboard({
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 차량 톤수</span>
-                          <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.tonTypes.join(", ")}</div>
+                          <div className="text-xs font-semibold text-slate-700 mt-0.5">
+                            {selectedReq.tonTypes.map((t: string) => {
+                              if (t === "T_15") return "15톤";
+                              if (t === "T_25") return "25톤";
+                              if (t === "T_27") return "27톤";
+                              return t;
+                            }).join(", ")}
+                          </div>
                         </div>
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 대수</span>
@@ -872,13 +918,47 @@ export function SiteManagerDashboard({
                     </div>
 
                     <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">반출 토사 종류</span>
-                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.soilType}</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block uppercase">반출 토사 종류</span>
+                          <div className="text-xs font-semibold text-slate-700 mt-0.5">
+                            {(() => {
+                              switch (selectedReq.soilType) {
+                                case "GOOD_SOIL": return "양질토";
+                                case "MUD_SOIL": return "뻘흙";
+                                case "ROCK": return "암버럭";
+                                case "MIXED": return "혼합";
+                                default: return selectedReq.soilType;
+                              }
+                            })()}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block uppercase">작업일</span>
+                          <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.startDate}</div>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">작업 일정</span>
-                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.startDate} ~ {selectedReq.endDate}</div>
+
+                      <div className="grid grid-cols-2 gap-2 border-t border-slate-200/60 pt-2.5">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block uppercase">비용 지급 주체</span>
+                          <div className="text-xs font-semibold text-slate-700 mt-0.5">
+                            {(() => {
+                              switch (selectedReq.payerType) {
+                                case "SITE_PAYS": return "현장 지급";
+                                case "DROP_OFF_PAYS": return "하차지 지급";
+                                case "FREE": return "무상";
+                                default: return selectedReq.payerType || "현장 지급";
+                              }
+                            })()}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block uppercase">제시 단가</span>
+                          <div className="text-xs font-bold text-slate-800 mt-0.5">
+                            {selectedReq.offeredUnitPrice ? `${selectedReq.offeredUnitPrice.toLocaleString()} 원` : "0 원"}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -953,7 +1033,7 @@ export function SiteManagerDashboard({
                   <select
                     value={dispatchFormSiteId}
                     onChange={(e) => setDispatchFormSiteId(e.target.value ? Number(e.target.value) : "")}
-                    className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-808 font-semibold focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500"
                     required
                   >
                     <option value="">현장을 선택해 주세요</option>
@@ -969,22 +1049,22 @@ export function SiteManagerDashboard({
                     <select
                       value={dispatchFormTonTypes[0] || ""}
                       onChange={(e) => setDispatchFormTonTypes(e.target.value ? [e.target.value] : [])}
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-808 font-bold focus:outline-none focus:border-blue-550"
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500"
                       required
                     >
                       <option value="">톤수를 선택해 주세요</option>
                       {dbCommonCodes
                         .filter(codeItem => codeItem.group_code === "TRUCK_TYPE")
                         .map(codeItem => (
-                          <option key={codeItem.code} value={codeItem.code_name}>
+                          <option key={codeItem.code} value={codeItem.code}>
                             {codeItem.code_name}
                           </option>
                         ))}
                       {dbCommonCodes.filter(codeItem => codeItem.group_code === "TRUCK_TYPE").length === 0 && (
                         <>
-                          <option value="15톤">15톤</option>
-                          <option value="25톤">25톤</option>
-                          <option value="27톤">27톤</option>
+                          <option value="T_15">15톤</option>
+                          <option value="T_25">25톤</option>
+                          <option value="T_27">27톤</option>
                         </>
                       )}
                     </select>
@@ -996,9 +1076,10 @@ export function SiteManagerDashboard({
                       type="number"
                       min={1}
                       max={100}
-                      value={dispatchFormTruckCount}
-                      onChange={(e) => setDispatchFormTruckCount(Number(e.target.value))}
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-808 font-semibold focus:outline-none focus:border-blue-500"
+                      value={dispatchFormTruckCount === 0 ? "" : dispatchFormTruckCount}
+                      onChange={(e) => setDispatchFormTruckCount(e.target.value === "" ? 0 : Number(e.target.value))}
+                      onFocus={(e) => e.target.select()}
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500"
                       required
                     />
                   </div>
@@ -1010,22 +1091,22 @@ export function SiteManagerDashboard({
                     <select
                       value={dispatchFormSoilType}
                       onChange={(e) => setDispatchFormSoilType(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-808 font-semibold focus:outline-none focus:border-blue-550"
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500"
                       required
                     >
                       {dbCommonCodes
                         .filter(codeItem => codeItem.group_code === "MATERIAL_TYPE")
                         .map(codeItem => (
-                          <option key={codeItem.code} value={codeItem.code_name}>
+                          <option key={codeItem.code} value={codeItem.code}>
                             {codeItem.code_name}
                           </option>
                         ))}
                       {dbCommonCodes.filter(codeItem => codeItem.group_code === "MATERIAL_TYPE").length === 0 && (
                         <>
-                          <option value="양질토">양질토</option>
-                          <option value="갯벌/뻘흙">갯벌/뻘흙</option>
-                          <option value="풍화암/돌">풍화암/돌</option>
-                          <option value="혼합골재">혼합골재</option>
+                          <option value="GOOD_SOIL">양질토</option>
+                          <option value="MUD_SOIL">갯벌/뻘흙</option>
+                          <option value="ROCK">풍화암/돌</option>
+                          <option value="MIXED">혼합골재</option>
                         </>
                       )}
                     </select>
@@ -1041,6 +1122,48 @@ export function SiteManagerDashboard({
                         setDispatchFormEndDate(e.target.value);
                       }}
                       className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-slate-700 font-bold block">비용 지급 주체 <span className="text-rose-500">*</span></label>
+                    <select
+                      value={dispatchFormPayerType}
+                      onChange={(e) => setDispatchFormPayerType(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500"
+                      required
+                    >
+                      {dbCommonCodes
+                        .filter(codeItem => codeItem.group_code === "PAYER_TYPE")
+                        .map(codeItem => (
+                          <option key={codeItem.code} value={codeItem.code}>
+                            {codeItem.code_name}
+                          </option>
+                        ))}
+                      {dbCommonCodes.filter(codeItem => codeItem.group_code === "PAYER_TYPE").length === 0 && (
+                        <>
+                          <option value="SITE_PAYS">현장 지급 (SITE_PAYS)</option>
+                          <option value="DROP_OFF_PAYS">하차지 지급 (DROP_OFF_PAYS)</option>
+                          <option value="FREE">무상 (FREE)</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-slate-700 font-bold block">제시 단가 (원) <span className="text-rose-500">*</span></label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={dispatchFormOfferedUnitPrice === 0 ? "" : dispatchFormOfferedUnitPrice}
+                      onChange={(e) => setDispatchFormOfferedUnitPrice(e.target.value === "" ? 0 : Number(e.target.value))}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="예: 45000"
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
+                      required
                     />
                   </div>
                 </div>
@@ -1049,34 +1172,119 @@ export function SiteManagerDashboard({
                 <div className="space-y-2.5 border-t border-slate-100 pt-4">
                   <div className="flex justify-between items-center">
                     <label className="text-slate-700 font-bold block">하차지 정보 등록 <span className="text-rose-500">*</span></label>
-                    <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded">등록 하차지 검색 자동 강제</span>
                   </div>
 
-                  <div className="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                    <label className="text-slate-600 font-bold block">하차지 검색 &amp; 선택</label>
-                    <select
-                      value={registeredDropoffList.find(d => d.name === dispatchFormDropoffName)?.id || ""}
-                      onChange={(e) => {
-                        const drop = registeredDropoffList.find(d => d.id === Number(e.target.value));
-                        if (drop) {
-                          setDispatchFormDropoffMode("search");
-                          setDispatchFormDropoffName(drop.name);
-                          setDispatchFormDropoffAddress(drop.address);
-                        } else {
-                          setDispatchFormDropoffMode("none");
-                          setDispatchFormDropoffName("");
-                          setDispatchFormDropoffAddress("");
-                        }
+                  {/* 3가지 선택 라디오 탭 */}
+                  <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDispatchFormDropoffMode("direct");
+                        setDispatchFormDropoffName("");
+                        setDispatchFormDropoffAddress("");
                       }}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
+                      className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                        dispatchFormDropoffMode === "direct"
+                          ? "bg-white text-blue-600 shadow-sm"
+                          : "text-slate-600 hover:text-slate-800"
+                      }`}
                     >
-                      <option value="">하차지를 검색/선택해 주세요</option>
-                      {registeredDropoffList.map(drop => (
-                        <option key={drop.id} value={drop.id}>
-                          {drop.name} ({drop.soilDealType === "buy" ? "구매/돈 줌" : "판매/돈 받음"}) - {drop.address}
-                        </option>
-                      ))}
-                    </select>
+                      직접매칭
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDispatchFormDropoffMode("search");
+                        setDispatchFormDropoffName("");
+                        setDispatchFormDropoffAddress("");
+                      }}
+                      className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                        dispatchFormDropoffMode === "search"
+                          ? "bg-white text-blue-600 shadow-sm"
+                          : "text-slate-600 hover:text-slate-800"
+                      }`}
+                    >
+                      하차지 검색
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDispatchFormDropoffMode("none");
+                        setDispatchFormDropoffName("");
+                        setDispatchFormDropoffAddress("");
+                      }}
+                      className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                        dispatchFormDropoffMode === "none"
+                          ? "bg-white text-blue-600 shadow-sm"
+                          : "text-slate-600 hover:text-slate-800"
+                      }`}
+                    >
+                      매칭대기
+                    </button>
+                  </div>
+
+                  {/* 선택한 모드별 입력란 */}
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    {dispatchFormDropoffMode === "direct" && (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-xs text-slate-600 font-bold block mb-1">하차지 명칭</label>
+                          <input
+                            type="text"
+                            value={dispatchFormDropoffName}
+                            onChange={(e) => setDispatchFormDropoffName(e.target.value)}
+                            placeholder="예: 김포 고촌 사토장"
+                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium text-xs focus:outline-none focus:border-blue-500"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-600 font-bold block mb-1">하차지 주소</label>
+                          <input
+                            type="text"
+                            value={dispatchFormDropoffAddress}
+                            onChange={(e) => setDispatchFormDropoffAddress(e.target.value)}
+                            placeholder="예: 경기도 김포시 고촌읍 123"
+                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium text-xs focus:outline-none focus:border-blue-500"
+                            required
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {dispatchFormDropoffMode === "search" && (
+                      <div>
+                        <label className="text-xs text-slate-600 font-bold block mb-1">등록 하차지 선택</label>
+                        <select
+                          value={registeredDropoffList.find(d => d.name === dispatchFormDropoffName)?.id || ""}
+                          onChange={(e) => {
+                            const drop = registeredDropoffList.find(d => d.id === Number(e.target.value));
+                            if (drop) {
+                              setDispatchFormDropoffName(drop.name);
+                              setDispatchFormDropoffAddress(drop.address);
+                            } else {
+                              setDispatchFormDropoffName("");
+                              setDispatchFormDropoffAddress("");
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-850 font-medium text-xs focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="">하차지를 검색/선택해 주세요</option>
+                          {registeredDropoffList.map(drop => (
+                            <option key={drop.id} value={drop.id}>
+                              {drop.name} ({drop.soilDealType === "buy" ? "구매" : "판매"}) - {drop.address}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {dispatchFormDropoffMode === "none" && (
+                      <div className="text-center py-2 text-xs text-slate-500 font-medium">
+                        하차지를 지정하지 않고 공고를 올립니다.<br/>
+                        하차지 지주들의 매칭 신청을 대기(WAITING_MATCH)합니다.
+                      </div>
+                    )}
                   </div>
                 </div>
 

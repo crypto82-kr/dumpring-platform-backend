@@ -54,6 +54,7 @@ class JobPostCreate(BaseModel):
     drop_off_request_id: int = Field(..., description="매치하려는 하차지 수용 공고 ID")
     work_date: datetime = Field(..., description="작업 희망 날짜 및 시간")
     required_trucks: int = Field(..., description="필요한 덤프 대수")
+    is_direct_match: Optional[bool] = Field(False, description="초대코드 직접 매칭 여부")
 
 
 # 흐름 B: 상차지가 하차지 없이 먼저 모집 공고 등록 (신규)
