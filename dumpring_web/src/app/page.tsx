@@ -296,9 +296,202 @@ export default function Home() {
     }
   };
 
+  // ──────────────────────────────────────────────
+  // 배차 요청(JobPost) API 연동
+  // ──────────────────────────────────────────────
+
+  /** 현장관리자 본인의 배차 공고 목록 조회 */
+  const fetchDispatchRequests = async () => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/jobs/my-posts`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((job: any) => ({
+          id: job.id,
+          siteId: job.site_id,
+          siteName: job.site_name || "현장명 없음",
+          tonTypes: job.truck_type ? [job.truck_type] : [],
+          truckCount: job.required_trucks || 1,
+          soilType: job.material_type || "일반 토사",
+          startDate: job.work_date ? job.work_date.substring(0, 10) : "",
+          endDate: job.work_date ? job.work_date.substring(0, 10) : "",
+          dropoffMode: job.matched_drop_off_id ? "search" : (job.drop_off_request_id ? "search" : "none"),
+          dropoffName: job.drop_off_name || "",
+          dropoffAddress: job.drop_off_address || "",
+          status: (() => {
+            switch (job.status) {
+              case "OPEN": return "배차완료";
+              case "WAITING_APPROVAL": return "승인대기";
+              case "WAITING_MATCH": return "매칭대기";
+              case "CLOSED": return "마감";
+              default: return "대기중";
+            }
+          })(),
+          rawStatus: job.status,
+          memo: job.memo || "",
+          offeredUnitPrice: job.offered_unit_price || 0,
+          distance: job.distance,
+          estimatedTime: job.estimated_time,
+        }));
+        setDispatchRequestList(mapped);
+      } else {
+        console.warn("fetchDispatchRequests failed:", res.status);
+      }
+    } catch (e) {
+      console.error("fetchDispatchRequests error:", e);
+    }
+  };
+
+  /** 현재 OPEN 상태인 하차지 수용 공고 목록 조회 (현장관리자가 하차지 선택용으로 사용) */
+  const fetchOpenDropOffRequests = async () => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/drop-offs/requests`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((req: any) => ({
+          id: req.id,
+          // 하차지 수용 공고 ID (흐름 A에서 JobPost 생성 시 drop_off_request_id로 사용)
+          dropOffId: req.drop_off_id,
+          name: req.drop_off_name || `하차지 #${req.drop_off_id}`,
+          address: req.drop_off_address || "",
+          soilType: req.material_type || "",
+          truckType: req.truck_type || "",
+          targetQuantity: req.target_quantity || 0,
+          currentQuantity: req.current_quantity || 0,
+          unitPrice: req.unit_price || 0,
+          payerType: req.payer_type || "",
+          startDate: req.start_date ? req.start_date.substring(0, 10) : "",
+          endDate: req.end_date ? req.end_date.substring(0, 10) : "",
+          soilDealType: req.payer_type === "SITE_PAYS" ? "buy" : "sell",
+        }));
+        setRegisteredDropoffList(mapped);
+      } else {
+        console.warn("fetchOpenDropOffRequests failed:", res.status);
+      }
+    } catch (e) {
+      console.error("fetchOpenDropOffRequests error:", e);
+    }
+  };
+
+  /**
+   * [흐름 B] 현장이 먼저 공고 등록 (하차지 미지정) → WAITING_MATCH
+   * SiteManagerDashboard의 배차 요청 등록 시 호출
+   */
+  const handleCreateDispatch = async (formData: {
+    siteId: number;
+    materialType: string;
+    truckType: string;
+    workDate: string;
+    requiredTrucks: number;
+    offeredUnitPrice: number;
+    payerType: string;
+    memo: string;
+    dropOffRequestId?: number; // 흐름 A: 하차지 공고 지정 시
+  }) => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+
+      let endpoint = `${API_BASE_URL}/api/jobs/jobs/site-post`;
+      let body: any = {
+        site_id: formData.siteId,
+        material_type: formData.materialType,
+        truck_type: formData.truckType,
+        work_date: formData.workDate,
+        required_trucks: formData.requiredTrucks,
+        offered_unit_price: formData.offeredUnitPrice,
+        payer_type: formData.payerType,
+        memo: formData.memo,
+      };
+
+      // 흐름 A: 하차지 수용 공고를 지정한 경우
+      if (formData.dropOffRequestId) {
+        endpoint = `${API_BASE_URL}/api/jobs/jobs`;
+        body = {
+          site_id: formData.siteId,
+          drop_off_request_id: formData.dropOffRequestId,
+          work_date: formData.workDate,
+          required_trucks: formData.requiredTrucks,
+        };
+      }
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        await fetchDispatchRequests();
+        return true;
+      }
+      const errText = await res.text();
+      console.error("handleCreateDispatch failed:", res.status, errText);
+      return false;
+    } catch (e) {
+      console.error("handleCreateDispatch error:", e);
+      return false;
+    }
+  };
+
+  /** 배차 공고 수정 */
+  const handleUpdateDispatch = async (id: number, formData: {
+    materialType?: string;
+    truckType?: string;
+    workDate?: string;
+    requiredTrucks?: number;
+    offeredUnitPrice?: number;
+    payerType?: string;
+    memo?: string;
+  }) => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/jobs/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...(formData.materialType && { material_type: formData.materialType }),
+          ...(formData.truckType && { truck_type: formData.truckType }),
+          ...(formData.workDate && { work_date: formData.workDate }),
+          ...(formData.requiredTrucks && { required_trucks: formData.requiredTrucks }),
+          ...(formData.offeredUnitPrice !== undefined && { offered_unit_price: formData.offeredUnitPrice }),
+          ...(formData.payerType && { payer_type: formData.payerType }),
+          ...(formData.memo !== undefined && { memo: formData.memo }),
+        })
+      });
+      if (res.ok) {
+        await fetchDispatchRequests();
+        return true;
+      }
+      console.error("handleUpdateDispatch failed:", res.status);
+      return false;
+    } catch (e) {
+      console.error("handleUpdateDispatch error:", e);
+      return false;
+    }
+  };
+
+  /** 배차 공고 삭제 (현재 백엔드에 DELETE 엔드포인트 없음 → 로컬 제거만 수행) */
+  const handleDeleteDispatch = async (id: number) => {
+    // 백엔드 DELETE /api/jobs/jobs/{id} 엔드포인트가 추가될 경우 아래에 API 호출 삽입
+    setDispatchRequestList(prev => prev.filter(r => r.id !== id));
+    return true;
+  };
+
   useEffect(() => {
     // Initial fetch on mount
     fetchRegisteredSites();
+    fetchOpenDropOffRequests();
   }, []);
 
   useEffect(() => {
@@ -310,6 +503,10 @@ export default function Home() {
     }
     if (activePath === "/site" || activePath === "/site/request") {
       fetchRegisteredSites();
+    }
+    if (activePath === "/site/dispatch-request") {
+      fetchDispatchRequests();
+      fetchOpenDropOffRequests();
     }
   }, [activePath]);
 
@@ -414,34 +611,7 @@ export default function Home() {
   // --- Site & Dispatch States ---
   const [registeredSiteList, setRegisteredSiteList] = useState<any[]>([]);
 
-  const [dispatchRequestList, setDispatchRequestList] = useState([
-    {
-      id: 1,
-      siteId: 1,
-      siteName: "인천 검단 3공구",
-      tonTypes: ["25.5톤", "15톤"],
-      truckCount: 5,
-      soilType: "일반 토사",
-      startDate: "2026-06-06",
-      endDate: "2026-06-10",
-      dropoffMode: "search",
-      dropoffName: "인천 송도 남측 매립지 B구역",
-      dropoffAddress: "인천광역시 연수구 송도동 456",
-      status: "대기중",
-    },
-    {
-      id: 2,
-      siteId: 2,
-      siteName: "송도 5공구 아파트 신축현장",
-      tonTypes: ["25.5톤"],
-      truckCount: 3,
-      soilType: "풍화암",
-      startDate: "2026-06-08",
-      endDate: "2026-06-09",
-      dropoffMode: "none",
-      status: "배차완료",
-    }
-  ]);
+  const [dispatchRequestList, setDispatchRequestList] = useState<any[]>([]);
 
   // Form states for Site Request
   const [siteFormName, setSiteFormName] = useState("");
@@ -469,26 +639,7 @@ export default function Home() {
   const [dispatchRequestSearchQuery, setDispatchRequestSearchQuery] = useState("");
 
   // --- Dropoff States ---
-  const [registeredDropoffList, setRegisteredDropoffList] = useState([
-    {
-      id: 1,
-      name: "인천 송도 남측 매립지 B구역",
-      address: "인천광역시 연수구 송도동 456",
-      managers: ["정하차 (010-9999-1111)"],
-      soilTypes: ["일반 토사", "풍화암"],
-      capacity: 80000,
-      soilDealType: "buy",
-    },
-    {
-      id: 2,
-      name: "경기 김포 고촌 신축 사토장",
-      address: "경기도 김포시 고촌읍 789",
-      managers: ["최하차 (010-8888-2222)"],
-      soilTypes: ["일반 토사"],
-      capacity: 45000,
-      soilDealType: "sell",
-    }
-  ]);
+  const [registeredDropoffList, setRegisteredDropoffList] = useState<any[]>([]);
 
   // Form states for Dropoff Registration
   const [dropoffFormName, setDropoffFormName] = useState("");
@@ -827,6 +978,10 @@ export default function Home() {
           handleCreateSite={handleCreateSite}
           handleUpdateSite={handleUpdateSite}
           handleDeleteSite={handleDeleteSite}
+          handleCreateDispatch={handleCreateDispatch}
+          handleUpdateDispatch={handleUpdateDispatch}
+          handleDeleteDispatch={handleDeleteDispatch}
+          fetchDispatchRequests={fetchDispatchRequests}
         />
       )}
       {user.role === "dropoff_manager" && (

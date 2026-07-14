@@ -55,6 +55,28 @@ interface SiteManagerDashboardProps {
   handleCreateSite: (site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => Promise<boolean>;
   handleUpdateSite: (id: number, site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => Promise<boolean>;
   handleDeleteSite: (id: number) => Promise<boolean>;
+  handleCreateDispatch: (formData: {
+    siteId: number;
+    materialType: string;
+    truckType: string;
+    workDate: string;
+    requiredTrucks: number;
+    offeredUnitPrice: number;
+    payerType: string;
+    memo: string;
+    dropOffRequestId?: number;
+  }) => Promise<boolean>;
+  handleUpdateDispatch: (id: number, formData: {
+    materialType?: string;
+    truckType?: string;
+    workDate?: string;
+    requiredTrucks?: number;
+    offeredUnitPrice?: number;
+    payerType?: string;
+    memo?: string;
+  }) => Promise<boolean>;
+  handleDeleteDispatch: (id: number) => Promise<boolean>;
+  fetchDispatchRequests: () => Promise<void>;
 }
 
 export function SiteManagerDashboard({
@@ -110,11 +132,19 @@ export function SiteManagerDashboard({
   handleCreateSite,
   handleUpdateSite,
   handleDeleteSite,
+  handleCreateDispatch,
+  handleUpdateDispatch,
+  handleDeleteDispatch,
+  fetchDispatchRequests,
 }: SiteManagerDashboardProps) {
   // 현장 수정을 위한 로컬 상태 정의
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
   const [siteFormBizRegNo, setSiteFormBizRegNo] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Dispatch Request States (Split Screen UI)
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
 
   // Find active site from the list to pull baseline corporate details
   const activeSite = registeredSiteList && registeredSiteList.length > 0 ? registeredSiteList[0] : null;
@@ -611,7 +641,7 @@ export function SiteManagerDashboard({
 
 
   const renderSiteDispatchRequest = () => {
-    const handleSaveRequest = (e: React.FormEvent) => {
+    const handleSaveRequest = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!dispatchFormSiteId) {
         alert("요청할 현장을 선택해 주세요.");
@@ -622,51 +652,43 @@ export function SiteManagerDashboard({
         return;
       }
 
-      const selectedSite = registeredSiteList.find(s => s.id === Number(dispatchFormSiteId));
-      const siteNameVal = selectedSite ? selectedSite.name : "알 수 없는 현장";
+      // 하차지 수용 공고 선택 여부 확인 (흐름 A vs 흐름 B)
+      const selectedDropoff = registeredDropoffList.find(
+        d => d.name === dispatchFormDropoffName
+      );
 
+      const formData = {
+        siteId: Number(dispatchFormSiteId),
+        materialType: dispatchFormSoilType || "GOOD_SOIL",
+        truckType: dispatchFormTonTypes[0] || "T_25",
+        workDate: dispatchFormStartDate ? `${dispatchFormStartDate}T00:00:00` : new Date().toISOString(),
+        requiredTrucks: Number(dispatchFormTruckCount),
+        offeredUnitPrice: 0,
+        payerType: "SITE_PAYS",
+        memo: "",
+        ...(selectedDropoff?.id && { dropOffRequestId: selectedDropoff.id }),
+      };
+
+      let success = false;
       if (dispatchRequestMode === "create") {
-        const newReq = {
-          id: dispatchRequestList.length + 1,
-          siteId: Number(dispatchFormSiteId),
-          siteName: siteNameVal,
-          tonTypes: dispatchFormTonTypes,
-          truckCount: Number(dispatchFormTruckCount),
-          soilType: dispatchFormSoilType,
-          startDate: dispatchFormStartDate || "2026-06-06",
-          endDate: dispatchFormEndDate || "2026-06-10",
-          dropoffMode: dispatchFormDropoffMode,
-          dropoffName: dispatchFormDropoffMode === "direct" ? dispatchFormDropoffName : (dispatchFormDropoffMode === "search" ? dispatchFormDropoffName : ""),
-          dropoffAddress: dispatchFormDropoffAddress,
-          status: "대기중"
-        };
-        setDispatchRequestList(prev => [...prev, newReq]);
-        alert("배차 요청이 등록되었습니다.");
+        success = await handleCreateDispatch(formData);
+        if (success) alert("배차 요청이 등록되었습니다.");
+        else alert("배차 요청 등록에 실패했습니다. 다시 시도해 주세요.");
       } else if (dispatchRequestMode === "edit" && editingDispatchRequestId !== null) {
-        setDispatchRequestList(prev => prev.map(req => {
-          if (req.id === editingDispatchRequestId) {
-            return {
-              ...req,
-              siteId: Number(dispatchFormSiteId),
-              siteName: siteNameVal,
-              tonTypes: dispatchFormTonTypes,
-              truckCount: Number(dispatchFormTruckCount),
-              soilType: dispatchFormSoilType,
-              startDate: dispatchFormStartDate,
-              endDate: dispatchFormEndDate,
-              dropoffMode: dispatchFormDropoffMode,
-              dropoffName: dispatchFormDropoffName,
-              dropoffAddress: dispatchFormDropoffAddress,
-            };
-          }
-          return req;
-        }));
-        alert("배차 요청이 수정되었습니다.");
+        success = await handleUpdateDispatch(editingDispatchRequestId, {
+          materialType: formData.materialType,
+          truckType: formData.truckType,
+          workDate: formData.workDate,
+          requiredTrucks: formData.requiredTrucks,
+        });
+        if (success) alert("배차 요청이 수정되었습니다.");
+        else alert("배차 요청 수정에 실패했습니다. 다시 시도해 주세요.");
       }
 
-      // Reset
-      resetDispatchForm();
-      setDispatchRequestMode("list");
+      if (success) {
+        resetDispatchForm();
+        setIsDispatchModalOpen(false);
+      }
     };
 
     const resetDispatchForm = () => {
@@ -694,22 +716,23 @@ export function SiteManagerDashboard({
       setDispatchFormDropoffAddress(req.dropoffAddress || "");
       setEditingDispatchRequestId(req.id);
       setDispatchRequestMode("edit");
+      setIsDispatchModalOpen(true);
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = async (id: number) => {
       if (confirm("정말로 이 배차 요청을 삭제하시겠습니까?")) {
-        setDispatchRequestList(prev => prev.filter(r => r.id !== id));
-        alert("삭제되었습니다.");
+        const success = await handleDeleteDispatch(id);
+        if (success) {
+          alert("삭제되었습니다.");
+          if (selectedRequestId === id) {
+            setSelectedRequestId(null);
+          }
+        } else {
+          alert("삭제에 실패했습니다. 다시 시도해 주세요.");
+        }
       }
     };
 
-    const toggleTonType = (ton: string) => {
-      setDispatchFormTonTypes(prev =>
-        prev.includes(ton) ? prev.filter(t => t !== ton) : [...prev, ton]
-      );
-    };
-
-    // Filter list
     const filteredRequests = dispatchRequestList.filter(req => {
       const matchSearch = req.siteName.includes(dispatchRequestSearchQuery) ||
         req.soilType.includes(dispatchRequestSearchQuery) ||
@@ -717,35 +740,221 @@ export function SiteManagerDashboard({
       return matchSearch;
     });
 
-    if (dispatchRequestMode === "create" || dispatchRequestMode === "edit") {
-      return (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-            <div>
-              <h2 className="text-xl font-extrabold text-slate-900">
-                {dispatchRequestMode === "create" ? "신규 배차 요청 등록" : "배차 요청 수정"}
-              </h2>
-              <p className="text-xs text-slate-505 mt-1">현장에 필요한 차량 정보 및 작업 일정을 등록합니다.</p>
+    const activeSelectedId = selectedRequestId || (filteredRequests.length > 0 ? filteredRequests[0].id : null);
+    const selectedReq = dispatchRequestList.find(r => r.id === activeSelectedId) || null;
+
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <div className="flex justify-between items-center border-b border-slate-200 pb-4">
+          <div>
+            <h2 className="text-xl font-extrabold text-slate-905">배차 요청 관리</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              현장에 필요한 덤프 차량 배차 공고를 생성하고 관리합니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              resetDispatchForm();
+              setDispatchRequestMode("create");
+              setIsDispatchModalOpen(true);
+            }}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-blue-500/10"
+          >
+            + 신규 배차 요청 등록
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1 p-4 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-3 max-h-[640px] overflow-y-auto">
+            <div className="space-y-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={dispatchRequestSearchQuery}
+                  onChange={(e) => setDispatchRequestSearchQuery(e.target.value)}
+                  placeholder="현장명, 토사 종류 등으로 검색..."
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-205 rounded-lg text-[11px] font-semibold text-slate-888 focus:outline-none focus:border-blue-500"
+                />
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => { resetDispatchForm(); setDispatchRequestMode("list"); }}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs transition-all"
-            >
-              ← 목록으로 가기
-            </button>
+
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mt-3 mb-2">배차 요청 목록 ({filteredRequests.length})</h3>
+            <div className="space-y-2">
+              {filteredRequests.map((req) => {
+                const isSelected = activeSelectedId === req.id;
+                return (
+                  <div
+                    key={req.id}
+                    onClick={() => {
+                      setSelectedRequestId(req.id);
+                    }}
+                    className={`p-4 rounded-xl border text-left cursor-pointer transition-all duration-205 group active:scale-98 ${
+                      isSelected
+                        ? "bg-blue-50/70 border-blue-300 shadow-md"
+                        : "bg-slate-50 border-slate-200 hover:bg-white hover:border-slate-350"
+                    }`}
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <span className={`text-xs font-black leading-tight ${isSelected ? "text-blue-700" : "text-slate-800 group-hover:text-blue-600"}`}>
+                        {req.siteName}
+                      </span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                        req.status === "배차완료"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-250"
+                          : "bg-amber-50 text-amber-600 border-amber-250"
+                      }`}>
+                        {req.status}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-505 mt-2 font-semibold truncate">토사 종류: {req.soilType}</p>
+                    <div className="flex justify-between items-center text-[9px] text-slate-400 mt-3 pt-2 border-t border-slate-200/50">
+                      <span>차종: {req.tonTypes.join(", ")} ({req.truckCount}대)</span>
+                      <span className="text-slate-500 font-mono">{req.startDate}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredRequests.length === 0 && (
+                <div className="text-center py-12 text-slate-400 font-semibold text-xs bg-slate-50 rounded-xl border border-dashed border-slate-250">
+                  배차 요청 내역이 없습니다.
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6">
-            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl">
-              <form onSubmit={handleSaveRequest} className="space-y-5 text-xs">
-                {/* Site Selection */}
+          <div className="lg:col-span-2 space-y-6">
+            {selectedReq ? (
+              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-5">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900">
+                      [{selectedReq.siteName}] 배차 요청 상세 내역
+                    </h3>
+                    <p className="text-[11px] text-slate-550 mt-0.5">요청번호: DREQ-00{selectedReq.id}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(selectedReq)}
+                      className="px-3 py-1.5 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-707 font-black rounded-lg border border-blue-200 active:scale-95 transition-all"
+                    >
+                      정보 수정
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(selectedReq.id)}
+                      className="px-3 py-1.5 text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-606 font-black rounded-lg border border-rose-200 active:scale-95 transition-all"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 현장명</span>
+                        <div className="text-sm font-bold text-slate-800 mt-0.5">{selectedReq.siteName}</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 차량 톤수</span>
+                          <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.tonTypes.join(", ")}</div>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 대수</span>
+                          <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.truckCount} 대</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">반출 토사 종류</span>
+                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.soilType}</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">작업 일정</span>
+                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.startDate} ~ {selectedReq.endDate}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">지정 하차지 명칭</span>
+                        <div className="text-xs font-bold text-blue-600 mt-0.5">
+                          {selectedReq.dropoffName ? `${selectedReq.dropoffName} (${selectedReq.dropoffMode === "search" ? "덤프링 연동" : "직접등록"})` : "하차지 미지정"}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">하차지 상세 주소</span>
+                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.dropoffAddress || "주소 정보 없음"}</div>
+                      </div>
+                    </div>
+
+                    {selectedReq.dropoffAddress && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-550 block uppercase">하차지 매핑 위치</span>
+                        <MockMap
+                          title="배차 하차지"
+                          address={selectedReq.dropoffAddress}
+                          pinned={true}
+                          onPinClick={() => {}}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center py-24 shadow-xl space-y-3 flex flex-col items-center justify-center min-h-[380px]">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                  📄
+                </div>
+                <h3 className="text-sm font-bold text-slate-808">선택된 배차 요청이 없습니다</h3>
+                <p className="text-xs text-slate-555 max-w-sm leading-relaxed">
+                  좌측 목록에서 상세 조원을 원하는 배차 공고를 선택하거나, 우측 상단의 등록 버튼을 눌러 신규 차량 배차를 요청해 주세요.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {isDispatchModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden animate-scaleUp">
+              <div className="px-6 py-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    {editingDispatchRequestId !== null ? "배차 요청서 수정" : "신규 차량 배차 요청 등록"}
+                  </h3>
+                  <p className="text-[10px] text-slate-505 mt-0.5">현장에 배정할 덤프링 차량의 조건과 목적지 하차지를 지정합니다.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetDispatchForm();
+                    setIsDispatchModalOpen(false);
+                  }}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-202 text-slate-655 flex items-center justify-center font-bold text-xs active:scale-90 transition-all"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveRequest} className="p-6 space-y-4 text-xs">
                 <div className="space-y-1.5">
                   <label className="text-slate-700 font-bold block">요청 현장 선택 <span className="text-rose-500">*</span></label>
                   <select
                     value={dispatchFormSiteId}
                     onChange={(e) => setDispatchFormSiteId(e.target.value ? Number(e.target.value) : "")}
-                    className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-808 font-semibold focus:outline-none focus:border-blue-500"
+                    required
                   >
                     <option value="">현장을 선택해 주세요</option>
                     {registeredSiteList.map(site => (
@@ -754,17 +963,16 @@ export function SiteManagerDashboard({
                   </select>
                 </div>
 
-                {/* Vehicle Specs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-slate-700 font-bold block">필요 차량 톤수 (중복 불가) <span className="text-rose-500">*</span></label>
+                    <label className="text-slate-700 font-bold block">요청 차량 톤수 <span className="text-rose-500">*</span></label>
                     <select
                       value={dispatchFormTonTypes[0] || ""}
                       onChange={(e) => setDispatchFormTonTypes(e.target.value ? [e.target.value] : [])}
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-808 font-bold focus:outline-none focus:border-blue-550"
+                      required
                     >
                       <option value="">톤수를 선택해 주세요</option>
-                      {/* Filter TRUCK_TYPE code types from seeded common codes */}
                       {dbCommonCodes
                         .filter(codeItem => codeItem.group_code === "TRUCK_TYPE")
                         .map(codeItem => (
@@ -772,7 +980,6 @@ export function SiteManagerDashboard({
                             {codeItem.code_name}
                           </option>
                         ))}
-                      {/* Baselines in case database has different filters */}
                       {dbCommonCodes.filter(codeItem => codeItem.group_code === "TRUCK_TYPE").length === 0 && (
                         <>
                           <option value="15톤">15톤</option>
@@ -791,21 +998,21 @@ export function SiteManagerDashboard({
                       max={100}
                       value={dispatchFormTruckCount}
                       onChange={(e) => setDispatchFormTruckCount(Number(e.target.value))}
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-808 font-semibold focus:outline-none focus:border-blue-500"
+                      required
                     />
                   </div>
                 </div>
 
-                {/* Work Specs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-slate-700 font-bold block">반출 토사 종류 <span className="text-rose-500">*</span></label>
                     <select
                       value={dispatchFormSoilType}
                       onChange={(e) => setDispatchFormSoilType(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-808 font-semibold focus:outline-none focus:border-blue-550"
+                      required
                     >
-                      {/* Load MATERIAL_TYPE soil types from common codes */}
                       {dbCommonCodes
                         .filter(codeItem => codeItem.group_code === "MATERIAL_TYPE")
                         .map(codeItem => (
@@ -831,14 +1038,14 @@ export function SiteManagerDashboard({
                       value={dispatchFormStartDate}
                       onChange={(e) => {
                         setDispatchFormStartDate(e.target.value);
-                        setDispatchFormEndDate(e.target.value); // Single work date synchronizes start & end
+                        setDispatchFormEndDate(e.target.value);
                       }}
                       className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
 
-                {/* Drop-off Selection (Search Only) */}
+                {/* 하차지 정보 */}
                 <div className="space-y-2.5 border-t border-slate-100 pt-4">
                   <div className="flex justify-between items-center">
                     <label className="text-slate-700 font-bold block">하차지 정보 등록 <span className="text-rose-500">*</span></label>
@@ -846,7 +1053,7 @@ export function SiteManagerDashboard({
                   </div>
 
                   <div className="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                    <label className="text-slate-600 font-bold block">하차지 검색 & 선택</label>
+                    <label className="text-slate-600 font-bold block">하차지 검색 &amp; 선택</label>
                     <select
                       value={registeredDropoffList.find(d => d.name === dispatchFormDropoffName)?.id || ""}
                       onChange={(e) => {
@@ -878,11 +1085,14 @@ export function SiteManagerDashboard({
                     type="submit"
                     className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-lg shadow-blue-500/10 active:scale-95"
                   >
-                    {dispatchRequestMode === "create" ? "배차 요청 등록하기" : "수정 완료"}
+                    {editingDispatchRequestId !== null ? "수정 완료" : "배차 요청 등록하기"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => { resetDispatchForm(); setDispatchRequestMode("list"); }}
+                    onClick={() => {
+                      resetDispatchForm();
+                      setIsDispatchModalOpen(false);
+                    }}
                     className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all text-xs"
                   >
                     취소
@@ -891,99 +1101,7 @@ export function SiteManagerDashboard({
               </form>
             </div>
           </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-          <div>
-            <h2 className="text-xl font-extrabold text-slate-900">배차 요청 관리</h2>
-            <p className="text-xs text-slate-555 mt-1">현장에 필요한 덤프 배차 요청 목록을 조회하고 신설할 수 있습니다.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => { resetDispatchForm(); setDispatchRequestMode("create"); }}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-bold text-white text-xs shadow-lg shadow-blue-500/10 transition-all active:scale-95"
-          >
-            <PlusCircle className="w-4 h-4" />
-            신규 배차 요청 등록
-          </button>
-        </div>
-
-        {/* Search Bar */}
-        <div className="flex gap-2 p-4 rounded-xl bg-white border border-slate-200 shadow-md">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={dispatchRequestSearchQuery}
-              onChange={(e) => setDispatchRequestSearchQuery(e.target.value)}
-              placeholder="현장명, 토사 종류, 하차지명 등으로 검색..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-        </div>
-
-        {/* Requests Cards List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredRequests.map(req => (
-            <div key={req.id} className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xl flex flex-col justify-between space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-extrabold text-base text-slate-800">{req.siteName}</h3>
-                  <p className="text-[10px] text-slate-500 mt-0.5">요청번호: DREQ-00{req.id}</p>
-                </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${req.status === "배차완료"
-                    ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                    : "bg-amber-50 text-amber-600 border-amber-200"
-                  }`}>
-                  {req.status}
-                </span>
-              </div>
-
-              <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                <div className="flex justify-between">
-                  <span className="text-slate-505 font-medium">필요 차종:</span>
-                  <span className="font-bold text-slate-800">{req.tonTypes.join(", ")} ({req.truckCount}대)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-550 font-medium">토종 / 일시:</span>
-                  <span className="font-semibold text-slate-800">{req.soilType} | {req.startDate} ~ {req.endDate}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-550 font-medium">하차지:</span>
-                  <span className="font-semibold text-slate-800 text-blue-600">
-                    {req.dropoffName ? `${req.dropoffName} (${req.dropoffMode === "search" ? "덤프링" : "직접등록"})` : "없음"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => startEdit(req)}
-                  className="flex-1 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors border border-slate-200"
-                >
-                  수정
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(req.id)}
-                  className="flex-1 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-[11px] transition-colors border border-rose-200"
-                >
-                  삭제
-                </button>
-              </div>
-            </div>
-          ))}
-          {filteredRequests.length === 0 && (
-            <div className="col-span-2 text-center py-12 text-xs font-semibold text-slate-500">
-              검색 조건에 맞는 배차 요청 내역이 존재하지 않습니다.
-            </div>
-          )}
-        </div>
+        )}
       </div>
     );
   };
