@@ -591,3 +591,219 @@ async def delete_site(
     await db.delete(site)
     await db.commit()
     return {"message": "현장이 성공적으로 삭제되었습니다."}
+
+
+# --- SiteEmployee (현장 소속 직원) 관리 APIs ---
+
+from app.models import SiteEmployee
+from app.schemas.site_mgmt import SiteEmployeeCreate, SiteEmployeeResponse
+
+@router.get(
+    "/{site_id}/employees",
+    response_model=List[SiteEmployeeResponse],
+    summary="공사현장의 소속 직원 목록 조회",
+    description="현장관리자 전용 기능: 해당 현장에 소속되거나 선등록된 직원 목록을 조회합니다."
+)
+async def get_site_employees(
+    site_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 권한 검사: 현재 사용자가 해당 현장에 승인된 관리자 또는 담당자/소장인지 확인
+    check_query = select(SiteUserMapping).where(
+        SiteUserMapping.site_id == site_id,
+        SiteUserMapping.user_id == current_user.id,
+        SiteUserMapping.status == SiteUserStatus.APPROVED
+    )
+    check_result = await db.execute(check_query)
+    is_manager = check_result.scalars().first()
+
+    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 직원 목록을 조회할 수 있습니다."
+        )
+
+    # SiteEmployee 조회
+    emp_query = select(SiteEmployee).where(SiteEmployee.site_id == site_id)
+    emp_result = await db.execute(emp_query)
+    employees = emp_result.scalars().all()
+
+    response_list = []
+    for emp in employees:
+        user_name = "가입 대기"
+        status_str = "가입 대기"
+        if emp.user_id:
+            user_query = select(User).where(User.id == emp.user_id)
+            user_result = await db.execute(user_query)
+            user_obj = user_result.scalars().first()
+            if user_obj:
+                user_name = user_obj.name
+                status_str = "가입 완료"
+
+        response_list.append(
+            SiteEmployeeResponse(
+                id=emp.id,
+                site_id=emp.site_id,
+                registered_phone=emp.registered_phone,
+                employee_role=emp.employee_role,
+                user_id=emp.user_id,
+                name=user_name,
+                status=status_str
+            )
+        )
+    return response_list
+
+
+@router.post(
+    "/{site_id}/employees",
+    response_model=SiteEmployeeResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="공사현장에 신규 직원 선등록",
+    description="현장관리자 전용 기능: 해당 현장에 소속될 직원을 휴대폰 번호로 선등록합니다."
+)
+async def register_site_employee(
+    site_id: int,
+    data: SiteEmployeeCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 권한 검사
+    check_query = select(SiteUserMapping).where(
+        SiteUserMapping.site_id == site_id,
+        SiteUserMapping.user_id == current_user.id,
+        SiteUserMapping.status == SiteUserStatus.APPROVED
+    )
+    check_result = await db.execute(check_query)
+    is_manager = check_result.scalars().first()
+
+    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 직원을 선등록할 수 있습니다."
+        )
+
+    # 중복 등록 확인
+    exist_query = select(SiteEmployee).where(
+        SiteEmployee.site_id == site_id,
+        SiteEmployee.registered_phone == data.phone_number
+    )
+    exist_result = await db.execute(exist_query)
+    existing_emp = exist_result.scalars().first()
+    if existing_emp:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 이 현장에 등록되어 있는 휴대폰 번호입니다."
+        )
+
+    # 해당 휴대폰 번호의 기 가입 유저가 있는지 체크
+    user_query = select(User).where(User.phone_number == data.phone_number)
+    user_result = await db.execute(user_query)
+    matched_user = user_result.scalars().first()
+
+    target_user_id = None
+    user_name = "가입 대기"
+    status_str = "가입 대기"
+
+    if matched_user:
+        target_user_id = matched_user.id
+        user_name = matched_user.name
+        status_str = "가입 완료"
+        
+        # 기 가입 유저인 경우 현장직원(is_site_worker) 권한 설정 보장
+        matched_user.is_site_worker = True
+        
+        # 현장과 매핑 자동 생성 (APPROVED 상태)
+        map_query = select(SiteUserMapping).where(
+            SiteUserMapping.site_id == site_id,
+            SiteUserMapping.user_id == matched_user.id
+        )
+        map_res = await db.execute(map_query)
+        existing_map = map_res.scalars().first()
+        if not existing_map:
+            new_map = SiteUserMapping(
+                site_id=site_id,
+                user_id=matched_user.id,
+                status=SiteUserStatus.APPROVED
+            )
+            db.add(new_map)
+        else:
+            existing_map.status = SiteUserStatus.APPROVED
+
+    new_emp = SiteEmployee(
+        site_id=site_id,
+        user_id=target_user_id,
+        registered_phone=data.phone_number,
+        employee_role=data.employee_role
+    )
+    db.add(new_emp)
+    await db.commit()
+    await db.refresh(new_emp)
+
+    return SiteEmployeeResponse(
+        id=new_emp.id,
+        site_id=new_emp.site_id,
+        registered_phone=new_emp.registered_phone,
+        employee_role=new_emp.employee_role,
+        user_id=new_emp.user_id,
+        name=user_name,
+        status=status_str
+    )
+
+
+@router.delete(
+    "/{site_id}/employees/{employee_id}",
+    summary="공사현장 소속 직원 삭제/해제",
+    description="현장관리자 전용 기능: 해당 현장에서 소속된 직원을 해제(삭제)합니다."
+)
+async def delete_site_employee(
+    site_id: int,
+    employee_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 권한 검사
+    check_query = select(SiteUserMapping).where(
+        SiteUserMapping.site_id == site_id,
+        SiteUserMapping.user_id == current_user.id,
+        SiteUserMapping.status == SiteUserStatus.APPROVED
+    )
+    check_result = await db.execute(check_query)
+    is_manager = check_result.scalars().first()
+
+    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 직원을 해제할 수 있습니다."
+        )
+
+    # 직원 조회
+    emp_query = select(SiteEmployee).where(
+        SiteEmployee.id == employee_id,
+        SiteEmployee.site_id == site_id
+    )
+    emp_result = await db.execute(emp_query)
+    employee = emp_result.scalars().first()
+
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 현장 직원을 찾을 수 없습니다."
+        )
+
+    # 만약 유저가 매핑되어 있었다면 현장 매핑 삭제 또는 상태 해제
+    if employee.user_id:
+        map_query = select(SiteUserMapping).where(
+            SiteUserMapping.site_id == site_id,
+            SiteUserMapping.user_id == employee.user_id
+        )
+        map_res = await db.execute(map_query)
+        mapping = map_res.scalars().first()
+        if mapping:
+            await db.delete(mapping)
+
+    await db.delete(employee)
+    await db.commit()
+
+    return {"message": "성공적으로 현장 직원이 소속 해제되었습니다."}
+

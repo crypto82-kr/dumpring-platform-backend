@@ -36,6 +36,9 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   DateTime _selectedWorkDate = DateTime.now().add(const Duration(days: 1));
 
   final TextEditingController _jobRequiredTrucksController = TextEditingController(text: "10");
+  final TextEditingController _inviteCodeController = TextEditingController();
+  Map<String, dynamic>? _searchedDropOffRequest;
+  bool _isSearchingCode = false;
   final TextEditingController _jobUnitPriceController = TextEditingController(text: "50000");
   final TextEditingController _jobMemoController = TextEditingController();
 
@@ -52,6 +55,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     _jobRequiredTrucksController.dispose();
     _jobUnitPriceController.dispose();
     _jobMemoController.dispose();
+    _inviteCodeController.dispose();
     super.dispose();
   }
 
@@ -130,6 +134,44 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     }
   }
 
+  Future<void> _searchDropOffByCode(String code, StateSetter setDialogState) async {
+    final cleanCode = code.trim().toUpperCase().replaceAll(' ', '');
+    if (cleanCode.isEmpty) return;
+    setDialogState(() {
+      _isSearchingCode = true;
+    });
+    final endpoint = "$_baseUrl/api/jobs/drop-offs/requests/search-by-code?code=${Uri.encodeComponent(cleanCode)}";
+    try {
+      final response = await http.get(
+        Uri.parse(endpoint),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        setDialogState(() {
+          _searchedDropOffRequest = decoded;
+          _selectedDropOffRequestId = decoded['id'];
+        });
+      } else {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        _showErrorDialog(decoded["detail"] ?? "해당 코드로 공고를 찾을 수 없습니다.");
+        setDialogState(() {
+          _searchedDropOffRequest = null;
+          _selectedDropOffRequestId = null;
+        });
+      }
+    } catch (e) {
+      _showErrorDialog("네트워크 오류가 발생했습니다.");
+    } finally {
+      setDialogState(() {
+        _isSearchingCode = false;
+      });
+    }
+  }
+
   // 신규 기사 모집 공고(JobPost) 등록 API 호출
   Future<void> _registerJobPost() async {
     if (!_jobFormKey.currentState!.validate()) return;
@@ -150,6 +192,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
             "drop_off_request_id": _selectedDropOffRequestId,
             "work_date": _selectedWorkDate.toIso8601String(),
             "required_trucks": int.tryParse(_jobRequiredTrucksController.text.trim()) ?? 10,
+            "is_direct_match": true,
           }
         : {
             "site_id": _selectedSiteId,
@@ -438,6 +481,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     _jobRequiredTrucksController.text = "10";
     _jobUnitPriceController.text = "50000";
     _jobMemoController.clear();
+    _inviteCodeController.clear();
+    _searchedDropOffRequest = null;
     _selectedMaterialType = "GOOD_SOIL";
     _selectedTruckType = "T_25";
     _selectedPayerType = "SITE_PAYS";
@@ -587,7 +632,12 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                                   groupValue: _isDirectMatching,
                                   contentPadding: EdgeInsets.zero,
                                   activeColor: AppColors.primary,
-                                  onChanged: (val) => setDialogState(() => _isDirectMatching = val!),
+                                  onChanged: (val) => setDialogState(() {
+                                    _isDirectMatching = val!;
+                                    _selectedDropOffRequestId = null;
+                                    _searchedDropOffRequest = null;
+                                    _inviteCodeController.clear();
+                                  }),
                                 ),
                               ),
                               Expanded(
@@ -597,14 +647,79 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                                   groupValue: _isDirectMatching,
                                   contentPadding: EdgeInsets.zero,
                                   activeColor: AppColors.primary,
-                                  onChanged: (val) => setDialogState(() => _isDirectMatching = val!),
+                                  onChanged: (val) => setDialogState(() {
+                                    _isDirectMatching = val!;
+                                    _selectedDropOffRequestId = null;
+                                    _searchedDropOffRequest = null;
+                                    _inviteCodeController.clear();
+                                  }),
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 12),
                           if (_isDirectMatching) ...[
-                            Text("매칭할 하차지 공고", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                            Text("하차지 초대코드 입력", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _inviteCodeController,
+                                    style: TextStyle(color: AppColors.textPrimary),
+                                    decoration: _buildInputDecoration("초대코드 입력 (예: DR-5)"),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _isSearchingCode
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.success),
+                                      )
+                                    : ElevatedButton(
+                                        onPressed: () => _searchDropOffByCode(_inviteCodeController.text, setDialogState),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.success,
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        child: const Text("검색"),
+                                      ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (_searchedDropOffRequest != null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "🔍 검색된 하차지: ${_searchedDropOffRequest!['drop_off_name'] ?? '하차지'}",
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.success),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "주소: ${_searchedDropOffRequest!['drop_off_address'] ?? '주소 미등록'}",
+                                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "단가: ${_searchedDropOffRequest!['unit_price']}원 / 토사: ${_translateMaterial(_searchedDropOffRequest!['material_type'])}",
+                                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            Text("또는 하차지 공고 목록에서 선택", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
                             const SizedBox(height: 6),
                             if (_openDropOffRequests.isEmpty)
                               Container(
