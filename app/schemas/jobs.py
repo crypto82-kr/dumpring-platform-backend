@@ -17,6 +17,7 @@ class DropOffRequestCreate(BaseModel):
     rain_work_allowed: bool = Field(False, description="우천 작업 허용 여부")
     start_date: datetime = Field(..., description="수용 시작 날짜")
     end_date: datetime = Field(..., description="수용 종료 날짜")
+    matched_site_id: Optional[int] = Field(None, description="매칭 요청할 현장 ID (공고 등록/수정 시 현장 직접 지정한 경우)")
 
 
 class DropOffRequestResponse(BaseModel):
@@ -102,6 +103,7 @@ class JobPostResponse(BaseModel):
     site_address: Optional[str] = None
     distance: Optional[float] = None
     estimated_time: Optional[int] = None
+    rejection_reason: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -118,4 +120,9 @@ class JobPostUpdate(BaseModel):
     offered_unit_price: Optional[int] = Field(None, description="상차지 제시 단가")
     payer_type: Optional[str] = Field(None, description="비용 지급 주체 코드 (예: SITE_PAYS, FREE)")
     memo: Optional[str] = Field(None, description="메모 / 특이사항")
+    drop_off_request_id: Optional[int] = Field(None, description="하차지 수용 공고 ID")
+
+
+class JobRejectionRequest(BaseModel):
+    rejection_reason: Optional[str] = Field(None, description="반려 사유")
 

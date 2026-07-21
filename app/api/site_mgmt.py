@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import selectinload
 import uuid
 
 from app.core.db import get_db
@@ -33,6 +34,8 @@ class SiteSearchResponse(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     geofencing_radius: float = 200.0
+    manager_name: Optional[str] = None
+    manager_phone: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -47,6 +50,7 @@ class CreateSiteRequest(BaseModel):
     latitude: Optional[float] = Field(None, description="위도")
     longitude: Optional[float] = Field(None, description="경도")
     geofencing_radius: float = Field(200.0, description="지오펜싱 반경 (기본 200m)")
+    managers: Optional[str] = Field(None, description="담당자 성명/연락처")
 
 class ApproveWorkerRequest(BaseModel):
     worker_id: int = Field(..., description="승인/반려할 현장담당자(User) ID")
@@ -65,6 +69,8 @@ class UserMappingResponse(BaseModel):
     geofencing_radius: float = 200.0
     status: str
     created_at: str
+    manager_name: Optional[str] = None
+    manager_phone: Optional[str] = None
 
 class PendingWorkerResponse(BaseModel):
     user_id: int
@@ -72,6 +78,25 @@ class PendingWorkerResponse(BaseModel):
     phone_number: str
     status: str
     mapping_id: int
+
+
+# --- Helper function for parsing managers ---
+def parse_managers_string(managers_str: Optional[str]):
+    if not managers_str:
+        return None, None
+    import re
+    # Look for phone pattern like 010-xxxx-xxxx or 010xxxxxxxx or 02-xxx-xxxx
+    phone_match = re.search(r'(0\d{1,2}-?\d{3,4}-?\d{4})', managers_str)
+    phone = phone_match.group(1) if phone_match else None
+    
+    # The name is whatever is not the phone or parentheses
+    name = managers_str
+    if phone:
+        name = name.replace(phone, "")
+    name = re.sub(r'[\(\)\-\s,]+', ' ', name).strip()
+    if not name:
+        name = None
+    return name, phone
 
 
 # --- Endpoints ---
@@ -88,7 +113,7 @@ async def search_sites(
     current_user: User = Depends(get_current_user)
 ):
     # 현장 키(site_key)에 대한 완전 매핑 조회 또는 부분 조회
-    sql_query = select(ConstructionSite).where(
+    sql_query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(
         (ConstructionSite.site_key.ilike(f"%{query}%")) |
         (ConstructionSite.company_name.ilike(f"%{query}%"))
     )
@@ -98,14 +123,16 @@ async def search_sites(
     return [
         SiteSearchResponse(
             id=s.id,
-            site_name=s.company_name,
+            site_name=s.site_name or s.company_name or "현장명 없음",
             company_name=s.company_name,
             business_number=s.business_number,
             site_key=s.site_key or "",
             site_address=s.site_address,
             latitude=s.latitude,
             longitude=s.longitude,
-            geofencing_radius=s.geofencing_radius
+            geofencing_radius=s.geofencing_radius,
+            manager_name=s.manager_name or (s.creator.name if s.creator else None),
+            manager_phone=s.manager_phone or (s.creator.phone_number if s.creator else None)
         ) for s in sites
     ]
 
@@ -138,6 +165,7 @@ async def create_site(
 
     if not site:
         site_key = uuid.uuid4().hex[:6].upper()  # 순수 6자리 초대코드 발급
+        m_name, m_phone = parse_managers_string(data.managers)
         site = ConstructionSite(
             user_id=current_user.id,
             company_name=data.company_name,
@@ -147,7 +175,9 @@ async def create_site(
             latitude=data.latitude,
             longitude=data.longitude,
             geofencing_radius=data.geofencing_radius,
-            billing_email=f"billing@{current_user.phone_number}.com"
+            billing_email=f"billing@{current_user.phone_number}.com",
+            manager_name=m_name,
+            manager_phone=m_phone
         )
         db.add(site)
         await db.flush()
@@ -175,14 +205,16 @@ async def create_site(
 
     return SiteSearchResponse(
         id=site.id,
-        site_name=site.company_name,
+        site_name=site.site_name or site.company_name or "현장명 없음",
         company_name=site.company_name,
         business_number=site.business_number,
         site_key=site.site_key or "",
         site_address=site.site_address,
         latitude=site.latitude,
         longitude=site.longitude,
-        geofencing_radius=site.geofencing_radius
+        geofencing_radius=site.geofencing_radius,
+        manager_name=site.manager_name or current_user.name,
+        manager_phone=site.manager_phone or current_user.phone_number
     )
 
 
@@ -255,7 +287,7 @@ async def get_my_mappings(
 
     response_list = []
     for m in mappings:
-        site_query = select(ConstructionSite).where(ConstructionSite.id == m.site_id)
+        site_query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(ConstructionSite.id == m.site_id)
         site_result = await db.execute(site_query)
         site = site_result.scalars().first()
         if site:
@@ -263,7 +295,7 @@ async def get_my_mappings(
                 UserMappingResponse(
                     mapping_id=m.id,
                     site_id=m.site_id,
-                    site_name=site.company_name,
+                    site_name=site.site_name or site.company_name or "현장명 없음",
                     company_name=site.company_name,
                     business_number=site.business_number,
                     site_key=site.site_key or "",
@@ -272,7 +304,9 @@ async def get_my_mappings(
                     longitude=site.longitude,
                     geofencing_radius=site.geofencing_radius or 200.0,
                     status=m.status.value,
-                    created_at=m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else ""
+                    created_at=m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else "",
+                    manager_name=site.manager_name or (site.creator.name if site.creator else None),
+                    manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None)
                 )
             )
     return response_list
@@ -454,6 +488,8 @@ class ConstructionSiteDetailResponse(BaseModel):
     latitude: Optional[float]
     longitude: Optional[float]
     geofencing_radius: float
+    manager_name: Optional[str] = None
+    manager_phone: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -468,6 +504,7 @@ class UpdateSiteRequest(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     geofencing_radius: Optional[float] = None
+    managers: Optional[str] = None
 
 
 @router.get(
@@ -479,30 +516,44 @@ async def list_all_sites(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    print(f"[DEBUG] list_all_sites called: user_id={current_user.id}, is_admin={current_user.is_admin}, is_drop_off={current_user.is_drop_off}, is_site_manager={current_user.is_site_manager}")
     # 플랫폼 어드민인 경우 전체 현장 리턴
-    if current_user.is_admin:
-        query = select(ConstructionSite)
+    if current_user.is_admin or current_user.is_drop_off:
+        query = select(ConstructionSite).options(selectinload(ConstructionSite.creator))
         result = await db.execute(query)
         sites = result.scalars().all()
-        return sites
+    else:
+        mapped_query = select(SiteUserMapping.site_id).where(
+            SiteUserMapping.user_id == current_user.id,
+            SiteUserMapping.status == SiteUserStatus.APPROVED
+        )
+        mapped_result = await db.execute(mapped_query)
+        mapped_site_ids = mapped_result.scalars().all()
         
-    # 현장 관리자/담당자인 경우 본인이 속해(매핑)되어 있는 현장만 리턴
-    # 1. 본인이 생성한 현장 (ConstructionSite.user_id == current_user.id)
-    # 2. 혹은 매핑 테이블(SiteUserMapping)을 통해 매핑된 현장 중 APPROVED 상태인 것
-    mapped_query = select(SiteUserMapping.site_id).where(
-        SiteUserMapping.user_id == current_user.id,
-        SiteUserMapping.status == SiteUserStatus.APPROVED
-    )
-    mapped_result = await db.execute(mapped_query)
-    mapped_site_ids = mapped_result.scalars().all()
-    
-    query = select(ConstructionSite).where(
-        (ConstructionSite.user_id == current_user.id) | 
-        (ConstructionSite.id.in_(mapped_site_ids))
-    )
-    result = await db.execute(query)
-    sites = result.scalars().all()
-    return sites
+        query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(
+            (ConstructionSite.user_id == current_user.id) | 
+            (ConstructionSite.id.in_(mapped_site_ids))
+        )
+        result = await db.execute(query)
+        sites = result.scalars().all()
+
+    return [
+        ConstructionSiteDetailResponse(
+            id=s.id,
+            user_id=s.user_id,
+            company_name=s.company_name,
+            site_name=s.site_name,
+            business_number=s.business_number,
+            billing_email=s.billing_email,
+            site_key=s.site_key,
+            site_address=s.site_address,
+            latitude=s.latitude,
+            longitude=s.longitude,
+            geofencing_radius=s.geofencing_radius,
+            manager_name=s.manager_name or (s.creator.name if s.creator else None),
+            manager_phone=s.manager_phone or (s.creator.phone_number if s.creator else None)
+        ) for s in sites
+    ]
 
 
 @router.post(
@@ -516,6 +567,7 @@ async def admin_create_site(
     current_user: User = Depends(get_current_user)
 ):
     site_key = uuid.uuid4().hex[:6].upper()
+    m_name, m_phone = parse_managers_string(data.managers)
     site = ConstructionSite(
         user_id=current_user.id,
         company_name=data.company_name,
@@ -526,12 +578,33 @@ async def admin_create_site(
         latitude=data.latitude or 37.5665,
         longitude=data.longitude or 126.9780,
         geofencing_radius=data.geofencing_radius,
-        billing_email=f"billing@{current_user.phone_number}.com"
+        billing_email=f"billing@{current_user.phone_number}.com",
+        manager_name=m_name,
+        manager_phone=m_phone
     )
     db.add(site)
     await db.commit()
-    await db.refresh(site)
-    return site
+    
+    # Query with creator loaded
+    query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(ConstructionSite.id == site.id)
+    result = await db.execute(query)
+    site = result.scalars().first()
+
+    return ConstructionSiteDetailResponse(
+        id=site.id,
+        user_id=site.user_id,
+        company_name=site.company_name,
+        site_name=site.site_name,
+        business_number=site.business_number,
+        billing_email=site.billing_email,
+        site_key=site.site_key,
+        site_address=site.site_address,
+        latitude=site.latitude,
+        longitude=site.longitude,
+        geofencing_radius=site.geofencing_radius,
+        manager_name=site.manager_name or (site.creator.name if site.creator else None),
+        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None)
+    )
 
 
 @router.put(
@@ -567,10 +640,33 @@ async def update_site_detail(
         site.longitude = data.longitude
     if data.geofencing_radius is not None:
         site.geofencing_radius = data.geofencing_radius
+    if data.managers is not None:
+        m_name, m_phone = parse_managers_string(data.managers)
+        site.manager_name = m_name
+        site.manager_phone = m_phone
 
     await db.commit()
-    await db.refresh(site)
-    return site
+    
+    # Query with creator loaded
+    query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(ConstructionSite.id == site_id)
+    result = await db.execute(query)
+    site = result.scalars().first()
+
+    return ConstructionSiteDetailResponse(
+        id=site.id,
+        user_id=site.user_id,
+        company_name=site.company_name,
+        site_name=site.site_name,
+        business_number=site.business_number,
+        billing_email=site.billing_email,
+        site_key=site.site_key,
+        site_address=site.site_address,
+        latitude=site.latitude,
+        longitude=site.longitude,
+        geofencing_radius=site.geofencing_radius,
+        manager_name=site.manager_name or (site.creator.name if site.creator else None),
+        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None)
+    )
 
 
 @router.delete(

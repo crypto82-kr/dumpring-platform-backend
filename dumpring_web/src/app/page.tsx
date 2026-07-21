@@ -191,23 +191,36 @@ export default function Home() {
   const fetchRegisteredSites = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
+      const profileStr = localStorage.getItem("userProfile");
+      const role = profileStr ? JSON.parse(profileStr).role : null;
+
+      // 하차지 관리자는 /api/sites/search 사용 (권한 무제한, 전체 검색)
+      // 현장 관리자/어드민은 /api/sites/admin-sites 사용
+      const url = role === "dropoff_manager"
+        ? `${API_BASE_URL}/api/sites/search?query=`
+        : `${API_BASE_URL}/api/sites/admin-sites`;
+
+      const res = await fetch(url, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
       });
-      console.log("fetchRegisteredSites Status:", res.status);
+      console.log("fetchRegisteredSites Status:", res.status, "URL:", url);
       if (res.ok) {
         const data = await res.json();
-        console.log("fetchRegisteredSites Data:", data);
+        console.log("fetchRegisteredSites Data count:", data.length);
         // map db ConstructionSite fields to frontend properties
         const mapped = data.map((site: any) => ({
           id: site.id,
-          name: site.site_name || "현장명 없음", // 현장명
-          companyName: site.company_name || "건설업체명 없음", // 건설업체명
-          address: site.site_address || "현장 주소 미등록", // 현장 주소
-          roadDesc: site.road_desc || "정문 차단기 통과 후 진입", // 진입로 설명
-          managers: [site.billing_email || "billing@dumpring.com"], // 담당자/이메일 리스트
+          name: site.site_name || site.company_name || "현장명 없음",
+          companyName: site.company_name || "건설업체명 없음",
+          address: site.site_address || "현장 주소 미등록",
+          roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
+          managers: [
+            site.manager_name && site.manager_phone 
+              ? `${site.manager_name} (${site.manager_phone})` 
+              : (site.billing_email || "지정 대기")
+          ],
           bizRegNo: site.business_number || "",
           siteKey: site.site_key || ""
         }));
@@ -235,7 +248,8 @@ export default function Home() {
           company_name: siteData.companyName,
           business_number: siteData.bizRegNo || "000-00-00000",
           site_address: siteData.address,
-          geofencing_radius: 200.0
+          geofencing_radius: 200.0,
+          managers: siteData.managers
         })
       });
       if (res.ok) {
@@ -262,7 +276,8 @@ export default function Home() {
           site_name: siteData.name,
           company_name: siteData.companyName,
           business_number: siteData.bizRegNo,
-          site_address: siteData.address
+          site_address: siteData.address,
+          managers: siteData.managers
         })
       });
       if (res.ok) {
@@ -335,6 +350,10 @@ export default function Home() {
           offeredUnitPrice: job.offered_unit_price || 0,
           distance: job.distance,
           estimatedTime: job.estimated_time,
+          dropOffRequestId: job.drop_off_request_id,
+          matchedDropOffId: job.matched_drop_off_id,
+          authorId: job.author_id,
+          rejectionReason: job.rejection_reason || ""
         }));
         setDispatchRequestList(mapped);
       } else {
@@ -345,11 +364,17 @@ export default function Home() {
     }
   };
 
-  /** 현재 OPEN 상태인 하차지 수용 공고 목록 조회 (현장관리자가 하차지 선택용으로 사용) */
+  /** 현재 OPEN 상태인 하차지 수용 공고 목록 조회 (하차지 관리자는 본인의 CLOSED 포함 전체 공고 조회) */
   const fetchOpenDropOffRequests = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/drop-offs/requests`, {
+      // 하차지 지주 역할인 경우 본인 전용 my/requests API 호출
+      const isDropoffManager = user?.role === "dropoff_manager";
+      const url = isDropoffManager
+        ? `${API_BASE_URL}/api/drop-offs/my/requests`
+        : `${API_BASE_URL}/api/drop-offs/requests`;
+
+      const res = await fetch(url, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -369,8 +394,13 @@ export default function Home() {
           startDate: req.start_date ? req.start_date.substring(0, 10) : "",
           endDate: req.end_date ? req.end_date.substring(0, 10) : "",
           soilDealType: req.payer_type === "SITE_PAYS" ? "buy" : "sell",
+          status: req.status || "OPEN",
+          hasWashingFacility: req.has_washing_facility || false,
+          nightWorkAllowed: req.night_work_allowed || false,
+          rainWorkAllowed: req.rain_work_allowed || false,
+          paymentMethod: req.payment_method || "MONTHLY",
         }));
-        setRegisteredDropoffList(mapped);
+        setDropoffRequestList(mapped);
       } else {
         console.warn("fetchOpenDropOffRequests failed:", res.status);
       }
@@ -378,6 +408,493 @@ export default function Home() {
       console.error("fetchOpenDropOffRequests error:", e);
     }
   };
+
+  /** 하차지 지주가 보는 매칭 대기 현장 및 수신된 승인 대기 요청 목록 조회 */
+  const fetchDropoffJobs = async () => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      if (!token) return;
+
+      const pendingRes = await fetch(`${API_BASE_URL}/api/jobs/pending`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      let pendingJobs: any[] = [];
+      if (pendingRes.ok) {
+        pendingJobs = await pendingRes.json();
+      }
+
+      const waitingRes = await fetch(`${API_BASE_URL}/api/jobs/waiting-match`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      let waitingJobs: any[] = [];
+      if (waitingRes.ok) {
+        waitingJobs = await waitingRes.json();
+      }
+
+      const allJobs = [...pendingJobs, ...waitingJobs];
+      const mapped = allJobs.map((job: any) => ({
+        id: job.id,
+        siteId: job.site_id,
+        siteName: job.site_name || `현장 #${job.site_id}`,
+        tonTypes: job.truck_type ? [job.truck_type] : [],
+        truckCount: job.required_trucks || 1,
+        soilType: job.material_type || "일반 토사",
+        startDate: job.work_date ? job.work_date.substring(0, 10) : "",
+        endDate: job.work_date ? job.work_date.substring(0, 10) : "",
+        dropoffMode: job.matched_drop_off_id ? "search" : (job.drop_off_request_id ? "search" : "none"),
+        dropoffName: job.drop_off_name || "",
+        dropoffAddress: job.drop_off_address || "",
+        status: (() => {
+          switch (job.status) {
+            case "OPEN": return "배차완료";
+            case "WAITING_APPROVAL": return "승인대기";
+            case "WAITING_MATCH": return "매칭대기";
+            case "CLOSED": return "마감";
+            case "CANCELLED": return "취소됨";
+            default: return "대기중";
+          }
+        })(),
+        rawStatus: job.status,
+        memo: job.memo || "",
+        offeredUnitPrice: job.offered_unit_price || 0,
+        distance: job.distance,
+        estimatedTime: job.estimated_time,
+        dropOffRequestId: job.drop_off_request_id,
+        matchedDropOffId: job.matched_drop_off_id,
+        authorId: job.author_id,
+        rejectionReason: job.rejection_reason || ""
+      }));
+
+      setDispatchRequestList(mapped);
+    } catch (e) {
+      console.error("fetchDropoffJobs error:", e);
+    }
+  };
+
+  /** 하차지 지주 본인이 소유한 B2B 마스터 하차지 목록 조회 (DropoffManagerDashboard용) */
+  const fetchMyDropOffs = async () => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs/me`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((drop: any) => ({
+          id: drop.id,
+          name: drop.name,
+          address: drop.address,
+          capacity: 100000, // 마스터 하차지의 화면용 기본 가상 계약 용량
+          soilDealType: "sell", // 기본 거래 방식
+          managers: [drop.permit_number || "미지정"],
+          status: drop.status
+        }));
+        setRegisteredDropoffList(mapped);
+      } else {
+        console.warn("fetchMyDropOffs failed:", res.status);
+      }
+    } catch (e) {
+      console.error("fetchMyDropOffs error:", e);
+    }
+  };
+
+  /** 하차지 신규 등록 API 연동 */
+  const handleCreateDropoff = async (payload: any): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: payload.name,
+          address: payload.address,
+          latitude: 37.5665, // 가상 위치
+          longitude: 126.9780,
+          radius_meter: 200,
+          permit_number: payload.managers || "PERMIT-TEMP"
+        })
+      });
+      if (res.ok) {
+        await fetchMyDropOffs();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("handleCreateDropoff error:", e);
+      return false;
+    }
+  };
+
+  /** 하차지 정보 수정 API 연동 */
+  const handleUpdateDropoff = async (id: number, payload: any): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: payload.name,
+          address: payload.address,
+          permit_number: payload.managers
+        })
+      });
+      if (res.ok) {
+        await fetchMyDropOffs();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("handleUpdateDropoff error:", e);
+      return false;
+    }
+  };
+
+  /** 하차지 삭제 API 연동 */
+  const handleDeleteDropoff = async (id: number): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          status: "DELETED"
+        })
+      });
+      if (res.ok) {
+        await fetchMyDropOffs();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("handleDeleteDropoff error:", e);
+      return false;
+    }
+  };
+
+  /** 하차지 수용 공고 등록 API 연동 */
+  const handleCreateDropoffRequest = async (payload: any): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      // drop_off_id는 URL path에 포함 (백엔드: /api/drop-offs/{drop_off_id}/requests)
+      const dropOffId = Number(payload.dropOffId);
+
+      // 날짜 포맷 가공: YYYY-MM-DD -> YYYY-MM-DDT00:00:00
+      const formattedStartDate = payload.startDate ? `${payload.startDate}T00:00:00` : new Date().toISOString().split('T')[0] + 'T00:00:00';
+      const formattedEndDate = payload.endDate ? `${payload.endDate}T23:59:59` : formattedStartDate.replace('T00:00:00', 'T23:59:59');
+
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs/${dropOffId}/requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          material_type: payload.materialType || "GOOD_SOIL",
+          truck_type: payload.capacityType || "T_25",       // capacity_type → truck_type
+          target_quantity: Number(payload.targetQuantity) || 100,                              // 기본값 100대
+          payer_type: payload.payerType || "SITE_PAYS",
+          payment_method: payload.paymentMethod || "MONTHLY",
+          unit_price: Number(payload.unitPrice),
+          has_washing_facility: payload.hasWashingFacility || false,
+          night_work_allowed: payload.nightWorkAllowed || false,
+          rain_work_allowed: payload.rainWorkAllowed || false,
+          start_date: formattedStartDate,
+          end_date: formattedEndDate,
+          // 현장 매칭 연동: search 모드로 현장을 선택한 경우에만 전달
+          ...(payload.matchMode === "search" && payload.matchedSiteId
+            ? { matched_site_id: Number(payload.matchedSiteId) }
+            : {})
+        })
+      });
+      if (res.ok) {
+        await fetchOpenDropOffRequests();
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      console.error("handleCreateDropoffRequest failed:", res.status, errBody);
+      return false;
+    } catch (e) {
+      console.error("handleCreateDropoffRequest error:", e);
+      return false;
+    }
+  };
+
+  /** 하차지 수용 공고 삭제 API 연동 */
+  const handleDeleteDropoffRequest = async (id: number): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs/requests/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        await fetchOpenDropOffRequests();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("handleDeleteDropoffRequest error:", e);
+      return false;
+    }
+  };
+
+  /** 하차지 수용 공고 상태 변경 API 연동 */
+  const handleUpdateDropoffRequestStatus = async (id: number, status: string): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs/requests/${id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        await fetchOpenDropOffRequests();
+        await fetchDropoffJobs();
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      if (errBody.detail) {
+        alert(errBody.detail);
+      }
+      return false;
+    } catch (e) {
+      console.error("handleUpdateDropoffRequestStatus error:", e);
+      return false;
+    }
+  };
+
+  /** 하차지 수용 공고 수정 API 연동 */
+  const handleUpdateDropoffRequest = async (id: number, payload: any): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      
+      const formattedStartDate = payload.startDate ? `${payload.startDate}T00:00:00` : new Date().toISOString().split('T')[0] + 'T00:00:00';
+      const formattedEndDate = payload.endDate ? `${payload.endDate}T23:59:59` : formattedStartDate.replace('T00:00:00', 'T23:59:59');
+
+      const res = await fetch(`${API_BASE_URL}/api/drop-offs/requests/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          material_type: payload.materialType || "GOOD_SOIL",
+          truck_type: payload.capacityType || "T_25",
+          target_quantity: payload.targetQuantity || 100,
+          payer_type: payload.payerType || "SITE_PAYS",
+          payment_method: payload.paymentMethod || "MONTHLY",
+          unit_price: Number(payload.unitPrice),
+          has_washing_facility: payload.hasWashingFacility || false,
+          night_work_allowed: payload.nightWorkAllowed || false,
+          rain_work_allowed: payload.rainWorkAllowed || false,
+          start_date: formattedStartDate,
+          end_date: formattedEndDate,
+          // 현장 매칭 연동: search 모드로 현장을 선택한 경우에만 전달
+          ...(payload.matchMode === "search" && payload.matchedSiteId
+            ? { matched_site_id: Number(payload.matchedSiteId) }
+            : {})
+        })
+      });
+      if (res.ok) {
+        await fetchOpenDropOffRequests();
+        await fetchDropoffJobs();
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      if (errBody.detail) {
+        alert(errBody.detail);
+      }
+      console.error("handleUpdateDropoffRequest failed:", res.status, errBody);
+      return false;
+    } catch (e) {
+      console.error("handleUpdateDropoffRequest error:", e);
+      return false;
+    }
+  };
+
+  /** 현장 매칭 요청 승인 API 연동 */
+  const handleApproveJobPost = async (id: number): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${id}/approve`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        await fetchOpenDropOffRequests();
+        await fetchDropoffJobs();
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      if (errBody.detail) {
+        alert(errBody.detail);
+      }
+      return false;
+    } catch (e) {
+      console.error("handleApproveJobPost error:", e);
+      return false;
+    }
+  };
+
+  /** 현장 매칭 요청 반려 API 연동 */
+  const handleRejectJobPost = async (id: number, reason?: string): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${id}/reject`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rejection_reason: reason || ""
+        })
+      });
+      if (res.ok) {
+        await fetchOpenDropOffRequests();
+        await fetchDropoffJobs();
+        await fetchDispatchRequests();
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      if (errBody.detail) {
+        alert(errBody.detail);
+      }
+      return false;
+    } catch (e) {
+      console.error("handleRejectJobPost error:", e);
+      return false;
+    }
+  };
+
+  /** 현장 공고에 하차지 매칭 제안 API 연동 */
+  const handleMatchJobPost = async (jobId: number, dropOffId: number): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/match`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          drop_off_id: Number(dropOffId)
+        })
+      });
+      if (res.ok) {
+        await fetchOpenDropOffRequests();
+        await fetchDropoffJobs();
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      if (errBody.detail) {
+        alert(errBody.detail);
+      }
+      return false;
+    } catch (e) {
+      console.error("handleMatchJobPost error:", e);
+      return false;
+    }
+  };
+
+  /** 상차지 관리자의 하차지 매칭 제안 최종 승인 API 연동 */
+  const handleConfirmMatchJobPost = async (id: number): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${id}/confirm-match`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        await fetchDispatchRequests();
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      if (errBody.detail) {
+        alert(errBody.detail);
+      }
+      return false;
+    } catch (e) {
+      console.error("handleConfirmMatchJobPost error:", e);
+      return false;
+    }
+  };
+
+  /** 반려/취소된 공고를 다시 매칭 대기 상태로 초기화 */
+  const handleResetMatchJobPost = async (id: number): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${id}/reset-match`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        // 배경에서 리프레시를 안전하게 실행하여 하나가 실패하더라도 전체 처리가 참(true)을 반환하도록 처리
+        Promise.resolve().then(async () => {
+          try { await fetchDispatchRequests(); } catch (e) { console.error("fetchDispatchRequests background error:", e); }
+          try { await fetchDropoffJobs(); } catch (e) { console.error("fetchDropoffJobs background error:", e); }
+        });
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      const errorMsg = errBody.detail || `서버 에러 (HTTP ${res.status})`;
+      alert(errorMsg);
+      return false;
+    } catch (e: any) {
+      console.error("handleResetMatchJobPost error:", e);
+      alert(`네트워크/클라이언트 에러: ${e.message || e}`);
+      return false;
+    }
+  };
+
+  const handleRejectMatchJobPost = async (id: number, reason: string): Promise<boolean> => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${id}/reject-match`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rejection_reason: reason
+        })
+      });
+      if (res.ok) {
+        await fetchDispatchRequests();
+        return true;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      if (errBody.detail) {
+        alert(errBody.detail);
+      }
+      return false;
+    } catch (e) {
+      console.error("handleRejectMatchJobPost error:", e);
+      return false;
+    }
+  };
+
 
   /**
    * [흐름 B] 현장이 먼저 공고 등록 (하차지 미지정) → WAITING_MATCH
@@ -455,6 +972,8 @@ export default function Home() {
     offeredUnitPrice?: number;
     payerType?: string;
     memo?: string;
+    status?: string;
+    dropOffRequestId?: number | null;
   }) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
@@ -465,6 +984,7 @@ export default function Home() {
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
+          ...(formData.status && { status: formData.status }),
           ...(formData.materialType && { material_type: formData.materialType }),
           ...(formData.truckType && { truck_type: formData.truckType }),
           ...(formData.workDate && { work_date: formData.workDate }),
@@ -472,6 +992,7 @@ export default function Home() {
           ...(formData.offeredUnitPrice !== undefined && { offered_unit_price: formData.offeredUnitPrice }),
           ...(formData.payerType && { payer_type: formData.payerType }),
           ...(formData.memo !== undefined && { memo: formData.memo }),
+          ...(formData.dropOffRequestId !== undefined && { drop_off_request_id: formData.dropOffRequestId }),
         })
       });
       if (res.ok) {
@@ -495,8 +1016,23 @@ export default function Home() {
 
   useEffect(() => {
     // Initial fetch on mount
+    fetchCommonCodes();
     fetchRegisteredSites();
-    fetchOpenDropOffRequests();
+    const profileStr = localStorage.getItem("userProfile");
+    if (profileStr) {
+      try {
+        const parsed = JSON.parse(profileStr);
+        if (parsed.role === "dropoff_manager") {
+          fetchMyDropOffs();
+        } else {
+          fetchOpenDropOffRequests();
+        }
+      } catch (e) {
+        fetchOpenDropOffRequests();
+      }
+    } else {
+      fetchOpenDropOffRequests();
+    }
   }, []);
 
   useEffect(() => {
@@ -512,6 +1048,12 @@ export default function Home() {
     if (activePath === "/site/dispatch-request") {
       fetchDispatchRequests();
       fetchOpenDropOffRequests();
+    }
+    if (activePath === "/dropoff" || activePath === "/dropoff/dispatch-request") {
+      fetchMyDropOffs();
+      fetchRegisteredSites(); // 현장 검색 탭에서 현장 목록 제공용
+      fetchOpenDropOffRequests(); // 하차지 수용 공고 목록 갱신용
+      fetchDropoffJobs(); // 매칭 대기 / 승인 대기 오더 조회
     }
   }, [activePath]);
 
@@ -647,6 +1189,7 @@ export default function Home() {
 
   // --- Dropoff States ---
   const [registeredDropoffList, setRegisteredDropoffList] = useState<any[]>([]);
+  const [dropoffRequestList, setDropoffRequestList] = useState<any[]>([]);
 
   // Form states for Dropoff Registration
   const [dropoffFormName, setDropoffFormName] = useState("");
@@ -980,6 +1523,7 @@ export default function Home() {
           dispatchRequestList={dispatchRequestList}
           setDispatchRequestList={setDispatchRequestList}
           registeredDropoffList={registeredDropoffList}
+          dropoffRequestList={dropoffRequestList}
           taxInvoiceApproved={taxInvoiceApproved}
           setTaxInvoiceApproved={setTaxInvoiceApproved}
           handleCreateSite={handleCreateSite}
@@ -993,10 +1537,14 @@ export default function Home() {
           setDispatchFormPayerType={setDispatchFormPayerType}
           dispatchFormOfferedUnitPrice={dispatchFormOfferedUnitPrice}
           setDispatchFormOfferedUnitPrice={setDispatchFormOfferedUnitPrice}
+          handleConfirmMatchJobPost={handleConfirmMatchJobPost}
+          handleRejectMatchJobPost={handleRejectMatchJobPost}
+          handleResetMatchJobPost={handleResetMatchJobPost}
         />
       )}
       {user.role === "dropoff_manager" && (
         <DropoffManagerDashboard
+          user={user}
           activePath={activePath}
           setActivePath={setActivePath}
           dropoffFormName={dropoffFormName}
@@ -1016,6 +1564,23 @@ export default function Home() {
           inboundTrucks={inboundTrucks}
           handleVerifyInbound={handleVerifyInbound}
           dropoffVerifiedCount={dropoffVerifiedCount}
+          dbCommonCodes={dbCommonCodes}
+          handleCreateDropoff={handleCreateDropoff}
+          handleDeleteDropoff={handleDeleteDropoff}
+          handleUpdateDropoff={handleUpdateDropoff}
+          handleUpdateDispatch={handleUpdateDispatch}
+          dispatchRequestList={dispatchRequestList}
+          dropoffRequestList={dropoffRequestList}
+          handleCreateDropoffRequest={handleCreateDropoffRequest}
+          handleDeleteDropoffRequest={handleDeleteDropoffRequest}
+          handleUpdateDropoffRequestStatus={handleUpdateDropoffRequestStatus}
+          handleUpdateDropoffRequest={handleUpdateDropoffRequest}
+          handleApproveJobPost={handleApproveJobPost}
+          handleRejectJobPost={handleRejectJobPost}
+          handleMatchJobPost={handleMatchJobPost}
+          fetchOpenDropOffRequests={fetchOpenDropOffRequests}
+          registeredSiteList={registeredSiteList}
+          handleResetMatchJobPost={handleResetMatchJobPost}
         />
       )}
       {user.role === "owner" && (

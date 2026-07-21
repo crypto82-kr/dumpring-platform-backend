@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_
 from sqlalchemy.future import select
-from typing import List
+from sqlalchemy.orm import selectinload
+from typing import List, Optional
 
 from app.core.db import get_db
 from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode
@@ -14,6 +16,15 @@ from app.schemas.jobs import (
 )
 
 router = APIRouter()
+
+async def get_job_with_relations(job_id: int, db: AsyncSession) -> Optional[JobPost]:
+    query = select(JobPost).options(
+        selectinload(JobPost.site),
+        selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+        selectinload(JobPost.matched_drop_off)
+    ).where(JobPost.id == job_id)
+    result = await db.execute(query)
+    return result.scalars().first()
 
 # ==========================================
 # 하차지 매립 수용 공고 관련 (기존 유지)
@@ -119,7 +130,114 @@ async def create_drop_off_request(
     await db.commit()
     await db.refresh(new_request)
 
+    # 현장 매칭 요청 처리: matched_site_id가 주어진 경우 새 JobPost 생성
+    if data.matched_site_id:
+        site_query = select(ConstructionSite).where(ConstructionSite.id == data.matched_site_id)
+        site_result = await db.execute(site_query)
+        target_site = site_result.scalars().first()
+
+        if target_site:
+            distance = None
+            est_time = None
+            if target_site.latitude and target_site.longitude and dropoff.latitude and dropoff.longitude:
+                import math
+                lat1, lon1 = target_site.latitude, target_site.longitude
+                lat2, lon2 = dropoff.latitude, dropoff.longitude
+                R = 6371.0
+                dlat = math.radians(lat2 - lat1)
+                dlon = math.radians(lon2 - lon1)
+                a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+                c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                distance = round(R * c, 1)
+                est_time = int(distance * 1.5 + 5)
+
+            # WAITING_MATCH 상태인 기존 현장 공고가 존재하는지 확인
+            waiting_match_query = select(JobPost).where(
+                JobPost.site_id == data.matched_site_id,
+                JobPost.status == "WAITING_MATCH"
+            )
+            waiting_match_result = await db.execute(waiting_match_query)
+            waiting_match_job = waiting_match_result.scalars().first()
+
+            if waiting_match_job:
+                # 기존 현장 공고가 존재하면 새로 만들지 않고, 해당 공고의 상태를 WAITING_APPROVAL로 업데이트하고 수용 공고와 바인딩
+                waiting_match_job.drop_off_request_id = new_request.id
+                waiting_match_job.matched_drop_off_id = new_request.drop_off_id
+                waiting_match_job.status = "WAITING_APPROVAL"
+                waiting_match_job.offered_unit_price = new_request.unit_price
+                waiting_match_job.payer_type = new_request.payer_type
+                if distance:
+                    waiting_match_job.distance = distance
+                if est_time:
+                    waiting_match_job.estimated_time = est_time
+                await db.commit()
+            else:
+                new_job = JobPost(
+                    site_id=data.matched_site_id,
+                    drop_off_request_id=new_request.id,
+                    matched_drop_off_id=new_request.drop_off_id,
+                    author_id=current_user.id,
+                    material_type=new_request.material_type,
+                    truck_type=new_request.truck_type,
+                    offered_unit_price=new_request.unit_price,
+                    payer_type=new_request.payer_type,
+                    work_date=new_request.start_date,
+                    required_trucks=new_request.target_quantity,
+                    status="WAITING_APPROVAL",
+                    distance=distance,
+                    estimated_time=est_time
+                )
+                db.add(new_job)
+                await db.commit()
+
+    # 추가 바인딩 필드 설정
+    new_request.drop_off_name = dropoff.name
+    new_request.drop_off_address = dropoff.address
+
     return new_request
+
+
+@router.get(
+    "/drop-offs/my/requests",
+    response_model=List[DropOffRequestResponse],
+    summary="지주 본인의 전체 수용 공고 목록 조회 (정지 상태 포함)",
+    description="로그인한 하차지 지주 본인이 소유한 하차지들에 속한 모든 수용 공고를 조회합니다."
+)
+async def get_my_drop_off_requests(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_drop_off and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="하차지 지주(DROP_OFF) 권한이 필요합니다."
+        )
+
+    # 본인이 소유한 하차지 ID 목록 조회
+    drop_off_query = select(DropOff.id).where(
+        DropOff.owner_id == current_user.id,
+        DropOff.status != "DELETED"
+    )
+    drop_off_result = await db.execute(drop_off_query)
+    dropoff_ids = drop_off_result.scalars().all()
+
+    if not dropoff_ids:
+        return []
+
+    # 해당 하차지들에 등록된 모든 수용 공고(OPEN, CLOSED 상태 모두 포함) 조회
+    query = select(DropOffRequest).where(DropOffRequest.drop_off_id.in_(dropoff_ids))
+    result = await db.execute(query)
+    requests = result.scalars().all()
+
+    for r in requests:
+        drop_off_query = select(DropOff).where(DropOff.id == r.drop_off_id)
+        drop_off_result = await db.execute(drop_off_query)
+        dropoff = drop_off_result.scalars().first()
+        if dropoff:
+            r.drop_off_name = dropoff.name
+            r.drop_off_address = dropoff.address
+
+    return requests
 
 
 @router.get(
@@ -132,10 +250,11 @@ async def get_open_drop_off_requests(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager:
+    print(f"[DEBUG] get_open_drop_off_requests called: user_id={current_user.id}, is_site_manager={current_user.is_site_manager}, is_drop_off={current_user.is_drop_off}, is_admin={current_user.is_admin}")
+    if not current_user.is_site_manager and not current_user.is_drop_off and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자(SITE_MANAGER) 권한이 필요합니다."
+            detail="현장관리자(SITE_MANAGER) 또는 하차지관리자(DROP_OFF) 권한이 필요합니다."
         )
 
     query = select(DropOffRequest).where(DropOffRequest.status == "OPEN")
@@ -151,6 +270,55 @@ async def get_open_drop_off_requests(
             r.drop_off_address = dropoff.address
 
     return requests
+
+
+@router.delete(
+    "/drop-offs/requests/{request_id}",
+    summary="하차지 매립 수용 공고 삭제 (취소)",
+    description="하차지 지주가 본인이 올린 수용 공고를 삭제합니다."
+)
+async def delete_drop_off_request(
+    request_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(DropOffRequest).where(DropOffRequest.id == request_id)
+    result = await db.execute(query)
+    dropoff_req = result.scalars().first()
+
+    if not dropoff_req:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 수용 공고를 찾을 수 없습니다."
+        )
+
+    drop_off_query = select(DropOff).where(DropOff.id == dropoff_req.drop_off_id)
+    drop_off_result = await db.execute(drop_off_query)
+    dropoff = drop_off_result.scalars().first()
+
+    if not dropoff or (dropoff.owner_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="본인의 하차지 공고만 삭제할 수 있습니다."
+        )
+
+    # 제약 조건: 대기 중이거나 진행 중인 매칭 오더가 존재하면 삭제 불가
+    job_query = select(JobPost).where(
+        JobPost.drop_off_request_id == request_id,
+        JobPost.status.in_(["WAITING_APPROVAL", "OPEN"])
+    )
+    job_result = await db.execute(job_query)
+    active_job = job_result.scalars().first()
+    if active_job:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 진행 중이거나 승인 대기 중인 매칭 오더가 존재하여 공고를 삭제할 수 없습니다."
+        )
+
+    await db.delete(dropoff_req)
+    await db.commit()
+
+    return {"message": "수용 공고가 성공적으로 삭제되었습니다."}
 
 
 @router.get(
@@ -305,9 +473,7 @@ async def create_job_post(
     )
     db.add(new_job)
     await db.commit()
-    await db.refresh(new_job)
-
-    return new_job
+    return await get_job_with_relations(new_job.id, db)
 
 
 @router.get(
@@ -345,10 +511,14 @@ async def get_pending_jobs(
     if not request_ids:
         return []
 
-    # 3. 이 공고들을 대상으로 대기 상태인 JobPost 조회
-    job_query = select(JobPost).where(
+    # 3. 이 공고들을 대상으로 대기 상태인 JobPost 조회 (관계 테이블 prefetch 로딩 추가)
+    job_query = select(JobPost).options(
+        selectinload(JobPost.site),
+        selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+        selectinload(JobPost.matched_drop_off)
+    ).where(
         JobPost.drop_off_request_id.in_(request_ids),
-        JobPost.status == "WAITING_APPROVAL"
+        JobPost.status.in_(["WAITING_APPROVAL", "CANCELLED"])
     )
     job_result = await db.execute(job_query)
     return job_result.scalars().all()
@@ -425,12 +595,75 @@ async def approve_job_post(
         dropoff_request.status = "CLOSED"
 
     await db.commit()
-    await db.refresh(job)
-
-    return job
+    return await get_job_with_relations(job.id, db)
 
 
-# ==========================================
+from app.schemas.jobs import JobRejectionRequest
+
+@router.patch(
+    "/jobs/{job_id}/reject",
+    response_model=JobPostResponse,
+    summary="[흐름A] 대기 상태인 덤프 모집 오더 반려",
+    description="해당 하차지 매립 수용 공고를 올린 지주(DROP_OFF) 또는 상차지 관리자가 대기 중인 오더를 'CANCELLED' 상태로 반려하고 사유를 저장합니다."
+)
+async def reject_job_post(
+    job_id: int,
+    data: Optional[JobRejectionRequest] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(JobPost).where(JobPost.id == job_id)
+    result = await db.execute(query)
+    job = result.scalars().first()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="요청한 덤프 모집 오더를 찾을 수 없습니다."
+        )
+
+    if job.status != "WAITING_APPROVAL":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 처리되었거나 반려 완료된 오더입니다."
+        )
+
+    # 권한 검증: 이 오더가 지정한 하차지 소유자 또는 상차지 소유자인지 확인
+    is_owner = False
+    if job.author_id == current_user.id or current_user.is_admin:
+        is_owner = True
+
+    drop_off_id = job.matched_drop_off_id
+    if not drop_off_id and job.drop_off_request_id:
+        req_query = select(DropOffRequest.drop_off_id).where(DropOffRequest.id == job.drop_off_request_id)
+        drop_off_id = (await db.execute(req_query)).scalar_one_or_none()
+
+    if drop_off_id:
+        dropoff = (await db.execute(select(DropOff).where(DropOff.id == drop_off_id))).scalars().first()
+        if dropoff and dropoff.owner_id == current_user.id:
+            is_owner = True
+
+    if job.site_id:
+        site = (await db.execute(select(ConstructionSite).where(ConstructionSite.id == job.site_id))).scalars().first()
+        if site and site.user_id == current_user.id:
+            is_owner = True
+
+    if not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 오더와 연계된 하차지 소유자 또는 상차지 관리자만 반려 처리를 진행할 수 있습니다."
+        )
+
+    # 반려 처리: 상태를 CANCELLED로 변경 및 반려 사유 저장
+    job.status = "CANCELLED"
+    if data and data.rejection_reason:
+        job.rejection_reason = data.rejection_reason
+
+    await db.commit()
+    return await get_job_with_relations(job.id, db)
+
+
+# ==========================================================
 # 흐름 B: 상차지 먼저 → 하차지 매칭 (신규 ✨)
 # ==========================================
 
@@ -518,9 +751,7 @@ async def create_site_job_post(
     )
     db.add(new_job)
     await db.commit()
-    await db.refresh(new_job)
-
-    return new_job
+    return await get_job_with_relations(new_job.id, db)
 
 
 @router.get(
@@ -539,7 +770,11 @@ async def get_waiting_match_jobs(
             detail="하차지 지주(DROP_OFF) 권한이 필요합니다."
         )
 
-    query = select(JobPost).where(JobPost.status == "WAITING_MATCH")
+    query = select(JobPost).options(
+        selectinload(JobPost.site),
+        selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+        selectinload(JobPost.matched_drop_off)
+    ).where(JobPost.status == "WAITING_MATCH")
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -608,6 +843,7 @@ async def match_job_post(
     # 3. 매칭 요청: 하차지 ID 연결 & 상태를 WAITING_APPROVAL로 전환 및 거리/시간 계산
     job.matched_drop_off_id = data.drop_off_id
     job.status = "WAITING_APPROVAL"
+    job.rejection_reason = None
 
     # 상차지(ConstructionSite) 정보 조회하여 위경도 획득
     site_query = select(ConstructionSite).where(ConstructionSite.id == job.site_id)
@@ -633,9 +869,7 @@ async def match_job_post(
     job.estimated_time = est_time
 
     await db.commit()
-    await db.refresh(job)
-
-    return job
+    return await get_job_with_relations(job.id, db)
 
 
 @router.patch(
@@ -694,9 +928,156 @@ async def confirm_match_job_post(
     job.status = "OPEN"
 
     await db.commit()
-    await db.refresh(job)
+    return await get_job_with_relations(job.id, db)
 
-    return job
+
+from pydantic import BaseModel
+
+class RejectMatchRequest(BaseModel):
+    rejection_reason: str
+
+@router.patch(
+    "/jobs/{job_id}/reject-match",
+    response_model=JobPostResponse,
+    summary="[흐름B] 상차지 관리자가 하차지 매칭을 최종 반려 → 상태 CANCELLED로 변경",
+    description="상차지 관리자(SITE_MANAGER) 또는 하차지 지주가 매칭 요청을 반려하여 'CANCELLED' 상태로 변경하고 사유를 저장합니다."
+)
+async def reject_match_job_post(
+    job_id: int,
+    data: RejectMatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 1. JobPost 조회 (관계 로딩 추가)
+    job_query = select(JobPost).options(
+        selectinload(JobPost.site),
+        selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+        selectinload(JobPost.matched_drop_off)
+    ).where(JobPost.id == job_id)
+    job_result = await db.execute(job_query)
+    job = job_result.scalars().first()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 모집 공고를 찾을 수 없습니다."
+        )
+
+    if job.status != "WAITING_APPROVAL":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"이 공고는 현재 '{job.status}' 상태로, 매칭 대기 승인 상태가 아닙니다."
+        )
+
+    # 2. 권한 검증: 이 오더가 지정한 하차지 소유자 또는 상차지 소유자인지 확인
+    is_owner = False
+    if job.author_id == current_user.id or current_user.is_admin:
+        is_owner = True
+
+    if job.site_id:
+        site = (await db.execute(select(ConstructionSite).where(ConstructionSite.id == job.site_id))).scalars().first()
+        if site and site.user_id == current_user.id:
+            is_owner = True
+
+    drop_off_id = job.matched_drop_off_id
+    if not drop_off_id and job.drop_off_request_id:
+        req_query = select(DropOffRequest.drop_off_id).where(DropOffRequest.id == job.drop_off_request_id)
+        drop_off_id = (await db.execute(req_query)).scalar_one_or_none()
+
+    if drop_off_id:
+        dropoff = (await db.execute(select(DropOff).where(DropOff.id == drop_off_id))).scalars().first()
+        if dropoff and dropoff.owner_id == current_user.id:
+            is_owner = True
+
+    if not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="본인이 소유한 공사현장 또는 연결된 하차지 공고만 매칭 반려할 수 있습니다."
+        )
+
+    # 3. 반려 처리: 동일 데이터에 상태를 CANCELLED로 변경하고 사유만 추가 저장
+    job.status = "CANCELLED"
+    job.rejection_reason = data.rejection_reason
+
+    await db.commit()
+    return await get_job_with_relations(job.id, db)
+
+
+@router.patch(
+    "/jobs/{job_id}/reset-match",
+    response_model=JobPostResponse,
+    summary="반려/취소된 공고를 다시 매칭 대기 상태로 초기화 (1개 데이터로 순환)",
+    description="반려되거나 취소된 공고의 매칭 정보를 초기화하고 다시 WAITING_MATCH 상태로 되돌립니다."
+)
+async def reset_match_job_post(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    job_query = select(JobPost).where(JobPost.id == job_id)
+    job_result = await db.execute(job_query)
+    job = job_result.scalars().first()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 모집 공고를 찾을 수 없습니다."
+        )
+
+    # 권한 검증:
+    # - 현장관리자인 경우: 본인이 소유한 현장의 공고여야 함
+    # - 하차지 지주인 경우: 본인이 소유한 하차지가 매칭되어 있는 공고여야 함
+    if current_user.is_site_manager:
+        from app.models import ConstructionSite
+        site_query = select(ConstructionSite).where(ConstructionSite.id == job.site_id)
+        site_result = await db.execute(site_query)
+        site = site_result.scalars().first()
+        if not site or site.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="본인이 소유한 공사현장의 공고만 초기화할 수 있습니다."
+            )
+    elif current_user.is_drop_off:
+        from app.models import DropOff
+        drop_off_id = job.matched_drop_off_id
+        if not drop_off_id and job.drop_off_request_id:
+            from app.models import DropOffRequest
+            req_query = select(DropOffRequest).where(DropOffRequest.id == job.drop_off_request_id)
+            req_res = await db.execute(req_query)
+            req = req_res.scalars().first()
+            if req:
+                drop_off_id = req.drop_off_id
+
+        if drop_off_id:
+            dropoff_query = select(DropOff).where(DropOff.id == drop_off_id)
+            dropoff_result = await db.execute(dropoff_query)
+            dropoff = dropoff_result.scalars().first()
+            if not dropoff or dropoff.owner_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="본인의 하차지에 연결된 매칭 요청만 확인(초기화)할 수 있습니다."
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="연결된 하차지 정보가 없어 확인 처리를 할 수 없습니다."
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="이 작업을 수행할 권한이 없습니다."
+        )
+
+    # 초기화 및 대기 상태 복구
+    job.status = "WAITING_MATCH"
+    job.matched_drop_off_id = None
+    job.drop_off_request_id = None
+    job.distance = None
+    job.estimated_time = None
+    job.rejection_reason = None
+
+    await db.commit()
+    return await get_job_with_relations(job.id, db)
 
 
 # ==========================================
@@ -719,7 +1100,21 @@ async def get_my_job_posts(
             detail="현장관리자(SITE_MANAGER) 권한이 필요합니다."
         )
 
-    query = select(JobPost).where(JobPost.author_id == current_user.id)
+    # 현장관리자 본인이 관리하는 현장 ID 목록 조회
+    site_query = select(ConstructionSite.id).where(ConstructionSite.user_id == current_user.id)
+    site_result = await db.execute(site_query)
+    site_ids = site_result.scalars().all()
+
+    query = select(JobPost).options(
+        selectinload(JobPost.site),
+        selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+        selectinload(JobPost.matched_drop_off)
+    ).where(
+        or_(
+            JobPost.author_id == current_user.id,
+            JobPost.site_id.in_(site_ids) if site_ids else False
+        )
+    )
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -744,8 +1139,12 @@ async def update_job_post(
             detail="현장관리자(SITE_MANAGER) 권한이 필요합니다."
         )
 
-    # 공고 조회 및 권한 검증
-    query = select(JobPost).where(JobPost.id == job_id)
+    # 공고 조회 및 권한 검증 (관계 로딩 추가)
+    query = select(JobPost).options(
+        selectinload(JobPost.site),
+        selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+        selectinload(JobPost.matched_drop_off)
+    ).where(JobPost.id == job_id)
     result = await db.execute(query)
     job = result.scalars().first()
 
@@ -763,11 +1162,56 @@ async def update_job_post(
 
     # 데이터 업데이트
     update_data = data.dict(exclude_unset=True)
+    
+    if "drop_off_request_id" in update_data:
+        new_req_id = update_data["drop_off_request_id"]
+        if new_req_id:
+            # DropOffRequest 존재 여부 확인
+            req_query = select(DropOffRequest).where(DropOffRequest.id == new_req_id)
+            req_result = await db.execute(req_query)
+            dropoff_request = req_result.scalars().first()
+            if not dropoff_request:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="선택한 하차지 수용 공고가 존재하지 않습니다."
+                )
+            
+            # 상태 변경: WAITING_MATCH / CANCELLED -> WAITING_APPROVAL
+            if job.status in ["WAITING_MATCH", "CANCELLED"]:
+                job.status = "WAITING_APPROVAL"
+                job.rejection_reason = None
+            
+            # 거리 및 시간 계산
+            from app.models import DropOff
+            dropoff_query = select(DropOff).where(DropOff.id == dropoff_request.drop_off_id)
+            dropoff_result = await db.execute(dropoff_query)
+            dropoff = dropoff_result.scalars().first()
+            
+            if job.site and dropoff and job.site.latitude and job.site.longitude and dropoff.latitude and dropoff.longitude:
+                import math
+                lat1, lon1 = job.site.latitude, job.site.longitude
+                lat2, lon2 = dropoff.latitude, dropoff.longitude
+                R = 6371.0
+                dlat = math.radians(lat2 - lat1)
+                dlon = math.radians(lon2 - lon1)
+                a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+                c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                job.distance = round(R * c, 1)
+                job.estimated_time = int(job.distance * 1.5 + 5)
+                
+            job.drop_off_request_id = new_req_id
+        else:
+            job.drop_off_request_id = None
+            if job.status == "WAITING_APPROVAL":
+                job.status = "WAITING_MATCH"
+            job.distance = None
+            job.estimated_time = None
+            
+        update_data.pop("drop_off_request_id", None)
+
     for key, value in update_data.items():
         setattr(job, key, value)
 
     await db.commit()
-    await db.refresh(job)
-
-    return job
+    return await get_job_with_relations(job.id, db)
 

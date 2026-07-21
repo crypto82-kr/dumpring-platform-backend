@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock } from "lucide-react";
 import { MockMap } from "./MockMap";
+import { MatchStatusCard } from "./MatchStatusCard";
 
 interface SiteManagerDashboardProps {
   activePath: string;
@@ -50,6 +51,7 @@ interface SiteManagerDashboardProps {
   dispatchRequestList: any[];
   setDispatchRequestList: React.Dispatch<React.SetStateAction<any[]>>;
   registeredDropoffList: any[];
+  dropoffRequestList?: any[];
   taxInvoiceApproved: boolean;
   setTaxInvoiceApproved: (val: boolean) => void;
   handleCreateSite: (site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => Promise<boolean>;
@@ -74,6 +76,7 @@ interface SiteManagerDashboardProps {
     offeredUnitPrice?: number;
     payerType?: string;
     memo?: string;
+    dropOffRequestId?: number | null;
   }) => Promise<boolean>;
   handleDeleteDispatch: (id: number) => Promise<boolean>;
   fetchDispatchRequests: () => Promise<void>;
@@ -81,6 +84,9 @@ interface SiteManagerDashboardProps {
   setDispatchFormPayerType: (val: string) => void;
   dispatchFormOfferedUnitPrice: number;
   setDispatchFormOfferedUnitPrice: (val: number) => void;
+  handleConfirmMatchJobPost?: (id: number) => Promise<boolean>;
+  handleRejectMatchJobPost?: (id: number, reason: string) => Promise<boolean>;
+  handleResetMatchJobPost?: (id: number) => Promise<boolean>;
 }
 
 export function SiteManagerDashboard({
@@ -131,6 +137,7 @@ export function SiteManagerDashboard({
   dispatchRequestList,
   setDispatchRequestList,
   registeredDropoffList,
+  dropoffRequestList = [],
   taxInvoiceApproved,
   setTaxInvoiceApproved,
   handleCreateSite,
@@ -144,15 +151,23 @@ export function SiteManagerDashboard({
   setDispatchFormPayerType,
   dispatchFormOfferedUnitPrice,
   setDispatchFormOfferedUnitPrice,
+  handleConfirmMatchJobPost,
+  handleRejectMatchJobPost,
+  handleResetMatchJobPost,
 }: SiteManagerDashboardProps) {
   // 현장 수정을 위한 로컬 상태 정의
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
+  // Match Rejection Modal States
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState("");
+  const [rejectingJobId, setRejectingJobId] = useState<number | null>(null);
   const [siteFormBizRegNo, setSiteFormBizRegNo] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Dispatch Request States (Split Screen UI)
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [dropoffSearchQuery, setDropoffSearchQuery] = useState("");
 
   // Find active site from the list to pull baseline corporate details
   const activeSite = registeredSiteList && registeredSiteList.length > 0 ? registeredSiteList[0] : null;
@@ -328,7 +343,7 @@ export function SiteManagerDashboard({
                     <p className="text-[10px] text-slate-500 mt-2 font-semibold truncate">{site.address}</p>
                     <div className="flex justify-between items-center text-[9px] text-slate-400 mt-3 pt-2 border-t border-slate-200/50">
                       <span>사업자: {site.bizRegNo || "미등록"}</span>
-                      <span className="text-slate-500 font-medium">관리자: {site.managers?.[0] || "지정대기"}</span>
+                      <span className="text-slate-500 font-medium">담당자: {site.managers?.[0] || "지정대기"}</span>
                     </div>
                   </div>
                 );
@@ -425,7 +440,7 @@ export function SiteManagerDashboard({
                         <div className="text-xs font-semibold text-slate-650 mt-0.5">{selectedSite.roadDesc || "등록된 가이드가 없습니다."}</div>
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">담당자 연락처</span>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">담당자</span>
                         <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedSite.managers?.join(", ") || "지정 대기"}</div>
                       </div>
                     </div>
@@ -545,7 +560,7 @@ export function SiteManagerDashboard({
                   </div>
 
                   <div className="space-y-1.5 col-span-1">
-                    <label className="text-slate-700 font-bold block">담당자 연락처 (성명/연락처)</label>
+                    <label className="text-slate-700 font-bold block">담당자 (성명/연락처)</label>
                     <input
                       type="text"
                       value={siteFormManagers}
@@ -661,8 +676,9 @@ export function SiteManagerDashboard({
       }
 
       // 하차지 수용 공고 선택 여부 확인 (흐름 A vs 흐름 B)
+      const availableDropoffs = (dropoffRequestList && dropoffRequestList.length > 0) ? dropoffRequestList : registeredDropoffList;
       const selectedDropoff = dispatchFormDropoffMode === "search"
-        ? registeredDropoffList.find(d => d.name === dispatchFormDropoffName)
+        ? availableDropoffs.find(d => d.name === dispatchFormDropoffName)
         : null;
 
       const memoText = dispatchFormDropoffMode === "direct"
@@ -698,6 +714,8 @@ export function SiteManagerDashboard({
           requiredTrucks: formData.requiredTrucks,
           offeredUnitPrice: formData.offeredUnitPrice,
           payerType: formData.payerType,
+          memo: formData.memo,
+          dropOffRequestId: dispatchFormDropoffMode === "search" ? (selectedDropoff?.id || null) : null,
         });
         if (success) alert("배차 요청이 수정되었습니다.");
         else alert("배차 요청 수정에 실패했습니다. 다시 시도해 주세요.");
@@ -756,9 +774,13 @@ export function SiteManagerDashboard({
     };
 
     const filteredRequests = dispatchRequestList.filter(req => {
-      const matchSearch = req.siteName.includes(dispatchRequestSearchQuery) ||
-        req.soilType.includes(dispatchRequestSearchQuery) ||
-        (req.dropoffName && req.dropoffName.includes(dispatchRequestSearchQuery));
+
+      const siteNameStr = req.siteName || "현장명 없음";
+      const soilTypeStr = req.soilType || "일반 토사";
+      const dropoffNameStr = req.dropoffName || "";
+      const matchSearch = siteNameStr.includes(dispatchRequestSearchQuery) ||
+        soilTypeStr.includes(dispatchRequestSearchQuery) ||
+        dropoffNameStr.includes(dispatchRequestSearchQuery);
       return matchSearch;
     });
 
@@ -891,6 +913,7 @@ export function SiteManagerDashboard({
                   </div>
                 </div>
 
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
                   <div className="space-y-4">
                     <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
@@ -975,6 +998,14 @@ export function SiteManagerDashboard({
                         <span className="text-[10px] font-bold text-slate-400 block uppercase">하차지 상세 주소</span>
                         <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.dropoffAddress || "주소 정보 없음"}</div>
                       </div>
+                      {(selectedReq.distance !== undefined && selectedReq.distance !== null) && (
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block uppercase">현장 ↔ 하차지 거리 및 시간</span>
+                          <div className="text-xs font-bold text-emerald-750 mt-0.5">
+                            {selectedReq.distance} km / {selectedReq.estimatedTime} 분 소요
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {selectedReq.dropoffAddress && (
@@ -990,6 +1021,50 @@ export function SiteManagerDashboard({
                     )}
                   </div>
                 </div>
+
+                {(selectedReq.matchedDropOffId !== null || selectedReq.dropOffRequestId !== null) && (
+                  <div className="mt-6">
+                    <MatchStatusCard
+                      id={selectedReq.id}
+                      title={selectedReq.dropoffName || "지정 하차지"}
+                      subtitle={selectedReq.dropoffAddress}
+                      direction={selectedReq.dropOffRequestId ? "site_to_dropoff" : "dropoff_to_site"}
+                      rawStatus={selectedReq.rawStatus}
+                      isMyInitiated={selectedReq.dropOffRequestId !== null}
+                      workDate={selectedReq.startDate}
+                      materialType={selectedReq.soilType}
+                      truckCount={selectedReq.truckCount}
+                      unitPrice={selectedReq.offeredUnitPrice}
+                      distance={selectedReq.distance}
+                      estimatedTime={selectedReq.estimatedTime}
+                      rejectionReason={selectedReq.rejectionReason}
+                      onApprove={async () => {
+                        if (confirm(`[${selectedReq.dropoffName}] 하차지 매칭 제안을 승인하고 기사 모집을 시작하시겠습니까?`)) {
+                          const success = handleConfirmMatchJobPost ? await handleConfirmMatchJobPost(selectedReq.id) : false;
+                          if (success) {
+                            alert("매칭이 승인되어 공고가 OPEN 되었습니다!");
+                          } else {
+                            alert("승인 처리에 실패했습니다.");
+                          }
+                        }
+                      }}
+                      onReject={() => {
+                        setRejectingJobId(selectedReq.id);
+                        setIsRejectModalOpen(true);
+                      }}
+                      onReset={async () => {
+                        if (confirm("공고를 매칭 정보가 없는 대기 상태(WAITING_MATCH)로 다시 되돌리시겠습니까?")) {
+                          const success = handleResetMatchJobPost ? await handleResetMatchJobPost(selectedReq.id) : false;
+                          if (success) {
+                            alert("대기 상태로 성공적으로 초기화되었습니다.");
+                          } else {
+                            alert("초기화 처리에 실패했습니다.");
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center py-24 shadow-xl space-y-3 flex flex-col items-center justify-center min-h-[380px]">
@@ -1004,6 +1079,77 @@ export function SiteManagerDashboard({
             )}
           </div>
         </div>
+
+        {/* 매칭 반려 사유 입력 레이어 팝업 */}
+        {isRejectModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleUp p-6 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-sm text-slate-900">하차지 매칭 반려 사유 입력</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRejectModalOpen(false);
+                    setRejectionReasonInput("");
+                    setRejectingJobId(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block">반려 사유 <span className="text-rose-500">*</span></label>
+                <textarea
+                  value={rejectionReasonInput}
+                  onChange={(e) => setRejectionReasonInput(e.target.value)}
+                  placeholder="예: 단가가 맞지 않음, 수용 불가능한 토사 종류 등 상세한 사유를 적어주세요."
+                  rows={4}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-500 focus:bg-white transition-all resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRejectModalOpen(false);
+                    setRejectionReasonInput("");
+                    setRejectingJobId(null);
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl active:scale-95 transition-all"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!rejectionReasonInput.trim()) {
+                      alert("반려 사유를 입력해 주세요.");
+                      return;
+                    }
+                    if (rejectingJobId !== null) {
+                      const success = handleRejectMatchJobPost ? await handleRejectMatchJobPost(rejectingJobId, rejectionReasonInput.trim()) : false;
+                      if (success) {
+                        alert("매칭 제안이 반려되었습니다.");
+                        setIsRejectModalOpen(false);
+                        setRejectionReasonInput("");
+                        setRejectingJobId(null);
+                      } else {
+                        alert("반려 처리에 실패했습니다.");
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-rose-500/10"
+                >
+                  반려 확인
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isDispatchModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
@@ -1252,32 +1398,77 @@ export function SiteManagerDashboard({
                       </div>
                     )}
 
-                    {dispatchFormDropoffMode === "search" && (
-                      <div>
-                        <label className="text-xs text-slate-600 font-bold block mb-1">등록 하차지 선택</label>
-                        <select
-                          value={registeredDropoffList.find(d => d.name === dispatchFormDropoffName)?.id || ""}
-                          onChange={(e) => {
-                            const drop = registeredDropoffList.find(d => d.id === Number(e.target.value));
-                            if (drop) {
-                              setDispatchFormDropoffName(drop.name);
-                              setDispatchFormDropoffAddress(drop.address);
-                            } else {
-                              setDispatchFormDropoffName("");
-                              setDispatchFormDropoffAddress("");
-                            }
-                          }}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-850 font-medium text-xs focus:outline-none focus:border-blue-500"
-                        >
-                          <option value="">하차지를 검색/선택해 주세요</option>
-                          {registeredDropoffList.map(drop => (
-                            <option key={drop.id} value={drop.id}>
-                              {drop.name} ({drop.soilDealType === "buy" ? "구매" : "판매"}) - {drop.address}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    {dispatchFormDropoffMode === "search" && (() => {
+                      const availableDropoffs = (dropoffRequestList && dropoffRequestList.length > 0) ? dropoffRequestList : registeredDropoffList;
+                      const filteredDropoffs = availableDropoffs.filter(drop => {
+                        if (!dropoffSearchQuery.trim()) return true;
+                        const q = dropoffSearchQuery.toLowerCase();
+                        return (
+                          (drop.name && drop.name.toLowerCase().includes(q)) ||
+                          (drop.address && drop.address.toLowerCase().includes(q)) ||
+                          (drop.soilType && drop.soilType.toLowerCase().includes(q))
+                        );
+                      });
+
+                      const selectedObj = availableDropoffs.find(d => d.name === dispatchFormDropoffName);
+
+                      return (
+                        <div className="space-y-2">
+                          <label className="text-xs text-slate-700 font-bold block">등록 하차지 수용 공고 검색 / 선택</label>
+                          
+                          {/* 하차지 실시간 키워드 검색창 */}
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+                            <input
+                              type="text"
+                              placeholder="하차지명, 주소, 토사 종류로 검색..."
+                              value={dropoffSearchQuery}
+                              onChange={(e) => setDropoffSearchQuery(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium"
+                            />
+                            {dropoffSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setDropoffSearchQuery("")}
+                                className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+
+                          {/* 하차지 드롭다운 옵션 목록 */}
+                          <select
+                            value={selectedObj?.id || ""}
+                            onChange={(e) => {
+                              const drop = availableDropoffs.find(d => d.id === Number(e.target.value));
+                              if (drop) {
+                                setDispatchFormDropoffName(drop.name);
+                                setDispatchFormDropoffAddress(drop.address);
+                              } else {
+                                setDispatchFormDropoffName("");
+                                setDispatchFormDropoffAddress("");
+                              }
+                            }}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-850 font-bold text-xs focus:outline-none focus:border-blue-500 shadow-sm"
+                          >
+                            <option value="">-- 총 {filteredDropoffs.length}개 등록 하차지 공고 중 선택 --</option>
+                            {filteredDropoffs.map(drop => (
+                              <option key={drop.id} value={drop.id}>
+                                {drop.name} | {drop.soilType === "GOOD_SOIL" ? "양질토" : drop.soilType === "MUD_SOIL" ? "뻘흙" : drop.soilType === "ROCK" ? "암버럭" : drop.soilType === "MIXED" ? "혼합" : (drop.soilType || "토사미지정")} - 단가 {drop.unitPrice ? drop.unitPrice.toLocaleString() + "원" : "미정"} ({drop.address})
+                              </option>
+                            ))}
+                          </select>
+
+                          {selectedObj && (
+                            <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-[11px] font-semibold text-blue-900 leading-normal animate-fadeIn">
+                              📍 <strong>선택된 하차지:</strong> {selectedObj.name} ({selectedObj.address})<br/>
+                              💰 <strong>수용 단가:</strong> {selectedObj.unitPrice ? selectedObj.unitPrice.toLocaleString() + "원/대" : "미정"} | 🏗️ <strong>토종:</strong> {selectedObj.soilType === "GOOD_SOIL" ? "양질토" : selectedObj.soilType === "MUD_SOIL" ? "뻘흙" : selectedObj.soilType === "ROCK" ? "암버럭" : selectedObj.soilType === "MIXED" ? "혼합" : (selectedObj.soilType || "양질토")}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {dispatchFormDropoffMode === "none" && (
                       <div className="text-center py-2 text-xs text-slate-500 font-medium">

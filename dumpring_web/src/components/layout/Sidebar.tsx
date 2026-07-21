@@ -99,12 +99,12 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "하차지 담당자 권한 관리", icon: Users, path: "/dropoff/org-hierarchy" },
     { title: "하차지 등록", icon: MapPin, path: "/dropoff/register" },
     {
-      title: "배차 현황",
+      title: "공고 & 배차 관리",
       icon: Truck,
       path: "#dropoff-dispatch",
       subItems: [
-        { title: "배차 요청", path: "/dropoff/dispatch-request" },
-        { title: "금일 배차 현황", path: "/dropoff/dispatch" },
+        { title: "공고 관리", path: "/dropoff/dispatch-request" },
+        { title: "배차 관리", path: "/dropoff/dispatch" },
         { title: "반입 허가 차량 관리", path: "/dropoff/trucks" },
         { title: "실시간 반입 현황", path: "/dropoff/inbound" },
         { title: "실시간 반입 확인", path: "/dropoff/verification" },

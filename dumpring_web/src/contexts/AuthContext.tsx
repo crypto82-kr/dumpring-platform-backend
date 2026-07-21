@@ -119,16 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 기본 로그인 유저 세팅 (첫 상태: 플랫폼 관리자)
-    setUser({
-      id: "usr_10023",
-      name: "덤프링 관리자",
-      phone_number: "010-1234-5678",
-      role: "platform_admin",
-      roleName: roleNames["platform_admin"],
-      isApproved: true
-    });
-    setActivePath("/admin");
+    // 기본 로그인 유저 세팅 제거 (비로그인 상태 유지)
+    setUser(null);
+    setActivePath("/");
   }, []);
 
   const logout = () => {

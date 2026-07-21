@@ -66,6 +66,8 @@ class ConstructionSite(Base):
     latitude = Column(Float, nullable=True)  # 현장 위도
     longitude = Column(Float, nullable=True)  # 현장 경도
     geofencing_radius = Column(Float, default=200.0, nullable=False)  # 지오펜싱 반경 (미터 단위)
+    manager_name = Column(String, nullable=True)
+    manager_phone = Column(String, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -441,7 +443,8 @@ class JobPost(Base):
 
     distance = Column(Float, nullable=True)               # 예상 거리 (km)
     estimated_time = Column(Integer, nullable=True)       # 예상 소요 시간 (분)
-
+    rejection_reason = Column(String, nullable=True)      # 반려 사유
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -450,6 +453,48 @@ class JobPost(Base):
     drop_off_request = relationship("DropOffRequest", back_populates="job_posts")
     author = relationship("User")
     matched_drop_off = relationship("DropOff")
+
+    @property
+    def site_name(self):
+        if not self.site:
+            return None
+        return self.site.site_name or self.site.company_name
+
+    @property
+    def site_address(self):
+        return self.site.site_address if self.site else None
+
+    @property
+    def site_latitude(self):
+        return self.site.latitude if self.site else None
+
+    @property
+    def site_longitude(self):
+        return self.site.longitude if self.site else None
+
+    @property
+    def drop_off_name(self):
+        if self.drop_off_request and self.drop_off_request.drop_off:
+            return self.drop_off_request.drop_off.name
+        return self.matched_drop_off.name if self.matched_drop_off else None
+
+    @property
+    def drop_off_address(self):
+        if self.drop_off_request and self.drop_off_request.drop_off:
+            return self.drop_off_request.drop_off.address
+        return self.matched_drop_off.address if self.matched_drop_off else None
+
+    @property
+    def drop_off_latitude(self):
+        if self.drop_off_request and self.drop_off_request.drop_off:
+            return self.drop_off_request.drop_off.latitude
+        return self.matched_drop_off.latitude if self.matched_drop_off else None
+
+    @property
+    def drop_off_longitude(self):
+        if self.drop_off_request and self.drop_off_request.drop_off:
+            return self.drop_off_request.drop_off.longitude
+        return self.matched_drop_off.longitude if self.matched_drop_off else None
 
 
 class DriverFavoriteRegion(Base):
