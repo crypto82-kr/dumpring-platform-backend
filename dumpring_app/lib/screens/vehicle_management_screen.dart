@@ -114,8 +114,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
             _carModelController.text = user['car_model'] ?? '';
           }
           _machineryRegFile = user['machinery_reg_file'] ?? _machineryRegFile ?? '건설기계등록증_2026.jpg';
+          _machineryRegUrl = user['machinery_reg_url'] ?? _machineryRegUrl;
           _bizLicenseFile = user['biz_license_file'] ?? _bizLicenseFile ?? '사업자등록증_사본.jpg';
+          _bizLicenseUrl = user['biz_license_url'] ?? _bizLicenseUrl;
           _insuranceFile = user['insurance_file'] ?? _insuranceFile ?? '영업용자동차보험증.jpg';
+          _insuranceUrl = user['insurance_url'] ?? _insuranceUrl;
         });
       }
     } catch (e) {
