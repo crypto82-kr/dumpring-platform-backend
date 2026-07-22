@@ -8,6 +8,7 @@ import 'driver_home_screen.dart';
 import 'driver_history_screen.dart';
 import 'dashboard_screen.dart';
 import 'drop_off_home_screen.dart';
+import 'vehicle_management_screen.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class CommonDrawer extends StatelessWidget {
@@ -116,7 +117,22 @@ class CommonDrawer extends StatelessWidget {
         Navigator.push(context, MaterialPageRoute(builder: (_) => DropOffHomeScreen(user: user, token: token)));
       }));
     }
-    // Common menu – profile edit
+    // Common menu – vehicle management & profile edit
+    if (user['is_driver'] == true || user['is_owner'] == true) {
+      items.add(_tile(context, Icons.directions_car_filled_outlined, user['is_owner'] == true ? "등록 차량 및 서류 관리" : "배정 차량 정보 조회", () {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VehicleManagementScreen(
+              user: user,
+              token: token,
+              isReadOnly: user['is_owner'] != true,
+            ),
+          ),
+        );
+      }));
+    }
     items.add(_tile(context, Icons.manage_accounts_outlined, "개인정보 및 등록정보 수정", () {
       Navigator.pop(context);
       Navigator.push(

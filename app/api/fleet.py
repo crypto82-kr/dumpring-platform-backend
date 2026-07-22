@@ -171,3 +171,59 @@ async def get_my_cars(
             )
         )
     return response_list
+
+
+class CreateCarRequest(BaseModel):
+    car_number: str
+    tonnage: float
+    car_model: str | None = None
+    machinery_reg_file: str | None = None
+
+
+@router.post(
+    "/my-cars",
+    response_model=CarResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="차주 사장님의 신규 보유 차량 등록"
+)
+async def create_my_car(
+    data: CreateCarRequest,
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    # 중복 차량 번호 확인
+    query = select(Car).where(Car.car_number == data.car_number.strip())
+    result = await db.execute(query)
+    existing_car = result.scalars().first()
+
+    if existing_car:
+        # 이미 등록된 차량인 경우 소유권 및 정보 업데이트
+        existing_car.owner_id = current_owner.id
+        existing_car.tonnage = data.tonnage
+        await db.commit()
+        await db.refresh(existing_car)
+        return CarResponse(
+            id=existing_car.id,
+            car_number=existing_car.car_number,
+            tonnage=existing_car.tonnage,
+            driver_name="미배정",
+            inspection_date="2026-12-31"
+        )
+
+    # 신규 차량 생성
+    new_car = Car(
+        owner_id=current_owner.id,
+        car_number=data.car_number.strip(),
+        tonnage=data.tonnage
+    )
+    db.add(new_car)
+    await db.commit()
+    await db.refresh(new_car)
+
+    return CarResponse(
+        id=new_car.id,
+        car_number=new_car.car_number,
+        tonnage=new_car.tonnage,
+        driver_name="미배정",
+        inspection_date="2026-12-31"
+    )

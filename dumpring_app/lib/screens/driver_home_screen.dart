@@ -9,6 +9,7 @@ import 'driver_meter_screen.dart';
 import 'driver_history_screen.dart';
 import 'driver_dispatch_confirm_screen.dart';
 import 'common_drawer.dart';
+import 'vehicle_management_screen.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -585,6 +586,83 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       padding: const EdgeInsets.all(20.0),
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
+                          const SizedBox(height: 20),
+                          // 내 차량 정보 요약 바
+                          Card(
+                            color: AppColors.surface,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(color: AppColors.divider),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(Icons.directions_car_filled_outlined, color: AppColors.primary, size: 24),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              _currentUser['vehicle_number'] ?? _currentUser['car_number'] ?? '88덤 4567',
+                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green[100],
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                "${_currentUser['tonnage'] ?? '25'}톤",
+                                                style: TextStyle(color: Colors.green[800], fontSize: 11, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _currentUser['car_model'] ?? "덤프트럭 · 건설기계 등록증 승인 완료",
+                                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => VehicleManagementScreen(
+                                            user: _currentUser,
+                                            token: widget.token,
+                                            isReadOnly: true,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      foregroundColor: AppColors.primary,
+                                    ),
+                                    child: const Text("상세조회", style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 20),
                           // 오늘 실적 대시보드
                           _buildEarningsDashboard(),

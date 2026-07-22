@@ -3,6 +3,7 @@ import '../shared/app_config.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'common_drawer.dart';
+import 'vehicle_management_screen.dart';
 
 class OwnerHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -182,88 +183,18 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
     );
   }
 
-  // 차량 등록 바텀시트
+  // 차량 등록 화면 열기 (서류 업로드 포함 전용 화면)
   void _registerCarBottomSheet() {
-    final TextEditingController numberController = TextEditingController();
-    String tonnage = "25.5";
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-      ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          top: 24,
-          left: 24,
-          right: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.commute, color: Color(0xFF004D5A)),
-                SizedBox(width: 8),
-                Text(
-                  "신규 소유 차량 등록",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-
-            TextField(
-              controller: numberController,
-              decoration: InputDecoration(
-                labelText: "차량 번호",
-                hintText: "예: 서울80사1234",
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: tonnage,
-              decoration: InputDecoration(
-                labelText: "차량 규격 (톤수)",
-                border: OutlineInputBorder(),
-              ),
-              items: ["15.0", "24.0", "25.5", "27.0"].map((e) {
-                return DropdownMenuItem(value: e, child: Text("$e 톤"));
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) tonnage = val;
-              },
-            ),
-            SizedBox(height: 28),
-
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("🚚 차량 마스터 정보 등록 및 본사 차량 검증 승인이 완료되었습니다."),
-                    backgroundColor: Color(0xFF004D5A),
-                  ),
-                );
-                _fetchCars();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF004D5A),
-                foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text("차량 마스터 정보 등록 완료", style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            SizedBox(height: 24),
-          ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VehicleManagementScreen(
+          user: _currentUser,
+          token: widget.token,
+          isReadOnly: false,
         ),
       ),
-    );
+    ).then((_) => _fetchCars());
   }
 
   @override
@@ -457,16 +388,18 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
             children: [
               Text("🚚 보유 덤프트럭 리스트", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)))),
               ElevatedButton.icon(
-                onPressed: widget.isApproved
-                    ? _registerCarBottomSheet
-                    : () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text("🔒 가입 심사 승인 완료 후에 차량 추가가 가능합니다."),
-                            backgroundColor: Colors.redAccent,
-                          ),
-                        );
-                      },
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VehicleManagementScreen(
+                        user: _currentUser,
+                        token: widget.token,
+                        isReadOnly: false,
+                      ),
+                    ),
+                  ).then((_) => _fetchCars());
+                },
                 icon: Icon(Icons.add, size: 16),
                 label: Text("차량 추가"),
                 style: ElevatedButton.styleFrom(
@@ -510,7 +443,23 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                       "규격: ${c['tonnage'] ?? ''} / 배정기사: ${c['driver'] ?? '미배정'}\n다음 안전검사일: ${c['inspection_date'] ?? '미등록'}",
                       style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)), fontSize: 12, height: 1.4),
                     ),
-                    trailing: Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
+                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => VehicleManagementScreen(
+                            user: {
+                              ..._currentUser,
+                              'vehicle_number': c['car_number'],
+                              'tonnage': c['tonnage'],
+                            },
+                            token: widget.token,
+                            isReadOnly: false,
+                          ),
+                        ),
+                      ).then((_) => _fetchCars());
+                    },
                   ),
                 );
               },

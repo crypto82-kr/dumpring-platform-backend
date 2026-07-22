@@ -4,14 +4,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'role_selection_screen.dart'; // 회원가입 선택 화면 임포트
 import 'dashboard_screen.dart';
-import 'driver_pending_screen.dart';
 import 'drop_off_home_screen.dart';
 import 'owner_home_screen.dart';
 import 'admin_home_screen.dart';
 import 'driver_home_screen.dart';
+import 'owner_pending_screen.dart';
+import 'driver_pending_screen.dart';
 import 'driver_document_upload_screen.dart';
 import 'owner_document_upload_screen.dart';
-import 'owner_pending_screen.dart';
 import 'sdui_screen.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 import 'main_home_frame.dart';
@@ -170,16 +170,29 @@ class _LoginScreenState extends State<LoginScreen> {
         debugPrint("★ [_redirectAfterLogin] 응답 바디: $decoded");
         final bool isApproved = decoded['is_approved'] ?? false;
  
-        if (user['is_owner'] == true) {
-          debugPrint("★ [_redirectAfterLogin] 차주 홈 화면으로 바로 이동 (승인상태: $isApproved)");
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => OwnerHomeScreen(user: user, token: token, isApproved: isApproved)),
-          );
-        } else if (user['is_driver'] == true) {
-          debugPrint("★ [_redirectAfterLogin] 기사 홈 화면으로 바로 이동 (승인상태: $isApproved)");
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => DriverHomeScreen(user: user, token: token, isApproved: isApproved)),
-          );
+        if (isApproved) {
+          if (user['is_owner'] == true) {
+            debugPrint("★ [_redirectAfterLogin] 승인 완료된 차주 -> 차주 홈 화면 이동");
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => OwnerHomeScreen(user: user, token: token, isApproved: true)),
+            );
+          } else if (user['is_driver'] == true) {
+            debugPrint("★ [_redirectAfterLogin] 승인 완료된 기사 -> 기사 홈 화면 이동");
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => DriverHomeScreen(user: user, token: token, isApproved: true)),
+            );
+          }
+        } else {
+          debugPrint("★ [_redirectAfterLogin] 가입 심사 대기 중 -> 대기 화면으로 이동");
+          if (user['is_owner'] == true) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => OwnerPendingScreen(user: user, token: token)),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => DriverPendingScreen(user: user, token: token)),
+            );
+          }
         }
       } else {
         debugPrint("★ [_redirectAfterLogin] 통신 실패 (200 아님) -> 미승인 상태로 홈 화면 강제 이동");
