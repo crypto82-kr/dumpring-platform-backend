@@ -37,10 +37,14 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   bool _isSaving = false;
   String? _errorMessage;
   
-  // 서류 파일 상태 변수 및 미리보기 바이트
+  // 서류 파일 상태 변수 및 미리보기 데이터
   String? _machineryRegFile;
   String? _bizLicenseFile;
   String? _insuranceFile;
+
+  String? _machineryRegUrl;
+  String? _bizLicenseUrl;
+  String? _insuranceUrl;
 
   List<int>? _machineryRegBytes;
   List<int>? _bizLicenseBytes;
@@ -239,17 +243,21 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        final String uploadedUrl = decoded['url'] as String;
         final String realOriginalName = image.name;
 
         setState(() {
           if (docType == 'REG') {
             _machineryRegFile = realOriginalName;
+            _machineryRegUrl = uploadedUrl;
             _machineryRegBytes = bytes;
           } else if (docType == 'BIZ') {
             _bizLicenseFile = realOriginalName;
+            _bizLicenseUrl = uploadedUrl;
             _bizLicenseBytes = bytes;
           } else if (docType == 'INS') {
             _insuranceFile = realOriginalName;
+            _insuranceUrl = uploadedUrl;
             _insuranceBytes = bytes;
           }
         });
@@ -483,6 +491,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               _buildDocRow(
                                 title: "1. 건설기계 등록증 / 검사증",
                                 file: _machineryRegFile,
+                                fileUrl: _machineryRegUrl,
                                 fileBytes: _machineryRegBytes,
                                 isUploading: _isUploadingRegFile,
                                 onUpload: () => _uploadDocument('REG'),
@@ -493,6 +502,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               _buildDocRow(
                                 title: "2. 사업자등록증 (운송사/차주)",
                                 file: _bizLicenseFile,
+                                fileUrl: _bizLicenseUrl,
                                 fileBytes: _bizLicenseBytes,
                                 isUploading: _isUploadingBizFile,
                                 onUpload: () => _uploadDocument('BIZ'),
@@ -503,6 +513,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               _buildDocRow(
                                 title: "3. 영업용 자동차 보험가입증서",
                                 file: _insuranceFile,
+                                fileUrl: _insuranceUrl,
                                 fileBytes: _insuranceBytes,
                                 isUploading: _isUploadingInsuranceFile,
                                 onUpload: () => _uploadDocument('INS'),
@@ -548,6 +559,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   Widget _buildDocRow({
     required String title,
     required String? file,
+    String? fileUrl,
     List<int>? fileBytes,
     required bool isUploading,
     required VoidCallback onUpload,
@@ -573,7 +585,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 ),
                 const SizedBox(height: 2),
                 InkWell(
-                  onTap: file != null ? () => _previewDocument(title, file, fileBytes) : null,
+                  onTap: file != null ? () => _previewDocument(title, file, fileUrl, fileBytes) : null,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -616,7 +628,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     );
   }
 
-  void _previewDocument(String docTitle, String fileName, List<int>? fileBytes) {
+  void _previewDocument(String docTitle, String fileName, String? fileUrl, List<int>? fileBytes) {
+    final String fullImageUrl = fileUrl != null
+        ? "$_baseUrl$fileUrl"
+        : "$_baseUrl/static/uploads/documents/$fileName";
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -676,7 +692,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                           fit: BoxFit.contain,
                         )
                       : Image.network(
-                          "$_baseUrl/static/uploads/documents/$fileName",
+                          fullImageUrl,
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) {
                             return Center(
