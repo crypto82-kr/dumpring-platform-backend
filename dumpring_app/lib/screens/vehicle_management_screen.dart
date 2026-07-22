@@ -589,65 +589,68 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     required VoidCallback onUpload,
   }) {
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.divider),
       ),
-      child: Row(
-        children: [
-          Icon(Icons.description, color: AppColors.primary, size: 28),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                const SizedBox(height: 2),
-                InkWell(
-                  onTap: file != null ? () => _previewDocument(title, file, fileUrl, fileBytes) : null,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          file ?? "등록된 파일 없음",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: file != null ? Colors.blue[700] : AppColors.textTertiary,
-                            decoration: file != null ? TextDecoration.underline : TextDecoration.none,
-                            fontWeight: file != null ? FontWeight.w600 : FontWeight.normal,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: file != null ? () => _previewDocument(title, file, fileUrl, fileBytes) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Icon(Icons.description, color: AppColors.primary, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            file ?? "등록된 파일 없음",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: file != null ? Colors.blue[700] : AppColors.textTertiary,
+                              decoration: file != null ? TextDecoration.underline : TextDecoration.none,
+                              fontWeight: file != null ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      if (file != null) ...[
-                        const SizedBox(width: 4),
-                        Icon(Icons.open_in_new, size: 14, color: Colors.blue[700]),
+                        if (file != null) ...[
+                          const SizedBox(width: 4),
+                          Icon(Icons.open_in_new, size: 14, color: Colors.blue[700]),
+                        ],
                       ],
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              if (!widget.isReadOnly)
+                TextButton.icon(
+                  onPressed: isUploading ? null : onUpload,
+                  icon: isUploading
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.upload_file, size: 16),
+                  label: Text(file != null ? "재업로드" : "첨부하기"),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    visualDensity: VisualDensity.compact,
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
-          if (!widget.isReadOnly)
-            TextButton.icon(
-              onPressed: isUploading ? null : onUpload,
-              icon: isUploading
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.upload_file, size: 16),
-              label: Text(file != null ? "재업로드" : "첨부하기"),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
