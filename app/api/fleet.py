@@ -142,49 +142,44 @@ async def get_my_cars(
     db: AsyncSession = Depends(get_db),
     current_owner: User = Depends(get_current_owner)
 ):
-    try:
-        car_query = select(Car).where(Car.owner_id == current_owner.id)
-        car_result = await db.execute(car_query)
-        cars = car_result.scalars().all()
+    car_query = select(Car).where(Car.owner_id == current_owner.id)
+    car_result = await db.execute(car_query)
+    cars = car_result.scalars().all()
+    
+    response_list = []
+    for c in cars:
+        # 이 차량에 지정된 기사 찾기
+        driver_query = select(Driver).where(Driver.current_car_id == c.id)
+        driver_result = await db.execute(driver_query)
+        d = driver_result.scalars().first()
         
-        response_list = []
-        for c in cars:
-            # 이 차량에 지정된 기사 찾기
-            driver_query = select(Driver).where(Driver.current_car_id == c.id)
-            driver_result = await db.execute(driver_query)
-            d = driver_result.scalars().first()
-            
-            driver_name = "미배정"
-            if d:
-                if d.user_id:
-                    user_query = select(User).where(User.id == d.user_id)
-                    user_result = await db.execute(user_query)
-                    u = user_result.scalars().first()
-                    if u:
-                        driver_name = u.name
-                else:
-                    driver_name = "선등록 대기기사"
-                    
-            response_list.append(
-                CarResponse(
-                    id=c.id,
-                    car_number=c.car_number,
-                    tonnage=c.tonnage,
-                    driver_name=driver_name,
-                    inspection_date="2026-12-31",
-                    machinery_reg_file=getattr(c, "machinery_reg_file", None),
-                    machinery_reg_url=getattr(c, "machinery_reg_url", None),
-                    biz_license_file=getattr(c, "biz_license_file", None),
-                    biz_license_url=getattr(c, "biz_license_url", None),
-                    insurance_file=getattr(c, "insurance_file", None),
-                    insurance_url=getattr(c, "insurance_url", None),
-                )
+        driver_name = "미배정"
+        if d:
+            if d.user_id:
+                user_query = select(User).where(User.id == d.user_id)
+                user_result = await db.execute(user_query)
+                u = user_result.scalars().first()
+                if u:
+                    driver_name = u.name
+            else:
+                driver_name = "선등록 대기기사"
+                
+        response_list.append(
+            CarResponse(
+                id=c.id,
+                car_number=c.car_number,
+                tonnage=c.tonnage,
+                driver_name=driver_name,
+                inspection_date="2026-12-31",
+                machinery_reg_file=getattr(c, "machinery_reg_file", None),
+                machinery_reg_url=getattr(c, "machinery_reg_url", None),
+                biz_license_file=getattr(c, "biz_license_file", None),
+                biz_license_url=getattr(c, "biz_license_url", None),
+                insurance_file=getattr(c, "insurance_file", None),
+                insurance_url=getattr(c, "insurance_url", None),
             )
-        return response_list
-    except Exception as e:
-        import traceback
-        err_msg = traceback.format_exc()
-        raise HTTPException(status_code=500, detail=f"백엔드 500 오류: {err_msg}")
+        )
+    return response_list
 
 
 class CreateCarRequest(BaseModel):
