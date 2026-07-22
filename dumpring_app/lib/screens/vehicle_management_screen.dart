@@ -64,8 +64,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     _carModelController = TextEditingController(text: widget.user['car_model'] ?? '');
     _inspectionDateController = TextEditingController(text: widget.user['inspection_date'] ?? '2026-12-31');
     _machineryRegFile = widget.user['machinery_reg_file'];
+    _machineryRegUrl = widget.user['machinery_reg_url'];
     _bizLicenseFile = widget.user['biz_license_file'];
+    _bizLicenseUrl = widget.user['biz_license_url'];
     _insuranceFile = widget.user['insurance_file'];
+    _insuranceUrl = widget.user['insurance_url'];
     _loadStoredDocuments();
     _fetchVehicleInfo();
   }
