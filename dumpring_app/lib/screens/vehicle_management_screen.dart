@@ -79,6 +79,15 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           _machineryRegFile ??= prefs.getString("doc_reg_$carKey");
           _bizLicenseFile ??= prefs.getString("doc_biz_$carKey");
           _insuranceFile ??= prefs.getString("doc_ins_$carKey");
+
+          final regB64 = prefs.getString("doc_reg_b64_$carKey");
+          if (regB64 != null) _machineryRegBytes = base64Decode(regB64);
+
+          final bizB64 = prefs.getString("doc_biz_b64_$carKey");
+          if (bizB64 != null) _bizLicenseBytes = base64Decode(bizB64);
+
+          final insB64 = prefs.getString("doc_ins_b64_$carKey");
+          if (insB64 != null) _insuranceBytes = base64Decode(insB64);
         });
       }
     } catch (e) {
@@ -170,13 +179,17 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         }),
       );
 
-      // 3. 앱 내 비동기 로컬 저장소에 차량별 서류 파일명 저장
+      // 3. 앱 내 비동기 로컬 저장소에 차량별 서류 파일명 및 이미지 바이트 영구 저장
       try {
         final prefs = await SharedPreferences.getInstance();
         final carKey = _vehicleNumController.text.trim();
         if (_machineryRegFile != null) await prefs.setString("doc_reg_$carKey", _machineryRegFile!);
         if (_bizLicenseFile != null) await prefs.setString("doc_biz_$carKey", _bizLicenseFile!);
         if (_insuranceFile != null) await prefs.setString("doc_ins_$carKey", _insuranceFile!);
+
+        if (_machineryRegBytes != null) await prefs.setString("doc_reg_b64_$carKey", base64Encode(_machineryRegBytes!));
+        if (_bizLicenseBytes != null) await prefs.setString("doc_biz_b64_$carKey", base64Encode(_bizLicenseBytes!));
+        if (_insuranceBytes != null) await prefs.setString("doc_ins_b64_$carKey", base64Encode(_insuranceBytes!));
       } catch (e) {
         debugPrint("SharedPreferences 저장 예외: $e");
       }
