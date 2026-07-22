@@ -171,12 +171,12 @@ async def get_my_cars(
                 tonnage=c.tonnage,
                 driver_name=driver_name,
                 inspection_date="2026-12-31",
-                machinery_reg_file=c.machinery_reg_file,
-                machinery_reg_url=c.machinery_reg_url,
-                biz_license_file=c.biz_license_file,
-                biz_license_url=c.biz_license_url,
-                insurance_file=c.insurance_file,
-                insurance_url=c.insurance_url,
+                machinery_reg_file=getattr(c, "machinery_reg_file", None),
+                machinery_reg_url=getattr(c, "machinery_reg_url", None),
+                biz_license_file=getattr(c, "biz_license_file", None),
+                biz_license_url=getattr(c, "biz_license_url", None),
+                insurance_file=getattr(c, "insurance_file", None),
+                insurance_url=getattr(c, "insurance_url", None),
             )
         )
     return response_list

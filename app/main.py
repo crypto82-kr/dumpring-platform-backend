@@ -36,7 +36,18 @@ async def startup_event():
     logger.info("덤프링 플랫폼 백엔드 구동 시동 및 테이블 생성...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        pass
+        # PostgreSQL/SQLite 컬럼 동적 추가 마이그레이션 (Auto-migration)
+        columns = [
+            "machinery_reg_file", "machinery_reg_url",
+            "biz_license_file", "biz_license_url",
+            "insurance_file", "insurance_url"
+        ]
+        for col in columns:
+            try:
+                from sqlalchemy import text
+                await conn.execute(text(f"ALTER TABLE cars ADD COLUMN IF NOT EXISTS {col} VARCHAR;"))
+            except Exception as e:
+                logger.warning(f"컬럼 동적 추가 무시: {col} -> {e}")
         
     logger.info("덤프 기사 및 차주 필수 서류 마스터 공통코드 시딩(Seeding)...")
     async with SessionLocal() as db:

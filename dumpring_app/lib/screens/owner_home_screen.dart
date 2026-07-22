@@ -52,6 +52,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
         Uri.parse("$_baseUrl/api/fleet/my-drivers"),
         headers: {"Authorization": "Bearer ${widget.token}"},
       );
+      print("🔍 [DEBUG] my-drivers status: ${response.statusCode}, body: ${response.body}");
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
         if (mounted) {
@@ -68,7 +69,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
         }
       }
     } catch (e) {
-      debugPrint("기사 조회 오류: $e");
+      print("❌ [DEBUG] 기사 조회 오류: $e");
     }
   }
 
@@ -78,6 +79,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
         Uri.parse("$_baseUrl/api/fleet/my-cars"),
         headers: {"Authorization": "Bearer ${widget.token}"},
       );
+      print("🔍 [DEBUG] my-cars status: ${response.statusCode}, body: ${response.body}");
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
         if (mounted) {
@@ -99,7 +101,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
         }
       }
     } catch (e) {
-      debugPrint("차량 조회 오류: $e");
+      print("❌ [DEBUG] 차량 조회 오류: $e");
     }
   }
 
