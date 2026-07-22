@@ -126,6 +126,12 @@ class CarResponse(BaseModel):
     tonnage: float
     driver_name: str
     inspection_date: str
+    machinery_reg_file: str | None = None
+    machinery_reg_url: str | None = None
+    biz_license_file: str | None = None
+    biz_license_url: str | None = None
+    insurance_file: str | None = None
+    insurance_url: str | None = None
  
 @router.get(
     "/my-cars",
