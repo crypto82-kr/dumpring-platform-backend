@@ -37,7 +37,15 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
     super.initState();
     _currentUser = Map<String, dynamic>.from(widget.user);
     _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTabIndex);
+    _tabController.addListener(_handleTabChange);
     _fetchAllData();
+  }
+
+  void _handleTabChange() {
+    // 탭 애니메이션 전환이 최종 완료되었을 때만 데이터 갱신 (중복 호출 방지)
+    if (!_tabController.indexIsChanging) {
+      _fetchAllData();
+    }
   }
 
   Future<void> _fetchAllData() async {
@@ -107,6 +115,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     super.dispose();
   }
