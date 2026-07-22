@@ -29,6 +29,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   late TextEditingController _vehicleNumController;
   late TextEditingController _tonnageController;
   late TextEditingController _carModelController;
+  late TextEditingController _inspectionDateController;
 
   bool _isLoading = false;
   bool _isSaving = false;
@@ -51,7 +52,10 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     _vehicleNumController = TextEditingController(text: widget.user['vehicle_number'] ?? widget.user['car_number'] ?? '');
     _tonnageController = TextEditingController(text: (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString());
     _carModelController = TextEditingController(text: widget.user['car_model'] ?? '');
+    _inspectionDateController = TextEditingController(text: widget.user['inspection_date'] ?? '2026-12-31');
     _machineryRegFile = widget.user['machinery_reg_file'];
+    _bizLicenseFile = widget.user['biz_license_file'] ?? 'MOCK_BIZ_LICENSE_DOCUMENT.pdf';
+    _insuranceFile = widget.user['insurance_file'] ?? 'MOCK_INSURANCE_DOCUMENT.pdf';
     _fetchVehicleInfo();
   }
 
@@ -60,6 +64,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     _vehicleNumController.dispose();
     _tonnageController.dispose();
     _carModelController.dispose();
+    _inspectionDateController.dispose();
     super.dispose();
   }
 
@@ -378,6 +383,24 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
                                 ),
                                 validator: (val) => (val == null || val.trim().isEmpty) ? "톤수를 입력해 주세요." : null,
+                              ),
+                              const SizedBox(height: 16),
+
+                              Text("정기 안전점검 / 검사 만료예정일", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: _inspectionDateController,
+                                enabled: !widget.isReadOnly,
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                                decoration: InputDecoration(
+                                  hintText: "예: 2026-12-31",
+                                  suffixIcon: const Icon(Icons.calendar_today, size: 18),
+                                  filled: true,
+                                  fillColor: AppColors.background,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                ),
                               ),
                             ],
                           ),

@@ -453,6 +453,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                               ..._currentUser,
                               'vehicle_number': c['car_number'],
                               'tonnage': c['tonnage'],
+                              'inspection_date': c['inspection_date'],
                             },
                             token: widget.token,
                             isReadOnly: false,
