@@ -229,19 +229,23 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       if (image == null) return;
 
       final bytes = await image.readAsBytes();
+      final String imagePath = image.path;
 
       setState(() {
         if (docType == 'REG') {
           _isUploadingRegFile = true;
           _machineryRegFile = image.name;
+          _machineryRegUrl = imagePath;
           _machineryRegBytes = bytes;
         } else if (docType == 'BIZ') {
           _isUploadingBizFile = true;
           _bizLicenseFile = image.name;
+          _bizLicenseUrl = imagePath;
           _bizLicenseBytes = bytes;
         } else if (docType == 'INS') {
           _isUploadingInsuranceFile = true;
           _insuranceFile = image.name;
+          _insuranceUrl = imagePath;
           _insuranceBytes = bytes;
         }
       });
@@ -719,30 +723,40 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                         return Image.memory(
                           Uint8List.fromList(fileBytes),
                           fit: BoxFit.contain,
+                          errorBuilder: (ctx, err, st) {
+                            if (fileUrl != null && fileUrl.isNotEmpty) {
+                              return Image.network(
+                                fileUrl.startsWith("http") || fileUrl.startsWith("blob:")
+                                    ? fileUrl
+                                    : "$_baseUrl$fileUrl",
+                                fit: BoxFit.contain,
+                              );
+                            }
+                            return const Center(child: Icon(Icons.broken_image, size: 48, color: Colors.grey));
+                          },
                         );
                       }
                       
-                      final networkUrl = fileUrl != null
-                          ? "$_baseUrl$fileUrl"
-                          : "$_baseUrl/static/uploads/documents/$fileName";
+                      final networkUrl = (fileUrl != null && (fileUrl.startsWith("http") || fileUrl.startsWith("blob:")))
+                          ? fileUrl
+                          : fileUrl != null
+                              ? "$_baseUrl$fileUrl"
+                              : "$_baseUrl/static/uploads/documents/$fileName";
 
                       return Image.network(
                         networkUrl,
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {
                           return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Icon(Icons.verified_user_outlined, size: 52, color: Color(0xFF004D5A)),
-                                  SizedBox(height: 10),
-                                  Text("공식 검수 완료 서류 파일", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1F2937))),
-                                  SizedBox(height: 4),
-                                  Text("덤프링 시스템 서버에 정상 암호화 보관 중입니다.", style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                                ],
-                              ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.description, size: 56, color: Color(0xFF004D5A)),
+                                const SizedBox(height: 8),
+                                Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                const SizedBox(height: 4),
+                                const Text("등록 완료 문서", style: TextStyle(fontSize: 12, color: Colors.green)),
+                              ],
                             ),
                           );
                         },
