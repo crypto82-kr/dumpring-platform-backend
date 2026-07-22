@@ -87,17 +87,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-        case "BIZ_LICENSE":
-          _bizLicenseFile = mockFileName;
-          break;
-        case "MACHINERY_REG":
-          _machineryRegFile = mockFileName;
-          break;
-        case "INSURANCE":
-          _insuranceFile = mockFileName;
-          break;
+  Future<void> _pickAndUploadDocument(String docCode) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      setState(() {
+        _uploadingStates[docCode] = true;
+      });
+
+      // 백엔드 파일 업로드 API multipart 요청 전송
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse("${AppConfig.baseUrl}/api/files/upload"),
+      );
+
+      final bytes = await image.readAsBytes();
+      final multipartFile = http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: image.name,
+        contentType: MediaType('image', 'jpeg'),
+      );
+
+      request.files.add(multipartFile);
+      request.fields['category'] = 'documents';
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        final String uploadedUrl = decoded['url'] as String;
+
+        setState(() {
+          switch (docCode) {
+            case "LICENSE":
+              _licenseFile = uploadedUrl;
+              break;
+            case "SAFETY_TRAINING":
+              _safetyTrainingFile = uploadedUrl;
+              break;
+            case "SPECIAL_LABOR_TRAINING":
+              _specialLaborTrainingFile = uploadedUrl;
+              break;
+            case "BIZ_LICENSE":
+              _bizLicenseFile = uploadedUrl;
+              break;
+            case "MACHINERY_REG":
+              _machineryRegFile = uploadedUrl;
+              break;
+            case "INSURANCE":
+              _insuranceFile = uploadedUrl;
+              break;
+          }
+        });
       }
-    });
+    } catch (e) {
+      debugPrint("서류 업로드 예외: $e");
+    } finally {
+      setState(() {
+        _uploadingStates[docCode] = false;
+      });
+    }
   }
 
   // 업로드한 서류 삭제 처리
