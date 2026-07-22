@@ -710,53 +710,57 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               ),
               const SizedBox(height: 14),
 
-              // 실제 올린 서류 사진 / 이미지 뷰어
+              // 서버 업로드 파일 직접 스트리밍 뷰어
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(minHeight: 180, maxHeight: 320),
+                  constraints: const BoxConstraints(minHeight: 200, maxHeight: 360),
                   color: Colors.black12,
                   child: Builder(
                     builder: (context) {
-                      if (fileBytes != null && fileBytes.isNotEmpty) {
-                        return Image.memory(
-                          Uint8List.fromList(fileBytes),
-                          fit: BoxFit.contain,
-                          errorBuilder: (ctx, err, st) {
-                            if (fileUrl != null && fileUrl.isNotEmpty) {
-                              return Image.network(
-                                fileUrl.startsWith("http") || fileUrl.startsWith("blob:")
-                                    ? fileUrl
-                                    : "$_baseUrl$fileUrl",
-                                fit: BoxFit.contain,
-                              );
-                            }
-                            return const Center(child: Icon(Icons.broken_image, size: 48, color: Colors.grey));
-                          },
-                        );
-                      }
-                      
-                      final networkUrl = (fileUrl != null && (fileUrl.startsWith("http") || fileUrl.startsWith("blob:")))
-                          ? fileUrl
-                          : fileUrl != null
-                              ? "$_baseUrl$fileUrl"
-                              : "$_baseUrl/static/uploads/documents/$fileName";
+                      final String streamUrl = (fileUrl != null && fileUrl.isNotEmpty)
+                          ? (fileUrl.startsWith("http") ? fileUrl : "$_baseUrl$fileUrl")
+                          : "$_baseUrl/static/uploads/documents/$fileName";
 
                       return Image.network(
-                        networkUrl,
+                        streamUrl,
                         fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                        : null,
+                                    color: const Color(0xFF004D5A),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text("서버에서 원본 서류 불러오는 중...", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                         errorBuilder: (context, error, stackTrace) {
                           return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.description, size: 56, color: Color(0xFF004D5A)),
-                                const SizedBox(height: 8),
-                                Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                const SizedBox(height: 4),
-                                const Text("등록 완료 문서", style: TextStyle(fontSize: 12, color: Colors.green)),
-                              ],
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.description, size: 52, color: Color(0xFF004D5A)),
+                                  const SizedBox(height: 10),
+                                  Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                  const SizedBox(height: 4),
+                                  const Text("덤프링 백엔드 서버 검수 보관 문서", style: TextStyle(fontSize: 12, color: Colors.green)),
+                                ],
+                              ),
                             ),
                           );
                         },
