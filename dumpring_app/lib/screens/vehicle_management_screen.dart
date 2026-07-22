@@ -145,6 +145,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           "tonnage": parsedTonnage,
           "car_model": _carModelController.text.trim(),
           "machinery_reg_file": _machineryRegFile,
+          "machinery_reg_url": _machineryRegUrl,
+          "biz_license_file": _bizLicenseFile,
+          "biz_license_url": _bizLicenseUrl,
+          "insurance_file": _insuranceFile,
+          "insurance_url": _insuranceUrl,
         }),
       );
 
@@ -160,6 +165,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           "tonnage": _tonnageController.text.trim(),
           "car_model": _carModelController.text.trim(),
           "machinery_reg_file": _machineryRegFile,
+          "machinery_reg_url": _machineryRegUrl,
+          "biz_license_file": _bizLicenseFile,
+          "biz_license_url": _bizLicenseUrl,
+          "insurance_file": _insuranceFile,
+          "insurance_url": _insuranceUrl,
         }),
       );
 
