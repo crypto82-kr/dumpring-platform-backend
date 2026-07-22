@@ -383,7 +383,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             )
           else
             ElevatedButton(
-              onPressed: () => _simulateUpload(docCode),
+              onPressed: () => _pickAndUploadDocument(docCode),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.textPrimary,
