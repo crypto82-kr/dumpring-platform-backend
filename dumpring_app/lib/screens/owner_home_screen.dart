@@ -88,6 +88,12 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
               "driver": c["driver_name"] ?? "미배정",
               "status": "정상",
               "inspection_date": c["inspection_date"] ?? "미등록",
+              "machinery_reg_file": c["machinery_reg_file"],
+              "machinery_reg_url": c["machinery_reg_url"],
+              "biz_license_file": c["biz_license_file"],
+              "biz_license_url": c["biz_license_url"],
+              "insurance_file": c["insurance_file"],
+              "insurance_url": c["insurance_url"],
             }).toList().cast<Map<String, dynamic>>();
           });
         }
