@@ -187,15 +187,15 @@ async def seed_scenario_data():
                                            is_owner=True, is_approved=False)
 
         # 기사들 (다양한 상황)
-        driver1 = await get_or_create_user(session, "010-2222-1111", "이기사(ACCEPTED)",
+        driver1 = await get_or_create_user(session, "010-2222-1111", "이기사(배차수락)",
                                             is_driver=True, is_approved=True)
-        driver2 = await get_or_create_user(session, "010-2222-2222", "최기사(DRIVING)",
+        driver2 = await get_or_create_user(session, "010-2222-2222", "최기사(운행중)",
                                             is_driver=True, is_approved=True)
-        driver3 = await get_or_create_user(session, "010-2222-3333", "강기사(ARRIVED)",
+        driver3 = await get_or_create_user(session, "010-2222-3333", "강기사(도착완료)",
                                             is_driver=True, is_approved=True)
-        driver4 = await get_or_create_user(session, "010-2222-4444", "조기사(APPROVED)",
+        driver4 = await get_or_create_user(session, "010-2222-4444", "조기사(반입승인)",
                                             is_driver=True, is_approved=True)
-        driver5 = await get_or_create_user(session, "010-2222-5555", "윤기사(REJECTED)",
+        driver5 = await get_or_create_user(session, "010-2222-5555", "윤기사(반입반려)",
                                             is_driver=True, is_approved=True)
         driver6 = await get_or_create_user(session, "010-2222-6666", "장기사(미승인)",
                                             is_driver=True, is_approved=False)
