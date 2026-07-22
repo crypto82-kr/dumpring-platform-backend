@@ -228,14 +228,20 @@ async def create_my_car(
         # 이미 등록된 차량인 경우 소유권 및 정보 업데이트
         existing_car.owner_id = current_owner.id
         existing_car.tonnage = data.tonnage
-        if data.machinery_reg_file: existing_car.machinery_reg_file = data.machinery_reg_file
-        if data.machinery_reg_url: existing_car.machinery_reg_url = data.machinery_reg_url
-        if data.biz_license_file: existing_car.biz_license_file = data.biz_license_file
-        if data.biz_license_url: existing_car.biz_license_url = data.biz_license_url
-        if data.insurance_file: existing_car.insurance_file = data.insurance_file
-        if data.insurance_url: existing_car.insurance_url = data.insurance_url
+        if data.machinery_reg_file:
+            existing_car.machinery_reg_file = data.machinery_reg_file
+        if data.machinery_reg_url:
+            existing_car.machinery_reg_url = data.machinery_reg_url
+        if data.biz_license_file:
+            existing_car.biz_license_file = data.biz_license_file
+        if data.biz_license_url:
+            existing_car.biz_license_url = data.biz_license_url
+        if data.insurance_file:
+            existing_car.insurance_file = data.insurance_file
+        if data.insurance_url:
+            existing_car.insurance_url = data.insurance_url
+        
         await db.commit()
-        await db.refresh(existing_car)
         return CarResponse(
             id=existing_car.id,
             car_number=existing_car.car_number,
@@ -264,7 +270,6 @@ async def create_my_car(
     )
     db.add(new_car)
     await db.commit()
-    await db.refresh(new_car)
 
     return CarResponse(
         id=new_car.id,
