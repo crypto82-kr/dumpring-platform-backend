@@ -3,6 +3,7 @@ import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:http_parser/http_parser.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 
@@ -53,10 +54,27 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     _tonnageController = TextEditingController(text: (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString());
     _carModelController = TextEditingController(text: widget.user['car_model'] ?? '');
     _inspectionDateController = TextEditingController(text: widget.user['inspection_date'] ?? '2026-12-31');
-    _machineryRegFile = widget.user['machinery_reg_file'] ?? '건설기계등록증_2026.pdf';
-    _bizLicenseFile = widget.user['biz_license_file'] ?? '사업자등록증_사본.pdf';
-    _insuranceFile = widget.user['insurance_file'] ?? '영업용자동차보험증.pdf';
+    _machineryRegFile = widget.user['machinery_reg_file'];
+    _bizLicenseFile = widget.user['biz_license_file'];
+    _insuranceFile = widget.user['insurance_file'];
+    _loadStoredDocuments();
     _fetchVehicleInfo();
+  }
+
+  Future<void> _loadStoredDocuments() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final carKey = _vehicleNumController.text.trim();
+      if (carKey.isNotEmpty) {
+        setState(() {
+          _machineryRegFile ??= prefs.getString("doc_reg_$carKey");
+          _bizLicenseFile ??= prefs.getString("doc_biz_$carKey");
+          _insuranceFile ??= prefs.getString("doc_ins_$carKey");
+        });
+      }
+    } catch (e) {
+      debugPrint("SharedPreferences 불러오기 예외: $e");
+    }
   }
 
   @override
@@ -142,6 +160,17 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           "machinery_reg_file": _machineryRegFile,
         }),
       );
+
+      // 3. 앱 내 비동기 로컬 저장소에 차량별 서류 파일명 저장
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final carKey = _vehicleNumController.text.trim();
+        if (_machineryRegFile != null) await prefs.setString("doc_reg_$carKey", _machineryRegFile!);
+        if (_bizLicenseFile != null) await prefs.setString("doc_biz_$carKey", _bizLicenseFile!);
+        if (_insuranceFile != null) await prefs.setString("doc_ins_$carKey", _insuranceFile!);
+      } catch (e) {
+        debugPrint("SharedPreferences 저장 예외: $e");
+      }
 
       if (carResponse.statusCode == 200 || carResponse.statusCode == 201) {
         if (!mounted) return;
