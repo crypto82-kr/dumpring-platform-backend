@@ -228,10 +228,22 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
       if (image == null) return;
 
+      final bytes = await image.readAsBytes();
+
       setState(() {
-        if (docType == 'REG') _isUploadingRegFile = true;
-        if (docType == 'BIZ') _isUploadingBizFile = true;
-        if (docType == 'INS') _isUploadingInsuranceFile = true;
+        if (docType == 'REG') {
+          _isUploadingRegFile = true;
+          _machineryRegFile = image.name;
+          _machineryRegBytes = bytes;
+        } else if (docType == 'BIZ') {
+          _isUploadingBizFile = true;
+          _bizLicenseFile = image.name;
+          _bizLicenseBytes = bytes;
+        } else if (docType == 'INS') {
+          _isUploadingInsuranceFile = true;
+          _insuranceFile = image.name;
+          _insuranceBytes = bytes;
+        }
       });
 
       // 백엔드 파일 업로드 API multipart 요청 전송
@@ -240,7 +252,6 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         Uri.parse("$_baseUrl/api/files/upload"),
       );
 
-      final bytes = await image.readAsBytes();
       final multipartFile = http.MultipartFile.fromBytes(
         'file',
         bytes,
