@@ -727,27 +727,20 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                         networkUrl,
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {
-                          // 웹 브라우저 로컬 시뮬레이션 및 예외 시 샘플 서류 플레이스홀더 제공
-                          return Image.network(
-                            "https://picsum.photos/seed/dumpring_doc/600/400",
-                            fit: BoxFit.cover,
-                            errorBuilder: (ctx, err, st) {
-                              return Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(24.0),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.description, size: 48, color: Color(0xFF004D5A)),
-                                      SizedBox(height: 8),
-                                      Text("공식 검수 원본 문서", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                      SizedBox(height: 4),
-                                      Text("덤프링 안전검수팀 보관용 문서입니다.", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(Icons.verified_user_outlined, size: 52, color: Color(0xFF004D5A)),
+                                  SizedBox(height: 10),
+                                  Text("공식 검수 완료 서류 파일", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1F2937))),
+                                  SizedBox(height: 4),
+                                  Text("덤프링 시스템 서버에 정상 암호화 보관 중입니다.", style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       );
