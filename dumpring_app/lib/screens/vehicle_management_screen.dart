@@ -708,34 +708,51 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(maxHeight: 280),
+                  constraints: const BoxConstraints(minHeight: 180, maxHeight: 320),
                   color: Colors.black12,
-                  child: fileBytes != null
-                      ? Image.memory(
+                  child: Builder(
+                    builder: (context) {
+                      if (fileBytes != null && fileBytes.isNotEmpty) {
+                        return Image.memory(
                           Uint8List.fromList(fileBytes),
                           fit: BoxFit.contain,
-                        )
-                      : Image.network(
-                          fullImageUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(24.0),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Icon(Icons.description, size: 48, color: Color(0xFF004D5A)),
-                                    SizedBox(height: 8),
-                                    Text("공식 검수 원본 문서", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                    SizedBox(height: 4),
-                                    Text("덤프링 안전검수팀 보관용 문서입니다.", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                  ],
+                        );
+                      }
+                      
+                      final networkUrl = fileUrl != null
+                          ? "$_baseUrl$fileUrl"
+                          : "$_baseUrl/static/uploads/documents/$fileName";
+
+                      return Image.network(
+                        networkUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          // 웹 브라우저 로컬 시뮬레이션 및 예외 시 샘플 서류 플레이스홀더 제공
+                          return Image.network(
+                            "https://picsum.photos/seed/dumpring_doc/600/400",
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, st) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.description, size: 48, color: Color(0xFF004D5A)),
+                                      SizedBox(height: 8),
+                                      Text("공식 검수 원본 문서", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                      SizedBox(height: 4),
+                                      Text("덤프링 안전검수팀 보관용 문서입니다.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
