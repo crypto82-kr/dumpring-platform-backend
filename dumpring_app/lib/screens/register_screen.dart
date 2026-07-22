@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart'; // AppColors, AppTextStyles 패키지 임포트
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 
 class RegisterScreen extends StatefulWidget {
@@ -85,29 +87,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 가상의 프리미엄 서류 파일 업로드 시뮬레이션
-  Future<void> _simulateUpload(String docCode) async {
-    setState(() {
-      _uploadingStates[docCode] = true;
-    });
-
-    // 0.8초간 미려하게 업로드 모사 진행
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    setState(() {
-      _uploadingStates[docCode] = false;
-      final mockFileName = "MOCK_${docCode}_${DateTime.now().millisecondsSinceEpoch % 100000}.pdf";
-      
-      switch (docCode) {
-        case "LICENSE":
-          _licenseFile = mockFileName;
-          break;
-        case "SAFETY_TRAINING":
-          _safetyTrainingFile = mockFileName;
-          break;
-        case "SPECIAL_LABOR_TRAINING":
-          _specialLaborTrainingFile = mockFileName;
-          break;
         case "BIZ_LICENSE":
           _bizLicenseFile = mockFileName;
           break;
