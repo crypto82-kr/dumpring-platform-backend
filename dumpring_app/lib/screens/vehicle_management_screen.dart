@@ -76,11 +76,19 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       final carKey = _vehicleNumController.text.trim();
       
       setState(() {
-        _machineryRegFile = _machineryRegFile ?? (carKey.isNotEmpty ? prefs.getString("doc_reg_$carKey") : null) ?? '건설기계등록증_2026.jpg';
-        _bizLicenseFile = _bizLicenseFile ?? (carKey.isNotEmpty ? prefs.getString("doc_biz_$carKey") : null) ?? '사업자등록증_사본.jpg';
-        _insuranceFile = _insuranceFile ?? (carKey.isNotEmpty ? prefs.getString("doc_ins_$carKey") : null) ?? '영업용자동차보험증.jpg';
+        final savedRegName = carKey.isNotEmpty ? prefs.getString("doc_reg_$carKey") : null;
+        final savedBizName = carKey.isNotEmpty ? prefs.getString("doc_biz_$carKey") : null;
+        final savedInsName = carKey.isNotEmpty ? prefs.getString("doc_ins_$carKey") : null;
+
+        _machineryRegFile = savedRegName ?? _machineryRegFile ?? '건설기계등록증_2026.jpg';
+        _bizLicenseFile = savedBizName ?? _bizLicenseFile ?? '사업자등록증_사본.jpg';
+        _insuranceFile = savedInsName ?? _insuranceFile ?? '영업용자동차보험증.jpg';
 
         if (carKey.isNotEmpty) {
+          _machineryRegUrl ??= prefs.getString("doc_reg_url_$carKey");
+          _bizLicenseUrl ??= prefs.getString("doc_biz_url_$carKey");
+          _insuranceUrl ??= prefs.getString("doc_ins_url_$carKey");
+
           final regB64 = prefs.getString("doc_reg_b64_$carKey");
           if (regB64 != null) _machineryRegBytes = base64Decode(regB64);
 
@@ -275,19 +283,38 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         final String uploadedUrl = decoded['url'] as String;
         final String realOriginalName = image.name;
 
+        final prefs = await SharedPreferences.getInstance();
+        final carKey = _vehicleNumController.text.trim();
+        final base64Str = base64Encode(bytes);
+
         setState(() {
           if (docType == 'REG') {
             _machineryRegFile = realOriginalName;
             _machineryRegUrl = uploadedUrl;
             _machineryRegBytes = bytes;
+            if (carKey.isNotEmpty) {
+              prefs.setString("doc_reg_$carKey", realOriginalName);
+              prefs.setString("doc_reg_url_$carKey", uploadedUrl);
+              prefs.setString("doc_reg_b64_$carKey", base64Str);
+            }
           } else if (docType == 'BIZ') {
             _bizLicenseFile = realOriginalName;
             _bizLicenseUrl = uploadedUrl;
             _bizLicenseBytes = bytes;
+            if (carKey.isNotEmpty) {
+              prefs.setString("doc_biz_$carKey", realOriginalName);
+              prefs.setString("doc_biz_url_$carKey", uploadedUrl);
+              prefs.setString("doc_biz_b64_$carKey", base64Str);
+            }
           } else if (docType == 'INS') {
             _insuranceFile = realOriginalName;
             _insuranceUrl = uploadedUrl;
             _insuranceBytes = bytes;
+            if (carKey.isNotEmpty) {
+              prefs.setString("doc_ins_$carKey", realOriginalName);
+              prefs.setString("doc_ins_url_$carKey", uploadedUrl);
+              prefs.setString("doc_ins_b64_$carKey", base64Str);
+            }
           }
         });
 
