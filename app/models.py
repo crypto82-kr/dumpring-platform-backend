@@ -135,6 +135,14 @@ class Car(Base):
     car_number = Column(String, unique=True, nullable=False, index=True)  # 차량 번호 (예: 경기80사1234)
     tonnage = Column(Float, nullable=False)  # 덤프 톤수 (15.0, 24.0, 25.5 등)
 
+    # 차량 필수 구비서류 3종 파일명 및 서버 URL 컬럼
+    machinery_reg_file = Column(String, nullable=True)
+    machinery_reg_url = Column(String, nullable=True)
+    biz_license_file = Column(String, nullable=True)
+    biz_license_url = Column(String, nullable=True)
+    insurance_file = Column(String, nullable=True)
+    insurance_url = Column(String, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

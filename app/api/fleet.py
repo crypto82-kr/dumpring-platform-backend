@@ -167,7 +167,13 @@ async def get_my_cars(
                 car_number=c.car_number,
                 tonnage=c.tonnage,
                 driver_name=driver_name,
-                inspection_date="2026-12-31"
+                inspection_date="2026-12-31",
+                machinery_reg_file=c.machinery_reg_file,
+                machinery_reg_url=c.machinery_reg_url,
+                biz_license_file=c.biz_license_file,
+                biz_license_url=c.biz_license_url,
+                insurance_file=c.insurance_file,
+                insurance_url=c.insurance_url,
             )
         )
     return response_list
@@ -183,6 +189,23 @@ class CreateCarRequest(BaseModel):
     biz_license_url: str | None = None
     insurance_file: str | None = None
     insurance_url: str | None = None
+
+
+class CarResponse(BaseModel):
+    id: int
+    car_number: str
+    tonnage: float
+    driver_name: str
+    inspection_date: str
+    machinery_reg_file: str | None = None
+    machinery_reg_url: str | None = None
+    biz_license_file: str | None = None
+    biz_license_url: str | None = None
+    insurance_file: str | None = None
+    insurance_url: str | None = None
+
+    class Config:
+        orm_mode = True
 
 
 @router.post(
@@ -205,6 +228,12 @@ async def create_my_car(
         # 이미 등록된 차량인 경우 소유권 및 정보 업데이트
         existing_car.owner_id = current_owner.id
         existing_car.tonnage = data.tonnage
+        if data.machinery_reg_file: existing_car.machinery_reg_file = data.machinery_reg_file
+        if data.machinery_reg_url: existing_car.machinery_reg_url = data.machinery_reg_url
+        if data.biz_license_file: existing_car.biz_license_file = data.biz_license_file
+        if data.biz_license_url: existing_car.biz_license_url = data.biz_license_url
+        if data.insurance_file: existing_car.insurance_file = data.insurance_file
+        if data.insurance_url: existing_car.insurance_url = data.insurance_url
         await db.commit()
         await db.refresh(existing_car)
         return CarResponse(
@@ -212,14 +241,26 @@ async def create_my_car(
             car_number=existing_car.car_number,
             tonnage=existing_car.tonnage,
             driver_name="미배정",
-            inspection_date="2026-12-31"
+            inspection_date="2026-12-31",
+            machinery_reg_file=existing_car.machinery_reg_file,
+            machinery_reg_url=existing_car.machinery_reg_url,
+            biz_license_file=existing_car.biz_license_file,
+            biz_license_url=existing_car.biz_license_url,
+            insurance_file=existing_car.insurance_file,
+            insurance_url=existing_car.insurance_url,
         )
 
     # 신규 차량 생성
     new_car = Car(
         owner_id=current_owner.id,
         car_number=data.car_number.strip(),
-        tonnage=data.tonnage
+        tonnage=data.tonnage,
+        machinery_reg_file=data.machinery_reg_file,
+        machinery_reg_url=data.machinery_reg_url,
+        biz_license_file=data.biz_license_file,
+        biz_license_url=data.biz_license_url,
+        insurance_file=data.insurance_file,
+        insurance_url=data.insurance_url,
     )
     db.add(new_car)
     await db.commit()
@@ -230,5 +271,11 @@ async def create_my_car(
         car_number=new_car.car_number,
         tonnage=new_car.tonnage,
         driver_name="미배정",
-        inspection_date="2026-12-31"
+        inspection_date="2026-12-31",
+        machinery_reg_file=new_car.machinery_reg_file,
+        machinery_reg_url=new_car.machinery_reg_url,
+        biz_license_file=new_car.biz_license_file,
+        biz_license_url=new_car.biz_license_url,
+        insurance_file=new_car.insurance_file,
+        insurance_url=new_car.insurance_url,
     )
