@@ -36,10 +36,14 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   bool _isSaving = false;
   String? _errorMessage;
   
-  // 서류 파일 상태 변수
+  // 서류 파일 상태 변수 및 미리보기 바이트
   String? _machineryRegFile;
   String? _bizLicenseFile;
   String? _insuranceFile;
+
+  List<int>? _machineryRegBytes;
+  List<int>? _bizLicenseBytes;
+  List<int>? _insuranceBytes;
 
   bool _isUploadingRegFile = false;
   bool _isUploadingBizFile = false;
@@ -237,9 +241,16 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         final String realOriginalName = image.name;
 
         setState(() {
-          if (docType == 'REG') _machineryRegFile = realOriginalName;
-          if (docType == 'BIZ') _bizLicenseFile = realOriginalName;
-          if (docType == 'INS') _insuranceFile = realOriginalName;
+          if (docType == 'REG') {
+            _machineryRegFile = realOriginalName;
+            _machineryRegBytes = bytes;
+          } else if (docType == 'BIZ') {
+            _bizLicenseFile = realOriginalName;
+            _bizLicenseBytes = bytes;
+          } else if (docType == 'INS') {
+            _insuranceFile = realOriginalName;
+            _insuranceBytes = bytes;
+          }
         });
 
         if (mounted) {
@@ -471,6 +482,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               _buildDocRow(
                                 title: "1. 건설기계 등록증 / 검사증",
                                 file: _machineryRegFile,
+                                fileBytes: _machineryRegBytes,
                                 isUploading: _isUploadingRegFile,
                                 onUpload: () => _uploadDocument('REG'),
                               ),
@@ -480,6 +492,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               _buildDocRow(
                                 title: "2. 사업자등록증 (운송사/차주)",
                                 file: _bizLicenseFile,
+                                fileBytes: _bizLicenseBytes,
                                 isUploading: _isUploadingBizFile,
                                 onUpload: () => _uploadDocument('BIZ'),
                               ),
@@ -489,6 +502,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               _buildDocRow(
                                 title: "3. 영업용 자동차 보험가입증서",
                                 file: _insuranceFile,
+                                fileBytes: _insuranceBytes,
                                 isUploading: _isUploadingInsuranceFile,
                                 onUpload: () => _uploadDocument('INS'),
                               ),
@@ -533,6 +547,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   Widget _buildDocRow({
     required String title,
     required String? file,
+    List<int>? fileBytes,
     required bool isUploading,
     required VoidCallback onUpload,
   }) {
@@ -557,7 +572,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 ),
                 const SizedBox(height: 2),
                 InkWell(
-                  onTap: file != null ? () => _previewDocument(title, file) : null,
+                  onTap: file != null ? () => _previewDocument(title, file, fileBytes) : null,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -600,7 +615,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     );
   }
 
-  void _previewDocument(String docTitle, String fileName) {
+  void _previewDocument(String docTitle, String fileName, List<int>? fileBytes) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -612,44 +627,83 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
             Expanded(child: Text(docTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.insert_drive_file, color: Color(0xFF004D5A), size: 32),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          fileName,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        const Text("서버 검수 완료 파일 (정상 등록)", style: TextStyle(fontSize: 11, color: Colors.green)),
-                      ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.insert_drive_file, color: Color(0xFF004D5A), size: 28),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fileName,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          const Text("서버 검수 완료 원본 이미지", style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              "📌 해당 서류는 덤프링 안전검수팀 및 현장 관리자가 원본 서류 확인 시 참조하는 공식 등록 문서입니다.",
-              style: TextStyle(fontSize: 12, color: Color(0xFF4B5563), height: 1.4),
-            ),
-          ],
+              const SizedBox(height: 14),
+
+              // 실제 올린 서류 사진 / 이미지 뷰어
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  color: Colors.black12,
+                  child: fileBytes != null
+                      ? Image.memory(
+                          Uint8List.fromList(fileBytes),
+                          fit: BoxFit.contain,
+                        )
+                      : Image.network(
+                          "$_baseUrl/static/uploads/documents/$fileName",
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Icon(Icons.description, size: 48, color: Color(0xFF004D5A)),
+                                    SizedBox(height: 8),
+                                    Text("공식 검수 원본 문서", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                    SizedBox(height: 4),
+                                    Text("덤프링 안전검수팀 보관용 문서입니다.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                "📌 해당 서류는 덤프링 안전검수팀 및 현장 관리자가 원본 서류 확인 시 참조하는 공식 등록 문서입니다.",
+                style: TextStyle(fontSize: 12, color: Color(0xFF4B5563), height: 1.4),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
