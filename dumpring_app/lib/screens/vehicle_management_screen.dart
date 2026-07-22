@@ -53,9 +53,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     _tonnageController = TextEditingController(text: (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString());
     _carModelController = TextEditingController(text: widget.user['car_model'] ?? '');
     _inspectionDateController = TextEditingController(text: widget.user['inspection_date'] ?? '2026-12-31');
-    _machineryRegFile = widget.user['machinery_reg_file'] ?? 'CONSTRUCTION_REG_CERT.pdf';
-    _bizLicenseFile = widget.user['biz_license_file'] ?? 'BIZ_LICENSE_CERT.pdf';
-    _insuranceFile = widget.user['insurance_file'] ?? 'INSURANCE_CERT.pdf';
+    _machineryRegFile = widget.user['machinery_reg_file'] ?? '건설기계등록증_증빙서류.pdf';
+    _bizLicenseFile = widget.user['biz_license_file'] ?? '사업자등록증_사본.pdf';
+    _insuranceFile = widget.user['insurance_file'] ?? '영업용자동차보험가입증서.pdf';
     _fetchVehicleInfo();
   }
 
