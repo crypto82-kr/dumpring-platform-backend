@@ -107,8 +107,8 @@ async def get_open_dispatch_jobs(
             detail="기사(DRIVER) 권한이 필요합니다."
         )
 
-    # 기본적으로 status='OPEN'인 모집공고를 대상
-    query = select(JobPost).join(
+    # 기본적으로 status='OPEN'인 모집공고를 대상 (Flow A와 Flow B 공고 모두 포함하도록 outerjoin 처리)
+    query = select(JobPost).outerjoin(
         DropOff, JobPost.matched_drop_off_id == DropOff.id
     ).join(
         ConstructionSite, JobPost.site_id == ConstructionSite.id
@@ -184,23 +184,11 @@ async def get_open_dispatch_jobs(
     result = await db.execute(query)
     jobs = result.scalars().all()
     
-    # 응답 객체에 이름 및 상세 데이터 세팅
+    # 응답 객체 데이터 보완 (단가 및 거리/시간 연산)
     for j in jobs:
         # 단가 세팅 (상차지 제시 단가가 없으면 매치된 하차지 공고 단가 사용)
         if j.offered_unit_price is None and j.drop_off_request:
             j.offered_unit_price = j.drop_off_request.unit_price
-
-        if j.site:
-            j.site_name = j.site.company_name
-            j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
-            j.site_latitude = j.site.latitude
-            j.site_longitude = j.site.longitude
-        
-        if j.matched_drop_off:
-            j.drop_off_name = j.matched_drop_off.name
-            j.drop_off_latitude = j.matched_drop_off.latitude
-            j.drop_off_longitude = j.matched_drop_off.longitude
-            j.drop_off_address = j.matched_drop_off.address
 
         # DB에 기저장된 값 우선 사용, 없을 시 실시간 연산
         if j.distance is None or j.estimated_time is None:

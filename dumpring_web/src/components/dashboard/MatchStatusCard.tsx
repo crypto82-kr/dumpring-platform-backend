@@ -71,12 +71,19 @@ export const MatchStatusCard: React.FC<MatchStatusCardProps> = ({
         </span>
       );
     }
+    if (rawStatus === "WAITING_MATCH") {
+      return (
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200 shadow-sm">
+          ⏳ 매칭 대기 중
+        </span>
+      );
+    }
     if (rawStatus === "CANCELLED") {
       return (
         <span className={`text-[9px] font-bold px-2 py-0.5 rounded border shadow-sm ${
-          isMyInitiated ? "bg-rose-50 text-rose-600 border-rose-200" : "bg-slate-100 text-slate-600 border-slate-250"
+          isMyInitiated ? "bg-rose-50 text-rose-600 border-rose-200" : "bg-rose-100 text-rose-700 border-rose-300"
         }`}>
-          {isMyInitiated ? "상대방에 의해 반려됨" : "내가 매칭 반려함"}
+          {isMyInitiated ? "🚫 승인 반려됨 (상대방 거절)" : "🚫 내가 승인 반려함"}
         </span>
       );
     }
@@ -161,6 +168,14 @@ export const MatchStatusCard: React.FC<MatchStatusCardProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {rawStatus === "WAITING_MATCH" && (
+        <div className="pt-2 border-t border-slate-150">
+          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-[11px] font-semibold text-blue-800 leading-normal animate-fadeIn">
+            ⏳ <strong>매칭 대기 중:</strong> 현재 공고는 하차지 매칭 대기(WAITING_MATCH) 상태입니다.
+          </div>
         </div>
       )}
 

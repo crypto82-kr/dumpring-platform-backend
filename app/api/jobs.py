@@ -511,14 +511,17 @@ async def get_pending_jobs(
     if not request_ids:
         return []
 
-    # 3. 이 공고들을 대상으로 대기 상태인 JobPost 조회 (관계 테이블 prefetch 로딩 추가)
+    # 3. 이 공고/하차지를 대상으로 연결된 JobPost 조회 (흐름A + 흐름B, WAITING_APPROVAL, CANCELLED, OPEN 포함)
     job_query = select(JobPost).options(
         selectinload(JobPost.site),
         selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
         selectinload(JobPost.matched_drop_off)
     ).where(
-        JobPost.drop_off_request_id.in_(request_ids),
-        JobPost.status.in_(["WAITING_APPROVAL", "CANCELLED"])
+        or_(
+            JobPost.drop_off_request_id.in_(request_ids) if request_ids else False,
+            JobPost.matched_drop_off_id.in_(dropoff_ids) if dropoff_ids else False
+        ),
+        JobPost.status.in_(["WAITING_APPROVAL", "CANCELLED", "OPEN"])
     )
     job_result = await db.execute(job_query)
     return job_result.scalars().all()
@@ -1037,7 +1040,7 @@ async def reset_match_job_post(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="본인이 소유한 공사현장의 공고만 초기화할 수 있습니다."
             )
-    elif current_user.is_drop_off:
+    elif current_user.is_drop_off or current_user.is_admin:
         from app.models import DropOff
         drop_off_id = job.matched_drop_off_id
         if not drop_off_id and job.drop_off_request_id:
@@ -1053,11 +1056,12 @@ async def reset_match_job_post(
             dropoff_result = await db.execute(dropoff_query)
             dropoff = dropoff_result.scalars().first()
             if not dropoff or dropoff.owner_id != current_user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="본인의 하차지에 연결된 매칭 요청만 확인(초기화)할 수 있습니다."
-                )
-        else:
+                if job.author_id != current_user.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="본인의 하차지에 연결된 매칭 요청만 확인(초기화)할 수 있습니다."
+                    )
+        elif job.author_id != current_user.id and job.status != "CANCELLED":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="연결된 하차지 정보가 없어 확인 처리를 할 수 없습니다."
@@ -1068,7 +1072,7 @@ async def reset_match_job_post(
             detail="이 작업을 수행할 권한이 없습니다."
         )
 
-    # 초기화 및 대기 상태 복구
+    # 초기화 및 대기 상태 복구 (하차지 연결고리 완전히 삭제)
     job.status = "WAITING_MATCH"
     job.matched_drop_off_id = None
     job.drop_off_request_id = None

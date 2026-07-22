@@ -341,6 +341,7 @@ export default function Home() {
               case "OPEN": return "배차완료";
               case "WAITING_APPROVAL": return "승인대기";
               case "WAITING_MATCH": return "매칭대기";
+              case "CANCELLED": return "매칭반려";
               case "CLOSED": return "마감";
               default: return "대기중";
             }
@@ -849,11 +850,9 @@ export default function Home() {
         }
       });
       if (res.ok) {
-        // 배경에서 리프레시를 안전하게 실행하여 하나가 실패하더라도 전체 처리가 참(true)을 반환하도록 처리
-        Promise.resolve().then(async () => {
-          try { await fetchDispatchRequests(); } catch (e) { console.error("fetchDispatchRequests background error:", e); }
-          try { await fetchDropoffJobs(); } catch (e) { console.error("fetchDropoffJobs background error:", e); }
-        });
+        await fetchDispatchRequests();
+        await fetchDropoffJobs();
+        await fetchOpenDropOffRequests();
         return true;
       }
       const errBody = await res.json().catch(() => ({}));

@@ -109,6 +109,7 @@ export function DropoffManagerDashboard({
   const [reqNightWorkAllowed, setReqNightWorkAllowed] = React.useState(false);
   const [reqRainWorkAllowed, setReqRainWorkAllowed] = React.useState(false);
   const [reqTargetQuantity, setReqTargetQuantity] = React.useState("100");
+  const [announceSearchQuery, setAnnounceSearchQuery] = React.useState("");
 
   const [dispatchSearchQuery, setDispatchSearchQuery] = React.useState("");
   const [selectedDispatchId, setSelectedDispatchId] = React.useState<number | null>(null);
@@ -755,9 +756,22 @@ export function DropoffManagerDashboard({
 
   if (activePath === "/dropoff/dispatch-request") {
     const isDetailDisabled = editingRequest?.status === "OPEN";
-    // 1. 본인의 하차지 수용 공고 목록 필터링 (본인이 보유한 registeredDropoffList 의 id 들을 기반으로)
+    // 1. 본인의 하차지 수용 공고 목록 필터링 및 검색어 적용
     const myDropoffIds = registeredDropoffList.map(d => d.id);
-    const myAnnouncements = dropoffRequestList.filter(req => myDropoffIds.includes(req.dropOffId));
+    const rawAnnouncements = dropoffRequestList.filter(req => myDropoffIds.includes(req.dropOffId));
+    const myAnnouncements = rawAnnouncements.filter(announce => {
+      if (!announceSearchQuery.trim()) return true;
+      const q = announceSearchQuery.toLowerCase();
+      const nameMatch = announce.name?.toLowerCase().includes(q);
+      const addressMatch = announce.address?.toLowerCase().includes(q);
+      const soilMatch = (
+        announce.soilType === "GOOD_SOIL" ? "양질토" :
+        announce.soilType === "MUD_SOIL" ? "뻘흙" :
+        announce.soilType === "ROCK" ? "암버럭" :
+        announce.soilType === "MIXED" ? "혼합" : announce.soilType || ""
+      ).toLowerCase().includes(q);
+      return nameMatch || addressMatch || soilMatch;
+    });
 
     const activeSelectedReqId = selectedReqId || (myAnnouncements.length > 0 ? myAnnouncements[0].id : null);
     const selectedAnnounce = myAnnouncements.find(a => a.id === activeSelectedReqId) || null;
@@ -944,7 +958,22 @@ export function DropoffManagerDashboard({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: My Announcements List */}
           <div className="lg:col-span-1 p-4 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-3 max-h-[640px] overflow-y-auto">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">등록된 수용 공고 ({myAnnouncements.length})</h3>
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">등록된 수용 공고 ({myAnnouncements.length})</h3>
+            </div>
+
+            {/* 🔍 수용 공고 실시간 검색창 */}
+            <div className="relative mb-3">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+              <input
+                type="text"
+                value={announceSearchQuery}
+                onChange={(e) => setAnnounceSearchQuery(e.target.value)}
+                placeholder="공고명, 사토장, 토사 검색..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-500 focus:bg-white transition-all shadow-inner"
+              />
+            </div>
+
             <div className="space-y-2">
               {myAnnouncements.map((announce) => {
                 const isSelected = activeSelectedReqId === announce.id;
@@ -972,26 +1001,29 @@ export function DropoffManagerDashboard({
                           </span>
                         )}
                         {(() => {
-                          const linkedJobs = dispatchRequestList.filter(job => job.dropOffRequestId === announce.id);
+                          const linkedJobs = dispatchRequestList.filter(job => 
+                            job.dropOffRequestId === announce.id || 
+                            (job.matchedDropOffId !== null && Number(job.matchedDropOffId) === Number(announce.dropOffId) && job.soilType === announce.soilType)
+                          );
                           if (linkedJobs.length === 0) return null;
                           if (linkedJobs.some(j => j.rawStatus === "WAITING_APPROVAL")) {
                             return (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-200">
-                                승인 대기
+                                승인대기
                               </span>
                             );
                           }
                           if (linkedJobs.some(j => j.rawStatus === "OPEN")) {
                             return (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-250">
-                                매칭 완료
+                                배차완료
                               </span>
                             );
                           }
-                          if (linkedJobs.every(j => j.rawStatus === "CANCELLED")) {
+                          if (linkedJobs.some(j => j.rawStatus === "CANCELLED")) {
                             return (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-slate-100 text-slate-500 border-slate-200">
-                                매칭 반려
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-600 border-rose-200">
+                                매칭반려
                               </span>
                             );
                           }
@@ -1231,7 +1263,7 @@ export function DropoffManagerDashboard({
                 {(() => {
                   const connectedRequests = dispatchRequestList.filter(
                     job => job.dropOffRequestId === selectedAnnounce.id || 
-                    (job.matchedDropOffId !== null && Number(job.matchedDropOffId) === Number(selectedAnnounce.dropOffId))
+                    (job.matchedDropOffId !== null && Number(job.matchedDropOffId) === Number(selectedAnnounce.dropOffId) && job.soilType === selectedAnnounce.soilType)
                   );
                   if (connectedRequests.length > 0) {
                     return (
@@ -1252,9 +1284,9 @@ export function DropoffManagerDashboard({
                               key={sentJob.id}
                               id={sentJob.id}
                               title={sentJob.siteName}
-                              direction={Number(sentJob.authorId) === Number(user?.id) ? "dropoff_to_site" : "site_to_dropoff"}
+                              direction={sentJob.matchedDropOffId !== null ? "dropoff_to_site" : "site_to_dropoff"}
                               rawStatus={sentJob.rawStatus}
-                              isMyInitiated={Number(sentJob.authorId) === Number(user?.id)}
+                              isMyInitiated={sentJob.matchedDropOffId !== null}
                               workDate={sentJob.startDate}
                               materialType={sentJob.soilType}
                               truckCount={sentJob.truckCount}
@@ -1289,92 +1321,6 @@ export function DropoffManagerDashboard({
                                 }
                               }}
                             />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-
-                {/* 수신된 현장 매칭 요청 (Flow A) */}
-                {(() => {
-                  const incomingRequests = dispatchRequestList.filter(
-                    job => job.dropOffRequestId === selectedAnnounce.id && 
-                    job.rawStatus === "WAITING_APPROVAL" && 
-                    Number(job.authorId) !== Number(user?.id) &&
-                    job.matchedDropOffId === null
-                  );
-                  if (incomingRequests.length > 0) {
-                    return (
-                      <div className="p-6 rounded-2xl bg-white border border-amber-250 shadow-xl space-y-4">
-                        <div className="border-b border-amber-100 pb-2 flex justify-between items-center">
-                          <div>
-                            <h3 className="font-extrabold text-sm text-amber-800">수신된 현장 매칭 승인 요청</h3>
-                            <p className="text-[10px] text-amber-600 mt-0.5">
-                              해당 수용 공고를 지정하여 현장관리자가 배차 매칭을 요청한 내역입니다. 승인 시 기사 모집이 개시됩니다.
-                            </p>
-                          </div>
-                          <span className="text-[10px] font-bold text-amber-600">요청 ({incomingRequests.length}건)</span>
-                        </div>
-
-                        <div className="space-y-3">
-                          {incomingRequests.map((reqJob) => (
-                            <div key={reqJob.id} className="p-4 rounded-xl border border-amber-200 bg-amber-50/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-slate-850">{reqJob.siteName}</span>
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200">
-                                    승인대기
-                                  </span>
-                                </div>
-                                <div className="text-[10px] text-slate-500 font-semibold mt-1.5 space-x-2">
-                                  <span>요청 대수: {reqJob.truckCount}대</span>
-                                  <span>|</span>
-                                  <span>작업 예정일: {reqJob.startDate}</span>
-                                  {reqJob.distance && (
-                                    <>
-                                      <span>|</span>
-                                      <span>거리: {reqJob.distance}km ({reqJob.estimatedTime}분)</span>
-                                    </>
-                                  )}
-                                </div>
-                                <div className="text-[9px] text-slate-400 mt-1 font-medium">
-                                  수용 단가: {selectedAnnounce.unitPrice.toLocaleString()}원
-                                </div>
-                              </div>
-
-                              <div className="flex gap-2 self-stretch md:self-auto">
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    if (confirm(`[${reqJob.siteName}] 현장의 매칭 요청을 승인하시겠습니까?\n승인 즉시 기사 배차가 활성화됩니다.`)) {
-                                      const success = handleApproveJobPost ? await handleApproveJobPost(reqJob.id) : false;
-                                      if (success) {
-                                        alert("매칭 승인이 완료되었습니다.");
-                                      } else {
-                                        alert("승인 처리에 실패했습니다.");
-                                      }
-                                    }
-                                  }}
-                                  className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg active:scale-95 transition-all text-center"
-                                >
-                                  승인
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setRejectingJobId(reqJob.id);
-                                    setRejectingSiteName(reqJob.siteName);
-                                    setRejectionReasonInput("");
-                                    setIsRejectModalOpen(true);
-                                  }}
-                                  className="flex-1 md:flex-none px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-extrabold text-xs rounded-lg active:scale-95 transition-all border border-rose-200 text-center"
-                                >
-                                  반려
-                                </button>
-                              </div>
-                            </div>
                           ))}
                         </div>
                       </div>

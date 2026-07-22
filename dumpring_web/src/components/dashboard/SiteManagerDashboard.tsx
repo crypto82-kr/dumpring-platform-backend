@@ -774,14 +774,12 @@ export function SiteManagerDashboard({
     };
 
     const filteredRequests = dispatchRequestList.filter(req => {
-
-      const siteNameStr = req.siteName || "현장명 없음";
-      const soilTypeStr = req.soilType || "일반 토사";
-      const dropoffNameStr = req.dropoffName || "";
-      const matchSearch = siteNameStr.includes(dispatchRequestSearchQuery) ||
-        soilTypeStr.includes(dispatchRequestSearchQuery) ||
-        dropoffNameStr.includes(dispatchRequestSearchQuery);
-      return matchSearch;
+      if (!dispatchRequestSearchQuery || !dispatchRequestSearchQuery.trim()) return true;
+      const q = dispatchRequestSearchQuery.trim().toLowerCase();
+      const siteNameStr = (req.siteName || "현장명 없음").toLowerCase();
+      const soilTypeStr = (req.soilType || "일반 토사").toLowerCase();
+      const dropoffNameStr = (req.dropoffName || "").toLowerCase();
+      return siteNameStr.includes(q) || soilTypeStr.includes(q) || dropoffNameStr.includes(q);
     });
 
     const activeSelectedId = selectedRequestId || (filteredRequests.length > 0 ? filteredRequests[0].id : null);
@@ -845,9 +843,13 @@ export function SiteManagerDashboard({
                         {req.siteName}
                       </span>
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                        req.status === "배차완료"
+                        req.status === "배차완료" || req.rawStatus === "OPEN"
                           ? "bg-emerald-50 text-emerald-600 border-emerald-250"
-                          : "bg-amber-50 text-amber-600 border-amber-250"
+                          : req.status === "매칭반려" || req.rawStatus === "CANCELLED"
+                          ? "bg-rose-50 text-rose-600 border-rose-200"
+                          : req.status === "승인대기" || req.rawStatus === "WAITING_APPROVAL"
+                          ? "bg-amber-50 text-amber-600 border-amber-200"
+                          : "bg-blue-50 text-blue-600 border-blue-200"
                       }`}>
                         {req.status}
                       </span>
@@ -1028,9 +1030,9 @@ export function SiteManagerDashboard({
                       id={selectedReq.id}
                       title={selectedReq.dropoffName || "지정 하차지"}
                       subtitle={selectedReq.dropoffAddress}
-                      direction={selectedReq.dropOffRequestId ? "site_to_dropoff" : "dropoff_to_site"}
+                      direction={selectedReq.dropOffRequestId !== null && selectedReq.matchedDropOffId === null ? "site_to_dropoff" : "dropoff_to_site"}
                       rawStatus={selectedReq.rawStatus}
-                      isMyInitiated={selectedReq.dropOffRequestId !== null}
+                      isMyInitiated={selectedReq.dropOffRequestId !== null && selectedReq.matchedDropOffId === null}
                       workDate={selectedReq.startDate}
                       materialType={selectedReq.soilType}
                       truckCount={selectedReq.truckCount}
@@ -1057,14 +1059,17 @@ export function SiteManagerDashboard({
                           const success = handleResetMatchJobPost ? await handleResetMatchJobPost(selectedReq.id) : false;
                           if (success) {
                             alert("대기 상태로 성공적으로 초기화되었습니다.");
-                          } else {
-                            alert("초기화 처리에 실패했습니다.");
+                            if (fetchDispatchRequests) {
+                              await fetchDispatchRequests();
+                            }
                           }
                         }
                       }}
                     />
                   </div>
                 )}
+
+
               </div>
             ) : (
               <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center py-24 shadow-xl space-y-3 flex flex-col items-center justify-center min-h-[380px]">
