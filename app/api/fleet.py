@@ -33,11 +33,8 @@ async def get_my_drivers(
     cars = car_result.scalars().all()
     car_ids = [c.id for c in cars]
 
-    if not car_ids:
-        return []
-
-    # 차량에 배정된 기사들 조회
-    driver_query = select(Driver).where(Driver.current_car_id.in_(car_ids))
+    # 차량에 배정된 기사 또는 차주 소속 기사들 조회
+    driver_query = select(Driver).where((Driver.current_car_id.in_(car_ids)) if car_ids else (Driver.id == -1))
     driver_result = await db.execute(driver_query)
     drivers = driver_result.scalars().all()
 
