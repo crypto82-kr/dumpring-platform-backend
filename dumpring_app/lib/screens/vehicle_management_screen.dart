@@ -53,9 +53,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     _tonnageController = TextEditingController(text: (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString());
     _carModelController = TextEditingController(text: widget.user['car_model'] ?? '');
     _inspectionDateController = TextEditingController(text: widget.user['inspection_date'] ?? '2026-12-31');
-    _machineryRegFile = widget.user['machinery_reg_file'] ?? '건설기계등록증_증빙서류.pdf';
-    _bizLicenseFile = widget.user['biz_license_file'] ?? '사업자등록증_사본.pdf';
-    _insuranceFile = widget.user['insurance_file'] ?? '영업용자동차보험가입증서.pdf';
+    _machineryRegFile = widget.user['machinery_reg_file'];
+    _bizLicenseFile = widget.user['biz_license_file'];
+    _insuranceFile = widget.user['insurance_file'];
     _fetchVehicleInfo();
   }
 
@@ -205,13 +205,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        final uploadedUrl = decoded['url'] as String;
-        final fileName = uploadedUrl.split('/').last;
+        final String realOriginalName = image.name;
 
         setState(() {
-          if (docType == 'REG') _machineryRegFile = fileName;
-          if (docType == 'BIZ') _bizLicenseFile = fileName;
-          if (docType == 'INS') _insuranceFile = fileName;
+          if (docType == 'REG') _machineryRegFile = realOriginalName;
+          if (docType == 'BIZ') _bizLicenseFile = realOriginalName;
+          if (docType == 'INS') _insuranceFile = realOriginalName;
         });
 
         if (mounted) {
