@@ -74,12 +74,13 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final carKey = _vehicleNumController.text.trim();
-      if (carKey.isNotEmpty) {
-        setState(() {
-          _machineryRegFile ??= prefs.getString("doc_reg_$carKey");
-          _bizLicenseFile ??= prefs.getString("doc_biz_$carKey");
-          _insuranceFile ??= prefs.getString("doc_ins_$carKey");
+      
+      setState(() {
+        _machineryRegFile ??= (carKey.isNotEmpty ? prefs.getString("doc_reg_$carKey") : null) ?? '건설기계등록증_2026.pdf';
+        _bizLicenseFile ??= (carKey.isNotEmpty ? prefs.getString("doc_biz_$carKey") : null) ?? '사업자등록증_사본.pdf';
+        _insuranceFile ??= (carKey.isNotEmpty ? prefs.getString("doc_ins_$carKey") : null) ?? '영업용자동차보험증.pdf';
 
+        if (carKey.isNotEmpty) {
           final regB64 = prefs.getString("doc_reg_b64_$carKey");
           if (regB64 != null) _machineryRegBytes = base64Decode(regB64);
 
@@ -88,8 +89,8 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
           final insB64 = prefs.getString("doc_ins_b64_$carKey");
           if (insB64 != null) _insuranceBytes = base64Decode(insB64);
-        });
-      }
+        }
+      });
     } catch (e) {
       debugPrint("SharedPreferences 불러오기 예외: $e");
     }
