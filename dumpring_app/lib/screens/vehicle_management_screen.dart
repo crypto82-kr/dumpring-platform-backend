@@ -556,10 +556,29 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  file ?? "등록된 파일 없음",
-                  style: TextStyle(fontSize: 12, color: file != null ? Colors.blue[700] : AppColors.textTertiary),
-                  overflow: TextOverflow.ellipsis,
+                InkWell(
+                  onTap: file != null ? () => _previewDocument(title, file) : null,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          file ?? "등록된 파일 없음",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: file != null ? Colors.blue[700] : AppColors.textTertiary,
+                            decoration: file != null ? TextDecoration.underline : TextDecoration.none,
+                            fontWeight: file != null ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (file != null) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.open_in_new, size: 14, color: Colors.blue[700]),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -576,6 +595,67 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 visualDensity: VisualDensity.compact,
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _previewDocument(String docTitle, String fileName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.verified_user, color: Color(0xFF004D5A)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(docTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.insert_drive_file, color: Color(0xFF004D5A), size: 32),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          fileName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        const Text("서버 검수 완료 파일 (정상 등록)", style: TextStyle(fontSize: 11, color: Colors.green)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "📌 해당 서류는 덤프링 안전검수팀 및 현장 관리자가 원본 서류 확인 시 참조하는 공식 등록 문서입니다.",
+              style: TextStyle(fontSize: 12, color: Color(0xFF4B5563), height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("닫기"),
+          ),
         ],
       ),
     );
