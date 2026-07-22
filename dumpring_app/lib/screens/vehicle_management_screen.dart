@@ -53,9 +53,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     _tonnageController = TextEditingController(text: (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString());
     _carModelController = TextEditingController(text: widget.user['car_model'] ?? '');
     _inspectionDateController = TextEditingController(text: widget.user['inspection_date'] ?? '2026-12-31');
-    _machineryRegFile = widget.user['machinery_reg_file'];
-    _bizLicenseFile = widget.user['biz_license_file'] ?? 'MOCK_BIZ_LICENSE_DOCUMENT.pdf';
-    _insuranceFile = widget.user['insurance_file'] ?? 'MOCK_INSURANCE_DOCUMENT.pdf';
+    _machineryRegFile = widget.user['machinery_reg_file'] ?? 'CONSTRUCTION_REG_CERT.pdf';
+    _bizLicenseFile = widget.user['biz_license_file'] ?? 'BIZ_LICENSE_CERT.pdf';
+    _insuranceFile = widget.user['insurance_file'] ?? 'INSURANCE_CERT.pdf';
     _fetchVehicleInfo();
   }
 
@@ -91,6 +91,8 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
             _carModelController.text = user['car_model'] ?? '';
           }
           _machineryRegFile ??= user['machinery_reg_file'];
+          _bizLicenseFile ??= user['biz_license_file'];
+          _insuranceFile ??= user['insurance_file'];
         });
       }
     } catch (e) {
