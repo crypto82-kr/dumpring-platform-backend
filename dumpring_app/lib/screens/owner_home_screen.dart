@@ -62,7 +62,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
               "phone": d["phone_number"] ?? "",
               "car": d["car_number"] ?? "미배정",
               "status": (d["is_approved"] == true) ? "승인완료" : "승인대기",
-              "tonnage": "${d['tonnage']}톤",
+              "tonnage": d['tonnage'] != null ? "${d['tonnage']}톤" : "톤수 미설정",
             }).toList().cast<Map<String, dynamic>>();
           });
         }
