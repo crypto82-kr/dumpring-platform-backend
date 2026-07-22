@@ -688,6 +688,13 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   color: Colors.black12,
                   child: Builder(
                     builder: (context) {
+                      if (fileBytes != null && fileBytes.isNotEmpty) {
+                        return Image.memory(
+                          Uint8List.fromList(fileBytes),
+                          fit: BoxFit.contain,
+                        );
+                      }
+
                       final String streamUrl = (fileUrl != null && fileUrl.isNotEmpty)
                           ? (fileUrl.startsWith("http") ? fileUrl : "$_baseUrl$fileUrl")
                           : "$_baseUrl/static/uploads/documents/$fileName";
