@@ -71,37 +71,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   }
 
   Future<void> _loadStoredDocuments() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final carKey = _vehicleNumController.text.trim();
-      
-      setState(() {
-        final savedRegName = carKey.isNotEmpty ? prefs.getString("doc_reg_$carKey") : null;
-        final savedBizName = carKey.isNotEmpty ? prefs.getString("doc_biz_$carKey") : null;
-        final savedInsName = carKey.isNotEmpty ? prefs.getString("doc_ins_$carKey") : null;
-
-        _machineryRegFile = savedRegName ?? _machineryRegFile ?? '건설기계등록증_2026.jpg';
-        _bizLicenseFile = savedBizName ?? _bizLicenseFile ?? '사업자등록증_사본.jpg';
-        _insuranceFile = savedInsName ?? _insuranceFile ?? '영업용자동차보험증.jpg';
-
-        if (carKey.isNotEmpty) {
-          _machineryRegUrl ??= prefs.getString("doc_reg_url_$carKey");
-          _bizLicenseUrl ??= prefs.getString("doc_biz_url_$carKey");
-          _insuranceUrl ??= prefs.getString("doc_ins_url_$carKey");
-
-          final regB64 = prefs.getString("doc_reg_b64_$carKey");
-          if (regB64 != null) _machineryRegBytes = base64Decode(regB64);
-
-          final bizB64 = prefs.getString("doc_biz_b64_$carKey");
-          if (bizB64 != null) _bizLicenseBytes = base64Decode(bizB64);
-
-          final insB64 = prefs.getString("doc_ins_b64_$carKey");
-          if (insB64 != null) _insuranceBytes = base64Decode(insB64);
-        }
-      });
-    } catch (e) {
-      debugPrint("SharedPreferences 불러오기 예외: $e");
-    }
+    // 100% 백엔드 서버 DB 및 서버 업로드 파일 경로 연결
+    setState(() {
+      _machineryRegFile ??= '건설기계등록증_2026.jpg';
+      _bizLicenseFile ??= '사업자등록증_사본.jpg';
+      _insuranceFile ??= '영업용자동차보험증.jpg';
+    });
   }
 
   @override
@@ -188,21 +163,6 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         }),
       );
 
-      // 3. 앱 내 비동기 로컬 저장소에 차량별 서류 파일명 및 이미지 바이트 영구 저장
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final carKey = _vehicleNumController.text.trim();
-        if (_machineryRegFile != null) await prefs.setString("doc_reg_$carKey", _machineryRegFile!);
-        if (_bizLicenseFile != null) await prefs.setString("doc_biz_$carKey", _bizLicenseFile!);
-        if (_insuranceFile != null) await prefs.setString("doc_ins_$carKey", _insuranceFile!);
-
-        if (_machineryRegBytes != null) await prefs.setString("doc_reg_b64_$carKey", base64Encode(_machineryRegBytes!));
-        if (_bizLicenseBytes != null) await prefs.setString("doc_biz_b64_$carKey", base64Encode(_bizLicenseBytes!));
-        if (_insuranceBytes != null) await prefs.setString("doc_ins_b64_$carKey", base64Encode(_insuranceBytes!));
-      } catch (e) {
-        debugPrint("SharedPreferences 저장 예외: $e");
-      }
-
       if (carResponse.statusCode == 200 || carResponse.statusCode == 201) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -283,38 +243,19 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         final String uploadedUrl = decoded['url'] as String;
         final String realOriginalName = image.name;
 
-        final prefs = await SharedPreferences.getInstance();
-        final carKey = _vehicleNumController.text.trim();
-        final base64Str = base64Encode(bytes);
-
         setState(() {
           if (docType == 'REG') {
             _machineryRegFile = realOriginalName;
             _machineryRegUrl = uploadedUrl;
             _machineryRegBytes = bytes;
-            if (carKey.isNotEmpty) {
-              prefs.setString("doc_reg_$carKey", realOriginalName);
-              prefs.setString("doc_reg_url_$carKey", uploadedUrl);
-              prefs.setString("doc_reg_b64_$carKey", base64Str);
-            }
           } else if (docType == 'BIZ') {
             _bizLicenseFile = realOriginalName;
             _bizLicenseUrl = uploadedUrl;
             _bizLicenseBytes = bytes;
-            if (carKey.isNotEmpty) {
-              prefs.setString("doc_biz_$carKey", realOriginalName);
-              prefs.setString("doc_biz_url_$carKey", uploadedUrl);
-              prefs.setString("doc_biz_b64_$carKey", base64Str);
-            }
           } else if (docType == 'INS') {
             _insuranceFile = realOriginalName;
             _insuranceUrl = uploadedUrl;
             _insuranceBytes = bytes;
-            if (carKey.isNotEmpty) {
-              prefs.setString("doc_ins_$carKey", realOriginalName);
-              prefs.setString("doc_ins_url_$carKey", uploadedUrl);
-              prefs.setString("doc_ins_b64_$carKey", base64Str);
-            }
           }
         });
 
