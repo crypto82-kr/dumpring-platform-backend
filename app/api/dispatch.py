@@ -107,21 +107,33 @@ async def get_open_dispatch_jobs(
             detail="기사(DRIVER) 권한이 필요합니다."
         )
 
-    # 기본적으로 status='OPEN'인 모집공고를 대상 (Flow A와 Flow B 공고 모두 포함하도록 outerjoin 처리)
-    query = select(JobPost).outerjoin(
-        DropOff, JobPost.matched_drop_off_id == DropOff.id
-    ).join(
+    # Flow A(drop_off_request -> drop_off) 및 Flow B(matched_drop_off) 하차지를 모두 커버하기 위한 aliased 조인
+    from sqlalchemy.orm import aliased
+    DropOffA = aliased(DropOff, name="drop_off_a")
+    DropOffB = aliased(DropOff, name="drop_off_b")
+
+    query = select(JobPost).join(
         ConstructionSite, JobPost.site_id == ConstructionSite.id
+    ).outerjoin(
+        DropOffRequest, JobPost.drop_off_request_id == DropOffRequest.id
+    ).outerjoin(
+        DropOffA, DropOffRequest.drop_off_id == DropOffA.id
+    ).outerjoin(
+        DropOffB, JobPost.matched_drop_off_id == DropOffB.id
     ).where(JobPost.status == "OPEN")
 
-    # 검색어가 있을 경우 필터링 (현장명, 하차지명, 메모, 현장 ID)
+    # 검색어가 있을 경우 필터링 (현장명, 현장주소, 하차지명, 하차지주소, 메모, 현장 ID)
     if search:
         search_term = f"%{search}%"
         from sqlalchemy import cast, String
         query = query.where(
             or_(
                 ConstructionSite.company_name.like(search_term),
-                DropOff.name.like(search_term),
+                ConstructionSite.site_address.like(search_term),
+                DropOffA.name.like(search_term),
+                DropOffB.name.like(search_term),
+                DropOffA.address.like(search_term),
+                DropOffB.address.like(search_term),
                 JobPost.memo.like(search_term),
                 cast(JobPost.site_id, String).like(search_term)
             )
@@ -137,18 +149,32 @@ async def get_open_dispatch_jobs(
             # 즐겨찾는 지역이 없다면 빈 목록 반환
             return []
         
-        # 각 즐겨찾기 지역별로 LIKE 주소 매핑 OR 연산
+        # 각 즐겨찾기 지역별로 상차지(현장) 주소 또는 하차지 주소 매핑 OR 연산
         or_clauses = []
         for fav in favorites:
             if fav.sigungu == "전체":
                 or_clauses.append(
-                    DropOff.address.like(f"%{fav.sido}%")
+                    or_(
+                        ConstructionSite.site_address.like(f"%{fav.sido}%"),
+                        DropOffA.address.like(f"%{fav.sido}%"),
+                        DropOffB.address.like(f"%{fav.sido}%")
+                    )
                 )
             else:
                 or_clauses.append(
-                    and_(
-                        DropOff.address.like(f"%{fav.sido}%"),
-                        DropOff.address.like(f"%{fav.sigungu}%")
+                    or_(
+                        and_(
+                            ConstructionSite.site_address.like(f"%{fav.sido}%"),
+                            ConstructionSite.site_address.like(f"%{fav.sigungu}%")
+                        ),
+                        and_(
+                            DropOffA.address.like(f"%{fav.sido}%"),
+                            DropOffA.address.like(f"%{fav.sigungu}%")
+                        ),
+                        and_(
+                            DropOffB.address.like(f"%{fav.sido}%"),
+                            DropOffB.address.like(f"%{fav.sigungu}%")
+                        )
                     )
                 )
         query = query.where(or_(*or_clauses))
@@ -156,9 +182,21 @@ async def get_open_dispatch_jobs(
     # 직접 시도, 시군구 입력 필터 사용 시 (즐겨찾기 우선순위가 아닐 경우)
     else:
         if sido:
-            query = query.where(DropOff.address.like(f"%{sido}%"))
+            query = query.where(
+                or_(
+                    ConstructionSite.site_address.like(f"%{sido}%"),
+                    DropOffA.address.like(f"%{sido}%"),
+                    DropOffB.address.like(f"%{sido}%")
+                )
+            )
         if sigungu and sigungu != "전체":
-            query = query.where(DropOff.address.like(f"%{sigungu}%"))
+            query = query.where(
+                or_(
+                    ConstructionSite.site_address.like(f"%{sigungu}%"),
+                    DropOffA.address.like(f"%{sigungu}%"),
+                    DropOffB.address.like(f"%{sigungu}%")
+                )
+            )
 
     # 작업 예정일 날짜 필터 (yyyy-MM-dd 형식)
     if work_date:
