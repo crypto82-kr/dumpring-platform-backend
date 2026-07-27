@@ -75,7 +75,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   site_manager: [
     { title: "현장 관리 대시보드", icon: LayoutDashboard, path: "/site" },
-    { title: "현장관리자 권한 관리", icon: Users, path: "/site/org-hierarchy" },
+    { title: "현장담당자 관리", icon: Users, path: "/site/org-hierarchy" },
     { title: "현장 관리", icon: MapPin, path: "/site/request" },
     {
       title: "배차 관리",

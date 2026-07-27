@@ -338,7 +338,7 @@ export default function Home() {
           dropoffAddress: job.drop_off_address || "",
           status: (() => {
             switch (job.status) {
-              case "OPEN": return "배차완료";
+              case "OPEN": return "매칭완료";
               case "WAITING_APPROVAL": return "승인대기";
               case "WAITING_MATCH": return "매칭대기";
               case "CANCELLED": return "매칭반려";
@@ -447,7 +447,7 @@ export default function Home() {
         dropoffAddress: job.drop_off_address || "",
         status: (() => {
           switch (job.status) {
-            case "OPEN": return "배차완료";
+            case "OPEN": return "매칭완료";
             case "WAITING_APPROVAL": return "승인대기";
             case "WAITING_MATCH": return "매칭대기";
             case "CLOSED": return "마감";

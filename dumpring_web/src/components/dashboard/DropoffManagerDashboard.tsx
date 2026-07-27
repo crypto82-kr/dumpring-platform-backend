@@ -1006,28 +1006,35 @@ export function DropoffManagerDashboard({
                             (job.matchedDropOffId !== null && Number(job.matchedDropOffId) === Number(announce.dropOffId) && job.soilType === announce.soilType)
                           );
                           if (linkedJobs.length === 0) return null;
-                          if (linkedJobs.some(j => j.rawStatus === "WAITING_APPROVAL")) {
-                            return (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-200">
-                                승인대기
-                              </span>
-                            );
-                          }
-                          if (linkedJobs.some(j => j.rawStatus === "OPEN")) {
-                            return (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-250">
-                                배차완료
-                              </span>
-                            );
-                          }
-                          if (linkedJobs.some(j => j.rawStatus === "CANCELLED")) {
-                            return (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-600 border-rose-200">
-                                매칭반려
-                              </span>
-                            );
-                          }
-                          return null;
+                          return (
+                            <div className="flex flex-wrap items-center gap-1 justify-end">
+                              {linkedJobs.some(j => j.rawStatus === "WAITING_APPROVAL") && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-200">
+                                  승인대기
+                                </span>
+                              )}
+                              {linkedJobs.some(j => j.rawStatus === "OPEN") && (
+                                <>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-250">
+                                    매칭완료
+                                  </span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-200">
+                                    🚚 기사 모집 중
+                                  </span>
+                                </>
+                              )}
+                              {linkedJobs.some(j => j.rawStatus === "CLOSED") && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-300">
+                                  🚚 기사 배차 완료
+                                </span>
+                              )}
+                              {linkedJobs.some(j => j.rawStatus === "CANCELLED") && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-600 border-rose-200">
+                                  매칭반려
+                                </span>
+                              )}
+                            </div>
+                          );
                         })()}
                       </div>
                     </div>
@@ -1257,6 +1264,18 @@ export function DropoffManagerDashboard({
                       </div>
                     </div>
                   </div>
+
+                  {/* 실제 카카오 지도 관제 영역 */}
+                  {selectedAnnounce.address && (
+                    <div className="space-y-1.5 mt-4">
+                      <MockMap
+                        title="하차지 매핑 위치"
+                        address={selectedAnnounce.address}
+                        pinned={true}
+                        onPinClick={() => {}}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* 🏢 연계된 현장 매칭 상세 현황 (Flow A: 현장➔하차지, Flow B: 하차지➔현장 통합 노출) */}

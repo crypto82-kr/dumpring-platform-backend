@@ -168,6 +168,7 @@ export function SiteManagerDashboard({
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [dropoffSearchQuery, setDropoffSearchQuery] = useState("");
+  const [dispatchFormMemo, setDispatchFormMemo] = useState("");
 
   // Find active site from the list to pull baseline corporate details
   const activeSite = registeredSiteList && registeredSiteList.length > 0 ? registeredSiteList[0] : null;
@@ -368,43 +369,72 @@ export function SiteManagerDashboard({
                     <p className="text-[11px] text-slate-500 mt-0.5">실물 서류 대조 및 지오펜싱 관제 상세</p>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSiteFormName(selectedSite.name);
-                        setSiteFormCompanyName(selectedSite.companyName || "");
-                        setSiteFormAddress(selectedSite.address);
-                        setSiteFormRoadDesc(selectedSite.roadDesc || "");
-                        setSiteFormManagers(selectedSite.managers?.join(", ") || "");
-                        setSiteFormBizRegNo(selectedSite.bizRegNo || "");
-                        setIsModalOpen(true);
-                      }}
-                      className="px-3 py-1.5 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-black rounded-lg border border-blue-200 active:scale-95 transition-all"
-                    >
-                      정보 수정
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (confirm(`[${selectedSite.name}] 현장을 정말 삭제처리 하시겠습니까?`)) {
-                          const ok = await handleDeleteSite(selectedSite.id);
-                          if (ok) {
-                            alert("현장이 정상 삭제되었습니다.");
-                            setSiteFormName("");
-                            setSiteFormAddress("");
-                            setSiteFormRoadDesc("");
-                            setSiteFormManagers("");
-                            setSiteFormBizRegNo("");
-                            setEditingSiteId(null);
-                          } else {
-                            alert("삭제 처리에 실패했습니다.");
-                          }
-                        }
-                      }}
-                      className="px-3 py-1.5 text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 font-black rounded-lg border border-rose-200 active:scale-95 transition-all"
-                    >
-                      삭제
-                    </button>
+                    {(() => {
+                      const hasActiveJob = dispatchRequestList.some(
+                        job => job.siteId === selectedSite.id && (job.rawStatus === "OPEN" || job.rawStatus === "WAITING_APPROVAL")
+                      );
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            disabled={hasActiveJob}
+                            onClick={() => {
+                              if (hasActiveJob) {
+                                alert("현재 매칭 완료(기사 모집 중)이거나 승인 대기 중인 오더가 있어 현장 기본 정보를 수정할 수 없습니다.\n진행 중인 오더를 정리 후 시도해 주십시오.");
+                                return;
+                              }
+                              setSiteFormName(selectedSite.name);
+                              setSiteFormCompanyName(selectedSite.companyName || "");
+                              setSiteFormAddress(selectedSite.address);
+                              setSiteFormRoadDesc(selectedSite.roadDesc || "");
+                              setSiteFormManagers(selectedSite.managers?.join(", ") || "");
+                              setSiteFormBizRegNo(selectedSite.bizRegNo || "");
+                              setIsModalOpen(true);
+                            }}
+                            title={hasActiveJob ? "매칭 진행 중/승인 대기 오더 존재 시 현장 수정 불가" : "현장 정보 수정"}
+                            className={`px-3 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
+                              hasActiveJob
+                                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50"
+                                : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 active:scale-95 cursor-pointer"
+                            }`}
+                          >
+                            정보 수정
+                          </button>
+                          <button
+                            type="button"
+                            disabled={hasActiveJob}
+                            onClick={async () => {
+                              if (hasActiveJob) {
+                                alert("현재 매칭 완료(기사 모집 중)이거나 승인 대기 중인 오더가 있어 현장을 삭제할 수 없습니다.");
+                                return;
+                              }
+                              if (confirm(`[${selectedSite.name}] 현장을 정말 삭제처리 하시겠습니까?`)) {
+                                const ok = await handleDeleteSite(selectedSite.id);
+                                if (ok) {
+                                  alert("현장이 정상 삭제되었습니다.");
+                                  setSiteFormName("");
+                                  setSiteFormAddress("");
+                                  setSiteFormRoadDesc("");
+                                  setSiteFormManagers("");
+                                  setSiteFormBizRegNo("");
+                                  setEditingSiteId(null);
+                                } else {
+                                  alert("삭제 처리에 실패했습니다.");
+                                }
+                              }
+                            }}
+                            title={hasActiveJob ? "매칭 진행 중/승인 대기 오더 존재 시 현장 삭제 불가" : "현장 삭제"}
+                            className={`px-3 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
+                              hasActiveJob
+                                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50"
+                                : "bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200 active:scale-95 cursor-pointer"
+                            }`}
+                          >
+                            삭제
+                          </button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -610,13 +640,17 @@ export function SiteManagerDashboard({
                     title="현장 등록용"
                     address={siteFormAddress || siteFormSearchQuery || "현장 주소를 입력 후 검색하거나 지도를 탭하세요"}
                     pinned={!!siteFormSearchQuery || !!siteFormAddress}
+                    interactive={true}
+                    onLocationSelect={(newLat, newLng, newAddress) => {
+                      setSiteFormAddress(newAddress);
+                      setSiteFormSearchQuery(newAddress);
+                    }}
                     onPinClick={() => {
                       if (!siteFormAddress) {
                         alert("먼저 현장 주소를 입력한 후 지도 핀을 지정해 주세요.");
                         return;
                       }
                       setSiteFormSearchQuery(siteFormAddress);
-                      alert(`[${siteFormAddress}] 위치에 지오펜싱 중앙 관제 핀이 지정되었습니다!`);
                     }}
                   />
                 </div>
@@ -681,9 +715,11 @@ export function SiteManagerDashboard({
         ? availableDropoffs.find(d => d.name === dispatchFormDropoffName)
         : null;
 
-      const memoText = dispatchFormDropoffMode === "direct"
-        ? `[직접매칭 하차지] 명칭: ${dispatchFormDropoffName}, 주소: ${dispatchFormDropoffAddress}`
-        : "";
+      const memoText = dispatchFormMemo.trim() || (
+        dispatchFormDropoffMode === "direct"
+          ? `[직접매칭 하차지] 명칭: ${dispatchFormDropoffName}, 주소: ${dispatchFormDropoffAddress}`
+          : ""
+      );
 
       const formData = {
         siteId: Number(dispatchFormSiteId),
@@ -739,6 +775,7 @@ export function SiteManagerDashboard({
       setDispatchFormDropoffAddress("");
       setDispatchFormPayerType("SITE_PAYS");
       setDispatchFormOfferedUnitPrice(0);
+      setDispatchFormMemo("");
       setEditingDispatchRequestId(null);
     };
 
@@ -754,6 +791,7 @@ export function SiteManagerDashboard({
       setDispatchFormDropoffAddress(req.dropoffAddress || "");
       setDispatchFormPayerType(req.payerType || "SITE_PAYS");
       setDispatchFormOfferedUnitPrice(req.offeredUnitPrice || 0);
+      setDispatchFormMemo(req.memo && !req.memo.startsWith("[직접매칭") ? req.memo : "");
       setEditingDispatchRequestId(req.id);
       setDispatchRequestMode("edit");
       setIsDispatchModalOpen(true);
@@ -842,17 +880,29 @@ export function SiteManagerDashboard({
                       <span className={`text-xs font-black leading-tight ${isSelected ? "text-blue-700" : "text-slate-800 group-hover:text-blue-600"}`}>
                         {req.siteName}
                       </span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                        req.status === "배차완료" || req.rawStatus === "OPEN"
-                          ? "bg-emerald-50 text-emerald-600 border-emerald-250"
-                          : req.status === "매칭반려" || req.rawStatus === "CANCELLED"
-                          ? "bg-rose-50 text-rose-600 border-rose-200"
-                          : req.status === "승인대기" || req.rawStatus === "WAITING_APPROVAL"
-                          ? "bg-amber-50 text-amber-600 border-amber-200"
-                          : "bg-blue-50 text-blue-600 border-blue-200"
-                      }`}>
-                        {req.status}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1 justify-end">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                          req.status === "매칭완료" || req.status === "배차완료" || req.rawStatus === "OPEN"
+                            ? "bg-emerald-50 text-emerald-600 border-emerald-250"
+                            : req.status === "매칭반려" || req.rawStatus === "CANCELLED"
+                            ? "bg-rose-50 text-rose-600 border-rose-200"
+                            : req.status === "승인대기" || req.rawStatus === "WAITING_APPROVAL"
+                            ? "bg-amber-50 text-amber-600 border-amber-200"
+                            : "bg-blue-50 text-blue-600 border-blue-200"
+                        }`}>
+                          {req.status}
+                        </span>
+                        {req.rawStatus === "OPEN" && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-200">
+                            🚚 기사 모집 중
+                          </span>
+                        )}
+                        {req.rawStatus === "CLOSED" && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-300">
+                            🚚 기사 배차 완료
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-[10px] text-slate-500 mt-2 font-semibold truncate">
                       토사 종류: {(() => {
@@ -898,176 +948,211 @@ export function SiteManagerDashboard({
                     <p className="text-[11px] text-slate-550 mt-0.5">요청번호: DREQ-00{selectedReq.id}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => startEdit(selectedReq)}
-                      className="px-3 py-1.5 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-707 font-black rounded-lg border border-blue-200 active:scale-95 transition-all"
-                    >
-                      정보 수정
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(selectedReq.id)}
-                      className="px-3 py-1.5 text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-606 font-black rounded-lg border border-rose-200 active:scale-95 transition-all"
-                    >
-                      삭제
-                    </button>
+                    {(() => {
+                      const isLocked = selectedReq.rawStatus === "OPEN" || selectedReq.rawStatus === "WAITING_APPROVAL";
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            disabled={isLocked}
+                            onClick={() => {
+                              if (isLocked) {
+                                alert("기사 모집 중(매칭 완료)이거나 승인 대기 중인 오더는 직접 수정할 수 없습니다.\n먼저 하단 매칭 상태를 초기화/취소한 후 시도해 주십시오.");
+                                return;
+                              }
+                              startEdit(selectedReq);
+                            }}
+                            title={isLocked ? "기사 모집 중/승인 대기 상태 오더는 수정 불가" : "오더 정보 수정"}
+                            className={`px-3 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
+                              isLocked
+                                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50"
+                                : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 active:scale-95 cursor-pointer"
+                            }`}
+                          >
+                            정보 수정
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isLocked}
+                            onClick={() => {
+                              if (isLocked) {
+                                alert("기사 모집 중(매칭 완료)이거나 승인 대기 중인 오더는 직접 삭제할 수 없습니다.\n먼저 하단 매칭 상태를 초기화/취소한 후 시도해 주십시오.");
+                                return;
+                              }
+                              handleDelete(selectedReq.id);
+                            }}
+                            title={isLocked ? "기사 모집 중/승인 대기 상태 오더는 삭제 불가" : "오더 삭제"}
+                            className={`px-3 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
+                              isLocked
+                                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50"
+                                : "bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200 active:scale-95 cursor-pointer"
+                            }`}
+                          >
+                            삭제
+                          </button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
+                {/* 1. 상단 요약 정보 3컬럼 카드 배치 (높이 균일화) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* 카드 1: 현장 오더 기본 사양 */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 flex flex-col justify-between space-y-3">
+                    <div className="border-b border-slate-200/60 pb-2">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 현장명</span>
+                      <div className="text-sm font-bold text-slate-800 mt-0.5 truncate">{selectedReq.siteName}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 현장명</span>
-                        <div className="text-sm font-bold text-slate-800 mt-0.5">{selectedReq.siteName}</div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">차량 톤수</span>
+                        <div className="font-semibold text-slate-700 mt-0.5">
+                          {selectedReq.tonTypes.map((t: string) => {
+                            if (t === "T_15") return "15톤";
+                            if (t === "T_25") return "25톤";
+                            if (t === "T_27") return "27톤";
+                            return t;
+                          }).join(", ")}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 차량 톤수</span>
-                          <div className="text-xs font-semibold text-slate-700 mt-0.5">
-                            {selectedReq.tonTypes.map((t: string) => {
-                              if (t === "T_15") return "15톤";
-                              if (t === "T_25") return "25톤";
-                              if (t === "T_27") return "27톤";
-                              return t;
-                            }).join(", ")}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 대수</span>
-                          <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.truckCount} 대</div>
-                        </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 대수</span>
+                        <div className="font-semibold text-slate-700 mt-0.5">{selectedReq.truckCount} 대</div>
                       </div>
                     </div>
-
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 block uppercase">반출 토사 종류</span>
-                          <div className="text-xs font-semibold text-slate-700 mt-0.5">
-                            {(() => {
-                              switch (selectedReq.soilType) {
-                                case "GOOD_SOIL": return "양질토";
-                                case "MUD_SOIL": return "뻘흙";
-                                case "ROCK": return "암버럭";
-                                case "MIXED": return "혼합";
-                                default: return selectedReq.soilType;
-                              }
-                            })()}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 block uppercase">작업일</span>
-                          <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.startDate}</div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 border-t border-slate-200/60 pt-2.5">
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 block uppercase">비용 지급 주체</span>
-                          <div className="text-xs font-semibold text-slate-700 mt-0.5">
-                            {(() => {
-                              switch (selectedReq.payerType) {
-                                case "SITE_PAYS": return "현장 지급";
-                                case "DROP_OFF_PAYS": return "하차지 지급";
-                                case "FREE": return "무상";
-                                default: return selectedReq.payerType || "현장 지급";
-                              }
-                            })()}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 block uppercase">제시 단가</span>
-                          <div className="text-xs font-bold text-slate-800 mt-0.5">
-                            {selectedReq.offeredUnitPrice ? `${selectedReq.offeredUnitPrice.toLocaleString()} 원` : "0 원"}
-                          </div>
-                        </div>
+                    <div className="border-t border-slate-200/60 pt-2">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">반출 토사 종류</span>
+                      <div className="text-xs font-semibold text-blue-600 mt-0.5">
+                        {(() => {
+                          switch (selectedReq.soilType) {
+                            case "GOOD_SOIL": return "양질토";
+                            case "MUD_SOIL": return "뻘흙";
+                            case "ROCK": return "암버럭";
+                            case "MIXED": return "혼합";
+                            default: return selectedReq.soilType;
+                          }
+                        })()}
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 space-y-3">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">지정 하차지 명칭</span>
-                        <div className="text-xs font-bold text-blue-600 mt-0.5">
-                          {selectedReq.dropoffName ? `${selectedReq.dropoffName} (${selectedReq.dropoffMode === "search" ? "덤프링 연동" : "직접등록"})` : "하차지 미지정"}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">하차지 상세 주소</span>
-                        <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedReq.dropoffAddress || "주소 정보 없음"}</div>
-                      </div>
-                      {(selectedReq.distance !== undefined && selectedReq.distance !== null) && (
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 block uppercase">현장 ↔ 하차지 거리 및 시간</span>
-                          <div className="text-xs font-bold text-emerald-750 mt-0.5">
-                            {selectedReq.distance} km / {selectedReq.estimatedTime} 분 소요
-                          </div>
-                        </div>
-                      )}
+                  {/* 카드 2: 작업일 및 정산 조건 */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 flex flex-col justify-between space-y-3">
+                    <div className="border-b border-slate-200/60 pb-2">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">작업 희망일</span>
+                      <div className="text-sm font-bold text-slate-800 mt-0.5">{selectedReq.startDate}</div>
                     </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">지급 주체</span>
+                        <div className="font-semibold text-slate-700 mt-0.5">
+                          {(() => {
+                            switch (selectedReq.payerType) {
+                              case "SITE_PAYS": return "현장 지급";
+                              case "DROP_OFF_PAYS": return "하차지 지급";
+                              case "FREE": return "무상";
+                              default: return selectedReq.payerType || "현장 지급";
+                            }
+                          })()}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">제시 단가</span>
+                        <div className="font-bold text-slate-800 mt-0.5">
+                          {selectedReq.offeredUnitPrice ? `${selectedReq.offeredUnitPrice.toLocaleString()} 원` : "0 원"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-200/60 pt-2">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">현장 메모 / 특이사항</span>
+                      <div className="text-xs font-semibold text-slate-700 mt-0.5 truncate">
+                        {selectedReq.memo && !selectedReq.memo.startsWith("[직접매칭")
+                          ? selectedReq.memo
+                          : "특이사항 없음"}
+                      </div>
+                    </div>
+                  </div>
 
-                    {selectedReq.dropoffAddress && (
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold text-slate-550 block uppercase">하차지 매핑 위치</span>
-                        <MockMap
-                          title="배차 하차지"
-                          address={selectedReq.dropoffAddress}
-                          pinned={true}
-                          onPinClick={() => {}}
-                        />
+                  {/* 카드 3: 지정 하차지 정보 */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-205 flex flex-col justify-between space-y-3">
+                    <div className="border-b border-slate-200/60 pb-2">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">지정 하차지 명칭</span>
+                      <div className="text-sm font-bold text-blue-600 mt-0.5 truncate">
+                        {selectedReq.dropoffName ? `${selectedReq.dropoffName} (${selectedReq.dropoffMode === "search" ? "덤프링 연동" : "직접등록"})` : "하차지 미지정"}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">하차지 상세 주소</span>
+                      <div className="text-xs font-semibold text-slate-700 mt-0.5 line-clamp-2">{selectedReq.dropoffAddress || "주소 정보 없음"}</div>
+                    </div>
+                    <div className="border-t border-slate-200/60 pt-2">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">현장 ↔ 하차지 거치 및 시간</span>
+                      <div className="text-xs font-bold text-emerald-600 mt-0.5">
+                        {(selectedReq.distance !== undefined && selectedReq.distance !== null) 
+                          ? `${selectedReq.distance} km / ${selectedReq.estimatedTime} 분 소요` 
+                          : "거리 연산 대기중"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. 하단 2컬럼 매칭 카드 & 하차지 맵핑 지도 배치 (허공 제거 및 높이 균형) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                  {/* 좌측: 매칭 카드 또는 상태 안내 */}
+                  <div className="space-y-4">
+                    {(selectedReq.matchedDropOffId !== null || selectedReq.dropOffRequestId !== null) ? (
+                      <MatchStatusCard
+                        id={selectedReq.id}
+                        title={selectedReq.dropoffName || "지정 하차지"}
+                        subtitle={selectedReq.dropoffAddress}
+                        direction={selectedReq.dropOffRequestId !== null && selectedReq.matchedDropOffId === null ? "site_to_dropoff" : "dropoff_to_site"}
+                        rawStatus={selectedReq.rawStatus}
+                        isMyInitiated={selectedReq.dropOffRequestId !== null && selectedReq.matchedDropOffId === null}
+                        workDate={selectedReq.startDate}
+                        materialType={selectedReq.soilType}
+                        truckCount={selectedReq.truckCount}
+                        unitPrice={selectedReq.offeredUnitPrice}
+                        distance={selectedReq.distance}
+                        estimatedTime={selectedReq.estimatedTime}
+                        rejectionReason={selectedReq.rejectionReason}
+                        onApprove={async () => {
+                          if (confirm(`[${selectedReq.dropoffName}] 하차지 매칭 제안을 승인하고 기사 모집을 시작하시겠습니까?`)) {
+                            const success = handleConfirmMatchJobPost ? await handleConfirmMatchJobPost(selectedReq.id) : false;
+                            if (success) {
+                              alert("매칭이 승인되어 공고가 OPEN 되었습니다!");
+                            } else {
+                              alert("승인 처리에 실패했습니다.");
+                            }
+                          }
+                        }}
+                        onReject={() => {
+                          setRejectingJobId(selectedReq.id);
+                          setIsRejectModalOpen(true);
+                        }}
+                        onReset={async () => {
+                          if (confirm("공고를 매칭 정보가 없는 대기 상태(WAITING_MATCH)로 다시 되돌리시겠습니까?")) {
+                            const success = handleResetMatchJobPost ? await handleResetMatchJobPost(selectedReq.id) : false;
+                            if (success) {
+                              alert("대기 상태로 성공적으로 초기화되었습니다.");
+                              if (fetchDispatchRequests) {
+                                await fetchDispatchRequests();
+                              }
+                            }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
+                        <span className="text-2xl block">⏳</span>
+                        <h4 className="text-xs font-bold text-slate-700">현재 연계된 하차지 매칭 요청이 없습니다</h4>
+                        <p className="text-[10px] text-slate-500">
+                          하차지 수용 공고에서 매칭을 요청하거나, 하차지 지주가 제안을 보내면 이곳에 매칭 상태 카드가 노출됩니다.
+                        </p>
                       </div>
                     )}
                   </div>
                 </div>
-
-                {(selectedReq.matchedDropOffId !== null || selectedReq.dropOffRequestId !== null) && (
-                  <div className="mt-6">
-                    <MatchStatusCard
-                      id={selectedReq.id}
-                      title={selectedReq.dropoffName || "지정 하차지"}
-                      subtitle={selectedReq.dropoffAddress}
-                      direction={selectedReq.dropOffRequestId !== null && selectedReq.matchedDropOffId === null ? "site_to_dropoff" : "dropoff_to_site"}
-                      rawStatus={selectedReq.rawStatus}
-                      isMyInitiated={selectedReq.dropOffRequestId !== null && selectedReq.matchedDropOffId === null}
-                      workDate={selectedReq.startDate}
-                      materialType={selectedReq.soilType}
-                      truckCount={selectedReq.truckCount}
-                      unitPrice={selectedReq.offeredUnitPrice}
-                      distance={selectedReq.distance}
-                      estimatedTime={selectedReq.estimatedTime}
-                      rejectionReason={selectedReq.rejectionReason}
-                      onApprove={async () => {
-                        if (confirm(`[${selectedReq.dropoffName}] 하차지 매칭 제안을 승인하고 기사 모집을 시작하시겠습니까?`)) {
-                          const success = handleConfirmMatchJobPost ? await handleConfirmMatchJobPost(selectedReq.id) : false;
-                          if (success) {
-                            alert("매칭이 승인되어 공고가 OPEN 되었습니다!");
-                          } else {
-                            alert("승인 처리에 실패했습니다.");
-                          }
-                        }
-                      }}
-                      onReject={() => {
-                        setRejectingJobId(selectedReq.id);
-                        setIsRejectModalOpen(true);
-                      }}
-                      onReset={async () => {
-                        if (confirm("공고를 매칭 정보가 없는 대기 상태(WAITING_MATCH)로 다시 되돌리시겠습니까?")) {
-                          const success = handleResetMatchJobPost ? await handleResetMatchJobPost(selectedReq.id) : false;
-                          if (success) {
-                            alert("대기 상태로 성공적으로 초기화되었습니다.");
-                            if (fetchDispatchRequests) {
-                              await fetchDispatchRequests();
-                            }
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                )}
 
 
               </div>
@@ -1319,6 +1404,18 @@ export function SiteManagerDashboard({
                   </div>
                 </div>
 
+                {/* 현장 메모 / 특이사항 (비용지급 주체/단가 아래 배치) */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-slate-700 font-bold block">현장 메모 / 특이사항 (선택)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="진입로 주의사항, 작업 수용 시간, 기사 전달 메모 등 (선택 입력)"
+                    value={dispatchFormMemo}
+                    onChange={(e) => setDispatchFormMemo(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium resize-none"
+                  />
+                </div>
+
                 {/* 하차지 정보 */}
                 <div className="space-y-2.5 border-t border-slate-100 pt-4">
                   <div className="flex justify-between items-center">
@@ -1400,6 +1497,20 @@ export function SiteManagerDashboard({
                             required
                           />
                         </div>
+                        {dispatchFormDropoffAddress && (
+                          <div className="pt-2">
+                            <label className="text-xs text-slate-600 font-bold block mb-1">하차지 진입로 위치 핀지정</label>
+                            <MockMap
+                              title="직접매칭 하차지"
+                              address={dispatchFormDropoffAddress}
+                              pinned={true}
+                              interactive={true}
+                              onLocationSelect={(newLat, newLng, newAddress) => {
+                                setDispatchFormDropoffAddress(newAddress);
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
 

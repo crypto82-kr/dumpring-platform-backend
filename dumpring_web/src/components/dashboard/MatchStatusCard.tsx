@@ -67,7 +67,7 @@ export const MatchStatusCard: React.FC<MatchStatusCardProps> = ({
     if (rawStatus === "OPEN") {
       return (
         <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-250 shadow-sm">
-          매칭 완료 (배차 진행)
+          매칭 완료 (기사 모집 중)
         </span>
       );
     }

@@ -624,6 +624,19 @@ async def update_site_detail(
     if not site:
         raise HTTPException(status_code=404, detail="해당 현장을 찾을 수 없습니다.")
 
+    # 제약 조건: 해당 현장에 매칭 완료(기사 모집 중) 또는 승인 대기 중인 활성 오더가 존재하면 수정 금지
+    from app.models import JobPost
+    active_job_query = select(JobPost).where(
+        JobPost.site_id == site_id,
+        JobPost.status.in_(["OPEN", "WAITING_APPROVAL"])
+    )
+    active_job_res = await db.execute(active_job_query)
+    if active_job_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 매칭 완료(기사 모집 중)이거나 승인 대기 중인 배차 요청 오더가 존재하여 현장 기본 정보를 수정할 수 없습니다."
+        )
+
     if data.company_name is not None:
         site.company_name = data.company_name
     if data.site_name is not None:
