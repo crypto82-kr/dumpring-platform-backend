@@ -356,7 +356,7 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
                                     value: null,
                                     child: Text("미배정 (배정 해제)", style: TextStyle(fontSize: 14)),
                                   ),
-                                  ..._availableCars.map((c) => DropdownMenuItem<int?>(
+                                  ..._availableCars.where((c) => c['driver_name'] == "미배정" || c['id'] == _selectedCarId).map((c) => DropdownMenuItem<int?>(
                                     value: c['id'] as int?,
                                     child: Text("${c['car_number']} (${c['tonnage']}톤)", style: const TextStyle(fontSize: 14)),
                                   )),
