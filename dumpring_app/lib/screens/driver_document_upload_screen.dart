@@ -275,7 +275,11 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
         ),
       );
     } else {
-      final uri = Uri.parse(url);
+      String finalUrl = url;
+      if (lowerUrl.endsWith('.pdf')) {
+        finalUrl = "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(url)}";
+      }
+      final uri = Uri.parse(finalUrl);
       try {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);

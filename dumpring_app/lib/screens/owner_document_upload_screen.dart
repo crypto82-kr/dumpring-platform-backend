@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'owner_pending_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../shared/file_picker_helper.dart';
 
 class OwnerDocumentUploadScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -131,22 +132,62 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
     }
   }
 
-  void _simulateUpload(String docCode) {
+  Future<void> _pickAndUploadFile(String docCode) async {
+    SelectedFile? selectedFile;
+
+    try {
+      selectedFile = await FilePickerHelper.pickFile();
+    } catch (e) {
+      debugPrint("파일 선택 에러: $e");
+    }
+
+    if (selectedFile == null) return;
+
     setState(() {
       _isSubmitting = true;
     });
 
-    // 1초 뒤 업로드 완료 모사
-    Future.delayed(const Duration(milliseconds: 800), () async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse("$_baseUrl/api/files/upload"),
+      );
+      
+      request.headers['Authorization'] = "Bearer ${widget.token}";
+      request.fields['category'] = 'documents';
+      
+      final multipartFile = http.MultipartFile.fromBytes(
+        'file',
+        selectedFile.bytes,
+        filename: selectedFile.name,
+      );
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        final String uploadedUrl = decoded['url'];
+        await _uploadDocumentToServer(docCode, uploadedUrl);
+      } else {
+        throw Exception("파일 업로드 실패 (HTTP ${response.statusCode})");
+      }
+    } catch (e) {
+      debugPrint("서류 실물 업로드 에러: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🔴 서류 파일 업로드 도중 에러가 발생했습니다."),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
         });
-        final timeStr = DateTime.now().millisecondsSinceEpoch.toString().substring(8);
-        final simulatedFileName = "사업자서류_${docCode}_$timeStr.jpg";
-        await _uploadDocumentToServer(docCode, simulatedFileName);
       }
-    });
+    }
   }
 
   void _showDocumentOptions(String docCode) {
@@ -174,7 +215,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
               title: const Text('새로운 서류로 변경'),
               onTap: () {
                 Navigator.of(context).pop();
-                _simulateUpload(docCode);
+                _pickAndUploadFile(docCode);
               },
             ),
           ],
@@ -233,7 +274,11 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
         ),
       );
     } else {
-      final uri = Uri.parse(url);
+      String finalUrl = url;
+      if (lowerUrl.endsWith('.pdf')) {
+        finalUrl = "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(url)}";
+      }
+      final uri = Uri.parse(finalUrl);
       try {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -368,7 +413,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                                 ),
                               ),
                               child: InkWell(
-                                onTap: () => isUploaded ? _showDocumentOptions(docCode) : _simulateUpload(docCode),
+                                onTap: () => isUploaded ? _showDocumentOptions(docCode) : _pickAndUploadFile(docCode),
                                 borderRadius: BorderRadius.circular(16),
                                 child: Padding(
                                   padding: const EdgeInsets.all(20.0),
