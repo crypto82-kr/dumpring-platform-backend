@@ -64,6 +64,12 @@ async def startup_event():
                 await conn.execute(text(f"ALTER TABLE site_employees ADD COLUMN IF NOT EXISTS {col} {col_type};"))
             except Exception as e:
                 logger.warning(f"직원 동적 컬럼 추가 무시: {col} -> {e}")
+
+        try:
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE drivers ADD COLUMN IF NOT EXISTS owner_id INTEGER;"))
+        except Exception as e:
+            logger.warning(f"드라이버 owner_id 동적 컬럼 추가 무시 -> {e}")
         
     logger.info("덤프 기사 및 차주 필수 서류 마스터 공통코드 시딩(Seeding)...")
     async with SessionLocal() as db:

@@ -165,6 +165,7 @@ class Driver(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), unique=True, nullable=True)  # 기사 가입 완료 시 연동
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # 초대/등록한 차주 ID
     current_car_id = Column(Integer, ForeignKey("cars.id", ondelete="SET NULL"), nullable=True)  # 배정 차량
     registered_phone = Column(String, nullable=False, index=True)  # 차주가 선등록한 기사 휴대폰 번호
     is_approved = Column(Boolean, default=False, nullable=False)  # 차주 소속 기사 승인 여부 (본사/차주 승인 단계)
@@ -174,7 +175,7 @@ class Driver(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
-    user = relationship("User", back_populates="drivers")
+    user = relationship("User", back_populates="drivers", foreign_keys=[user_id])
     assigned_car = relationship("Car", back_populates="drivers")
 
 
