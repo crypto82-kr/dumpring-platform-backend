@@ -26,6 +26,7 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
 
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isEditMode = false;
   Map<String, dynamic>? _driverInfo;
   List<dynamic> _availableCars = [];
   int? _selectedCarId;
@@ -230,6 +231,17 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
         ),
         title: const Text("기사 상세 정보", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         centerTitle: true,
+        actions: [
+          if (!_isEditMode)
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _isEditMode = true;
+                });
+              },
+              child: const Text("정보변경", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -361,25 +373,59 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
                                     child: Text("${c['car_number']} (${c['tonnage']}톤)", style: const TextStyle(fontSize: 14)),
                                   )),
                                 ],
-                                onChanged: (val) {
-                                  setState(() {
-                                    _selectedCarId = val;
-                                  });
-                                },
+                                onChanged: _isEditMode
+                                    ? (val) {
+                                        setState(() {
+                                          _selectedCarId = val;
+                                        });
+                                      }
+                                    : null,
                               ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              if (_isEditMode) ...[
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        style: OutlinedButton.styleFrom(
+                                          side: BorderSide(color: AppColors.divider),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _isEditMode = false;
+                                            _fetchDriverAndCars(); // Reset selection
+                                          });
+                                        },
+                                        child: Text("변경 취소", style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.primary,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        ),
+                                        onPressed: _isSaving
+                                            ? null
+                                            : () async {
+                                                await _assignVehicle();
+                                                setState(() {
+                                                  _isEditMode = false;
+                                                });
+                                              },
+                                        child: _isSaving
+                                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                            : const Text("변경 저장", style: TextStyle(fontWeight: FontWeight.bold)),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                onPressed: _isSaving ? null : _assignVehicle,
-                                child: _isSaving
-                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                    : const Text("배정 정보 저장 및 승인 처리", style: TextStyle(fontWeight: FontWeight.bold)),
-                              ),
+                              ],
                             ],
                           ),
                         ),
@@ -475,19 +521,20 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
                       ),
                       const SizedBox(height: 30),
 
-                      // 기사 소속 해제(제거) 버튼
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent.withOpacity(0.15),
-                          foregroundColor: Colors.redAccent,
-                          side: const BorderSide(color: Colors.redAccent),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      if (_isEditMode) ...[
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent.withOpacity(0.15),
+                            foregroundColor: Colors.redAccent,
+                            side: const BorderSide(color: Colors.redAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: _isSaving ? null : _kickDriver,
+                          icon: const Icon(Icons.delete_forever),
+                          label: const Text("이 기사를 소속 해제 및 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
-                        onPressed: _isSaving ? null : _kickDriver,
-                        icon: const Icon(Icons.delete_forever),
-                        label: const Text("이 기사를 소속 해제 및 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
+                      ],
                     ],
                   ),
                 ),

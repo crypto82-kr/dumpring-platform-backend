@@ -5,7 +5,7 @@ from typing import List
 from pydantic import BaseModel
 
 from app.core.db import get_db
-from app.models import User, Driver, Car, Notification, UserUploadedDocument
+from app.models import User, Driver, Car, Notification, UserUploadedDocument, CommonCode
 from app.api.auth import get_current_owner, get_current_user
 
 router = APIRouter()
@@ -531,11 +531,11 @@ async def get_driver_detail(
         doc_res = await db.execute(doc_query)
         docs = doc_res.scalars().all()
         for doc in docs:
-            code_name = "기타 서류"
-            if doc.document_code == "DRIVERS_LICENSE":
-                code_name = "운전면허증"
-            elif doc.document_code == "CARGO_QUALIFICATION":
-                code_name = "화물운송자격증"
+            # Query common code name dynamically
+            cc_query = select(CommonCode).where(CommonCode.code == doc.document_code)
+            cc_result = await db.execute(cc_query)
+            cc = cc_result.scalars().first()
+            code_name = cc.code_name if cc else "기타 서류"
             
             url = doc.file_name
             if url and not url.startswith("http"):

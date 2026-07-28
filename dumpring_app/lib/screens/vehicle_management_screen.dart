@@ -37,6 +37,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   bool _isLoading = false;
   bool _isSaving = false;
   String? _errorMessage;
+  late bool _isReadOnlyState;
 
   List<Map<String, dynamic>> _myDrivers = [];
   int? _selectedDriverId;
@@ -63,6 +64,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   @override
   void initState() {
     super.initState();
+    _isReadOnlyState = widget.isReadOnly;
     _vehicleNumController = TextEditingController(text: widget.user['vehicle_number'] ?? widget.user['car_number'] ?? '');
     _tonnageController = TextEditingController(text: (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString());
     _carModelController = TextEditingController(text: widget.user['car_model'] ?? '');
@@ -400,10 +402,21 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.isReadOnly ? "배정 차량 정보 조회" : "등록 차량 및 서류 관리",
+          _isReadOnlyState ? "배정 차량 정보 조회" : "등록 차량 및 서류 관리",
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
         ),
         centerTitle: true,
+        actions: [
+          if (_isReadOnlyState)
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _isReadOnlyState = false;
+                });
+              },
+              child: const Text("정보변경", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -484,7 +497,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _vehicleNumController,
-                                enabled: !widget.isReadOnly,
+                                enabled: !_isReadOnlyState,
                                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                                 decoration: InputDecoration(
                                   hintText: "예: 88덤 1234",
@@ -502,7 +515,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _carModelController,
-                                enabled: !widget.isReadOnly,
+                                enabled: !_isReadOnlyState,
                                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                                 decoration: InputDecoration(
                                   hintText: "예: 현대 덤프트럭 25톤",
@@ -519,7 +532,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _tonnageController,
-                                enabled: !widget.isReadOnly,
+                                enabled: !_isReadOnlyState,
                                 keyboardType: TextInputType.number,
                                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                                 decoration: InputDecoration(
@@ -539,7 +552,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _inspectionDateController,
-                                enabled: !widget.isReadOnly,
+                                enabled: !_isReadOnlyState,
                                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                                 decoration: InputDecoration(
                                   hintText: "예: 2026-12-31",
@@ -575,7 +588,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                       child: Text("${d['name']} (${d['phone']})", style: const TextStyle(fontSize: 14)),
                                     )),
                                   ],
-                                  onChanged: widget.isReadOnly
+                                  onChanged: _isReadOnlyState
                                       ? null
                                       : (val) {
                                           setState(() {
@@ -656,7 +669,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      if (!widget.isReadOnly) ...[
+                      if (!_isReadOnlyState) ...[
                         if (_errorMessage != null) ...[
                           Text(
                             _errorMessage!,
@@ -666,18 +679,54 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                           const SizedBox(height: 16),
                         ],
 
-                        ElevatedButton(
-                          onPressed: _isSaving ? null : _saveVehicleInfo,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.primary,
-                            foregroundColor: AppColors.background,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                          ),
-                          child: _isSaving
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Text("차량 정보 저장하기", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        Row(
+                          children: [
+                            if (widget.isReadOnly) ...[
+                              Expanded(
+                                child: OutlinedButton(
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(color: AppColors.divider),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isReadOnlyState = true;
+                                      _vehicleNumController.text = widget.user['vehicle_number'] ?? widget.user['car_number'] ?? '';
+                                      _tonnageController.text = (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString();
+                                      _carModelController.text = widget.user['car_model'] ?? '';
+                                      _inspectionDateController.text = widget.user['inspection_date'] ?? '2026-12-31';
+                                      _selectedDriverId = widget.user['driver_id'];
+                                    });
+                                  },
+                                  child: Text("변경 취소", style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _isSaving ? null : () async {
+                                  await _saveVehicleInfo();
+                                  if (widget.isReadOnly) {
+                                    setState(() {
+                                      _isReadOnlyState = true;
+                                    });
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).colorScheme.primary,
+                                  foregroundColor: AppColors.background,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 0,
+                                ),
+                                child: _isSaving
+                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    : const Text("차량 정보 저장하기", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
@@ -744,7 +793,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   ],
                 ),
               ),
-              if (!widget.isReadOnly)
+              if (!_isReadOnlyState)
                 TextButton.icon(
                   onPressed: isUploading ? null : onUpload,
                   icon: isUploading

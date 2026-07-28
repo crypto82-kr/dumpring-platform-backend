@@ -546,9 +546,10 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                               'biz_license_url': c['biz_license_url'],
                               'insurance_file': c['insurance_file'],
                               'insurance_url': c['insurance_url'],
+                              'driver_id': c['driver_id'],
                             },
                             token: widget.token,
-                            isReadOnly: false,
+                            isReadOnly: true,
                           ),
                         ),
                       ).then((_) => _fetchCars());
