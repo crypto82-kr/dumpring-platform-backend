@@ -720,6 +720,47 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                           ? (fileUrl.startsWith("http") ? fileUrl : "$_baseUrl$fileUrl")
                           : "$_baseUrl/static/uploads/documents/$fileName";
 
+                      final bool isPdf = streamUrl.toLowerCase().endsWith('.pdf') || fileName.toLowerCase().endsWith('.pdf');
+
+                      if (isPdf) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.picture_as_pdf, size: 52, color: Colors.red),
+                                const SizedBox(height: 12),
+                                Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.center),
+                                const SizedBox(height: 16),
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final String pdfUrl = "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(streamUrl)}";
+                                    final uri = Uri.parse(pdfUrl);
+                                    try {
+                                      if (await canLaunchUrl(uri)) {
+                                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                      } else {
+                                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                      }
+                                    } catch (e) {
+                                      debugPrint("PDF 서류 열기 실패: $e");
+                                    }
+                                  },
+                                  icon: const Icon(Icons.open_in_new),
+                                  label: const Text("PDF 문서 열기"),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF004D5A),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
                       return InteractiveViewer(
                         panEnabled: true,
                         minScale: 0.5,
