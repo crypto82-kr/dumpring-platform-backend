@@ -5,7 +5,7 @@ from typing import List
 from pydantic import BaseModel
 
 from app.core.db import get_db
-from app.models import User, Driver, Car, Notification
+from app.models import User, Driver, Car, Notification, UserUploadedDocument
 from app.api.auth import get_current_owner, get_current_user
 
 router = APIRouter()
