@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
@@ -36,6 +36,8 @@ class SiteSearchResponse(BaseModel):
     geofencing_radius: float = 200.0
     manager_name: Optional[str] = None
     manager_phone: Optional[str] = None
+    biz_license_url: Optional[str] = None
+    dust_report_url: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -51,6 +53,8 @@ class CreateSiteRequest(BaseModel):
     longitude: Optional[float] = Field(None, description="경도")
     geofencing_radius: float = Field(200.0, description="지오펜싱 반경 (기본 200m)")
     managers: Optional[str] = Field(None, description="담당자 성명/연락처")
+    biz_license_url: Optional[str] = Field(None, description="사업자등록증 서류 첨부 URL")
+    dust_report_url: Optional[str] = Field(None, description="비산먼지 배출신고 필증 첨부 서류 URL")
 
 class ApproveWorkerRequest(BaseModel):
     worker_id: int = Field(..., description="승인/반려할 현장담당자(User) ID")
@@ -168,6 +172,7 @@ async def create_site(
         m_name, m_phone = parse_managers_string(data.managers)
         site = ConstructionSite(
             user_id=current_user.id,
+            site_name=data.site_name,
             company_name=data.company_name,
             business_number=data.business_number,
             site_key=site_key,
@@ -177,7 +182,9 @@ async def create_site(
             geofencing_radius=data.geofencing_radius,
             billing_email=f"billing@{current_user.phone_number}.com",
             manager_name=m_name,
-            manager_phone=m_phone
+            manager_phone=m_phone,
+            biz_license_url=data.biz_license_url,
+            dust_report_url=data.dust_report_url
         )
         db.add(site)
         await db.flush()
@@ -214,7 +221,9 @@ async def create_site(
         longitude=site.longitude,
         geofencing_radius=site.geofencing_radius,
         manager_name=site.manager_name or current_user.name,
-        manager_phone=site.manager_phone or current_user.phone_number
+        manager_phone=site.manager_phone or current_user.phone_number,
+        biz_license_url=site.biz_license_url,
+        dust_report_url=site.dust_report_url
     )
 
 
@@ -516,8 +525,7 @@ async def list_all_sites(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    print(f"[DEBUG] list_all_sites called: user_id={current_user.id}, is_admin={current_user.is_admin}, is_drop_off={current_user.is_drop_off}, is_site_manager={current_user.is_site_manager}")
-    # 플랫폼 어드민인 경우 전체 현장 리턴
+    # 플랫폼 어드민, 하차지 지주인 경우 전체 공사현장 리턴
     if current_user.is_admin or current_user.is_drop_off:
         query = select(ConstructionSite).options(selectinload(ConstructionSite.creator))
         result = await db.execute(query)
@@ -915,4 +923,234 @@ async def delete_site_employee(
     await db.commit()
 
     return {"message": "성공적으로 현장 직원이 소속 해제되었습니다."}
+
+
+# --- Standalone Site Worker Personnel Management Schemas & Endpoints ---
+class CreateStandaloneEmployeeRequest(BaseModel):
+    name: str = Field(..., description="담당자 성명")
+    phone_number: str = Field(..., description="휴대폰 번호")
+    employee_role: str = Field("현장통제/도장", description="직책/역할")
+    site_id: Optional[int] = Field(None, description="소속 현장 ID")
+
+class UpdateStandaloneEmployeeRequest(BaseModel):
+    name: Optional[str] = Field(None, description="담당자 성명")
+    phone_number: Optional[str] = Field(None, description="휴대폰 번호")
+    employee_role: Optional[str] = Field(None, description="직책/역할")
+    site_id: Optional[int] = Field(None, description="소속 현장 ID")
+
+class StandaloneEmployeeResponse(BaseModel):
+    id: int
+    name: str
+    phone_number: str
+    employee_role: str
+    site_id: Optional[int] = None
+    site_name: Optional[str] = None
+    is_approved: bool
+    status: str
+    reject_reason: Optional[str] = None
+    created_at: str
+
+@router.get(
+    "/all-employees",
+    response_model=List[StandaloneEmployeeResponse],
+    summary="[현장소장/어드민] 등록된 현장담당자 인원 전체 목록 조회"
+)
+async def list_all_standalone_employees(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 어드민이면 전체, 그 외(현장소장/담당자)는 본인이 생성하거나 매핑된 현장의 담당자만 조회
+    if current_user.is_admin:
+        query = select(SiteEmployee).order_by(SiteEmployee.id.desc())
+    else:
+        # 로그인한 사용자가 소유한 현장 ID 목록
+        own_sites_query = select(ConstructionSite.id).where(ConstructionSite.user_id == current_user.id)
+        own_site_res = await db.execute(own_sites_query)
+        own_site_ids = own_site_res.scalars().all()
+
+        # 로그인한 사용자가 매핑(APPROVED)된 현장 ID 목록
+        mapped_sites_query = select(SiteUserMapping.site_id).where(
+            SiteUserMapping.user_id == current_user.id,
+            SiteUserMapping.status == SiteUserStatus.APPROVED
+        )
+        mapped_site_res = await db.execute(mapped_sites_query)
+        mapped_site_ids = mapped_site_res.scalars().all()
+
+        allowed_site_ids = list(set(own_site_ids + mapped_site_ids))
+
+        if allowed_site_ids:
+            query = select(SiteEmployee).where(SiteEmployee.site_id.in_(allowed_site_ids)).order_by(SiteEmployee.id.desc())
+        else:
+            # 매핑되거나 소유한 현장이 없는 경우 빈 목록 리턴
+            return []
+
+    res = await db.execute(query)
+    employees = res.scalars().all()
+    
+    result = []
+    for emp in employees:
+        site_name = None
+        if emp.site_id:
+            site_query = select(ConstructionSite).where(ConstructionSite.id == emp.site_id)
+            site_res = await db.execute(site_query)
+            site_obj = site_res.scalars().first()
+            if site_obj:
+                site_name = site_obj.site_name
+
+        status_str = "APPROVED" if emp.is_approved else ("REJECTED" if emp.reject_reason else "PENDING")
+        created_str = emp.created_at.strftime("%Y-%m-%d") if emp.created_at else ""
+        result.append(StandaloneEmployeeResponse(
+            id=emp.id,
+            name=emp.name or "현장담당자",
+            phone_number=emp.registered_phone,
+            employee_role=emp.employee_role or "현장통제/도장",
+            site_id=emp.site_id,
+            site_name=site_name or "소속 현장 미지정",
+            is_approved=emp.is_approved,
+            status=status_str,
+            reject_reason=emp.reject_reason,
+            created_at=created_str
+        ))
+    return result
+
+@router.post(
+    "/all-employees",
+    response_model=StandaloneEmployeeResponse,
+    summary="[현장소장] 신규 현장담당자 인원 등록 및 소속 현장 매핑"
+)
+async def create_standalone_employee(
+    data: CreateStandaloneEmployeeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    new_emp = SiteEmployee(
+        name=data.name,
+        registered_phone=data.phone_number,
+        employee_role=data.employee_role,
+        site_id=data.site_id,
+        is_approved=False
+    )
+    db.add(new_emp)
+    await db.commit()
+    await db.refresh(new_emp)
+
+    site_name = None
+    if new_emp.site_id:
+        site_query = select(ConstructionSite).where(ConstructionSite.id == new_emp.site_id)
+        site_res = await db.execute(site_query)
+        site_obj = site_res.scalars().first()
+        if site_obj:
+            site_name = site_obj.site_name
+
+    created_str = new_emp.created_at.strftime("%Y-%m-%d") if new_emp.created_at else ""
+    return StandaloneEmployeeResponse(
+        id=new_emp.id,
+        name=new_emp.name,
+        phone_number=new_emp.registered_phone,
+        employee_role=new_emp.employee_role,
+        site_id=new_emp.site_id,
+        site_name=site_name or "소속 현장 미지정",
+        is_approved=new_emp.is_approved,
+        status="PENDING",
+        reject_reason=None,
+        created_at=created_str
+    )
+
+@router.put(
+    "/all-employees/{employee_id}",
+    response_model=StandaloneEmployeeResponse,
+    summary="[현장소장] 현장담당자 인원 정보 및 소속 현장 수정"
+)
+async def update_standalone_employee(
+    employee_id: int,
+    data: UpdateStandaloneEmployeeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(SiteEmployee).where(SiteEmployee.id == employee_id)
+    res = await db.execute(query)
+    emp = res.scalars().first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="해당 현장담당자 인원을 찾을 수 없습니다.")
+
+    if data.name is not None:
+        emp.name = data.name
+    if data.phone_number is not None:
+        emp.registered_phone = data.phone_number
+    if data.employee_role is not None:
+        emp.employee_role = data.employee_role
+    if data.site_id is not None:
+        emp.site_id = data.site_id
+
+    await db.commit()
+    await db.refresh(emp)
+
+    site_name = None
+    if emp.site_id:
+        site_query = select(ConstructionSite).where(ConstructionSite.id == emp.site_id)
+        site_res = await db.execute(site_query)
+        site_obj = site_res.scalars().first()
+        if site_obj:
+            site_name = site_obj.site_name
+
+    status_str = "APPROVED" if emp.is_approved else ("REJECTED" if emp.reject_reason else "PENDING")
+    created_str = emp.created_at.strftime("%Y-%m-%d") if emp.created_at else ""
+    return StandaloneEmployeeResponse(
+        id=emp.id,
+        name=emp.name,
+        phone_number=emp.registered_phone,
+        employee_role=emp.employee_role,
+        site_id=emp.site_id,
+        site_name=site_name or "소속 현장 미지정",
+        is_approved=emp.is_approved,
+        status=status_str,
+        reject_reason=emp.reject_reason,
+        created_at=created_str
+    )
+
+@router.delete(
+    "/all-employees/{employee_id}",
+    summary="[현장소장] 현장담당자 인원 삭제"
+)
+async def delete_standalone_employee(
+    employee_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(SiteEmployee).where(SiteEmployee.id == employee_id)
+    res = await db.execute(query)
+    emp = res.scalars().first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="해당 현장담당자를 찾을 수 없습니다.")
+
+    await db.delete(emp)
+    await db.commit()
+    return {"message": "현장담당자 인원이 정상 삭제되었습니다."}
+
+@router.post(
+    "/all-employees/{employee_id}/approve",
+    summary="[플랫폼어드민] 현장담당자 인원 승인/반려 처리"
+)
+async def approve_standalone_employee(
+    employee_id: int,
+    approve: bool = Query(..., description="True면 승인, False면 반려"),
+    reason: Optional[str] = Query(None, description="반려 사유"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(SiteEmployee).where(SiteEmployee.id == employee_id)
+    res = await db.execute(query)
+    emp = res.scalars().first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="해당 현장담당자를 찾을 수 없습니다.")
+
+    if approve:
+        emp.is_approved = True
+        emp.reject_reason = None
+    else:
+        emp.is_approved = False
+        emp.reject_reason = reason or "플랫폼 관리자 반려"
+
+    await db.commit()
+    return {"message": f"현장담당자 승인 처리 완료 (승인여부: {approve})"}
 

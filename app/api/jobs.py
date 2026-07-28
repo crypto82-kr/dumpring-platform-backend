@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
 from app.core.db import get_db
-from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode
+from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode, SiteUserMapping, SiteUserStatus
 from app.api.auth import get_current_user
 from app.schemas.jobs import (
     DropOffRequestCreate, DropOffRequestResponse,
@@ -1098,27 +1098,49 @@ async def get_my_job_posts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager:
+    if not current_user.is_site_manager and not current_user.is_site_worker and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자(SITE_MANAGER) 권한이 필요합니다."
+            detail="현장관리자 또는 현장담당자 권한이 필요합니다."
         )
 
-    # 현장관리자 본인이 관리하는 현장 ID 목록 조회
-    site_query = select(ConstructionSite.id).where(ConstructionSite.user_id == current_user.id)
-    site_result = await db.execute(site_query)
-    site_ids = site_result.scalars().all()
+    if current_user.is_admin:
+        query = select(JobPost).options(
+            selectinload(JobPost.site),
+            selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+            selectinload(JobPost.matched_drop_off)
+        ).order_by(JobPost.id.desc())
+    else:
+        # 본인이 작성자(author_id)이거나 본인 소유/승인 매핑 현장의 공고만 필터링
+        own_sites_query = select(ConstructionSite.id).where(ConstructionSite.user_id == current_user.id)
+        own_site_res = await db.execute(own_sites_query)
+        own_site_ids = own_site_res.scalars().all()
 
-    query = select(JobPost).options(
-        selectinload(JobPost.site),
-        selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
-        selectinload(JobPost.matched_drop_off)
-    ).where(
-        or_(
-            JobPost.author_id == current_user.id,
-            JobPost.site_id.in_(site_ids) if site_ids else False
+        mapped_sites_query = select(SiteUserMapping.site_id).where(
+            SiteUserMapping.user_id == current_user.id,
+            SiteUserMapping.status == SiteUserStatus.APPROVED
         )
-    )
+        mapped_site_res = await db.execute(mapped_sites_query)
+        mapped_site_ids = mapped_site_res.scalars().all()
+
+        allowed_site_ids = list(set(own_site_ids + mapped_site_ids))
+
+        if allowed_site_ids:
+            query = select(JobPost).options(
+                selectinload(JobPost.site),
+                selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+                selectinload(JobPost.matched_drop_off)
+            ).where(
+                (JobPost.author_id == current_user.id) |
+                (JobPost.site_id.in_(allowed_site_ids))
+            ).order_by(JobPost.id.desc())
+        else:
+            query = select(JobPost).options(
+                selectinload(JobPost.site),
+                selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+                selectinload(JobPost.matched_drop_off)
+            ).where(JobPost.author_id == current_user.id).order_by(JobPost.id.desc())
+
     result = await db.execute(query)
     return result.scalars().all()
 

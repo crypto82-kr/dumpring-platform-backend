@@ -48,6 +48,22 @@ async def startup_event():
                 await conn.execute(text(f"ALTER TABLE cars ADD COLUMN IF NOT EXISTS {col} VARCHAR;"))
             except Exception as e:
                 logger.warning(f"컬럼 동적 추가 무시: {col} -> {e}")
+
+        site_cols = ["biz_license_url", "dust_report_url"]
+        for col in site_cols:
+            try:
+                from sqlalchemy import text
+                await conn.execute(text(f"ALTER TABLE construction_sites ADD COLUMN IF NOT EXISTS {col} VARCHAR;"))
+            except Exception as e:
+                logger.warning(f"현장 동적 컬럼 추가 무시: {col} -> {e}")
+
+        emp_cols = [("name", "VARCHAR DEFAULT '현장담당자'"), ("is_approved", "BOOLEAN DEFAULT FALSE"), ("reject_reason", "VARCHAR")]
+        for col, col_type in emp_cols:
+            try:
+                from sqlalchemy import text
+                await conn.execute(text(f"ALTER TABLE site_employees ADD COLUMN IF NOT EXISTS {col} {col_type};"))
+            except Exception as e:
+                logger.warning(f"직원 동적 컬럼 추가 무시: {col} -> {e}")
         
     logger.info("덤프 기사 및 차주 필수 서류 마스터 공통코드 시딩(Seeding)...")
     async with SessionLocal() as db:

@@ -16,6 +16,13 @@ interface MockMapProps {
   lat?: number;
   lng?: number;
   interactive?: boolean; // false: 상세 화면 조망 전용 (수정 불가), true: 등록/수정 모달 핀 픽업 가능
+  isRouteMode?: boolean;
+  siteName?: string;
+  siteAddress?: string;
+  dropoffName?: string;
+  dropoffAddress?: string;
+  distance?: number;
+  estimatedTime?: number;
 }
 
 export function MockMap({
@@ -27,6 +34,13 @@ export function MockMap({
   lat,
   lng,
   interactive = false,
+  isRouteMode = false,
+  siteName,
+  siteAddress,
+  dropoffName,
+  dropoffAddress,
+  distance,
+  estimatedTime,
 }: MockMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -161,24 +175,111 @@ export function MockMap({
 
   }, [isLoaded, interactive]);
 
-  // 주소(address)가 변경되면 Geocoder로 좌표 변환하여 지도 중심 및 마커 이동
+  const activeOverlaysRef = useRef<any[]>([]);
+
+  // Route Mode: Render Multi-Marker (Site + Dropoff) and Route Line (Polyline)
   useEffect(() => {
-    if (!mapInstance || !markerInstance || !address || !window.kakao || !window.kakao.maps) return;
+    if (!isRouteMode || !mapInstance || !window.kakao || !window.kakao.maps) return;
+
+    // Clear existing custom overlays to prevent stacking duplicate markers
+    activeOverlaysRef.current.forEach((ol) => ol.setMap(null));
+    activeOverlaysRef.current = [];
 
     const geocoder = new window.kakao.maps.services.Geocoder();
-    geocoder.addressSearch(address, (result: any, status: any) => {
-      if (status === window.kakao.maps.services.Status.OK) {
-        const coords = new window.kakao.maps.LatLng(result[0].y, result[0].x);
-        mapInstance.setCenter(coords);
-        markerInstance.setPosition(coords);
-        setCurrentCoords({ lat: Number(result[0].y), lng: Number(result[0].x) });
+    const siteAddr = siteAddress || address || "서울 영등포구 신길동 100";
+    const dropAddr = dropoffAddress || "인천 서구 검단동 888";
 
-        if (onLocationSelect && (!lat || !lng) && interactive) {
-          onLocationSelect(Number(result[0].y), Number(result[0].x), address);
+    geocoder.addressSearch(siteAddr, (siteRes: any, siteStatus: any) => {
+      if (siteStatus !== window.kakao.maps.services.Status.OK || !siteRes[0]) return;
+      const siteCoords = new window.kakao.maps.LatLng(siteRes[0].y, siteRes[0].x);
+
+      geocoder.addressSearch(dropAddr, (dropRes: any, dropStatus: any) => {
+        if (dropStatus !== window.kakao.maps.services.Status.OK || !dropRes[0]) return;
+        const dropCoords = new window.kakao.maps.LatLng(dropRes[0].y, dropRes[0].x);
+
+        // 1. Hide default single marker
+        if (markerInstance) {
+          markerInstance.setMap(null);
         }
+
+        // 2. Custom Overlay / Marker for Site (Blue)
+        const siteContent = `
+          <div style="padding:4px 8px; background:#2563eb; color:white; border-radius:12px; font-weight:800; font-size:11px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.2); white-space:nowrap;">
+            🏗️ 상차지: ${siteName || "현장"}
+          </div>
+        `;
+        const siteOverlay = new window.kakao.maps.CustomOverlay({
+          position: siteCoords,
+          content: siteContent,
+          yAnchor: 1.3
+        });
+        siteOverlay.setMap(mapInstance);
+        activeOverlaysRef.current.push(siteOverlay);
+
+        // 3. Custom Overlay / Marker for Dropoff (Emerald)
+        const dropContent = `
+          <div style="padding:4px 8px; background:#059669; color:white; border-radius:12px; font-weight:800; font-size:11px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.2); white-space:nowrap;">
+            🚜 하차지: ${dropoffName || "사토장"}
+          </div>
+        `;
+        const dropOverlay = new window.kakao.maps.CustomOverlay({
+          position: dropCoords,
+          content: dropContent,
+          yAnchor: 1.3
+        });
+        dropOverlay.setMap(mapInstance);
+        activeOverlaysRef.current.push(dropOverlay);
+
+        // 4. Adjust Bounds to fit both markers cleanly (No artificial line, clean Multi-Marker)
+        const bounds = new window.kakao.maps.LatLngBounds();
+        bounds.extend(siteCoords);
+        bounds.extend(dropCoords);
+        mapInstance.setBounds(bounds);
+      });
+    });
+
+    return () => {
+      activeOverlaysRef.current.forEach((ol) => ol.setMap(null));
+      activeOverlaysRef.current = [];
+    };
+  }, [isRouteMode, mapInstance, siteAddress, dropoffAddress, address, siteName, dropoffName]);
+
+  // 주소(address)가 변경되면 Geocoder로 좌표 변환하여 지도 중심 및 마커 이동 (Single Marker mode)
+  useEffect(() => {
+    if (isRouteMode || !mapInstance || !markerInstance || !address || !window.kakao || !window.kakao.maps) return;
+
+    // Clear route overlays when in single marker mode
+    activeOverlaysRef.current.forEach((ol) => ol.setMap(null));
+    activeOverlaysRef.current = [];
+    markerInstance.setMap(mapInstance);
+
+    const geocoder = new window.kakao.maps.services.Geocoder();
+    const places = new window.kakao.maps.services.Places();
+
+    const handleCoords = (y: number, x: number) => {
+      const coords = new window.kakao.maps.LatLng(y, x);
+      mapInstance.setCenter(coords);
+      markerInstance.setPosition(coords);
+      setCurrentCoords({ lat: Number(y), lng: Number(x) });
+
+      if (onLocationSelect && (!lat || !lng) && interactive) {
+        onLocationSelect(Number(y), Number(x), address);
+      }
+    };
+
+    geocoder.addressSearch(address, (result: any, status: any) => {
+      if (status === window.kakao.maps.services.Status.OK && result[0]) {
+        handleCoords(result[0].y, result[0].x);
+      } else {
+        // Fallback to Kakao Places Keyword Search if direct address fails
+        places.keywordSearch(address, (pResult: any, pStatus: any) => {
+          if (pStatus === window.kakao.maps.services.Status.OK && pResult[0]) {
+            handleCoords(pResult[0].y, pResult[0].x);
+          }
+        });
       }
     });
-  }, [address, mapInstance, markerInstance, interactive]);
+  }, [address, mapInstance, markerInstance, interactive, isRouteMode]);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-xl">

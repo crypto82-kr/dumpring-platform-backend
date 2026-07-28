@@ -68,6 +68,8 @@ class ConstructionSite(Base):
     geofencing_radius = Column(Float, default=200.0, nullable=False)  # 지오펜싱 반경 (미터 단위)
     manager_name = Column(String, nullable=True)
     manager_phone = Column(String, nullable=True)
+    biz_license_url = Column(String, nullable=True)   # 사업자등록증 첨부서류 (PDF/이미지) URL
+    dust_report_url = Column(String, nullable=True)    # 비산먼지 배출신고 필증 첨부서류 (PDF/이미지) URL
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -81,17 +83,19 @@ class ConstructionSite(Base):
 
 class SiteEmployee(Base):
     """
-    3. SiteEmployee (현장 소속 직원 테이블)
-    - 공사현장에 소속되어 현장 입출입을 통제하거나 도장을 찍는 직원 정보입니다.
-    - 소장님이 번호로 선등록해 둔 상태(user_id=Null)에서, 직원이 실제 본인인증 가입을 완료하면 연동되는 매칭 구조를 지원합니다.
+    3. SiteEmployee (현장 소속 직원/담당자 인원 테이블)
+    - 소장님이 현장담당자 인원을 등록하고 관리하는 테이블입니다. (소속 현장은 현장 관리에서 별도 매핑)
     """
     __tablename__ = "site_employees"
 
     id = Column(Integer, primary_key=True, index=True)
-    site_id = Column(Integer, ForeignKey("construction_sites.id", ondelete="CASCADE"), nullable=False)  # 소속 현장
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # 가입 완료 시 연동되는 통합 계정
-    registered_phone = Column(String, nullable=False, index=True)  # 소장님이 선등록해 둔 휴대폰 번호
-    employee_role = Column(String, default="staff", nullable=False)  # 'admin'(본사 관리자) 또는 'staff'(현장 통제/도장 직원)
+    site_id = Column(Integer, ForeignKey("construction_sites.id", ondelete="SET NULL"), nullable=True)  # 현장 관리에서 별도 매핑
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # 가입 완료 시 연동
+    name = Column(String, nullable=False, default="현장담당자")  # 담당자 성명
+    registered_phone = Column(String, nullable=False, index=True)  # 등록 휴대폰 번호
+    employee_role = Column(String, default="현장통제/도장", nullable=False)  # 직책/역할
+    is_approved = Column(Boolean, default=False, nullable=False)  # 플랫폼 관리자 승인 여부
+    reject_reason = Column(String, nullable=True)  # 반려 사유
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

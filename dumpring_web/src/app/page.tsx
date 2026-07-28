@@ -6,6 +6,10 @@ import { AlertCircle } from "lucide-react";
 
 import { PlatformAdminDashboard } from "@/components/dashboard/PlatformAdminDashboard";
 import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboard";
+import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
+import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
+import SiteDispatchRequestManagement from "@/components/dashboard/SiteDispatchRequestManagement";
+import SiteOverviewDashboard from "@/components/dashboard/SiteOverviewDashboard";
 import { DropoffManagerDashboard } from "@/components/dashboard/DropoffManagerDashboard";
 import { OwnerDashboard } from "@/components/dashboard/OwnerDashboard";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
@@ -14,15 +18,9 @@ export default function Home() {
   const { user, changeRole, activePath, setActivePath } = useAuth();
   const [inputText, setInputText] = useState("");
 
-  const getApiBaseUrl = () => {
-    if (typeof window !== "undefined") {
-      if (window.location.hostname.includes("vercel.app") || !window.location.hostname.includes("localhost")) {
-        return "https://dumpring-api.onrender.com";
-      }
-    }
-    return "http://localhost:8000";
-  };
-  const API_BASE_URL = getApiBaseUrl();
+  const API_BASE_URL = typeof window !== "undefined" && (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("onrender.com"))
+    ? "https://dumpring-api.onrender.com"
+    : "http://127.0.0.1:8000";
 
 
   useEffect(() => {
@@ -191,43 +189,33 @@ export default function Home() {
   const fetchRegisteredSites = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const profileStr = localStorage.getItem("userProfile");
-      const role = profileStr ? JSON.parse(profileStr).role : null;
+      if (!token) return;
 
-      // 하차지 관리자는 /api/sites/search 사용 (권한 무제한, 전체 검색)
-      // 현장 관리자/어드민은 /api/sites/admin-sites 사용
-      const url = role === "dropoff_manager"
-        ? `${API_BASE_URL}/api/sites/search?query=`
-        : `${API_BASE_URL}/api/sites/admin-sites`;
-
-      const res = await fetch(url, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+      const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
+        headers: { "Authorization": `Bearer ${token}` }
       });
-      console.log("fetchRegisteredSites Status:", res.status, "URL:", url);
+
       if (res.ok) {
         const data = await res.json();
-        console.log("fetchRegisteredSites Data count:", data.length);
-        // map db ConstructionSite fields to frontend properties
-        const mapped = data.map((site: any) => ({
-          id: site.id,
-          name: site.site_name || site.company_name || "현장명 없음",
-          companyName: site.company_name || "건설업체명 없음",
-          address: site.site_address || "현장 주소 미등록",
-          roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
-          managers: [
-            site.manager_name && site.manager_phone 
-              ? `${site.manager_name} (${site.manager_phone})` 
-              : (site.billing_email || "지정 대기")
-          ],
-          bizRegNo: site.business_number || "",
-          siteKey: site.site_key || ""
-        }));
-        setRegisteredSiteList(mapped);
-      } else {
-        const errTxt = await res.text();
-        console.warn("fetchRegisteredSites fail txt:", errTxt);
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((site: any) => ({
+            id: site.id,
+            name: site.site_name || site.company_name || "공사 현장",
+            companyName: site.company_name || "건설업체명 없음",
+            address: site.site_address || "현장 주소 미등록",
+            roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
+            managers: [
+              site.manager_name && site.manager_phone 
+                ? `${site.manager_name} (${site.manager_phone})` 
+                : (site.billing_email || "지정 대기")
+            ],
+            bizRegNo: site.business_number || "",
+            siteKey: site.site_key || `SG-${site.id}-DUMP`,
+            bizLicenseUrl: site.biz_license_url || "",
+            dustReportUrl: site.dust_report_url || ""
+          }));
+          setRegisteredSiteList(mapped);
+        }
       }
     } catch (e) {
       console.error("Failed to fetch registered sites:", e);
@@ -319,6 +307,8 @@ export default function Home() {
   const fetchDispatchRequests = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      if (!token) return;
+
       const res = await fetch(`${API_BASE_URL}/api/jobs/my-posts`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -358,10 +348,12 @@ export default function Home() {
         }));
         setDispatchRequestList(mapped);
       } else {
-        console.warn("fetchDispatchRequests failed:", res.status);
+        console.warn("fetchDispatchRequests res not ok status:", res.status);
+        setDispatchRequestList([]);
       }
     } catch (e) {
       console.error("fetchDispatchRequests error:", e);
+      setDispatchRequestList([]);
     }
   };
 
@@ -1041,14 +1033,12 @@ export default function Home() {
     if (activePath === "/admin/approve-driver" || activePath === "/admin/approve-owner" || activePath === "/admin/approve-site" || activePath === "/admin/approve-dropoff" || activePath === "/admin") {
       fetchPendingMembers();
     }
-    if (activePath === "/site" || activePath === "/site/request") {
+    if (activePath.startsWith("/site")) {
       fetchRegisteredSites();
-    }
-    if (activePath === "/site/dispatch-request") {
       fetchDispatchRequests();
       fetchOpenDropOffRequests();
     }
-    if (activePath === "/dropoff" || activePath === "/dropoff/dispatch-request") {
+    if (activePath.startsWith("/dropoff")) {
       fetchMyDropOffs();
       fetchRegisteredSites(); // 현장 검색 탭에서 현장 목록 제공용
       fetchOpenDropOffRequests(); // 하차지 수용 공고 목록 갱신용
@@ -1203,7 +1193,7 @@ export default function Home() {
   const handleApproveDriver = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:8000/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1223,7 +1213,7 @@ export default function Home() {
   const handleApproveOwner = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:8000/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1244,7 +1234,7 @@ export default function Home() {
   const handleApproveSite = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:8000/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1264,7 +1254,7 @@ export default function Home() {
   const handleApproveDropoff = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:8000/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1284,7 +1274,7 @@ export default function Home() {
   const handleRejectMember = async (id: number, reason: string) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:8000/api/auth/admin/members/${id}/reject?reject_reason=${encodeURIComponent(reason)}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/reject?reject_reason=${encodeURIComponent(reason)}`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1474,73 +1464,99 @@ export default function Home() {
         />
       )}
       {user.role === "site_manager" && (
-        <SiteManagerDashboard
-          activePath={activePath}
-          setActivePath={setActivePath}
-          siteFormName={siteFormName}
-          setSiteFormName={setSiteFormName}
-          siteFormCompanyName={siteFormCompanyName}
-          setSiteFormCompanyName={setSiteFormCompanyName}
-          siteFormAddress={siteFormAddress}
-          setSiteFormAddress={setSiteFormAddress}
-          siteFormRoadDesc={siteFormRoadDesc}
-          setSiteFormRoadDesc={setSiteFormRoadDesc}
-          siteFormManagers={siteFormManagers}
-          setSiteFormManagers={setSiteFormManagers}
-          siteFormSearchQuery={siteFormSearchQuery}
-          setSiteFormSearchQuery={setSiteFormSearchQuery}
-          registeredSiteList={registeredSiteList}
-          setRegisteredSiteList={setRegisteredSiteList}
-          dispatchFormSiteId={dispatchFormSiteId}
-          setDispatchFormSiteId={setDispatchFormSiteId}
-          dispatchFormTonTypes={dispatchFormTonTypes}
-          setDispatchFormTonTypes={setDispatchFormTonTypes}
-          dispatchFormTruckCount={dispatchFormTruckCount}
-          setDispatchFormTruckCount={setDispatchFormTruckCount}
-          dispatchFormSoilType={dispatchFormSoilType}
-          setDispatchFormSoilType={setDispatchFormSoilType}
-          dispatchFormStartDate={dispatchFormStartDate}
-          setDispatchFormStartDate={setDispatchFormStartDate}
-          dispatchFormEndDate={dispatchFormEndDate}
-          setDispatchFormEndDate={setDispatchFormEndDate}
-          dispatchFormDropoffMode={dispatchFormDropoffMode}
-          setDispatchFormDropoffMode={setDispatchFormDropoffMode}
-          dispatchFormDropoffName={dispatchFormDropoffName}
-          setDispatchFormDropoffName={setDispatchFormDropoffName}
-          dispatchFormDropoffAddress={dispatchFormDropoffAddress}
-          setDispatchFormDropoffAddress={setDispatchFormDropoffAddress}
-          dispatchFormDropoffCapacity={dispatchFormDropoffCapacity}
-          setDispatchFormDropoffCapacity={setDispatchFormDropoffCapacity}
-          dispatchFormDropoffSoilType={dispatchFormDropoffSoilType}
-          setDispatchFormDropoffSoilType={setDispatchFormDropoffSoilType}
-          dispatchRequestMode={dispatchRequestMode}
-          setDispatchRequestMode={setDispatchRequestMode}
-          editingDispatchRequestId={editingDispatchRequestId}
-          setEditingDispatchRequestId={setEditingDispatchRequestId}
-          dispatchRequestSearchQuery={dispatchRequestSearchQuery}
-          setDispatchRequestSearchQuery={setDispatchRequestSearchQuery}
-          dispatchRequestList={dispatchRequestList}
-          setDispatchRequestList={setDispatchRequestList}
-          registeredDropoffList={registeredDropoffList}
-          dropoffRequestList={dropoffRequestList}
-          taxInvoiceApproved={taxInvoiceApproved}
-          setTaxInvoiceApproved={setTaxInvoiceApproved}
-          handleCreateSite={handleCreateSite}
-          handleUpdateSite={handleUpdateSite}
-          handleDeleteSite={handleDeleteSite}
-          handleCreateDispatch={handleCreateDispatch}
-          handleUpdateDispatch={handleUpdateDispatch}
-          handleDeleteDispatch={handleDeleteDispatch}
-          fetchDispatchRequests={fetchDispatchRequests}
-          dispatchFormPayerType={dispatchFormPayerType}
-          setDispatchFormPayerType={setDispatchFormPayerType}
-          dispatchFormOfferedUnitPrice={dispatchFormOfferedUnitPrice}
-          setDispatchFormOfferedUnitPrice={setDispatchFormOfferedUnitPrice}
-          handleConfirmMatchJobPost={handleConfirmMatchJobPost}
-          handleRejectMatchJobPost={handleRejectMatchJobPost}
-          handleResetMatchJobPost={handleResetMatchJobPost}
-        />
-      )}
+        activePath === "/site/org-hierarchy" ? (
+          <SiteWorkerManagement registeredSiteList={registeredSiteList} />
+        ) : activePath === "/site/dispatch-request" || activePath === "/site/dispatch" ? (
+          <SiteDispatchRequestManagement
+            registeredSiteList={registeredSiteList}
+            dispatchRequestList={dispatchRequestList}
+            dropoffRequestList={dropoffRequestList}
+            registeredDropoffList={registeredDropoffList}
+            dbCommonCodes={dbCommonCodes}
+            handleCreateDispatch={handleCreateDispatch}
+            handleUpdateDispatch={handleUpdateDispatch}
+            handleDeleteDispatch={handleDeleteDispatch}
+            fetchDispatchRequests={fetchDispatchRequests}
+            handleConfirmMatchJobPost={handleConfirmMatchJobPost}
+            handleRejectMatchJobPost={handleRejectMatchJobPost}
+            handleResetMatchJobPost={handleResetMatchJobPost}
+          />
+        ) : activePath === "/site/request" ? (
+          <SiteInfoManagement
+            registeredSiteList={registeredSiteList}
+            handleCreateSite={handleCreateSite}
+            handleUpdateSite={handleUpdateSite}
+            handleDeleteSite={handleDeleteSite}
+          />
+        ) : (
+          <SiteManagerDashboard
+            activePath={activePath}
+            setActivePath={setActivePath}
+            siteFormName={siteFormName}
+            setSiteFormName={setSiteFormName}
+            siteFormCompanyName={siteFormCompanyName}
+            setSiteFormCompanyName={setSiteFormCompanyName}
+            siteFormAddress={siteFormAddress}
+            setSiteFormAddress={setSiteFormAddress}
+            siteFormRoadDesc={siteFormRoadDesc}
+            setSiteFormRoadDesc={setSiteFormRoadDesc}
+            siteFormManagers={siteFormManagers}
+            setSiteFormManagers={setSiteFormManagers}
+            siteFormSearchQuery={siteFormSearchQuery}
+            setSiteFormSearchQuery={setSiteFormSearchQuery}
+            registeredSiteList={registeredSiteList}
+            setRegisteredSiteList={setRegisteredSiteList}
+            dispatchFormSiteId={dispatchFormSiteId}
+            setDispatchFormSiteId={setDispatchFormSiteId}
+            dispatchFormTonTypes={dispatchFormTonTypes}
+            setDispatchFormTonTypes={setDispatchFormTonTypes}
+            dispatchFormTruckCount={dispatchFormTruckCount}
+            setDispatchFormTruckCount={setDispatchFormTruckCount}
+            dispatchFormSoilType={dispatchFormSoilType}
+            setDispatchFormSoilType={setDispatchFormSoilType}
+            dispatchFormStartDate={dispatchFormStartDate}
+            setDispatchFormStartDate={setDispatchFormStartDate}
+            dispatchFormEndDate={dispatchFormEndDate}
+            setDispatchFormEndDate={setDispatchFormEndDate}
+            dispatchFormDropoffMode={dispatchFormDropoffMode}
+            setDispatchFormDropoffMode={setDispatchFormDropoffMode}
+            dispatchFormDropoffName={dispatchFormDropoffName}
+            setDispatchFormDropoffName={setDispatchFormDropoffName}
+            dispatchFormDropoffAddress={dispatchFormDropoffAddress}
+            setDispatchFormDropoffAddress={setDispatchFormDropoffAddress}
+            dispatchFormDropoffCapacity={dispatchFormDropoffCapacity}
+            setDispatchFormDropoffCapacity={setDispatchFormDropoffCapacity}
+            dispatchFormDropoffSoilType={dispatchFormDropoffSoilType}
+            setDispatchFormDropoffSoilType={setDispatchFormDropoffSoilType}
+            dispatchRequestMode={dispatchRequestMode}
+            setDispatchRequestMode={setDispatchRequestMode}
+            editingDispatchRequestId={editingDispatchRequestId}
+            setEditingDispatchRequestId={setEditingDispatchRequestId}
+            dispatchRequestSearchQuery={dispatchRequestSearchQuery}
+            setDispatchRequestSearchQuery={setDispatchRequestSearchQuery}
+            dispatchRequestList={dispatchRequestList}
+            setDispatchRequestList={setDispatchRequestList}
+            registeredDropoffList={registeredDropoffList}
+            dropoffRequestList={dropoffRequestList}
+            taxInvoiceApproved={taxInvoiceApproved}
+            setTaxInvoiceApproved={setTaxInvoiceApproved}
+            handleCreateSite={handleCreateSite}
+            handleUpdateSite={handleUpdateSite}
+            handleDeleteSite={handleDeleteSite}
+            handleCreateDispatch={handleCreateDispatch}
+            handleUpdateDispatch={handleUpdateDispatch}
+            handleDeleteDispatch={handleDeleteDispatch}
+            fetchDispatchRequests={fetchDispatchRequests}
+            dispatchFormPayerType={dispatchFormPayerType}
+            setDispatchFormPayerType={setDispatchFormPayerType}
+            dispatchFormOfferedUnitPrice={dispatchFormOfferedUnitPrice}
+            setDispatchFormOfferedUnitPrice={setDispatchFormOfferedUnitPrice}
+            handleConfirmMatchJobPost={handleConfirmMatchJobPost}
+            handleRejectMatchJobPost={handleRejectMatchJobPost}
+            handleResetMatchJobPost={handleResetMatchJobPost}
+          />
+        ))
+      }
       {user.role === "dropoff_manager" && (
         <DropoffManagerDashboard
           user={user}

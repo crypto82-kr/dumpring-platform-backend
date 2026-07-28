@@ -163,6 +163,44 @@ export function SiteManagerDashboard({
   const [rejectingJobId, setRejectingJobId] = useState<number | null>(null);
   const [siteFormBizRegNo, setSiteFormBizRegNo] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [siteFormBizLicenseUrl, setSiteFormBizLicenseUrl] = useState("");
+  const [siteFormDustReportUrl, setSiteFormDustReportUrl] = useState("");
+  const [isUploadingBizLicense, setIsUploadingBizLicense] = useState(false);
+  const [isUploadingDustReport, setIsUploadingDustReport] = useState(false);
+
+  const uploadDocumentFile = async (file: File, docType: "biz_license" | "dust_report") => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("category", "documents");
+
+    if (docType === "biz_license") setIsUploadingBizLicense(true);
+    else setIsUploadingDustReport(true);
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/files/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (docType === "biz_license") {
+          setSiteFormBizLicenseUrl(data.url);
+          alert("사업자등록증 서류가 업로드되었습니다.");
+        } else {
+          setSiteFormDustReportUrl(data.url);
+          alert("비산먼지 배출신고 필증 서류가 업로드되었습니다.");
+        }
+      } else {
+        alert("서류 파일 업로드에 실패했습니다.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("파일 업로드 중 에러가 발생했습니다.");
+    } finally {
+      if (docType === "biz_license") setIsUploadingBizLicense(false);
+      else setIsUploadingDustReport(false);
+    }
+  };
 
   // Dispatch Request States (Split Screen UI)
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
@@ -191,7 +229,7 @@ export function SiteManagerDashboard({
   React.useEffect(() => {
     const fetchCodes = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/common-codes");
+        const res = await fetch("http://127.0.0.1:8000/api/common-codes");
         if (res.ok) {
           const data = await res.json();
           setDbCommonCodes(data);
@@ -201,6 +239,11 @@ export function SiteManagerDashboard({
       }
     };
     fetchCodes();
+  }, []);
+
+  // 마운트 시 배차 요청 데이터를 미리 불러와 매칭 상태 및 정보 수정 버튼 제약 상태를 즉시 동기화
+  React.useEffect(() => {
+    fetchDispatchRequests();
   }, []);
 
   // Auto populate company details in modal on open (React Hook moved to top-level to satisfy Rules of Hooks)
@@ -239,6 +282,9 @@ export function SiteManagerDashboard({
 
   const renderSiteRegister = () => {
     const selectedSite = registeredSiteList.find(s => s.id === editingSiteId) || null;
+    const isWorkerRole = typeof window !== "undefined" && localStorage.getItem("userProfile")
+      ? JSON.parse(localStorage.getItem("userProfile")!).role === "site_worker"
+      : false;
 
     const handleRegister = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -253,7 +299,9 @@ export function SiteManagerDashboard({
         address: siteFormAddress,
         roadDesc: siteFormRoadDesc,
         managers: siteFormManagers,
-        bizRegNo: siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678"
+        bizRegNo: siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678",
+        biz_license_url: siteFormBizLicenseUrl,
+        dust_report_url: siteFormDustReportUrl,
       };
 
       let success = false;
@@ -271,6 +319,8 @@ export function SiteManagerDashboard({
         setSiteFormRoadDesc("");
         setSiteFormManagers("");
         setSiteFormBizRegNo("");
+        setSiteFormBizLicenseUrl("");
+        setSiteFormDustReportUrl("");
         setEditingSiteId(null);
         setIsModalOpen(false);
       } else {
@@ -288,29 +338,31 @@ export function SiteManagerDashboard({
               등록된 B2B 공사 현장의 세부 계약 내용과 사업자등록정보를 검증하고 수정/등록합니다.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSiteFormName("");
-              setSiteFormCompanyName(activeSite?.companyName || "");
-              setSiteFormAddress("");
-              setSiteFormRoadDesc("");
-              setSiteFormManagers("");
-              setSiteFormBizRegNo(activeSite?.bizRegNo || "");
-              setEditingSiteId(null);
-              setIsModalOpen(true);
-            }}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-blue-500/10"
-          >
-            + 신규 B2B 현장 등록
-          </button>
+          {!isWorkerRole && (
+            <button
+              type="button"
+              onClick={() => {
+                setSiteFormName("");
+                setSiteFormCompanyName(activeSite?.companyName || "");
+                setSiteFormAddress("");
+                setSiteFormRoadDesc("");
+                setSiteFormManagers("");
+                setSiteFormBizRegNo(activeSite?.bizRegNo || "");
+                setEditingSiteId(null);
+                setIsModalOpen(true);
+              }}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-blue-500/10"
+            >
+              + 신규 B2B 현장 등록
+            </button>
+          )}
         </div>
 
         {/* Master-Detail Split Screen Layout (Platform Admin style) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Left Column: Sites List (Master) */}
-          <div className="lg:col-span-1 p-4 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-3 max-h-[640px] overflow-y-auto">
+          <div className="lg:col-span-1 p-4 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-3 min-h-[740px] max-h-[calc(100vh-180px)] overflow-y-auto">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">공사 현장 목록 ({registeredSiteList.length})</h3>
             <div className="space-y-2">
               {registeredSiteList.map((site) => {
@@ -373,7 +425,11 @@ export function SiteManagerDashboard({
                       const hasActiveJob = dispatchRequestList.some(
                         job => job.siteId === selectedSite.id && (job.rawStatus === "OPEN" || job.rawStatus === "WAITING_APPROVAL")
                       );
-                      return (
+                      return isWorkerRole ? (
+                        <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-1 rounded">
+                          조회 전용 (담당자 권한)
+                        </span>
+                      ) : (
                         <>
                           <button
                             type="button"
@@ -389,6 +445,8 @@ export function SiteManagerDashboard({
                               setSiteFormRoadDesc(selectedSite.roadDesc || "");
                               setSiteFormManagers(selectedSite.managers?.join(", ") || "");
                               setSiteFormBizRegNo(selectedSite.bizRegNo || "");
+                              setSiteFormBizLicenseUrl(selectedSite.bizLicenseUrl || "");
+                              setSiteFormDustReportUrl(selectedSite.dustReportUrl || "");
                               setIsModalOpen(true);
                             }}
                             title={hasActiveJob ? "매칭 진행 중/승인 대기 오더 존재 시 현장 수정 불가" : "현장 정보 수정"}
@@ -408,18 +466,11 @@ export function SiteManagerDashboard({
                                 alert("현재 매칭 완료(기사 모집 중)이거나 승인 대기 중인 오더가 있어 현장을 삭제할 수 없습니다.");
                                 return;
                               }
-                              if (confirm(`[${selectedSite.name}] 현장을 정말 삭제처리 하시겠습니까?`)) {
+                              if (confirm(`[${selectedSite.name}] 현장을 정말 삭제 처리하시겠습니까?`)) {
                                 const ok = await handleDeleteSite(selectedSite.id);
                                 if (ok) {
-                                  alert("현장이 정상 삭제되었습니다.");
-                                  setSiteFormName("");
-                                  setSiteFormAddress("");
-                                  setSiteFormRoadDesc("");
-                                  setSiteFormManagers("");
-                                  setSiteFormBizRegNo("");
+                                  alert("현장이 삭제되었습니다.");
                                   setEditingSiteId(null);
-                                } else {
-                                  alert("삭제 처리에 실패했습니다.");
                                 }
                               }
                             }}
@@ -488,20 +539,74 @@ export function SiteManagerDashboard({
                       />
                     </div>
 
-                    <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 space-y-3">
-                      <span className="text-[10px] font-bold text-blue-700 uppercase block">실물 서류 검증 체크 상태</span>
-                      <div className="space-y-2 text-[11px] text-slate-600 font-semibold">
-                        <div className="flex items-center gap-2">
-                          <span className="text-emerald-500 font-bold">✓</span>
-                          <span>사업자등록증 사본 검증 완료</span>
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                      <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">실물 서류 및 본사 검증 진행 상태</span>
+                      <div className="space-y-2.5 text-xs font-semibold">
+                        {/* 1. 사업자등록증 */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {selectedSite.bizLicenseUrl ? (
+                              <span className="text-emerald-600 font-bold">✓</span>
+                            ) : (
+                              <span className="text-amber-500 font-bold">!</span>
+                            )}
+                            <span className={selectedSite.bizLicenseUrl ? "text-slate-700 font-bold" : "text-slate-500"}>
+                              1. 사업자등록증 서류
+                            </span>
+                          </div>
+                          {selectedSite.bizLicenseUrl ? (
+                            <a
+                              href={`http://127.0.0.1:8000${selectedSite.bizLicenseUrl}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-blue-600 font-bold hover:underline"
+                            >
+                              📄 열람하기
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                              미첨부 (수정에서 등록)
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-emerald-500 font-bold">✓</span>
-                          <span>비산먼지 배출신고 필증 일치</span>
+
+                        {/* 2. 비산먼지 배출신고 필증 */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {selectedSite.dustReportUrl ? (
+                              <span className="text-emerald-600 font-bold">✓</span>
+                            ) : (
+                              <span className="text-amber-500 font-bold">!</span>
+                            )}
+                            <span className={selectedSite.dustReportUrl ? "text-slate-700 font-bold" : "text-slate-500"}>
+                              2. 비산먼지 배출신고 필증
+                            </span>
+                          </div>
+                          {selectedSite.dustReportUrl ? (
+                            <a
+                              href={`http://127.0.0.1:8000${selectedSite.dustReportUrl}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-blue-600 font-bold hover:underline"
+                            >
+                              📄 열람하기
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                              미첨부 (수정에서 등록)
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-emerald-500 font-bold">✓</span>
-                          <span>대표 거래 법인계좌 검토 통과</span>
+
+                        {/* 3. 플랫폼 관리자 최종 승인 상태 */}
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                          <div className="flex items-center gap-2">
+                            <span className="text-emerald-600 font-bold">✓</span>
+                            <span className="text-slate-700 font-bold">3. 플랫폼 관리자 최종 승인</span>
+                          </div>
+                          <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                            최종 승인 완료
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -524,10 +629,10 @@ export function SiteManagerDashboard({
 
         {/* ==================== CREATE/EDIT MODAL POPUP ==================== */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden animate-scaleUp">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden animate-scaleUp max-h-[90vh] flex flex-col my-auto">
               {/* Modal Header */}
-              <div className="px-6 py-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">
                     {editingSiteId !== null ? `[${siteFormName}] 현장 정보 수정` : "신규 B2B 공사 현장 등록"}
@@ -553,118 +658,201 @@ export function SiteManagerDashboard({
               </div>
 
               {/* Modal Form */}
-              <form onSubmit={handleRegister} className="p-6 space-y-4 text-xs">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-slate-700 font-bold block">현장명 <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      value={siteFormName}
-                      onChange={(e) => setSiteFormName(e.target.value)}
-                      placeholder="예: 검단 3공구 신축공사"
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                      required
-                    />
+              <form onSubmit={handleRegister} className="p-6 text-xs overflow-y-auto flex-1">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column: Specs & File Uploads */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-slate-700 font-bold block">현장명 <span className="text-rose-500">*</span></label>
+                        <input
+                          type="text"
+                          value={siteFormName}
+                          onChange={(e) => setSiteFormName(e.target.value)}
+                          placeholder="예: 검단 3공구 신축공사"
+                          className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-slate-700 font-bold block">소속 건설사 <span className="text-slate-400 font-normal">(고정)</span></label>
+                        <input
+                          type="text"
+                          value={siteFormCompanyName || activeSite?.companyName || "담다건설"}
+                          readOnly
+                          disabled
+                          className="w-full bg-slate-100 border border-slate-205 rounded-lg px-3 py-2 text-slate-500 font-bold cursor-not-allowed select-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-slate-700 font-bold block">사업자등록번호 <span className="text-slate-400 font-normal">(고정)</span></label>
+                        <input
+                          type="text"
+                          value={siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678"}
+                          readOnly
+                          disabled
+                          className="w-full bg-slate-100 border border-slate-205 rounded-lg px-3 py-2 text-slate-500 font-bold cursor-not-allowed select-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-slate-700 font-bold block">담당자 (성명/연락처)</label>
+                        <input
+                          type="text"
+                          value={siteFormManagers}
+                          onChange={(e) => setSiteFormManagers(e.target.value)}
+                          placeholder="예: 홍길동 (010-1234-5678)"
+                          className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-slate-700 font-bold block">현장 주소 (비산먼지 배출신고지 기준) <span className="text-rose-500">*</span></label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={siteFormAddress}
+                          onChange={(e) => setSiteFormAddress(e.target.value)}
+                          placeholder="예: 인천광역시 서구 검단동 123-45"
+                          className="flex-1 bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddressSearch}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-750 font-bold text-white rounded-lg transition-colors active:scale-95 whitespace-nowrap"
+                        >
+                          주소 조회
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-slate-700 font-bold block">진입 가이드 (기사용 진입 안내문)</label>
+                      <input
+                        type="text"
+                        value={siteFormRoadDesc}
+                        onChange={(e) => setSiteFormRoadDesc(e.target.value)}
+                        placeholder="예: 정문 차단기 통과 후 우회전하여 100m 진입"
+                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                      />
+                    </div>
+
+                    {/* 실물 증빙 서류 파일 업로드 구역 (PDF 및 이미지 지원) */}
+                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+                      <span className="text-xs font-black text-slate-800 block">📑 현장 개설 실물 증빙 서류 첨부 (PDF / 이미지 파일)</span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {/* 1. 사업자등록증 */}
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-slate-700">1. 사업자등록증</span>
+                            {siteFormBizLicenseUrl ? (
+                              <span className="text-[8.5px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                ✓ 첨부 완료
+                              </span>
+                            ) : (
+                              <span className="text-[8.5px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                미첨부
+                              </span>
+                            )}
+                          </div>
+                          <label className="flex items-center justify-center px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition-all border border-slate-250">
+                            {isUploadingBizLicense ? "업로드 중..." : siteFormBizLicenseUrl ? "서류 파일 변경" : "📄 PDF/이미지 선택"}
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  uploadDocumentFile(e.target.files[0], "biz_license");
+                                }
+                              }}
+                            />
+                          </label>
+                          {siteFormBizLicenseUrl && (
+                            <a
+                              href={`http://127.0.0.1:8000${siteFormBizLicenseUrl}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[9.5px] text-blue-600 font-bold hover:underline block truncate"
+                            >
+                              🔗 서류 보기: {siteFormBizLicenseUrl.split('/').pop()}
+                            </a>
+                          )}
+                        </div>
+
+                        {/* 2. 비산먼지 배출신고 필증 */}
+                        <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-slate-700">2. 비산먼지 필증</span>
+                            {siteFormDustReportUrl ? (
+                              <span className="text-[8.5px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                ✓ 첨부 완료
+                              </span>
+                            ) : (
+                              <span className="text-[8.5px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                미첨부
+                              </span>
+                            )}
+                          </div>
+                          <label className="flex items-center justify-center px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition-all border border-slate-250">
+                            {isUploadingDustReport ? "업로드 중..." : siteFormDustReportUrl ? "서류 파일 변경" : "📄 PDF/이미지 선택"}
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  uploadDocumentFile(e.target.files[0], "dust_report");
+                                }
+                              }}
+                            />
+                          </label>
+                          {siteFormDustReportUrl && (
+                            <a
+                              href={`http://127.0.0.1:8000${siteFormDustReportUrl}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[9.5px] text-blue-600 font-bold hover:underline block truncate"
+                            >
+                              🔗 서류 보기: {siteFormDustReportUrl.split('/').pop()}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-slate-700 font-bold block">소속 건설사 (소속 고정) <span className="text-slate-400 font-normal">(수정 불가)</span></label>
-                    <input
-                      type="text"
-                      value={siteFormCompanyName || activeSite?.companyName || "담다건설"}
-                      readOnly
-                      disabled
-                      className="w-full bg-slate-100 border border-slate-205 rounded-lg px-3 py-2 text-slate-500 font-bold cursor-not-allowed select-none"
-                    />
+                  {/* Right Column: Interactive Kakao Map Pinning */}
+                  <div className="space-y-2.5 flex flex-col">
+                    <label className="text-slate-700 font-bold block">현장 지오펜싱 관제 구역 지정 (지도 핀찍기)</label>
+                    <div className="flex-1 min-h-[320px] rounded-2xl overflow-hidden border border-slate-200 shadow-inner">
+                      <MockMap
+                        title="현장 등록용"
+                        address={siteFormAddress || siteFormSearchQuery || "현장 주소를 입력 후 검색하거나 지도를 탭하세요"}
+                        pinned={!!siteFormSearchQuery || !!siteFormAddress}
+                        interactive={true}
+                        onLocationSelect={(newLat, newLng, newAddress) => {
+                          setSiteFormAddress(newAddress);
+                          setSiteFormSearchQuery(newAddress);
+                        }}
+                        onPinClick={() => {
+                          if (!siteFormAddress) {
+                            alert("먼저 현장 주소를 입력한 후 지도 핀을 지정해 주세요.");
+                            return;
+                          }
+                          setSiteFormSearchQuery(siteFormAddress);
+                        }}
+                      />
+                    </div>
                   </div>
-
-                  <div className="space-y-1.5 col-span-1">
-                    <label className="text-slate-700 font-bold block">사업자등록번호 <span className="text-slate-400 font-normal">(수정 불가)</span></label>
-                    <input
-                      type="text"
-                      value={siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678"}
-                      readOnly
-                      disabled
-                      className="w-full bg-slate-100 border border-slate-205 rounded-lg px-3 py-2 text-slate-500 font-bold cursor-not-allowed select-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 col-span-1">
-                    <label className="text-slate-700 font-bold block">담당자 (성명/연락처)</label>
-                    <input
-                      type="text"
-                      value={siteFormManagers}
-                      onChange={(e) => setSiteFormManagers(e.target.value)}
-                      placeholder="예: 홍길동 (010-1234-5678)"
-                      className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-slate-700 font-bold block">현장 주소 (비산먼지 배출신고지 기준) <span className="text-rose-500">*</span></label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={siteFormAddress}
-                      onChange={(e) => setSiteFormAddress(e.target.value)}
-                      placeholder="예: 인천광역시 서구 검단동 123-45"
-                      className="flex-1 bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddressSearch}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-750 font-bold text-white rounded-lg transition-colors active:scale-95"
-                    >
-                      주소 조회
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-slate-700 font-bold block">진입 가이드 (기사용 진입 안내문)</label>
-                  <input
-                    type="text"
-                    value={siteFormRoadDesc}
-                    onChange={(e) => setSiteFormRoadDesc(e.target.value)}
-                    placeholder="예: 정문 차단기 통과 후 우회전하여 100m 진입"
-                    className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                  />
-                </div>
-
-                {/* Interactive MockMap inside Modal */}
-                <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                  <label className="text-slate-700 font-bold block">현장 지오펜싱 관제 구역 지정 (지도 핀찍기)</label>
-                  <MockMap
-                    title="현장 등록용"
-                    address={siteFormAddress || siteFormSearchQuery || "현장 주소를 입력 후 검색하거나 지도를 탭하세요"}
-                    pinned={!!siteFormSearchQuery || !!siteFormAddress}
-                    interactive={true}
-                    onLocationSelect={(newLat, newLng, newAddress) => {
-                      setSiteFormAddress(newAddress);
-                      setSiteFormSearchQuery(newAddress);
-                    }}
-                    onPinClick={() => {
-                      if (!siteFormAddress) {
-                        alert("먼저 현장 주소를 입력한 후 지도 핀을 지정해 주세요.");
-                        return;
-                      }
-                      setSiteFormSearchQuery(siteFormAddress);
-                    }}
-                  />
-                </div>
-
-                {/* Document checklist mockup for modal */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-black text-blue-600 block uppercase mb-1">실물 증빙 서류 지침</span>
-                  <p className="text-[10px] text-slate-500 leading-normal">
-                    * 신규 개설 시 제출하신 소장님 가입 서류(사업자등록증, 비산먼지 필증)와 본사 등록 내역이 플랫폼 관리자 검토를 통해 확인 대조됩니다.
-                  </p>
                 </div>
 
                 {/* Modal Footer Controls */}
-                <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+                <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -846,7 +1034,7 @@ export function SiteManagerDashboard({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 p-4 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-3 max-h-[640px] overflow-y-auto">
+          <div className="lg:col-span-1 p-4 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-3 min-h-[740px] max-h-[calc(100vh-180px)] overflow-y-auto">
             <div className="space-y-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
@@ -1242,9 +1430,9 @@ export function SiteManagerDashboard({
         )}
 
         {isDispatchModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden animate-scaleUp">
-              <div className="px-6 py-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden animate-scaleUp max-h-[90vh] flex flex-col my-auto">
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">
                     {editingDispatchRequestId !== null ? "배차 요청서 수정" : "신규 차량 배차 요청 등록"}
@@ -1263,7 +1451,7 @@ export function SiteManagerDashboard({
                 </button>
               </div>
 
-              <form onSubmit={handleSaveRequest} className="p-6 space-y-4 text-xs">
+              <form onSubmit={handleSaveRequest} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
                 <div className="space-y-1.5">
                   <label className="text-slate-700 font-bold block">요청 현장 선택 <span className="text-rose-500">*</span></label>
                   <select
