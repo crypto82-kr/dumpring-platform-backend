@@ -524,9 +524,10 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
                       if (_isEditMode) ...[
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent.withOpacity(0.15),
-                            foregroundColor: Colors.redAccent,
-                            side: const BorderSide(color: Colors.redAccent),
+                            backgroundColor: const Color(0xFFFEF2F2), // Light red background
+                            foregroundColor: const Color(0xFFDC2626), // Red text color
+                            elevation: 0, // Remove shadow mud
+                            side: const BorderSide(color: Color(0xFFFCA5A5)), // Red border
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
