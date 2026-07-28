@@ -196,6 +196,23 @@ class UserUploadedDocument(Base):
     user = relationship("User")
 
 
+class Notification(Base):
+    """
+    앱 내 알림 테이블
+    """
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    target_phone = Column(String, nullable=False, index=True) # 알림을 수신할 휴대폰 번호
+    sender_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) # 알림 보낸 차주 유저 ID
+    message = Column(String, nullable=False) # 알림 내용
+    is_read = Column(Boolean, default=False, nullable=False) # 읽음 여부
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    sender = relationship("User", foreign_keys=[sender_id])
+
+
 class Order(Base):
     """
     7. Order (기사 모집글 테이블 - 핵심 🚨)

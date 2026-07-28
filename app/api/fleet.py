@@ -5,8 +5,8 @@ from typing import List
 from pydantic import BaseModel
 
 from app.core.db import get_db
-from app.models import User, Driver, Car
-from app.api.auth import get_current_owner
+from app.models import User, Driver, Car, Notification
+from app.api.auth import get_current_owner, get_current_user
 
 router = APIRouter()
 
@@ -287,3 +287,128 @@ async def create_my_car(
         insurance_file=new_car.insurance_file,
         insurance_url=new_car.insurance_url,
     )
+
+
+class InviteDriverRequest(BaseModel):
+    phone_number: str
+    name: str
+
+
+class NotificationResponse(BaseModel):
+    id: int
+    target_phone: str
+    sender_name: str
+    message: str
+    is_read: bool
+    created_at: str
+
+    class Config:
+        orm_mode = True
+
+
+@router.post(
+    "/invite-driver",
+    summary="차주 사장님의 기사 초대 (앱내 알림)"
+)
+async def invite_driver(
+    data: InviteDriverRequest,
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    phone = data.phone_number.strip()
+    name = data.name.strip()
+
+    # 1. 기사 회원으로 가입된 유저가 있는지 조회
+    user_query = select(User).where(User.phone_number == phone)
+    user_result = await db.execute(user_query)
+    driver_user = user_result.scalars().first()
+
+    # 2. Driver 테이블 선등록/링크 확인
+    driver_query = select(Driver).where(Driver.registered_phone == phone)
+    driver_result = await db.execute(driver_query)
+    existing_driver = driver_result.scalars().first()
+
+    if not existing_driver:
+        new_driver = Driver(
+            user_id=driver_user.id if driver_user else None,
+            registered_phone=phone,
+            is_approved=False
+        )
+        db.add(new_driver)
+    else:
+        if driver_user and not existing_driver.user_id:
+            existing_driver.user_id = driver_user.id
+
+    # 3. 알림 전송 저장
+    new_notif = Notification(
+        target_phone=phone,
+        sender_id=current_owner.id,
+        message=f"'{current_owner.name}' 차주님으로부터 소속 기사 초대 요청이 도착했습니다. (기사 성명: {name})"
+    )
+    db.add(new_notif)
+    await db.commit()
+
+    return {"message": "기사 초대 알림이 정상적으로 전송되었습니다."}
+
+
+@router.get(
+    "/my-notifications",
+    response_model=List[NotificationResponse],
+    summary="기사의 수신 알림 목록 조회"
+)
+async def get_my_notifications(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(Notification).where(
+        Notification.target_phone == current_user.phone_number
+    ).order_by(Notification.created_at.desc())
+    result = await db.execute(query)
+    notifs = result.scalars().all()
+
+    response_list = []
+    for n in notifs:
+        # 보낸 사람 이름
+        sender_query = select(User).where(User.id == n.sender_id)
+        sender_result = await db.execute(sender_query)
+        sender = sender_result.scalars().first()
+        sender_name = sender.name if sender else "알 수 없음"
+
+        response_list.append(
+            NotificationResponse(
+                id=n.id,
+                target_phone=n.target_phone,
+                sender_name=sender_name,
+                message=n.message,
+                is_read=n.is_read,
+                created_at=n.created_at.isoformat()
+            )
+        )
+    return response_list
+
+
+@router.post(
+    "/read-notification/{notification_id}",
+    summary="알림 읽음 처리"
+)
+async def read_notification(
+    notification_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(Notification).where(
+        Notification.id == notification_id,
+        Notification.target_phone == current_user.phone_number
+    )
+    result = await db.execute(query)
+    notif = result.scalars().first()
+
+    if not notif:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="알림을 찾을 수 없습니다."
+        )
+
+    notif.is_read = True
+    await db.commit()
+    return {"message": "알림이 읽음 처리되었습니다."}

@@ -121,6 +121,52 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
   }
 
   // 기사 초대 바텀시트
+  Future<void> _sendInvitation(String name, String phone) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/fleet/invite-driver"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer ${widget.token}",
+        },
+        body: jsonEncode({
+          "phone_number": phone,
+          "name": name,
+        }),
+      );
+      if (response.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("📲 기사님께 앱 내 초대 알림이 정상적으로 전송되었습니다."),
+              backgroundColor: Color(0xFF004D5A),
+            ),
+          );
+          _fetchDrivers();
+        }
+      } else {
+        final err = jsonDecode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("❌ 초대 실패: ${err['detail'] ?? '오류가 발생했습니다.'}"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("❌ 서버 연결 실패: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _inviteDriverBottomSheet() {
     final TextEditingController phoneController = TextEditingController();
     final TextEditingController nameController = TextEditingController();
@@ -176,14 +222,16 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
 
             ElevatedButton(
               onPressed: () {
+                final String name = nameController.text.trim();
+                final String phone = phoneController.text.trim();
+                if (name.isEmpty || phone.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("기사 성명과 휴대폰 번호를 모두 입력해주세요.")),
+                  );
+                  return;
+                }
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("📲 입력하신 번호로 기사 초대 및 앱 설치 SMS 링크가 정상적으로 발송되었습니다."),
-                    backgroundColor: Color(0xFF004D5A),
-                  ),
-                );
-                _fetchDrivers();
+                _sendInvitation(name, phone);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF004D5A),

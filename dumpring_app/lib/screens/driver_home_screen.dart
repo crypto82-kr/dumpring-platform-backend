@@ -100,6 +100,126 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     _loadOpenJobs(isRefresh: true);
   }
 
+  List<dynamic> _notifications = [];
+  int _unreadNotifCount = 0;
+  Timer? _notificationTimer;
+
+  Future<void> _fetchNotifications() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/fleet/my-notifications"),
+        headers: {"Authorization": "Bearer ${widget.token}"},
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _notifications = data;
+            _unreadNotifCount = data.where((n) => n['is_read'] == false).length;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("알림 조회 에러: $e");
+    }
+  }
+
+  Future<void> _markNotificationAsRead(int id) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/fleet/read-notification/$id"),
+        headers: {"Authorization": "Bearer ${widget.token}"},
+      );
+      if (response.statusCode == 200) {
+        _fetchNotifications();
+      }
+    } catch (e) {
+      debugPrint("알림 읽음 처리 에러: $e");
+    }
+  }
+
+  void _showNotificationsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.notifications_active, color: Color(0xFF004D5A)),
+                  const SizedBox(width: 8),
+                  const Text("앱 내 알림함", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 350,
+                child: _notifications.isEmpty
+                    ? const Center(
+                        child: Text("도착한 알림이 없습니다.", style: TextStyle(color: Colors.grey)),
+                      )
+                    : ListView.separated(
+                        itemCount: _notifications.length,
+                        separatorBuilder: (_, __) => const Divider(),
+                        itemBuilder: (context, index) {
+                          final notif = _notifications[index];
+                          final bool isRead = notif['is_read'] == true;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              notif['message'] ?? '',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                color: isRead ? Colors.black54 : Colors.black87,
+                              ),
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Text(
+                                notif['created_at'].toString().contains('T')
+                                    ? notif['created_at'].toString().split('T')[0] +
+                                        ' ' +
+                                        notif['created_at'].toString().split('T')[1].substring(0, 5)
+                                    : notif['created_at'].toString(),
+                                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              ),
+                            ),
+                            trailing: isRead
+                                ? const Icon(Icons.check_circle_outline, color: Colors.grey, size: 20)
+                                : ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF004D5A),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: const Size(40, 28),
+                                    ),
+                                    onPressed: () async {
+                                      await _markNotificationAsRead(notif['id']);
+                                      setDialogState(() {
+                                        notif['is_read'] = true;
+                                      });
+                                    },
+                                    child: const Text("확인", style: TextStyle(fontSize: 11, color: Colors.white)),
+                                  ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text("닫기", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +231,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     _scrollController = ScrollController()..addListener(_scrollListener);
     _loadFavorites();
     _initAndLoadJobs();
+    _fetchNotifications();
+    _notificationTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
+      _fetchNotifications();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkActiveTicket();
     });
@@ -118,6 +242,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
   @override
   void dispose() {
+    _notificationTimer?.cancel();
     _pulseController.dispose();
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
@@ -499,6 +624,40 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
           ),
           centerTitle: true,
           actions: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined, color: Color(0xFF004D5A)),
+                  onPressed: _showNotificationsDialog,
+                ),
+                if (_unreadNotifCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$_unreadNotifCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             IconButton(
               icon: Icon(Icons.history_rounded, color: AppColors.primary),
               onPressed: () {
