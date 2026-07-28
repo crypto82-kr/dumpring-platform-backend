@@ -334,11 +334,13 @@ async def invite_driver(
     if not existing_driver:
         new_driver = Driver(
             user_id=driver_user.id if driver_user else None,
+            owner_id=current_owner.id,
             registered_phone=phone,
             is_approved=False
         )
         db.add(new_driver)
     else:
+        existing_driver.owner_id = current_owner.id
         if driver_user and not existing_driver.user_id:
             existing_driver.user_id = driver_user.id
 
