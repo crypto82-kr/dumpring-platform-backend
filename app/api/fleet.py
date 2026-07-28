@@ -497,6 +497,11 @@ async def get_driver_detail(
     cars = car_result.scalars().all()
     car_ids = [c.id for c in cars]
 
+    # 소속 검증 및 데이터 복구 (Heal)
+    if driver.owner_id is None:
+        driver.owner_id = current_owner.id
+        await db.commit()
+
     if driver.owner_id != current_owner.id and driver.current_car_id not in car_ids:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -572,6 +577,11 @@ async def kick_driver(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="기사를 찾을 수 없습니다."
         )
+
+    # 소속 검증 및 데이터 복구 (Heal)
+    if driver.owner_id is None:
+        driver.owner_id = current_owner.id
+        await db.commit()
 
     # 소속 검증
     car_query = select(Car).where(Car.owner_id == current_owner.id)
