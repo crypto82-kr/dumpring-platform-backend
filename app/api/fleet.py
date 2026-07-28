@@ -470,3 +470,128 @@ async def assign_driver(
 
     await db.commit()
     return {"message": "차량 기사 매핑이 성공적으로 업데이트되었습니다."}
+
+
+@router.get(
+    "/driver-detail/{driver_id}",
+    summary="차주가 기사 상세 정보 및 서류 목록 조회"
+)
+async def get_driver_detail(
+    driver_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    # 기사 정보 조회 및 소속 검증
+    driver_query = select(Driver).where(Driver.id == driver_id)
+    driver_result = await db.execute(driver_query)
+    driver = driver_result.scalars().first()
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="기사를 찾을 수 없습니다."
+        )
+
+    # 차주 소속 차량들 조회
+    car_query = select(Car).where(Car.owner_id == current_owner.id)
+    car_result = await db.execute(car_query)
+    cars = car_result.scalars().all()
+    car_ids = [c.id for c in cars]
+
+    if driver.owner_id != current_owner.id and driver.current_car_id not in car_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="조회 권한이 없습니다."
+        )
+
+    # 기사 유저 정보 조회
+    driver_user = None
+    if driver.user_id:
+        user_query = select(User).where(User.id == driver.user_id)
+        user_result = await db.execute(user_query)
+        driver_user = user_result.scalars().first()
+
+    # 배정 차량 번호
+    car_number = "미배정"
+    if driver.current_car_id:
+        car_sel = select(Car).where(Car.id == driver.current_car_id)
+        car_res = await db.execute(car_sel)
+        c = car_res.scalars().first()
+        if c:
+            car_number = c.car_number
+
+    # 제출 서류들 조회
+    documents = []
+    if driver.user_id:
+        doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == driver.user_id)
+        doc_res = await db.execute(doc_query)
+        docs = doc_res.scalars().all()
+        for doc in docs:
+            code_name = "기타 서류"
+            if doc.document_code == "DRIVERS_LICENSE":
+                code_name = "운전면허증"
+            elif doc.document_code == "CARGO_QUALIFICATION":
+                code_name = "화물운송자격증"
+            
+            url = doc.file_name
+            if url and not url.startswith("http"):
+                url = "/static/uploads/documents/" + url.split("/")[-1]
+            
+            documents.append({
+                "code": doc.document_code,
+                "code_name": code_name,
+                "file_name": doc.file_name.split("/")[-1],
+                "file_url": url
+            })
+
+    return {
+        "driver_id": driver.id,
+        "name": driver_user.name if driver_user else "선등록 대기기사",
+        "phone_number": driver.registered_phone,
+        "car_number": car_number,
+        "is_approved": driver.is_approved,
+        "reject_reason": driver.reject_reason,
+        "user_id": driver.user_id,
+        "documents": documents
+    }
+
+
+@router.delete(
+    "/kick-driver/{driver_id}",
+    summary="차주가 기사 삭제/소속 해제"
+)
+async def kick_driver(
+    driver_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    driver_query = select(Driver).where(Driver.id == driver_id)
+    driver_result = await db.execute(driver_query)
+    driver = driver_result.scalars().first()
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="기사를 찾을 수 없습니다."
+        )
+
+    # 소속 검증
+    car_query = select(Car).where(Car.owner_id == current_owner.id)
+    car_result = await db.execute(car_query)
+    cars = car_result.scalars().all()
+    car_ids = [c.id for c in cars]
+
+    if driver.owner_id != current_owner.id and driver.current_car_id not in car_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="권한이 없습니다."
+        )
+
+    # 기사 삭제 또는 소속 관계 해제
+    if driver.user_id:
+        driver.owner_id = None
+        driver.current_car_id = None
+        driver.is_approved = False
+    else:
+        await db.delete(driver)
+
+    await db.commit()
+    return {"message": "기사 소속 해제가 완료되었습니다."}

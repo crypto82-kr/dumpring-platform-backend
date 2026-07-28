@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'common_drawer.dart';
 import 'vehicle_management_screen.dart';
+import 'driver_detail_screen.dart';
 
 class OwnerHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -400,6 +401,26 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    onTap: () {
+                      if (d['id'] != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DriverDetailScreen(
+                              user: _currentUser,
+                              token: widget.token,
+                              driverId: d['id'] as int,
+                            ),
+                          ),
+                        ).then((value) {
+                          if (value == true) {
+                            _fetchAllData();
+                          } else {
+                            _fetchAllData(); // Refresh anyway to get any vehicle assignment updates
+                          }
+                        });
+                      }
+                    },
                     title: Text(d['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)))),
                     subtitle: Text(
                       "연락처: ${d['phone'] ?? ''} / 배정차량: ${d['car'] ?? '미배정'}\n규격: ${d['tonnage'] ?? ''}",

@@ -570,7 +570,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                       value: null,
                                       child: Text("미배정 (선택 안 함)", style: TextStyle(fontSize: 14)),
                                     ),
-                                    ..._myDrivers.map((d) => DropdownMenuItem<int?>(
+                                    ..._myDrivers.where((d) => d["car"] == "미배정" || d["id"] == _selectedDriverId).map((d) => DropdownMenuItem<int?>(
                                       value: d["id"] as int?,
                                       child: Text("${d['name']} (${d['phone']})", style: const TextStyle(fontSize: 14)),
                                     )),
