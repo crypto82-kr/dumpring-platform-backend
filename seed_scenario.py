@@ -425,8 +425,23 @@ async def seed_scenario_data():
         # [페이징 테스트] 추가 100건 대량의 DropOff, DropOffRequest, JobPost 생성
         # ──────────────────────────────────────────
         from sqlalchemy import delete
-        # 먼저 기존 대량 테스트 데이터 삭제
+        # 먼저 기존 대량 테스트 데이터 삭제 (FK 연관 테이블 순서대로 삭제하여 제약 조건 위반 방지)
+        # 1. 테스트용 JobPost 삭제
         await session.execute(delete(JobPost).where(JobPost.memo.like("%무한 스크롤 및 지역 검색 테스트용 데이터입니다.%")))
+        
+        # 2. 테스트용 DropOffRequest 삭제를 위해 bulk DropOff ID 목록 확보 후 삭제
+        subq = select(DropOff.id).where(DropOff.permit_number.like("BULK-PERMIT-%"))
+        res = await session.execute(subq)
+        bulk_do_ids = res.scalars().all()
+        if bulk_do_ids:
+            # 먼저 해당 DropOff에 속한 JobPost들 전부 정리
+            await session.execute(delete(JobPost).where(JobPost.drop_off_request_id.in_(
+                select(DropOffRequest.id).where(DropOffRequest.drop_off_id.in_(bulk_do_ids))
+            )))
+            # 그 후 DropOffRequest 삭제
+            await session.execute(delete(DropOffRequest).where(DropOffRequest.drop_off_id.in_(bulk_do_ids)))
+            
+        # 3. 마지막으로 DropOff 삭제
         await session.execute(delete(DropOff).where(DropOff.permit_number.like("BULK-PERMIT-%")))
         await session.commit()
 

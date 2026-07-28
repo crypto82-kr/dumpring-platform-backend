@@ -144,6 +144,7 @@ class MemberStatusResponse(BaseModel):
     is_approved: bool
     reject_reason: Optional[str] = None
     uploaded_documents: list[str] = []
+    uploaded_files: dict[str, str] = {}
     missing_documents: list[RequiredDocumentResponse] = []
 
 

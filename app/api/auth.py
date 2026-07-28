@@ -616,11 +616,13 @@ async def get_member_status(
     
     # 3. 유저가 제출한 서류 목록
     uploaded_codes = []
+    uploaded_files_map = {}
     if group_code:
         uploaded_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
         uploaded_result = await db.execute(uploaded_query)
         uploaded_docs = uploaded_result.scalars().all()
         uploaded_codes = [d.document_code for d in uploaded_docs]
+        uploaded_files_map = {d.document_code: d.file_name for d in uploaded_docs}
     
     # 4. 미제출 서류 목록 도출
     missing_docs = []
@@ -654,6 +656,7 @@ async def get_member_status(
         is_approved=is_approved,
         reject_reason=reject_reason,
         uploaded_documents=uploaded_codes,
+        uploaded_files=uploaded_files_map,
         missing_documents=missing_docs
     )
 

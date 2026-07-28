@@ -705,9 +705,14 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   child: Builder(
                     builder: (context) {
                       if (fileBytes != null && fileBytes.isNotEmpty) {
-                        return Image.memory(
-                          Uint8List.fromList(fileBytes),
-                          fit: BoxFit.contain,
+                        return InteractiveViewer(
+                          panEnabled: true,
+                          minScale: 0.5,
+                          maxScale: 5.0,
+                          child: Image.memory(
+                            Uint8List.fromList(fileBytes),
+                            fit: BoxFit.contain,
+                          ),
                         );
                       }
 
@@ -715,47 +720,52 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                           ? (fileUrl.startsWith("http") ? fileUrl : "$_baseUrl$fileUrl")
                           : "$_baseUrl/static/uploads/documents/$fileName";
 
-                      return Image.network(
-                        streamUrl,
-                        fit: BoxFit.contain,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(32.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                        : null,
-                                    color: const Color(0xFF004D5A),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  const Text("서버에서 원본 서류 불러오는 중...", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                ],
+                      return InteractiveViewer(
+                        panEnabled: true,
+                        minScale: 0.5,
+                        maxScale: 5.0,
+                        child: Image.network(
+                          streamUrl,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      value: loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                          : null,
+                                      color: const Color(0xFF004D5A),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    const Text("서버에서 원본 서류 불러오는 중...", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.description, size: 52, color: Color(0xFF004D5A)),
-                                  const SizedBox(height: 10),
-                                  Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                  const SizedBox(height: 4),
-                                  const Text("덤프링 백엔드 서버 검수 보관 문서", style: TextStyle(fontSize: 12, color: Colors.green)),
-                                ],
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.description, size: 52, color: Color(0xFF004D5A)),
+                                    const SizedBox(height: 10),
+                                    Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                    const SizedBox(height: 4),
+                                    const Text("덤프링 백엔드 서버 검수 보관 문서", style: TextStyle(fontSize: 12, color: Colors.green)),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       );
                     },
                   ),

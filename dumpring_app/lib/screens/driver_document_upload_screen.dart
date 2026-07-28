@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'driver_pending_screen.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../shared/file_picker_helper.dart';
 
 class DriverDocumentUploadScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -79,10 +81,17 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        final uploaded = decoded['uploaded_documents'] as List;
+        final uploadedFilesMap = decoded['uploaded_files'] as Map<String, dynamic>?;
         setState(() {
-          for (var code in uploaded) {
-            _uploadedFiles[code] = "제출완료_${code.toLowerCase()}.jpg";
+          if (uploadedFilesMap != null) {
+            uploadedFilesMap.forEach((key, value) {
+              _uploadedFiles[key] = value as String;
+            });
+          } else {
+            final uploaded = decoded['uploaded_documents'] as List;
+            for (var code in uploaded) {
+              _uploadedFiles[code] = "제출완료_${code.toLowerCase()}.jpg";
+            }
           }
         });
       }
@@ -123,41 +132,16 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
     }
   }
 
-  Future<void> _pickAndUploadImage(String docCode) async {
-    final ImagePicker picker = ImagePicker();
-    
-    final ImageSource? source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Color(0xFF004D5A)),
-              title: const Text('카메라로 촬영하기'),
-              onTap: () => Navigator.of(context).pop(ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Color(0xFF004D5A)),
-              title: const Text('갤러리에서 선택하기'),
-              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _pickAndUploadFile(String docCode) async {
+    SelectedFile? selectedFile;
 
-    if (source == null) return;
+    try {
+      selectedFile = await FilePickerHelper.pickFile();
+    } catch (e) {
+      debugPrint("파일 선택 에러: $e");
+    }
 
-    final XFile? image = await picker.pickImage(
-      source: source,
-      imageQuality: 80,
-      maxWidth: 1920,
-    );
-
-    if (image == null) return;
+    if (selectedFile == null) return;
 
     setState(() {
       _isSubmitting = true;
@@ -172,9 +156,10 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
       request.headers['Authorization'] = "Bearer ${widget.token}";
       request.fields['category'] = 'documents';
       
-      final multipartFile = await http.MultipartFile.fromPath(
+      final multipartFile = http.MultipartFile.fromBytes(
         'file',
-        image.path,
+        selectedFile.bytes,
+        filename: selectedFile.name,
       );
       request.files.add(multipartFile);
 
@@ -204,6 +189,108 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
       }
     }
   }
+
+  void _showDocumentOptions(String docCode) {
+    final fileName = _uploadedFiles[docCode];
+    if (fileName == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.visibility, color: Color(0xFF004D5A)),
+              title: const Text('서류 보기 (PDF/이미지)'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _viewDocument(fileName);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_upload, color: Color(0xFF004D5A)),
+              title: const Text('새로운 서류로 변경'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickAndUploadFile(docCode);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Future<void> _viewDocument(String fileName) async {
+    String url = fileName;
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      if (url.startsWith("/static/")) {
+        url = "$_baseUrl$url";
+      } else {
+        url = "$_baseUrl/static/uploads/documents/$url";
+      }
+    }
+
+    final String lowerUrl = url.toLowerCase();
+    final bool isImage = lowerUrl.endsWith('.png') ||
+        lowerUrl.endsWith('.jpg') ||
+        lowerUrl.endsWith('.jpeg') ||
+        lowerUrl.endsWith('.gif') ||
+        lowerUrl.endsWith('.webp');
+
+    if (isImage) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            backgroundColor: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.black,
+              iconTheme: const IconThemeData(color: Colors.white),
+              title: const Text("서류 보기", style: TextStyle(color: Colors.white)),
+            ),
+            body: Center(
+              child: InteractiveViewer(
+                panEnabled: true,
+                minScale: 0.5,
+                maxScale: 5.0,
+                child: Image.network(
+                  url,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFFFF7A00)));
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Center(
+                      child: Text("이미지를 불러올 수 없습니다.", style: TextStyle(color: Colors.white)),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      final uri = Uri.parse(url);
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      } catch (e) {
+        debugPrint("서류 열기 실패: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("📄 서류를 열 수 없습니다: $url")),
+        );
+      }
+    }
+  }
+
 
   void _submitAllDocuments() {
     final missing = _requiredDocs.where((doc) => _uploadedFiles[doc['code']] == null).toList();
@@ -321,7 +408,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                                 ),
                               ),
                               child: InkWell(
-                                onTap: () => _pickAndUploadImage(docCode),
+                                onTap: () => isUploaded ? _showDocumentOptions(docCode) : _pickAndUploadFile(docCode),
                                 borderRadius: BorderRadius.circular(16),
                                 child: Padding(
                                   padding: const EdgeInsets.all(20.0),
