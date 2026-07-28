@@ -37,6 +37,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   bool _isLoading = false;
   bool _isSaving = false;
   String? _errorMessage;
+
+  List<Map<String, dynamic>> _myDrivers = [];
+  int? _selectedDriverId;
   
   // 서류 파일 상태 변수 및 미리보기 데이터
   String? _machineryRegFile;
@@ -128,6 +131,36 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
             });
           }
         }
+
+        // Fetch drivers
+        final driversResponse = await http.get(
+          Uri.parse("$_baseUrl/api/fleet/my-drivers"),
+          headers: {
+            "Authorization": "Bearer ${widget.token}",
+          },
+        );
+        if (driversResponse.statusCode == 200) {
+          final List<dynamic> driversList = jsonDecode(utf8.decode(driversResponse.bodyBytes));
+          setState(() {
+            _myDrivers = driversList.map((d) => {
+              "id": d["driver_id"] as int,
+              "name": d["name"] ?? "선등록 대기기사",
+              "phone": d["phone_number"] ?? "",
+              "car": d["car_number"] ?? "미배정",
+            }).toList();
+
+            final String currentCarNum = _vehicleNumController.text.trim();
+            _selectedDriverId = null;
+            if (currentCarNum.isNotEmpty) {
+              for (var d in _myDrivers) {
+                if (d["car"] == currentCarNum) {
+                  _selectedDriverId = d["id"];
+                  break;
+                }
+              }
+            }
+          });
+        }
       } else {
         final response = await http.get(
           Uri.parse("$_baseUrl/api/auth/profile"),
@@ -216,6 +249,23 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       );
 
       if (carResponse.statusCode == 200 || carResponse.statusCode == 201) {
+        if (widget.user['is_owner'] == true) {
+          final carResponseData = jsonDecode(utf8.decode(carResponse.bodyBytes));
+          final int carId = carResponseData['id'] as int;
+
+          await http.post(
+            Uri.parse("$_baseUrl/api/fleet/assign-driver"),
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer ${widget.token}",
+            },
+            body: jsonEncode({
+              "car_id": carId,
+              "driver_id": _selectedDriverId,
+            }),
+          );
+        }
+
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -501,6 +551,39 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
                                 ),
                               ),
+                              if (widget.user['is_owner'] == true) ...[
+                                const SizedBox(height: 16),
+                                Text("배정 기사 선택", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                                const SizedBox(height: 8),
+                                DropdownButtonFormField<int?>(
+                                  value: _selectedDriverId,
+                                  dropdownColor: AppColors.surface,
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: AppColors.background,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<int?>(
+                                      value: null,
+                                      child: Text("미배정 (선택 안 함)", style: TextStyle(fontSize: 14)),
+                                    ),
+                                    ..._myDrivers.map((d) => DropdownMenuItem<int?>(
+                                      value: d["id"] as int?,
+                                      child: Text("${d['name']} (${d['phone']})", style: const TextStyle(fontSize: 14)),
+                                    )),
+                                  ],
+                                  onChanged: widget.isReadOnly
+                                      ? null
+                                      : (val) {
+                                          setState(() {
+                                            _selectedDriverId = val;
+                                          });
+                                        },
+                                ),
+                              ],
                             ],
                           ),
                         ),

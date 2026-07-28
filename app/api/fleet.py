@@ -417,3 +417,56 @@ async def read_notification(
     notif.is_read = True
     await db.commit()
     return {"message": "알림이 읽음 처리되었습니다."}
+
+
+class AssignDriverRequest(BaseModel):
+    car_id: int
+    driver_id: int | None = None
+
+
+@router.post(
+    "/assign-driver",
+    summary="차량에 기사 매핑/배정"
+)
+async def assign_driver(
+    data: AssignDriverRequest,
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    # 1. 차량 소유주 검증
+    car_query = select(Car).where(Car.id == data.car_id, Car.owner_id == current_owner.id)
+    car_result = await db.execute(car_query)
+    car = car_result.scalars().first()
+    if not car:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 차량을 찾을 수 없거나 권한이 없습니다."
+        )
+
+    # 2. 해당 차량에 배정되어 있던 기존 기사 해제
+    old_drivers_query = select(Driver).where(Driver.current_car_id == data.car_id)
+    old_drivers_result = await db.execute(old_drivers_query)
+    old_drivers = old_drivers_result.scalars().all()
+    for od in old_drivers:
+        od.current_car_id = None
+
+    # 3. 새 기사 배정
+    if data.driver_id is not None:
+        # 기사 정보 조회 및 소속 검증 (owner_id가 일치해야 함)
+        driver_query = select(Driver).where(
+            Driver.id == data.driver_id,
+            (Driver.owner_id == current_owner.id) | (Driver.current_car_id == data.car_id)
+        )
+        driver_result = await db.execute(driver_query)
+        driver = driver_result.scalars().first()
+        if not driver:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="해당 기사를 찾을 수 없거나 차주 소속이 아닙니다."
+            )
+
+        driver.current_car_id = data.car_id
+        driver.is_approved = True  # 배정 시 자동 승인 처리
+
+    await db.commit()
+    return {"message": "차량 기사 매핑이 성공적으로 업데이트되었습니다."}
