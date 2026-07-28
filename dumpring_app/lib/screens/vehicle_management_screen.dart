@@ -7,6 +7,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class VehicleManagementScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -716,9 +717,10 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                         );
                       }
 
-                      final String streamUrl = (fileUrl != null && fileUrl.isNotEmpty)
-                          ? (fileUrl.startsWith("http") ? fileUrl : "$_baseUrl$fileUrl")
-                          : "$_baseUrl/static/uploads/documents/$fileName";
+                      final String rawUrl = (fileUrl != null && fileUrl.isNotEmpty) ? fileUrl : "/static/uploads/documents/$fileName";
+                      final String cleanUrl = rawUrl.startsWith("/") ? rawUrl.substring(1) : rawUrl;
+                      final String streamUrl = cleanUrl.startsWith("http") ? cleanUrl : (_baseUrl.endsWith("/") ? "$_baseUrl$cleanUrl" : "$_baseUrl/$cleanUrl");
+                      debugPrint("🔍 [DEBUG] vehicle detail streamUrl: $streamUrl");
 
                       final bool isPdf = streamUrl.toLowerCase().endsWith('.pdf') || fileName.toLowerCase().endsWith('.pdf');
 

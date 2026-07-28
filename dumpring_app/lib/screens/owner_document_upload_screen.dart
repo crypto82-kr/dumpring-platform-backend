@@ -227,12 +227,11 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
   Future<void> _viewDocument(String fileName) async {
     String url = fileName;
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      if (url.startsWith("/static/")) {
-        url = "$_baseUrl$url";
-      } else {
-        url = "$_baseUrl/static/uploads/documents/$url";
-      }
+      final String path = url.startsWith("/static/") ? url : "/static/uploads/documents/$url";
+      final String cleanPath = path.startsWith("/") ? path.substring(1) : path;
+      url = _baseUrl.endsWith("/") ? "$_baseUrl$cleanPath" : "$_baseUrl/$cleanPath";
     }
+    debugPrint("🔍 [DEBUG] owner viewDocument url: $url");
 
     final String lowerUrl = url.toLowerCase();
     final bool isImage = lowerUrl.endsWith('.png') ||
