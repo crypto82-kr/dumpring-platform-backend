@@ -95,32 +95,67 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   Future<void> _fetchVehicleInfo() async {
     setState(() => _isLoading = true);
     try {
-      final response = await http.get(
-        Uri.parse("$_baseUrl/api/auth/profile"),
-        headers: {
-          "Authorization": "Bearer ${widget.token}",
-        },
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final user = data['user'] ?? data;
-        setState(() {
-          if (_vehicleNumController.text.isEmpty) {
-            _vehicleNumController.text = user['vehicle_number'] ?? user['car_number'] ?? '';
+      if (widget.user['is_owner'] == true) {
+        final carResponse = await http.get(
+          Uri.parse("$_baseUrl/api/fleet/my-cars"),
+          headers: {
+            "Authorization": "Bearer ${widget.token}",
+          },
+        );
+        if (carResponse.statusCode == 200) {
+          final List<dynamic> cars = jsonDecode(utf8.decode(carResponse.bodyBytes));
+          if (cars.isNotEmpty) {
+            final String targetNum = _vehicleNumController.text.trim();
+            var car = cars.first;
+            if (targetNum.isNotEmpty) {
+              for (var c in cars) {
+                if (c['car_number'] == targetNum) {
+                  car = c;
+                  break;
+                }
+              }
+            }
+            setState(() {
+              _vehicleNumController.text = car['car_number'] ?? '';
+              _tonnageController.text = (car['tonnage'] ?? '').toString();
+              _carModelController.text = car['car_model'] ?? '';
+              _machineryRegFile = car['machinery_reg_file'] ?? _machineryRegFile;
+              _machineryRegUrl = car['machinery_reg_url'] ?? _machineryRegUrl;
+              _bizLicenseFile = car['biz_license_file'] ?? _bizLicenseFile;
+              _bizLicenseUrl = car['biz_license_url'] ?? _bizLicenseUrl;
+              _insuranceFile = car['insurance_file'] ?? _insuranceFile;
+              _insuranceUrl = car['insurance_url'] ?? _insuranceUrl;
+            });
           }
-          if (_tonnageController.text.isEmpty) {
-            _tonnageController.text = (user['tonnage'] ?? user['vehicle_capacity'] ?? '').toString();
-          }
-          if (_carModelController.text.isEmpty) {
-            _carModelController.text = user['car_model'] ?? '';
-          }
-          _machineryRegFile = user['machinery_reg_file'] ?? _machineryRegFile ?? '건설기계등록증_2026.jpg';
-          _machineryRegUrl = user['machinery_reg_url'] ?? _machineryRegUrl;
-          _bizLicenseFile = user['biz_license_file'] ?? _bizLicenseFile ?? '사업자등록증_사본.jpg';
-          _bizLicenseUrl = user['biz_license_url'] ?? _bizLicenseUrl;
-          _insuranceFile = user['insurance_file'] ?? _insuranceFile ?? '영업용자동차보험증.jpg';
-          _insuranceUrl = user['insurance_url'] ?? _insuranceUrl;
-        });
+        }
+      } else {
+        final response = await http.get(
+          Uri.parse("$_baseUrl/api/auth/profile"),
+          headers: {
+            "Authorization": "Bearer ${widget.token}",
+          },
+        );
+        if (response.statusCode == 200) {
+          final data = jsonDecode(utf8.decode(response.bodyBytes));
+          final user = data['user'] ?? data;
+          setState(() {
+            if (_vehicleNumController.text.isEmpty) {
+              _vehicleNumController.text = user['vehicle_number'] ?? user['car_number'] ?? '';
+            }
+            if (_tonnageController.text.isEmpty) {
+              _tonnageController.text = (user['tonnage'] ?? user['vehicle_capacity'] ?? '').toString();
+            }
+            if (_carModelController.text.isEmpty) {
+              _carModelController.text = user['car_model'] ?? '';
+            }
+            _machineryRegFile = user['machinery_reg_file'] ?? _machineryRegFile ?? '건설기계등록증_2026.jpg';
+            _machineryRegUrl = user['machinery_reg_url'] ?? _machineryRegUrl;
+            _bizLicenseFile = user['biz_license_file'] ?? _bizLicenseFile ?? '사업자등록증_사본.jpg';
+            _bizLicenseUrl = user['biz_license_url'] ?? _bizLicenseUrl;
+            _insuranceFile = user['insurance_file'] ?? _insuranceFile ?? '영업용자동차보험증.jpg';
+            _insuranceUrl = user['insurance_url'] ?? _insuranceUrl;
+          });
+        }
       }
     } catch (e) {
       debugPrint("차량 정보 로딩 오류: $e");
