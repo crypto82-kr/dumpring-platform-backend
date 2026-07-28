@@ -40,7 +40,7 @@ class User(Base):
     construction_sites = relationship("ConstructionSite", back_populates="creator")
     site_employees = relationship("SiteEmployee", back_populates="user")
     unloading_sites = relationship("UnloadingSite", back_populates="owner")
-    drivers = relationship("Driver", back_populates="user")
+    drivers = relationship("Driver", back_populates="user", foreign_keys="[Driver.user_id]")
     owned_cars = relationship("Car", back_populates="owner")
     site_profile = relationship("SiteProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     drop_off_profile = relationship("DropOffProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
