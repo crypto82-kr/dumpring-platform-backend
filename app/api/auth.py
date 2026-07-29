@@ -8,6 +8,7 @@ from jose import jwt, JWTError
 from typing import List, Optional
 import logging
 import uuid
+import re
 
 from app.core.db import get_db
 from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus
@@ -299,27 +300,20 @@ async def signup_site_worker(
         )
         db.add(new_profile)
 
-        # ConstructionSite 조회 (site_key 기반)
-        site_query = select(ConstructionSite).where(
-            ConstructionSite.site_key == data.site_key
-        )
-        site_result = await db.execute(site_query)
-        site = site_result.scalars().first()
-
-        if not site:
-            logger.warning(f"현장담당자 가입 실패: 유효하지 않은 현장 키 ({data.site_key})")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="올바르지 않은 현장 키입니다. 현장관리자(소장님)에게 문의하여 올바른 현장 키를 입력해 주세요."
+        # ConstructionSite 조회 (site_key 기반 - 입력된 경우만 연결)
+        if data.site_key:
+            site_query = select(ConstructionSite).where(
+                ConstructionSite.site_key == data.site_key
             )
-
-        # SiteUserMapping 생성 (담당자는 PENDING으로 시작)
-        mapping = SiteUserMapping(
-            site_id=site.id,
-            user_id=new_user.id,
-            status=SiteUserStatus.PENDING
-        )
-        db.add(mapping)
+            site_result = await db.execute(site_query)
+            site = site_result.scalars().first()
+            if site:
+                mapping = SiteUserMapping(
+                    site_id=site.id,
+                    user_id=new_user.id,
+                    status=SiteUserStatus.PENDING
+                )
+                db.add(mapping)
 
         # SiteEmployee 선등록 매칭 로직 작동
         employee_query = select(SiteEmployee).where(SiteEmployee.registered_phone == data.phone_number)
@@ -414,13 +408,55 @@ async def login(
     data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. 사용자 조회
-    query = select(User).where(User.phone_number == data.phone_number)
+    # 전화번호 입력 포맷 정규화 (01012345678 <-> 010-1234-5678 양방향 호환)
+    raw_phone = data.phone_number.strip()
+    digits = re.sub(r"\D", "", raw_phone)
+    formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
+
+    # 1. 사용자 조회 (하이픈 포함/미포함 양쪽 무조건 탐색)
+    query = select(User).where((User.phone_number == raw_phone) | (User.phone_number == formatted_phone) | (User.phone_number == digits))
     result = await db.execute(query)
     user = result.scalars().first()
     
-    # 2. 로그인 예외 처리
-    if not user or not verify_password(data.password, user.password):
+    # 2. 로그인 예외 처리 및 임시 비밀번호 선등록 검증
+    emp_query = select(SiteEmployee).where(
+        (SiteEmployee.registered_phone == raw_phone) | 
+        (SiteEmployee.registered_phone == formatted_phone) | 
+        (SiteEmployee.registered_phone == digits) | 
+        (SiteEmployee.user_id == (user.id if user else -1))
+    )
+    emp_res = await db.execute(emp_query)
+    emp = emp_res.scalars().first()
+
+    is_temp_pass_login = False
+    if emp and emp.temp_password and emp.temp_password == data.password:
+        is_temp_pass_login = True
+        if not user:
+            hashed_pass = get_password_hash(data.password)
+            user = User(
+                phone_number=data.phone_number,
+                password=hashed_pass,
+                name=emp.name or "현장담당자",
+                is_site_worker=True,
+                is_site_manager=False,
+                is_owner=False,
+                is_driver=False,
+                is_drop_off=False,
+                is_admin=False,
+                is_approved=emp.is_approved
+            )
+            db.add(user)
+            await db.flush()
+            emp.user_id = user.id
+            await db.commit()
+            await db.refresh(user)
+        else:
+            # 기존 User가 존재하더라도 선등록 임시 비밀번호 로그인 시 승인 상태 및 ID 연동 보장
+            user.is_site_worker = True
+            emp.user_id = user.id
+            await db.commit()
+
+    if not is_temp_pass_login and (not user or not verify_password(data.password, user.password)):
         logger.warning(f"로그인 인증 실패: 번호 {data.phone_number} 또는 패스워드 불일치")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -428,14 +464,20 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # 3. JWT 발급
+    # 3. 임시 비밀번호 사용 여부 검사
+    is_temp_pass = False
+    if emp and emp.temp_password is not None and not emp.is_password_changed:
+        is_temp_pass = True
+
+    # 4. JWT 발급
     access_token = create_access_token(subject=user.id)
     logger.info(f"로그인 성공: User ID {user.id} ({user.name}) - JWT 액세스 토큰 발행 완료")
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user
+        "user": user,
+        "is_temp_password": is_temp_pass
     }
 
 
@@ -989,7 +1031,17 @@ async def update_profile(
             current_user.phone_number = data.phone_number
     if data.password is not None and data.password.strip() != "":
         current_user.password = get_password_hash(data.password)
-    
+        # 만약 현장담당자인 경우 선등록 SiteEmployee의 temp_password 초기화
+        emp_query = select(SiteEmployee).where(
+            (SiteEmployee.user_id == current_user.id) | (SiteEmployee.registered_phone == current_user.phone_number)
+        )
+        emp_res = await db.execute(emp_query)
+        emp = emp_res.scalars().first()
+        if emp:
+            emp.user_id = current_user.id
+            emp.is_password_changed = True
+            emp.temp_password = None
+
     await db.commit()
     await db.refresh(current_user)
     return {"message": "프로필이 성공적으로 수정되었습니다.", "user": {

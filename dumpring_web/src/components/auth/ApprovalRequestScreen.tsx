@@ -79,8 +79,8 @@ export default function ApprovalRequestScreen() {
         setUploadedDocs(data.uploaded_documents || []);
         setMissingDocs(data.missing_documents || []);
 
-        // 2. 누락된 서류가 없고 업로드 완료된 서류가 존재하면 승인 제출 완료 상태로 봄
-        if (data.missing_documents && data.missing_documents.length === 0 && data.uploaded_documents && data.uploaded_documents.length > 0) {
+        // 2. 현장담당자(site_worker)는 서류 제출이 없으므로 항상 승인 심사 대기 상태(isSubmitted=true)로 즉시 표시
+        if (user?.role === "site_worker" || (data.missing_documents && data.missing_documents.length === 0 && data.uploaded_documents && data.uploaded_documents.length > 0)) {
           setIsSubmitted(true);
         }
       }

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-export type UserRole = "site_manager" | "dropoff_manager" | "platform_admin" | "developer" | "owner";
+export type UserRole = "site_manager" | "site_worker" | "dropoff_manager" | "platform_admin" | "developer" | "owner";
 
 export interface UserProfile {
   id: string;
@@ -64,21 +64,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.setItem("dumpring_token", token);
     localStorage.setItem("userData", JSON.stringify(userData));
     
-    // Determine role based on API user response flags
-    let role: UserRole = "platform_admin";
+    const roleNames: Record<UserRole, string> = {
+      platform_admin: "플랫폼 관리자",
+      site_manager: "현장 관리자(소장)",
+      site_worker: "현장 담당자",
+      dropoff_manager: "하차지 관리자",
+      owner: "차주 / 운전기사",
+      developer: "시스템 개발자",
+    };
+
+    // Determine role strictly based on API user response flags
+    let role: UserRole | null = null;
     if (userData.phone_number === "010-9999-9999" || userData.name === "개발자") role = "developer";
     else if (userData.is_admin) role = "platform_admin";
+    else if (userData.is_site_worker) role = "site_worker";
     else if (userData.is_site_manager) role = "site_manager";
     else if (userData.is_drop_off) role = "dropoff_manager";
-    else if (userData.is_owner) role = "owner";
-    else if (userData.is_driver) role = "owner"; 
+    else if (userData.is_owner || userData.is_driver) role = "owner";
+
+    if (!role) {
+      alert("로그인 권한 오류: 해당 유저에 할당된 시스템 역할(Role)이 존재하지 않아 로그인이 차단되었습니다.");
+      logout();
+      return;
+    }
     
     const profile = {
       id: String(userData.id) || `usr_${Math.floor(10000 + Math.random() * 90000)}`,
       name: userData.name || userData.username || "사용자",
       phone_number: userData.phone_number || "",
       role: role,
-      roleName: roleNames[role] || "플랫폼 관리자",
+      roleName: roleNames[role] || "현장 담당자",
       isApproved: userData.is_approved !== undefined ? userData.is_approved : true,
     };
     setUser(profile);
@@ -87,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const defaultPaths: Record<UserRole, string> = {
       platform_admin: "/admin",
       site_manager: "/site",
+      site_worker: "/site",
       dropoff_manager: "/dropoff",
       owner: "/owner",
       developer: "/dev",
@@ -108,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const defaultPaths: Record<UserRole, string> = {
           platform_admin: "/admin",
           site_manager: "/site",
+          site_worker: "/site",
           dropoff_manager: "/dropoff",
           owner: "/owner",
           developer: "/dev",

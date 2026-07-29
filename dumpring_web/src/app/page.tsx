@@ -10,6 +10,8 @@ import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
 import SiteDispatchRequestManagement from "@/components/dashboard/SiteDispatchRequestManagement";
 import SiteOverviewDashboard from "@/components/dashboard/SiteOverviewDashboard";
+import DropoffRegisterManagement from "@/components/dashboard/DropoffRegisterManagement";
+import DropoffRequestManagement from "@/components/dashboard/DropoffRequestManagement";
 import { DropoffManagerDashboard } from "@/components/dashboard/DropoffManagerDashboard";
 import { OwnerDashboard } from "@/components/dashboard/OwnerDashboard";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
@@ -1463,7 +1465,7 @@ export default function Home() {
           setUserFormExtra2={setUserFormExtra2}
         />
       )}
-      {user.role === "site_manager" && (
+      {(user.role === "site_manager" || user.role === "site_worker") && (
         activePath === "/site/org-hierarchy" ? (
           <SiteWorkerManagement registeredSiteList={registeredSiteList} />
         ) : activePath === "/site/dispatch-request" || activePath === "/site/dispatch" ? (
@@ -1487,6 +1489,44 @@ export default function Home() {
             handleCreateSite={handleCreateSite}
             handleUpdateSite={handleUpdateSite}
             handleDeleteSite={handleDeleteSite}
+          />
+        ) : activePath === "/dropoff/register" ? (
+          <DropoffRegisterManagement
+            registeredDropoffList={registeredDropoffList}
+            dropoffFormName={dropoffFormName}
+            setDropoffFormName={setDropoffFormName}
+            dropoffFormAddress={dropoffFormAddress}
+            setDropoffFormAddress={setDropoffFormAddress}
+            dropoffFormManagers={dropoffFormManagers}
+            setDropoffFormManagers={setDropoffFormManagers}
+            dropoffFormCapacity={dropoffFormCapacity}
+            setDropoffFormCapacity={setDropoffFormCapacity}
+            dropoffFormSoilDealType={dropoffFormSoilDealType}
+            setDropoffFormSoilDealType={setDropoffFormSoilDealType}
+            dbCommonCodes={dbCommonCodes}
+            handleCreateDropoff={handleCreateDropoff}
+            handleDeleteDropoff={handleDeleteDropoff}
+            handleUpdateDropoff={handleUpdateDropoff}
+            documentFiles={{}}
+            uploadingDocCode={null}
+            handleFileUpload={async () => {}}
+          />
+        ) : activePath === "/dropoff/dispatch-request" ? (
+          <DropoffRequestManagement
+            user={user}
+            registeredDropoffList={registeredDropoffList}
+            dropoffRequestList={dropoffRequestList}
+            dispatchRequestList={dispatchRequestList}
+            registeredSiteList={registeredSiteList}
+            dbCommonCodes={dbCommonCodes}
+            handleCreateDropoffRequest={handleCreateDropoffRequest}
+            handleDeleteDropoffRequest={handleDeleteDropoffRequest}
+            handleUpdateDropoffRequestStatus={handleUpdateDropoffRequestStatus}
+            handleUpdateDropoffRequest={handleUpdateDropoffRequest}
+            handleApproveJobPost={handleApproveJobPost}
+            handleRejectJobPost={handleRejectJobPost}
+            fetchOpenDropOffRequests={fetchOpenDropOffRequests}
+            handleResetMatchJobPost={handleResetMatchJobPost}
           />
         ) : (
           <SiteManagerDashboard

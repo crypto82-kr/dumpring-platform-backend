@@ -8,7 +8,7 @@ interface RegisterScreenProps {
 }
 
 export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
-  const [role, setRole] = useState<"site_manager" | "dropoff_manager" | "owner">("site_manager");
+  const [role, setRole] = useState<"site_manager" | "site_worker" | "dropoff_manager" | "owner">("site_manager");
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -74,27 +74,69 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/pre-register", {
+      let endpoint = "http://127.0.0.1:8000/api/auth/register-owner";
+      let body: any = {
+        phone_number: phoneNumber.trim(),
+        password: password,
+        name: name.trim(),
+      };
+
+      if (role === "site_worker") {
+        endpoint = "http://127.0.0.1:8000/api/auth/signup/site-worker";
+        body = {
+          phone_number: phoneNumber.trim(),
+          password: password,
+          name: name.trim(),
+          company_name: "미지정",
+          site_name: "미지정",
+          business_number: "000-00-00000",
+          site_key: "SITE-DEFAULT"
+        };
+      } else if (role === "site_manager") {
+        endpoint = "http://127.0.0.1:8000/api/auth/signup/site-manager";
+        body = {
+          phone_number: phoneNumber.trim(),
+          password: password,
+          name: name.trim(),
+          company_name: "미지정",
+          site_name: "미지정",
+          business_number: "000-00-00000"
+        };
+      } else if (role === "dropoff_manager") {
+        endpoint = "http://127.0.0.1:8000/api/auth/signup/drop-off";
+        body = {
+          phone_number: phoneNumber.trim(),
+          password: password,
+          name: name.trim(),
+          location_name: "미지정",
+          address: "미지정",
+          permit_number: "0000"
+        };
+      } else {
+        body = {
+          ...body,
+          biz_license_file: "temp",
+          machinery_reg_file: "temp",
+          insurance_file: "temp"
+        };
+      }
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          phone_number: phoneNumber.trim(),
-          password: password,
-          name: name.trim(),
-          role: role,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
-        setSuccessMsg("가입(가가입) 신청이 완료되었습니다! 로그인 화면으로 돌아가 로그인 후 추가 정보를 입력해 승인 요청을 진행해 주세요.");
+        setSuccessMsg("회원가입 신청이 완료되었습니다! 소장님이 등록해 두신 선등록 정보와 자동 연동(매칭)되었습니다.");
         setTimeout(() => {
           onBackToLogin();
-        }, 3000);
+        }, 2000);
       } else {
         const err = await res.json();
-        setErrorMsg(err.message || "회원가입 중 에러가 발생했습니다. 입력 정보를 확인해 주세요.");
+        setErrorMsg(err.detail || err.message || "회원가입 중 에러가 발생했습니다. 입력 정보를 확인해 주세요.");
       }
     } catch (e) {
       setErrorMsg("인증 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.");
@@ -206,9 +248,10 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
                 <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block px-1">
                   가입 권한 선택
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {[
                     { id: "site_manager", name: "현장 관리자", icon: MapPin },
+                    { id: "site_worker", name: "현장 담당자", icon: UserIcon },
                     { id: "dropoff_manager", name: "하차지 관리자", icon: Truck },
                     { id: "owner", name: "차주 / 운송사", icon: ShieldCheck }
                   ].map((item) => {

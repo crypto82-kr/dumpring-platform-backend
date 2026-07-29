@@ -47,7 +47,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
         const mapped = data.map((item: any) => ({
           id: item.id,
           name: item.site_name || item.name || "공사 현장",
-          address: item.address || "주소 미등록",
+          address: item.site_address || item.address || "주소 미등록",
         }));
         if (mapped.length > 0) {
           setSiteOptions(mapped);
@@ -69,8 +69,8 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
       if (res.ok) {
         const data = await res.json();
         setWorkerList(data);
-        if (data.length > 0 && selectedWorkerId === null) {
-          setSelectedWorkerId(data[0].id);
+        if (data.length > 0) {
+          setSelectedWorkerId((prev) => (prev !== null && data.some((item: any) => item.id === prev) ? prev : data[0].id));
         }
       } else {
         setWorkerList([]);
@@ -159,30 +159,15 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
           }),
         });
         if (res.ok) {
-          alert("신규 현장담당자 인원이 등록되었습니다. (플랫폼 관리자 승인 대기)");
+          alert("신규 현장담당자 인원 정보가 등록되었습니다. 해당 담당자가 회원가입 진행 시 자동으로 소속 현장과 매핑됩니다.");
           fetchWorkers();
+          setIsModalOpen(false);
+          resetForm();
         } else {
-          // Local State Fallback
-          const selectedSiteObj = registeredSiteList.find((s) => s.id === formSiteId);
-          const newWorker: SiteWorkerItem = {
-            id: Date.now(),
-            name: formName,
-            phone_number: formPhone,
-            employee_role: formRole,
-            site_id: formSiteId !== "" ? Number(formSiteId) : null,
-            site_name: selectedSiteObj?.name || "소속 현장 미지정",
-            is_approved: false,
-            status: "PENDING",
-            created_at: new Date().toISOString().split("T")[0],
-          };
-          setWorkerList((prev) => [newWorker, ...prev]);
-          setSelectedWorkerId(newWorker.id);
-          alert("신규 현장담당자 인원이 등록되었습니다. (플랫폼 관리자 승인 대기)");
+          const errData = await res.json().catch(() => ({}));
+          alert(errData.detail || "현장담당자 등록에 실패했습니다.");
         }
       }
-
-      setIsModalOpen(false);
-      resetForm();
     } catch (err) {
       console.error(err);
       alert("처리 중 에러가 발생했습니다.");
@@ -412,10 +397,10 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                   <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 text-xs space-y-2">
                     <div className="flex items-center gap-1.5 text-blue-700 font-bold">
                       <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                      담당자 인원 등록 지침
+                      담당자 인원 선등록 지침
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
-                      * 등록된 현장담당자는 플랫폼 관리자의 최종 승인 후 활성화되며, [현장 관리] 메뉴에서 특정 현장의 관제 담당자로 지정/매핑할 수 있습니다.
+                      * 소장님이 미리 등록한 현장담당자 인원 정보는 해당 담당자가 동일한 휴대폰 번호로 회원가입 시 자동으로 소속 현장에 매핑 연동됩니다.
                     </p>
                   </div>
                 </div>
@@ -529,6 +514,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
           </div>
         </div>
       )}
+
     </div>
   );
 }

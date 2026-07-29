@@ -5,6 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import selectinload
 import uuid
+import re
 
 from app.core.db import get_db
 from app.models import User, ConstructionSite, SiteUserMapping, SiteUserStatus, UnloadingSite
@@ -1023,12 +1024,44 @@ async def create_standalone_employee(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 전화번호 입력 포맷 정규화 (01012345678 -> 010-1234-5678)
+    digits = re.sub(r"\D", "", data.phone_number)
+    if len(digits) == 11:
+        formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+    elif len(digits) == 10:
+        formatted_phone = f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+    else:
+        formatted_phone = data.phone_number.strip()
+    
+    # 1. SiteEmployee 중복 검사 (하이픈 유무 상관없이 양쪽 모두 체크)
+    emp_check = select(SiteEmployee).where(
+        (SiteEmployee.registered_phone == formatted_phone) | (SiteEmployee.registered_phone == digits)
+    )
+    emp_res = await db.execute(emp_check)
+    if emp_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"이미 등록된 담당자 휴대폰 번호입니다. ({formatted_phone})"
+        )
+
+    # 2. User 테이블 회원 중복 검사 (하이픈 유무 상관없이 양쪽 모두 체크)
+    user_check = select(User).where(
+        (User.phone_number == formatted_phone) | (User.phone_number == digits)
+    )
+    user_res = await db.execute(user_check)
+    if user_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"이미 플랫폼에 가입된 유저의 휴대폰 번호입니다. ({formatted_phone})"
+        )
+
     new_emp = SiteEmployee(
         name=data.name,
-        registered_phone=data.phone_number,
+        registered_phone=formatted_phone,
         employee_role=data.employee_role,
         site_id=data.site_id,
-        is_approved=False
+        is_approved=False,
+        temp_password=None
     )
     db.add(new_emp)
     await db.commit()
@@ -1093,7 +1126,7 @@ async def update_standalone_employee(
         if site_obj:
             site_name = site_obj.site_name
 
-    status_str = "APPROVED" if emp.is_approved else ("REJECTED" if emp.reject_reason else "PENDING")
+        status_str = "APPROVED" if emp.is_approved else ("REJECTED" if emp.reject_reason else "PENDING")
     created_str = emp.created_at.strftime("%Y-%m-%d") if emp.created_at else ""
     return StandaloneEmployeeResponse(
         id=emp.id,
@@ -1123,9 +1156,23 @@ async def delete_standalone_employee(
     if not emp:
         raise HTTPException(status_code=404, detail="해당 현장담당자를 찾을 수 없습니다.")
 
+    # 연동된 User 계정 확인
+    target_user = None
+    if emp.user_id:
+        u_res = await db.execute(select(User).where(User.id == emp.user_id))
+        target_user = u_res.scalars().first()
+    elif emp.registered_phone:
+        u_res = await db.execute(select(User).where(User.phone_number == emp.registered_phone))
+        target_user = u_res.scalars().first()
+
+    emp.user_id = None
+    await db.flush()
     await db.delete(emp)
+    if target_user:
+        await db.delete(target_user)
+
     await db.commit()
-    return {"message": "현장담당자 인원이 정상 삭제되었습니다."}
+    return {"message": "현장담당자 인원 및 연동 유저 계정이 완전 삭제되었습니다."}
 
 @router.post(
     "/all-employees/{employee_id}/approve",
