@@ -292,14 +292,6 @@ async def signup_site_worker(
         db.add(new_user)
         await db.flush()
 
-        new_profile = SiteProfile(
-            user_id=new_user.id,
-            company_name=data.company_name,
-            site_name=data.site_name,
-            business_number=data.business_number
-        )
-        db.add(new_profile)
-
         # ConstructionSite 조회 (site_key 기반 - 입력된 경우만 연결)
         if data.site_key:
             site_query = select(ConstructionSite).where(
@@ -315,8 +307,16 @@ async def signup_site_worker(
                 )
                 db.add(mapping)
 
-        # SiteEmployee 선등록 매칭 로직 작동
-        employee_query = select(SiteEmployee).where(SiteEmployee.registered_phone == data.phone_number)
+        # SiteEmployee 선등록 매칭 로직 작동 (하이픈 유무 양방향 탐색)
+        raw_phone = data.phone_number.strip()
+        digits = re.sub(r"\D", "", raw_phone)
+        formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
+
+        employee_query = select(SiteEmployee).where(
+            (SiteEmployee.registered_phone == raw_phone) |
+            (SiteEmployee.registered_phone == formatted_phone) |
+            (SiteEmployee.registered_phone == digits)
+        )
         employee_result = await db.execute(employee_query)
         pre_registered_employees = employee_result.scalars().all()
         
@@ -428,48 +428,15 @@ async def login(
     emp_res = await db.execute(emp_query)
     emp = emp_res.scalars().first()
 
-    is_temp_pass_login = False
-    if emp and emp.temp_password and emp.temp_password == data.password:
-        is_temp_pass_login = True
-        if not user:
-            hashed_pass = get_password_hash(data.password)
-            user = User(
-                phone_number=data.phone_number,
-                password=hashed_pass,
-                name=emp.name or "현장담당자",
-                is_site_worker=True,
-                is_site_manager=False,
-                is_owner=False,
-                is_driver=False,
-                is_drop_off=False,
-                is_admin=False,
-                is_approved=emp.is_approved
-            )
-            db.add(user)
-            await db.flush()
-            emp.user_id = user.id
-            await db.commit()
-            await db.refresh(user)
-        else:
-            # 기존 User가 존재하더라도 선등록 임시 비밀번호 로그인 시 승인 상태 및 ID 연동 보장
-            user.is_site_worker = True
-            emp.user_id = user.id
-            await db.commit()
-
-    if not is_temp_pass_login and (not user or not verify_password(data.password, user.password)):
+    if not user or not verify_password(data.password, user.password):
         logger.warning(f"로그인 인증 실패: 번호 {data.phone_number} 또는 패스워드 불일치")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="휴대폰 번호 또는 비밀번호가 올바르지 않습니다.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # 3. 임시 비밀번호 사용 여부 검사
-    is_temp_pass = False
-    if emp and emp.temp_password is not None and not emp.is_password_changed:
-        is_temp_pass = True
 
-    # 4. JWT 발급
+    # 3. JWT 발급
     access_token = create_access_token(subject=user.id)
     logger.info(f"로그인 성공: User ID {user.id} ({user.name}) - JWT 액세스 토큰 발행 완료")
     
@@ -477,7 +444,7 @@ async def login(
         "access_token": access_token,
         "token_type": "bearer",
         "user": user,
-        "is_temp_password": is_temp_pass
+        "is_temp_password": False
     }
 
 
@@ -678,11 +645,27 @@ async def get_member_status(
                 )
             )
             
-    # 5. 심사 승인 여부 확인
+    # 5. 심사 승인 및 현장 매핑 여부 확인
     is_approved = False
+    is_site_mapped = True
     reject_reason = None
     
-    if role == "driver":
+    if current_user.is_site_worker:
+        # 현장담당자의 경우 소속 현장(SiteEmployee 또는 SiteUserMapping) 연결 여부 검사
+        emp_query = select(SiteEmployee).where(SiteEmployee.user_id == current_user.id)
+        emp_res = await db.execute(emp_query)
+        emp = emp_res.scalars().first()
+        
+        map_query = select(SiteUserMapping).where(SiteUserMapping.user_id == current_user.id)
+        map_res = await db.execute(map_query)
+        site_map = map_res.scalars().first()
+
+        if not emp and not site_map:
+            is_site_mapped = False
+
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+    elif role == "driver":
         driver_query = select(Driver).where(Driver.user_id == current_user.id)
         driver_result = await db.execute(driver_query)
         driver = driver_result.scalars().first()
@@ -690,12 +673,13 @@ async def get_member_status(
             is_approved = driver.is_approved
             reject_reason = driver.reject_reason
     else:
-        # 차주
+        # 차주 / 현장소장
         is_approved = current_user.is_approved
         reject_reason = current_user.reject_reason
         
     return MemberStatusResponse(
         is_approved=is_approved,
+        is_site_mapped=is_site_mapped,
         reject_reason=reject_reason,
         uploaded_documents=uploaded_codes,
         uploaded_files=uploaded_files_map,
@@ -1031,16 +1015,6 @@ async def update_profile(
             current_user.phone_number = data.phone_number
     if data.password is not None and data.password.strip() != "":
         current_user.password = get_password_hash(data.password)
-        # 만약 현장담당자인 경우 선등록 SiteEmployee의 temp_password 초기화
-        emp_query = select(SiteEmployee).where(
-            (SiteEmployee.user_id == current_user.id) | (SiteEmployee.registered_phone == current_user.phone_number)
-        )
-        emp_res = await db.execute(emp_query)
-        emp = emp_res.scalars().first()
-        if emp:
-            emp.user_id = current_user.id
-            emp.is_password_changed = True
-            emp.temp_password = None
 
     await db.commit()
     await db.refresh(current_user)

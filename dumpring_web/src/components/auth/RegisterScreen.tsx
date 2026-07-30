@@ -136,10 +136,11 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
         }, 2000);
       } else {
         const err = await res.json();
-        setErrorMsg(err.detail || err.message || "회원가입 중 에러가 발생했습니다. 입력 정보를 확인해 주세요.");
+        const msg = typeof err.detail === "string" ? err.detail : (err.message || "회원가입 중 에러가 발생했습니다.");
+        setErrorMsg(msg);
       }
-    } catch (e) {
-      setErrorMsg("인증 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.");
+    } catch (e: any) {
+      setErrorMsg(e?.message || "인증 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.");
     } finally {
       setLoading(false);
     }

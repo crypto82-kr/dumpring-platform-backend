@@ -1044,24 +1044,24 @@ async def create_standalone_employee(
             detail=f"이미 등록된 담당자 휴대폰 번호입니다. ({formatted_phone})"
         )
 
-    # 2. User 테이블 회원 중복 검사 (하이픈 유무 상관없이 양쪽 모두 체크)
+    # 2. 이미 회원가입된 User가 존재하는지 검사 및 자동 매칭 처리
     user_check = select(User).where(
         (User.phone_number == formatted_phone) | (User.phone_number == digits)
     )
     user_res = await db.execute(user_check)
-    if user_res.scalars().first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"이미 플랫폼에 가입된 유저의 휴대폰 번호입니다. ({formatted_phone})"
-        )
+    existing_user = user_res.scalars().first()
+
+    matched_user_id = existing_user.id if existing_user else None
+    if existing_user:
+        existing_user.is_site_worker = True
 
     new_emp = SiteEmployee(
         name=data.name,
         registered_phone=formatted_phone,
         employee_role=data.employee_role,
         site_id=data.site_id,
-        is_approved=False,
-        temp_password=None
+        user_id=matched_user_id,
+        is_approved=False
     )
     db.add(new_emp)
     await db.commit()
