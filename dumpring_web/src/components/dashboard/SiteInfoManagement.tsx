@@ -231,7 +231,9 @@ export default function SiteInfoManagement({
                   <p className="text-[10px] text-slate-500 mt-2 font-semibold truncate">{site.address}</p>
                   <div className="flex justify-between items-center text-[9px] text-slate-400 mt-3 pt-2 border-t border-slate-200/50">
                     <span>사업자: {site.bizRegNo || "미등록"}</span>
-                    <span className="text-slate-500 font-medium">담당자: {site.managers?.[0] || "지정대기"}</span>
+                    <span className="text-slate-600 font-bold truncate max-w-[170px]">
+                      {site.managers?.[0] || "지정대기"}
+                    </span>
                   </div>
                 </div>
               );
@@ -356,8 +358,37 @@ export default function SiteInfoManagement({
                       <div className="text-xs font-semibold text-slate-650 mt-0.5">{selectedSite.roadDesc || "등록된 가이드가 없습니다."}</div>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">담당자</span>
-                      <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedSite.managers?.join(", ") || "지정 대기"}</div>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase mb-1.5">
+                        현장 관리 조직 및 담당자
+                      </span>
+                      <div className="space-y-1.5">
+                        {selectedSite.managers && selectedSite.managers.length > 0 ? (
+                          selectedSite.managers.map((m: string, idx: number) => {
+                            const isManager = m.includes("현장관리자");
+                            return (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-xs"
+                              >
+                                <span
+                                  className={`px-2 py-0.5 text-[10px] font-extrabold rounded ${
+                                    isManager
+                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                                      : "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+                                  }`}
+                                >
+                                  {isManager ? "현장관리자" : "현장담당자"}
+                                </span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                  {m.replace(/^현장(관리자|담당자):\s*/, "")}
+                                </span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="text-xs font-semibold text-slate-400 py-2">지정된 담당자가 없습니다.</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -25,6 +25,7 @@ interface AuthContextType {
 
 const roleNames: Record<UserRole, string> = {
   site_manager: "현장 관리자",
+  site_worker: "현장 담당자",
   dropoff_manager: "하차지 관리자",
   platform_admin: "플랫폼 관리자",
   developer: "개발자",
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const defaultPaths: Record<UserRole, string> = {
       platform_admin: "/admin",
       site_manager: "/site",
+      site_worker: "/site",
       dropoff_manager: "/dropoff",
       owner: "/owner",
       developer: "/dev",

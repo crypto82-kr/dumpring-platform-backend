@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import AppContent from "@/components/layout/AppContent";
@@ -15,21 +16,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className="h-full antialiased">
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: `
-          (function() {
-            try {
-              const mode = localStorage.getItem('darkMode');
-              if (mode === 'true') {
-                document.documentElement.classList.add('dark');
-              } else {
-                document.documentElement.classList.remove('dark');
-              }
-            } catch (e) {}
-          })();
-        ` }} />
-      </head>
       <body className="min-h-full bg-gray-50 dark:bg-gray-950 font-sans flex text-gray-900 dark:text-gray-100 antialiased selection:bg-brand-500/20 selection:text-brand-900">
+        <Script
+          id="dark-mode-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const mode = localStorage.getItem('darkMode');
+                  if (mode === 'true') {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <AuthProvider>
           <AppContent>{children}</AppContent>
         </AuthProvider>

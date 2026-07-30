@@ -211,7 +211,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
         <div>
           <h2 className="text-xl font-extrabold text-slate-900">현장담당자 인원 관리</h2>
           <p className="text-xs text-slate-500 mt-1">
-            공사현장에 근무할 담당자 인원의 인적사항(성명, 연락처, 직책)을 등록·수정·관리합니다. (소속 현장은 현장 관리에서 별도 매핑)
+            공사현장에 근무할 담당자 인원의 인적사항(성명, 연락처, 직책)을 등록·수정·관리합니다. [소속 현장 지정 및 사전 등록 연동 지원]
           </p>
         </div>
         <button
@@ -385,11 +385,11 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
                         <span className="text-slate-500">소속 현장 매핑 방식</span>
-                        <span className="text-blue-600 font-bold">현장 관리에서 별도 지정</span>
+                        <span className="text-blue-600 font-bold">담당 현장 선택 및 자동 연동 매핑</span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-slate-500">실물 서류 제출 유무</span>
-                        <span className="text-slate-600 font-bold">서류 제출 없음 (소장님 서류 공유)</span>
+                        <span className="text-slate-600 font-bold">서류 제출 없음 (현장관리자 서류 공유)</span>
                       </div>
                     </div>
                   </div>
@@ -397,10 +397,10 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                   <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 text-xs space-y-2">
                     <div className="flex items-center gap-1.5 text-blue-700 font-bold">
                       <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                      담당자 인원 선등록 지침
+                      담당자 인원 사전 등록 지침
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
-                      * 소장님이 미리 등록한 현장담당자 인원 정보는 해당 담당자가 동일한 휴대폰 번호로 회원가입 시 자동으로 소속 현장에 매핑 연동됩니다.
+                      * 사전 등록한 현장담당자 인원 정보는 해당 담당자가 동일한 휴대폰 번호로 회원가입 시 자동으로 소속 현장에 매핑 연동됩니다.
                     </p>
                   </div>
                 </div>
@@ -488,7 +488,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
               {/* 담당 직책 / 역할은 화면에서 노출하지 않고 백엔드 DB 디폴트 '현장통제/도장' 으로 자동 저장됩니다 */}
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[10.5px] text-slate-500 leading-normal">
-                * 별도 서류 파일 첨부는 없으며, 소속 현장 매핑은 현장 관리 화면에서 소장님이 별도 지정합니다.
+                * 별도 서류 파일 첨부는 없으며, 담당 현장 선택 시 즉시 매핑되고 사전 등록 시 자동으로 연동됩니다.
               </div>
 
               {/* Modal Footer Controls */}

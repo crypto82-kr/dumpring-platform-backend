@@ -322,6 +322,23 @@ async def signup_site_worker(
         
         for emp in pre_registered_employees:
             emp.user_id = new_user.id
+            if emp.site_id:
+                # 현장소장이 선등록한 현장 매칭에 따라 SiteUserMapping 승인 상태 자동 생성
+                mapping_q = select(SiteUserMapping).where(
+                    SiteUserMapping.site_id == emp.site_id,
+                    SiteUserMapping.user_id == new_user.id
+                )
+                map_res = await db.execute(mapping_q)
+                existing_map = map_res.scalars().first()
+                if not existing_map:
+                    new_mapping = SiteUserMapping(
+                        site_id=emp.site_id,
+                        user_id=new_user.id,
+                        status=SiteUserStatus.APPROVED
+                    )
+                    db.add(new_mapping)
+                else:
+                    existing_map.status = SiteUserStatus.APPROVED
             logger.info(f"★ [매칭 성공] 선등록 현장 직원 데이터 발견 및 매칭 연동 완료 (Employee ID: {emp.id} -> User ID: {new_user.id})")
         
         await db.commit()
@@ -872,6 +889,10 @@ async def get_pending_members(
         if sm.is_admin:
             continue
 
+        # 현장 개설 정보(SiteProfile/ConstructionSite)가 일체 없는 미완성 가입건은 승인 대기목록 제외
+        if not sm.site_profile and not sm.construction_sites:
+            continue
+
         doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == sm.id)
         doc_res = await db.execute(doc_query)
         docs = doc_res.scalars().all()
@@ -907,6 +928,46 @@ async def get_pending_members(
             "business_number": biz_no,
             "address": address_val
         })
+
+    # 현장담당자 중 미승인 유저 검색 (SiteEmployee 선등록 테이블과 자동 매칭 조인)
+    site_wrk_query = select(User).where(User.is_site_worker == True, User.is_approved == False)
+    site_wrk_res = await db.execute(site_wrk_query)
+    site_workers = site_wrk_res.scalars().all()
+
+    for sw in site_workers:
+        if sw.is_admin:
+            continue
+
+        # SiteEmployee 테이블에서 user_id 또는 폰번호로 자동 매칭된 현장 정보 검색
+        emp_q = select(SiteEmployee).options(selectinload(SiteEmployee.site)).where(
+            (SiteEmployee.user_id == sw.id) | (SiteEmployee.registered_phone == sw.phone_number)
+        )
+        emp_res = await db.execute(emp_q)
+        emp = emp_res.scalars().first()
+
+        site_name_val = "소속 공사 현장"
+        company_val = "현장 소속"
+        biz_no_val = "미등록"
+        address_val = "현장 주소"
+
+        if emp and emp.site:
+            site_name_val = emp.site.site_name
+            company_val = emp.site.company_name
+            biz_no_val = emp.site.business_number
+            address_val = emp.site.site_address or "현장 주소 미등록"
+
+        response_list.append({
+            "id": sw.id,
+            "type": "현장담당자 가입",
+            "name": sw.name,
+            "phone_number": sw.phone_number,
+            "docs": "본인인증 검증 완료",
+            "created_at": sw.created_at,
+            "company_name": company_val,
+            "site_name": site_name_val,
+            "business_number": biz_no_val,
+            "address": address_val
+        })
         
     return response_list
 
@@ -940,9 +1001,28 @@ async def approve_member(
             driver.is_approved = True
             driver.reject_reason = None
             
-    if user.is_owner or user.is_site_manager or user.is_drop_off:
+    if user.is_owner or user.is_site_manager or user.is_site_worker or user.is_drop_off:
         user.is_approved = True
         user.reject_reason = None
+
+        if user.is_site_worker:
+            # SiteEmployee 인원 테이블의 is_approved 승인 상태도 동시 업데이트
+            raw_phone = user.phone_number or ""
+            digits = re.sub(r"\D", "", raw_phone)
+            formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
+
+            emp_q = select(SiteEmployee).where(
+                (SiteEmployee.user_id == user_id) |
+                (SiteEmployee.registered_phone == raw_phone) |
+                (SiteEmployee.registered_phone == formatted_phone) |
+                (SiteEmployee.registered_phone == digits)
+            )
+            emp_res = await db.execute(emp_q)
+            employees = emp_res.scalars().all()
+            for emp in employees:
+                emp.is_approved = True
+                emp.user_id = user_id
+                emp.reject_reason = None
         
     await db.commit()
     return {"message": "회원 가입 서류 심사가 성공적으로 최종 승인 완료되었습니다."}
