@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { MapPin, Truck, ShieldCheck, AlertCircle, Loader2, Check, RefreshCw, LogOut } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 
 export default function ApprovalRequestScreen() {
   const { user, logout, updateApprovalStatus } = useAuth();
@@ -61,7 +62,7 @@ export default function ApprovalRequestScreen() {
         return;
       }
 
-      const res = await fetch("http://localhost:8000/api/auth/member-status", {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/member-status`, {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
@@ -106,7 +107,7 @@ export default function ApprovalRequestScreen() {
         return;
       }
 
-      const res = await fetch("http://localhost:8000/api/auth/upload-document", {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/upload-document`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -224,7 +225,7 @@ export default function ApprovalRequestScreen() {
         body.is_direct_driver = isDirectDriver;
       }
 
-      const res = await fetch("http://localhost:8000/api/auth/submit-approval", {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/submit-approval`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

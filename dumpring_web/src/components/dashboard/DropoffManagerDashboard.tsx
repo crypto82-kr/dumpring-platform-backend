@@ -4,6 +4,7 @@ import React from "react";
 import DropoffRegisterManagement from "./DropoffRegisterManagement";
 import DropoffRequestManagement from "./DropoffRequestManagement";
 import DropoffOverviewDashboard from "./DropoffOverviewDashboard";
+import { getApiBaseUrl } from "@/utils/api";
 
 interface DropoffManagerDashboardProps {
   user?: any;
@@ -58,14 +59,14 @@ export function DropoffManagerDashboard(props: DropoffManagerDashboardProps) {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) return;
-      const res = await fetch("http://localhost:8000/api/auth/member-status?role=drop_off", {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/member-status?role=drop_off`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
         const docMap: Record<string, string> = {};
         if (data.uploaded_documents) {
-          const docsRes = await fetch("http://localhost:8000/api/auth/required-documents?role=drop_off", {
+          const docsRes = await fetch(`${getApiBaseUrl()}/api/auth/required-documents?role=drop_off`, {
             headers: { "Authorization": `Bearer ${token}` }
           });
           if (docsRes.ok) {
@@ -91,7 +92,7 @@ export function DropoffManagerDashboard(props: DropoffManagerDashboardProps) {
       formData.append("file", file);
       formData.append("category", "documents");
 
-      const uploadRes = await fetch("http://127.0.0.1:8000/api/files/upload", {
+      const uploadRes = await fetch(`${getApiBaseUrl()}/api/files/upload`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
         body: formData
@@ -103,7 +104,7 @@ export function DropoffManagerDashboard(props: DropoffManagerDashboardProps) {
       }
       const uploadData = await uploadRes.json();
 
-      const submitRes = await fetch("http://127.0.0.1:8000/api/auth/upload-document", {
+      const submitRes = await fetch(`${getApiBaseUrl()}/api/auth/upload-document`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

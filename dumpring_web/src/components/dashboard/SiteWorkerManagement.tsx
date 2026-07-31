@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { UserCheck, ShieldCheck, UserX, Clock, Search, Plus, User, Phone, Briefcase, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 
 export interface SiteWorkerItem {
   id: number;
@@ -39,7 +40,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
   const fetchSites = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch("http://127.0.0.1:8000/api/sites/admin-sites", {
+      const res = await fetch(`${getApiBaseUrl()}/api/sites/admin-sites`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {
@@ -63,7 +64,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
     setIsLoading(true);
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch("http://127.0.0.1:8000/api/sites/all-employees", {
+      const res = await fetch(`${getApiBaseUrl()}/api/sites/all-employees`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {
@@ -114,7 +115,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
 
       if (editingWorkerId !== null) {
         // Edit Mode
-        const res = await fetch(`http://127.0.0.1:8000/api/sites/all-employees/${editingWorkerId}`, {
+        const res = await fetch(`${getApiBaseUrl()}/api/sites/all-employees/${editingWorkerId}`, {
           method: "PUT",
           headers: authHeaders,
           body: JSON.stringify({
@@ -148,7 +149,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
         }
       } else {
         // Create Mode
-        const res = await fetch("http://127.0.0.1:8000/api/sites/all-employees", {
+        const res = await fetch(`${getApiBaseUrl()}/api/sites/all-employees`, {
           method: "POST",
           headers: authHeaders,
           body: JSON.stringify({
@@ -178,7 +179,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
     if (!confirm("해당 현장담당자 인원을 정말 삭제 처리하시겠습니까?")) return;
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      await fetch(`http://127.0.0.1:8000/api/sites/all-employees/${id}`, {
+      await fetch(`${getApiBaseUrl()}/api/sites/all-employees/${id}`, {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

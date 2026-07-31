@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { MockMap } from "./MockMap";
+import { getApiBaseUrl } from "@/utils/api";
 
 export interface RegisteredSiteItem {
   id: number;
@@ -83,7 +84,7 @@ export default function SiteInfoManagement({
     else setIsUploadingDustReport(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/files/upload", {
+      const res = await fetch(`${getApiBaseUrl()}/api/files/upload`, {
         method: "POST",
         body: formData,
       });
@@ -422,7 +423,7 @@ export default function SiteInfoManagement({
                         </div>
                         {selectedSite.bizLicenseUrl ? (
                           <a
-                            href={`http://127.0.0.1:8000${selectedSite.bizLicenseUrl}`}
+                            href={`${getApiBaseUrl()}${selectedSite.bizLicenseUrl}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[10px] text-blue-600 font-bold hover:underline"
@@ -450,7 +451,7 @@ export default function SiteInfoManagement({
                         </div>
                         {selectedSite.dustReportUrl ? (
                           <a
-                            href={`http://127.0.0.1:8000${selectedSite.dustReportUrl}`}
+                            href={`${getApiBaseUrl()}${selectedSite.dustReportUrl}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[10px] text-blue-600 font-bold hover:underline"
