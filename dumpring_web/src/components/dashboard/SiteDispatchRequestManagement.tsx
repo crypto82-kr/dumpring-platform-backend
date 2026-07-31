@@ -198,6 +198,10 @@ export default function SiteDispatchRequestManagement({
   };
 
   const filteredRequests = dispatchRequestList.filter((req) => {
+    // 매칭대기(WAITING_MATCH) 상태인 건은 노출 제외
+    if (req.status === "매칭대기" || req.rawStatus === "WAITING_MATCH") {
+      return false;
+    }
     // 매칭이 완료되어 기사를 모집 중이거나 배차가 진행 중인 건만 선택 대상에 포함
     const isMatchedAndActive = req.rawStatus === "OPEN" || req.rawStatus === "CLOSED" || req.status === "매칭완료" || req.status === "배차완료" || Boolean(req.dropoffName);
     if (!isMatchedAndActive) return false;
@@ -225,28 +229,12 @@ export default function SiteDispatchRequestManagement({
         </div>
       </div>
 
-      {/* Top Controls: Operating Site & Dispatch Order Selection Bar */}
+      {/* Top Controls: Dispatch Order Selection Bar */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex flex-wrap items-center gap-4 w-full">
-          {/* 1. 운영 현장 선택 */}
-          <div className="flex items-center gap-2 min-w-[220px]">
-            <span className="text-xs font-extrabold text-slate-500 whitespace-nowrap">운영 현장:</span>
-            <select
-              value={dispatchRequestSearchQuery || (registeredSiteList[0]?.name || "")}
-              onChange={(e) => setDispatchRequestSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm"
-            >
-              {registeredSiteList.map((site) => (
-                <option key={site.id} value={site.name}>
-                  {site.name} ({site.companyName || "운영중"})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 2. 진행 중인 배차 선택 (매칭 완료 및 기사 모집 진행건만 노출) */}
+          {/* 배차 오더 선택 */}
           <div className="flex items-center gap-2 min-w-[340px] flex-1">
-            <span className="text-xs font-extrabold text-slate-500 whitespace-nowrap">진행 배차 오더:</span>
+            <span className="text-xs font-extrabold text-slate-500 whitespace-nowrap">배차 오더:</span>
             <select
               value={activeSelectedId || ""}
               onChange={(e) => setSelectedRequestId(Number(e.target.value))}
@@ -257,7 +245,7 @@ export default function SiteDispatchRequestManagement({
                   [{req.siteName} ➔ {req.dropoffName || "지정하차지"}] {req.tonTypes.map(t=>t==='T_25'?'25톤':t).join(',')} ({req.truckCount}대)
                 </option>
               ))}
-              {filteredRequests.length === 0 && <option value="">매칭 완료된 진행 배차 없음</option>}
+              {filteredRequests.length === 0 && <option value="">매칭 완료된 배차 없음</option>}
             </select>
           </div>
         </div>

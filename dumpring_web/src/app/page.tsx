@@ -1500,7 +1500,7 @@ export default function Home() {
       {(user.role === "site_manager" || user.role === "site_worker") && (
         activePath === "/site/org-hierarchy" ? (
           <SiteWorkerManagement registeredSiteList={registeredSiteList} />
-        ) : activePath === "/site/dispatch-request" || activePath === "/site/dispatch" ? (
+        ) : activePath === "/site/dispatch" ? (
           <SiteDispatchRequestManagement
             registeredSiteList={registeredSiteList}
             dispatchRequestList={dispatchRequestList}
@@ -1511,6 +1511,73 @@ export default function Home() {
             handleUpdateDispatch={handleUpdateDispatch}
             handleDeleteDispatch={handleDeleteDispatch}
             fetchDispatchRequests={fetchDispatchRequests}
+            handleConfirmMatchJobPost={handleConfirmMatchJobPost}
+            handleRejectMatchJobPost={handleRejectMatchJobPost}
+            handleResetMatchJobPost={handleResetMatchJobPost}
+          />
+        ) : activePath === "/site/dispatch-request" ? (
+          <SiteManagerDashboard
+            activePath={activePath}
+            setActivePath={setActivePath}
+            siteFormName={siteFormName}
+            setSiteFormName={setSiteFormName}
+            siteFormCompanyName={siteFormCompanyName}
+            setSiteFormCompanyName={setSiteFormCompanyName}
+            siteFormAddress={siteFormAddress}
+            setSiteFormAddress={setSiteFormAddress}
+            siteFormRoadDesc={siteFormRoadDesc}
+            setSiteFormRoadDesc={setSiteFormRoadDesc}
+            siteFormManagers={siteFormManagers}
+            setSiteFormManagers={setSiteFormManagers}
+            siteFormSearchQuery={siteFormSearchQuery}
+            setSiteFormSearchQuery={setSiteFormSearchQuery}
+            registeredSiteList={registeredSiteList}
+            setRegisteredSiteList={setRegisteredSiteList}
+            dispatchFormSiteId={dispatchFormSiteId}
+            setDispatchFormSiteId={setDispatchFormSiteId}
+            dispatchFormTonTypes={dispatchFormTonTypes}
+            setDispatchFormTonTypes={setDispatchFormTonTypes}
+            dispatchFormTruckCount={dispatchFormTruckCount}
+            setDispatchFormTruckCount={setDispatchFormTruckCount}
+            dispatchFormSoilType={dispatchFormSoilType}
+            setDispatchFormSoilType={setDispatchFormSoilType}
+            dispatchFormStartDate={dispatchFormStartDate}
+            setDispatchFormStartDate={setDispatchFormStartDate}
+            dispatchFormEndDate={dispatchFormEndDate}
+            setDispatchFormEndDate={setDispatchFormEndDate}
+            dispatchFormDropoffMode={dispatchFormDropoffMode}
+            setDispatchFormDropoffMode={setDispatchFormDropoffMode}
+            dispatchFormDropoffName={dispatchFormDropoffName}
+            setDispatchFormDropoffName={setDispatchFormDropoffName}
+            dispatchFormDropoffAddress={dispatchFormDropoffAddress}
+            setDispatchFormDropoffAddress={setDispatchFormDropoffAddress}
+            dispatchFormDropoffCapacity={dispatchFormDropoffCapacity}
+            setDispatchFormDropoffCapacity={setDispatchFormDropoffCapacity}
+            dispatchFormDropoffSoilType={dispatchFormDropoffSoilType}
+            setDispatchFormDropoffSoilType={setDispatchFormDropoffSoilType}
+            dispatchRequestMode={dispatchRequestMode}
+            setDispatchRequestMode={setDispatchRequestMode}
+            editingDispatchRequestId={editingDispatchRequestId}
+            setEditingDispatchRequestId={setEditingDispatchRequestId}
+            dispatchRequestSearchQuery={dispatchRequestSearchQuery}
+            setDispatchRequestSearchQuery={setDispatchRequestSearchQuery}
+            dispatchRequestList={dispatchRequestList}
+            setDispatchRequestList={setDispatchRequestList}
+            registeredDropoffList={registeredDropoffList}
+            dropoffRequestList={dropoffRequestList}
+            taxInvoiceApproved={taxInvoiceApproved}
+            setTaxInvoiceApproved={setTaxInvoiceApproved}
+            handleCreateSite={handleCreateSite}
+            handleUpdateSite={handleUpdateSite}
+            handleDeleteSite={handleDeleteSite}
+            handleCreateDispatch={handleCreateDispatch}
+            handleUpdateDispatch={handleUpdateDispatch}
+            handleDeleteDispatch={handleDeleteDispatch}
+            fetchDispatchRequests={fetchDispatchRequests}
+            dispatchFormPayerType={dispatchFormPayerType}
+            setDispatchFormPayerType={setDispatchFormPayerType}
+            dispatchFormOfferedUnitPrice={dispatchFormOfferedUnitPrice}
+            setDispatchFormOfferedUnitPrice={setDispatchFormOfferedUnitPrice}
             handleConfirmMatchJobPost={handleConfirmMatchJobPost}
             handleRejectMatchJobPost={handleRejectMatchJobPost}
             handleResetMatchJobPost={handleResetMatchJobPost}
