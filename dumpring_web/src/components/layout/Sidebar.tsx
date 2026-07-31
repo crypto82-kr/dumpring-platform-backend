@@ -74,8 +74,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
       path: "#site-dispatch",
       subItems: [
         { title: "배차 요청", path: "/site/dispatch-request" },
-        { title: "배차 요청 현황", path: "/site/dispatch" },
-        { title: "배차 승인 처리", path: "/site/dispatch-approve" },
+        { title: "배차 현황", path: "/site/dispatch" },
         { title: "운행 이력 조회", path: "/site/history" },
       ]
     },
@@ -93,7 +92,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
       icon: Truck,
       path: "#site-dispatch",
       subItems: [
-        { title: "배차 요청 현황", path: "/site/dispatch" },
+        { title: "배차 현황", path: "/site/dispatch" },
         { title: "운행 이력 조회", path: "/site/history" },
       ]
     },
