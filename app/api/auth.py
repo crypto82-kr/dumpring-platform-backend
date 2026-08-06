@@ -8,7 +8,6 @@ from jose import jwt, JWTError
 from typing import List, Optional
 import logging
 import uuid
-import re
 
 from app.core.db import get_db
 from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus
@@ -16,7 +15,7 @@ from app.schemas.auth import (
     DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse,
     SiteManagerRegister, SiteWorkerRegister, DropOffRegister
 )
-from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM
+from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM, normalize_phone
 from app.core.config import settings
 
 logger = logging.getLogger("dumpring.auth")
@@ -38,13 +37,14 @@ async def register_driver(
     data: DriverRegister,
     db: AsyncSession = Depends(get_db)
 ):
+    normalized_phone = normalize_phone(data.phone_number)
     # 1. 중복 가입 체크
-    query = select(User).where(User.phone_number == data.phone_number)
+    query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
     
     if existing_user:
-        logger.warning(f"회원 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        logger.warning(f"회원 가입 실패: 이미 존재하는 휴대폰 번호 ({normalized_phone})")
         # 중복 휴대폰 번호에 대한 프론트엔드 맞춤형 커스텀 에러 처리
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -58,7 +58,7 @@ async def register_driver(
         # 2. 비밀번호 암호화 및 유저 엔티티 생성
         hashed_password = get_password_hash(data.password)
         new_user = User(
-            phone_number=data.phone_number,
+            phone_number=normalized_phone,
             password=hashed_password,
             name=data.name,
             ci=data.ci,
@@ -76,7 +76,7 @@ async def register_driver(
 
         # 3. 차주 선등록 매칭 로직 작동
         # drivers 테이블에서 가입하려는 기사의 휴대폰 번호로 선등록된 건이 있는지 비동기 조회
-        driver_query = select(Driver).where(Driver.registered_phone == data.phone_number)
+        driver_query = select(Driver).where(Driver.registered_phone == normalized_phone)
         driver_result = await db.execute(driver_query)
         pre_registered_driver = driver_result.scalars().first()
         
@@ -89,7 +89,7 @@ async def register_driver(
             # 추후 차주가 차량을 매칭하거나 신규 등록할 수 있는 여지를 확보합니다.
             new_driver_profile = Driver(
                 user_id=new_user.id,
-                registered_phone=data.phone_number,
+                registered_phone=normalized_phone,
                 is_approved=False  # 본사/차주 승인 대기 기본값
             )
             db.add(new_driver_profile)
@@ -118,13 +118,14 @@ async def register_owner(
     data: OwnerRegister,
     db: AsyncSession = Depends(get_db)
 ):
+    normalized_phone = normalize_phone(data.phone_number)
     # 1. 중복 가입 체크
-    query = select(User).where(User.phone_number == data.phone_number)
+    query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
     
     if existing_user:
-        logger.warning(f"차주 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        logger.warning(f"차주 가입 실패: 이미 존재하는 휴대폰 번호 ({normalized_phone})")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
@@ -137,7 +138,7 @@ async def register_owner(
         # 2. 비밀번호 암호화 및 차주 유저 엔티티 생성
         hashed_password = get_password_hash(data.password)
         new_user = User(
-            phone_number=data.phone_number,
+            phone_number=normalized_phone,
             password=hashed_password,
             name=data.name,
             ci=data.ci,
@@ -171,12 +172,13 @@ async def signup_site_manager(
     data: SiteManagerRegister,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(User).where(User.phone_number == data.phone_number)
+    normalized_phone = normalize_phone(data.phone_number)
+    query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
     
     if existing_user:
-        logger.warning(f"현장관리자 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        logger.warning(f"현장관리자 가입 실패: 이미 존재하는 휴대폰 번호 ({normalized_phone})")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
@@ -188,7 +190,7 @@ async def signup_site_manager(
     try:
         hashed_password = get_password_hash(data.password)
         new_user = User(
-            phone_number=data.phone_number,
+            phone_number=normalized_phone,
             password=hashed_password,
             name=data.name,
             ci=data.ci,
@@ -225,7 +227,7 @@ async def signup_site_manager(
                 company_name=data.company_name,
                 business_number=data.business_number,
                 site_key=site_key,
-                billing_email=f"billing@{data.phone_number}.com"  # 임시 이메일
+                billing_email=f"billing@{normalized_phone}.com"  # 임시 이메일
             )
             db.add(site)
             await db.flush()
@@ -261,12 +263,13 @@ async def signup_site_worker(
     data: SiteWorkerRegister,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(User).where(User.phone_number == data.phone_number)
+    normalized_phone = normalize_phone(data.phone_number)
+    query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
     
     if existing_user:
-        logger.warning(f"현장담당자 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        logger.warning(f"현장담당자 가입 실패: 이미 존재하는 휴대폰 번호 ({normalized_phone})")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
@@ -278,7 +281,7 @@ async def signup_site_worker(
     try:
         hashed_password = get_password_hash(data.password)
         new_user = User(
-            phone_number=data.phone_number,
+            phone_number=normalized_phone,
             password=hashed_password,
             name=data.name,
             ci=data.ci,
@@ -292,53 +295,43 @@ async def signup_site_worker(
         db.add(new_user)
         await db.flush()
 
-        # ConstructionSite 조회 (site_key 기반 - 입력된 경우만 연결)
-        if data.site_key:
-            site_query = select(ConstructionSite).where(
-                ConstructionSite.site_key == data.site_key
-            )
-            site_result = await db.execute(site_query)
-            site = site_result.scalars().first()
-            if site:
-                mapping = SiteUserMapping(
-                    site_id=site.id,
-                    user_id=new_user.id,
-                    status=SiteUserStatus.PENDING
-                )
-                db.add(mapping)
-
-        # SiteEmployee 선등록 매칭 로직 작동 (하이픈 유무 양방향 탐색)
-        raw_phone = data.phone_number.strip()
-        digits = re.sub(r"\D", "", raw_phone)
-        formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
-
-        employee_query = select(SiteEmployee).where(
-            (SiteEmployee.registered_phone == raw_phone) |
-            (SiteEmployee.registered_phone == formatted_phone) |
-            (SiteEmployee.registered_phone == digits)
+        new_profile = SiteProfile(
+            user_id=new_user.id,
+            company_name=data.company_name,
+            site_name=data.site_name,
+            business_number=data.business_number
         )
+        db.add(new_profile)
+
+        # ConstructionSite 조회 (site_key 기반)
+        site_query = select(ConstructionSite).where(
+            ConstructionSite.site_key == data.site_key
+        )
+        site_result = await db.execute(site_query)
+        site = site_result.scalars().first()
+
+        if not site:
+            logger.warning(f"현장담당자 가입 실패: 유효하지 않은 현장 키 ({data.site_key})")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="올바르지 않은 현장 키입니다. 현장관리자(소장님)에게 문의하여 올바른 현장 키를 입력해 주세요."
+            )
+
+        # SiteUserMapping 생성 (담당자는 PENDING으로 시작)
+        mapping = SiteUserMapping(
+            site_id=site.id,
+            user_id=new_user.id,
+            status=SiteUserStatus.PENDING
+        )
+        db.add(mapping)
+
+        # SiteEmployee 선등록 매칭 로직 작동
+        employee_query = select(SiteEmployee).where(SiteEmployee.registered_phone == normalized_phone)
         employee_result = await db.execute(employee_query)
         pre_registered_employees = employee_result.scalars().all()
         
         for emp in pre_registered_employees:
             emp.user_id = new_user.id
-            if emp.site_id:
-                # 현장소장이 선등록한 현장 매칭에 따라 SiteUserMapping 승인 상태 자동 생성
-                mapping_q = select(SiteUserMapping).where(
-                    SiteUserMapping.site_id == emp.site_id,
-                    SiteUserMapping.user_id == new_user.id
-                )
-                map_res = await db.execute(mapping_q)
-                existing_map = map_res.scalars().first()
-                if not existing_map:
-                    new_mapping = SiteUserMapping(
-                        site_id=emp.site_id,
-                        user_id=new_user.id,
-                        status=SiteUserStatus.APPROVED
-                    )
-                    db.add(new_mapping)
-                else:
-                    existing_map.status = SiteUserStatus.APPROVED
             logger.info(f"★ [매칭 성공] 선등록 현장 직원 데이터 발견 및 매칭 연동 완료 (Employee ID: {emp.id} -> User ID: {new_user.id})")
         
         await db.commit()
@@ -364,12 +357,13 @@ async def signup_drop_off(
     data: DropOffRegister,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(User).where(User.phone_number == data.phone_number)
+    normalized_phone = normalize_phone(data.phone_number)
+    query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
     
     if existing_user:
-        logger.warning(f"하차지 지주 가입 실패: 이미 존재하는 휴대폰 번호 ({data.phone_number})")
+        logger.warning(f"하차지 지주 가입 실패: 이미 존재하는 휴대폰 번호 ({normalized_phone})")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
@@ -381,7 +375,7 @@ async def signup_drop_off(
     try:
         hashed_password = get_password_hash(data.password)
         new_user = User(
-            phone_number=data.phone_number,
+            phone_number=normalized_phone,
             password=hashed_password,
             name=data.name,
             ci=data.ci,
@@ -425,34 +419,21 @@ async def login(
     data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    # 전화번호 입력 포맷 정규화 (01012345678 <-> 010-1234-5678 양방향 호환)
-    raw_phone = data.phone_number.strip()
-    digits = re.sub(r"\D", "", raw_phone)
-    formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
-
-    # 1. 사용자 조회 (하이픈 포함/미포함 양쪽 무조건 탐색)
-    query = select(User).where((User.phone_number == raw_phone) | (User.phone_number == formatted_phone) | (User.phone_number == digits))
+    normalized_phone = normalize_phone(data.phone_number)
+    # 1. 사용자 조회
+    query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     user = result.scalars().first()
     
-    # 2. 로그인 예외 처리 및 임시 비밀번호 선등록 검증
-    emp_query = select(SiteEmployee).where(
-        (SiteEmployee.registered_phone == raw_phone) | 
-        (SiteEmployee.registered_phone == formatted_phone) | 
-        (SiteEmployee.registered_phone == digits) | 
-        (SiteEmployee.user_id == (user.id if user else -1))
-    )
-    emp_res = await db.execute(emp_query)
-    emp = emp_res.scalars().first()
-
+    # 2. 로그인 예외 처리
     if not user or not verify_password(data.password, user.password):
-        logger.warning(f"로그인 인증 실패: 번호 {data.phone_number} 또는 패스워드 불일치")
+        logger.warning(f"로그인 인증 실패: 번호 {normalized_phone} 또는 패스워드 불일치")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="휴대폰 번호 또는 비밀번호가 올바르지 않습니다.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
+    
     # 3. JWT 발급
     access_token = create_access_token(subject=user.id)
     logger.info(f"로그인 성공: User ID {user.id} ({user.name}) - JWT 액세스 토큰 발행 완료")
@@ -460,8 +441,7 @@ async def login(
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user,
-        "is_temp_password": False
+        "user": user
     }
 
 
@@ -662,27 +642,11 @@ async def get_member_status(
                 )
             )
             
-    # 5. 심사 승인 및 현장 매핑 여부 확인
+    # 5. 심사 승인 여부 확인
     is_approved = False
-    is_site_mapped = True
     reject_reason = None
     
-    if current_user.is_site_worker:
-        # 현장담당자의 경우 소속 현장(SiteEmployee 또는 SiteUserMapping) 연결 여부 검사
-        emp_query = select(SiteEmployee).where(SiteEmployee.user_id == current_user.id)
-        emp_res = await db.execute(emp_query)
-        emp = emp_res.scalars().first()
-        
-        map_query = select(SiteUserMapping).where(SiteUserMapping.user_id == current_user.id)
-        map_res = await db.execute(map_query)
-        site_map = map_res.scalars().first()
-
-        if not emp and not site_map:
-            is_site_mapped = False
-
-        is_approved = current_user.is_approved
-        reject_reason = current_user.reject_reason
-    elif role == "driver":
+    if role == "driver":
         driver_query = select(Driver).where(Driver.user_id == current_user.id)
         driver_result = await db.execute(driver_query)
         driver = driver_result.scalars().first()
@@ -690,13 +654,12 @@ async def get_member_status(
             is_approved = driver.is_approved
             reject_reason = driver.reject_reason
     else:
-        # 차주 / 현장소장
+        # 차주
         is_approved = current_user.is_approved
         reject_reason = current_user.reject_reason
         
     return MemberStatusResponse(
         is_approved=is_approved,
-        is_site_mapped=is_site_mapped,
         reject_reason=reject_reason,
         uploaded_documents=uploaded_codes,
         uploaded_files=uploaded_files_map,
@@ -889,10 +852,6 @@ async def get_pending_members(
         if sm.is_admin:
             continue
 
-        # 현장 개설 정보(SiteProfile/ConstructionSite)가 일체 없는 미완성 가입건은 승인 대기목록 제외
-        if not sm.site_profile and not sm.construction_sites:
-            continue
-
         doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == sm.id)
         doc_res = await db.execute(doc_query)
         docs = doc_res.scalars().all()
@@ -928,46 +887,6 @@ async def get_pending_members(
             "business_number": biz_no,
             "address": address_val
         })
-
-    # 현장담당자 중 미승인 유저 검색 (SiteEmployee 선등록 테이블과 자동 매칭 조인)
-    site_wrk_query = select(User).where(User.is_site_worker == True, User.is_approved == False)
-    site_wrk_res = await db.execute(site_wrk_query)
-    site_workers = site_wrk_res.scalars().all()
-
-    for sw in site_workers:
-        if sw.is_admin:
-            continue
-
-        # SiteEmployee 테이블에서 user_id 또는 폰번호로 자동 매칭된 현장 정보 검색
-        emp_q = select(SiteEmployee).options(selectinload(SiteEmployee.site)).where(
-            (SiteEmployee.user_id == sw.id) | (SiteEmployee.registered_phone == sw.phone_number)
-        )
-        emp_res = await db.execute(emp_q)
-        emp = emp_res.scalars().first()
-
-        site_name_val = "소속 공사 현장"
-        company_val = "현장 소속"
-        biz_no_val = "미등록"
-        address_val = "현장 주소"
-
-        if emp and emp.site:
-            site_name_val = emp.site.site_name
-            company_val = emp.site.company_name
-            biz_no_val = emp.site.business_number
-            address_val = emp.site.site_address or "현장 주소 미등록"
-
-        response_list.append({
-            "id": sw.id,
-            "type": "현장담당자 가입",
-            "name": sw.name,
-            "phone_number": sw.phone_number,
-            "docs": "본인인증 검증 완료",
-            "created_at": sw.created_at,
-            "company_name": company_val,
-            "site_name": site_name_val,
-            "business_number": biz_no_val,
-            "address": address_val
-        })
         
     return response_list
 
@@ -1001,28 +920,9 @@ async def approve_member(
             driver.is_approved = True
             driver.reject_reason = None
             
-    if user.is_owner or user.is_site_manager or user.is_site_worker or user.is_drop_off:
+    if user.is_owner or user.is_site_manager or user.is_drop_off:
         user.is_approved = True
         user.reject_reason = None
-
-        if user.is_site_worker:
-            # SiteEmployee 인원 테이블의 is_approved 승인 상태도 동시 업데이트
-            raw_phone = user.phone_number or ""
-            digits = re.sub(r"\D", "", raw_phone)
-            formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
-
-            emp_q = select(SiteEmployee).where(
-                (SiteEmployee.user_id == user_id) |
-                (SiteEmployee.registered_phone == raw_phone) |
-                (SiteEmployee.registered_phone == formatted_phone) |
-                (SiteEmployee.registered_phone == digits)
-            )
-            emp_res = await db.execute(emp_q)
-            employees = emp_res.scalars().all()
-            for emp in employees:
-                emp.is_approved = True
-                emp.user_id = user_id
-                emp.reject_reason = None
         
     await db.commit()
     return {"message": "회원 가입 서류 심사가 성공적으로 최종 승인 완료되었습니다."}
@@ -1095,7 +995,7 @@ async def update_profile(
             current_user.phone_number = data.phone_number
     if data.password is not None and data.password.strip() != "":
         current_user.password = get_password_hash(data.password)
-
+    
     await db.commit()
     await db.refresh(current_user)
     return {"message": "프로필이 성공적으로 수정되었습니다.", "user": {

@@ -41,4 +41,13 @@ def create_access_token(subject: Union[str, Any], expires_delta: timedelta = Non
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+def normalize_phone(phone: str) -> str:
+    """
+    휴대폰 번호에서 하이픈(-) 및 공백을 제거하고 숫자만 반환합니다.
+    """
+    if not phone:
+        return ""
+    return "".join(c for c in phone if c.isdigit())
+
+
 

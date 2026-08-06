@@ -6,9 +6,8 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
-import re
 from app.core.db import get_db
-from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode, SiteUserMapping, SiteUserStatus, SiteEmployee
+from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode, SiteUserMapping, SiteUserStatus
 from app.api.auth import get_current_user
 from app.schemas.jobs import (
     DropOffRequestCreate, DropOffRequestResponse,
@@ -252,10 +251,10 @@ async def get_open_drop_off_requests(
     current_user: User = Depends(get_current_user)
 ):
     print(f"[DEBUG] get_open_drop_off_requests called: user_id={current_user.id}, is_site_manager={current_user.is_site_manager}, is_drop_off={current_user.is_drop_off}, is_admin={current_user.is_admin}")
-    if not current_user.is_site_manager and not current_user.is_site_worker and not current_user.is_drop_off and not current_user.is_admin:
+    if not current_user.is_site_manager and not current_user.is_drop_off and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장 권한(SITE_MANAGER/SITE_WORKER) 또는 하차지관리자(DROP_OFF) 권한이 필요합니다."
+            detail="현장관리자(SITE_MANAGER) 또는 하차지관리자(DROP_OFF) 권한이 필요합니다."
         )
 
     query = select(DropOffRequest).where(DropOffRequest.status == "OPEN")
@@ -333,10 +332,10 @@ async def search_drop_off_request_by_code(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager and not current_user.is_site_worker and not current_user.is_admin:
+    if not current_user.is_site_manager:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장 관리 권한(SITE_MANAGER/SITE_WORKER)이 필요합니다."
+            detail="현장관리자(SITE_MANAGER) 권한이 필요합니다."
         )
 
     # 초대코드 분석 (DR-5, dr-5 또는 단순 숫자 5 등)
@@ -1124,21 +1123,7 @@ async def get_my_job_posts(
         mapped_site_res = await db.execute(mapped_sites_query)
         mapped_site_ids = mapped_site_res.scalars().all()
 
-        # SiteEmployee 테이블에 연동된 현장 ID도 조인
-        raw_phone = current_user.phone_number or ""
-        digits = re.sub(r"\D", "", raw_phone)
-        formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
-
-        emp_sites_query = select(SiteEmployee.site_id).where(
-            (SiteEmployee.user_id == current_user.id) |
-            (SiteEmployee.registered_phone == raw_phone) |
-            (SiteEmployee.registered_phone == formatted_phone) |
-            (SiteEmployee.registered_phone == digits)
-        )
-        emp_site_res = await db.execute(emp_sites_query)
-        emp_site_ids = [s for s in emp_site_res.scalars().all() if s is not None]
-
-        allowed_site_ids = list(set(own_site_ids + mapped_site_ids + emp_site_ids))
+        allowed_site_ids = list(set(own_site_ids + mapped_site_ids))
 
         if allowed_site_ids:
             query = select(JobPost).options(

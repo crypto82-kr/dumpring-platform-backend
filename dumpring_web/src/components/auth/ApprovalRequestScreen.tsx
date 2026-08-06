@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { MapPin, Truck, ShieldCheck, AlertCircle, Loader2, Check, RefreshCw, LogOut } from "lucide-react";
-import { getApiBaseUrl } from "@/utils/api";
 
 export default function ApprovalRequestScreen() {
   const { user, logout, updateApprovalStatus } = useAuth();
@@ -42,7 +41,6 @@ export default function ApprovalRequestScreen() {
   const mapRef = React.useRef<HTMLDivElement>(null);
 
   // 화면 상태 및 메시지
-  const [isSiteMapped, setIsSiteMapped] = useState(true);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -62,7 +60,7 @@ export default function ApprovalRequestScreen() {
         return;
       }
 
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/member-status`, {
+      const res = await fetch("http://localhost:8000/api/auth/member-status", {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
@@ -77,13 +75,12 @@ export default function ApprovalRequestScreen() {
           return;
         }
 
-        setIsSiteMapped(data.is_site_mapped !== undefined ? data.is_site_mapped : true);
         setRejectReason(data.reject_reason || null);
         setUploadedDocs(data.uploaded_documents || []);
         setMissingDocs(data.missing_documents || []);
 
-        // 2. 현장담당자(site_worker)는 서류 제출이 없으므로 항상 승인 심사 대기 상태(isSubmitted=true)로 즉시 표시
-        if (user?.role === "site_worker" || (data.missing_documents && data.missing_documents.length === 0 && data.uploaded_documents && data.uploaded_documents.length > 0)) {
+        // 2. 누락된 서류가 없고 업로드 완료된 서류가 존재하면 승인 제출 완료 상태로 봄
+        if (data.missing_documents && data.missing_documents.length === 0 && data.uploaded_documents && data.uploaded_documents.length > 0) {
           setIsSubmitted(true);
         }
       }
@@ -107,7 +104,7 @@ export default function ApprovalRequestScreen() {
         return;
       }
 
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/upload-document`, {
+      const res = await fetch("http://localhost:8000/api/auth/upload-document", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -225,7 +222,7 @@ export default function ApprovalRequestScreen() {
         body.is_direct_driver = isDirectDriver;
       }
 
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/submit-approval`, {
+      const res = await fetch("http://localhost:8000/api/auth/submit-approval", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -321,29 +318,10 @@ export default function ApprovalRequestScreen() {
           </div>
           
           <div className="space-y-2 max-w-md mx-auto">
-            {user?.role === "site_worker" && !isSiteMapped ? (
-              <>
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3 border border-amber-200 dark:border-amber-900/40 font-black text-xl">
-                  ⚠️
-                </div>
-                <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">현장 담당자로 소속된 정보가 없습니다</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed pt-1">
-                  회원가입은 완료되었으나, 현재 계정에 연결된 공사현장 정보가 존재하지 않습니다.
-                </p>
-                <div className="p-4 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl text-[11.5px] text-amber-900 dark:text-amber-300 font-semibold text-left space-y-1.5 mt-3">
-                  <p className="font-extrabold flex items-center gap-1">💡 <strong>안내:</strong></p>
-                  <p>소속 공사현장의 <strong>현장관리자(소장님)에게 문의하시어 현장담당자 인원 등록을 요청</strong>해 주시기 바랍니다.</p>
-                  <p className="text-[10.5px] text-amber-700 dark:text-amber-400 font-normal pt-1">* 소장님이 인원 등록을 완료하신 후 아래 <strong>[새로고침]</strong> 버튼을 누르시면 정상 연결됩니다.</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">어드민 승인을 기다리는 중입니다</h3>
-                <p className="text-xs text-slate-550 leading-relaxed dark:text-slate-450">
-                  제출하신 정보와 필수 제출 서류를 심사역이 실시간으로 확인하고 있습니다. 승인이 완료되면 자동으로 대시보드로 진입 가능합니다.
-                </p>
-              </>
-            )}
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">어드민 승인을 기다리는 중입니다</h3>
+            <p className="text-xs text-slate-550 leading-relaxed dark:text-slate-450">
+              제출하신 정보와 필수 제출 서류를 심사역이 실시간으로 확인하고 있습니다. 승인이 완료되면 자동으로 대시보드로 진입 가능합니다.
+            </p>
           </div>
 
           <div className="flex justify-center pt-4">
