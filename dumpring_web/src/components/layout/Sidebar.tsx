@@ -247,7 +247,7 @@ export default function Sidebar() {
 
                   {/* Role-specific Notification Items */}
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                    {user.role === "site_manager" || user.role === "site_worker" ? (
+                    {(user.role as string) === "site_manager" || (user.role as string) === "site_worker" ? (
                       <>
                         <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-xs space-y-1">
                           <div className="flex justify-between items-center">

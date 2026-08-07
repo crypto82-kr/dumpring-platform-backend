@@ -9,8 +9,7 @@ import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboar
 import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
 import SiteDispatchRequestManagement from "@/components/dashboard/SiteDispatchRequestManagement";
-import DropoffRegisterManagement from "@/components/dashboard/DropoffRegisterManagement";
-import DropoffRequestManagement from "@/components/dashboard/DropoffRequestManagement";
+import SiteOverviewDashboard from "@/components/dashboard/SiteOverviewDashboard";
 import { DropoffManagerDashboard } from "@/components/dashboard/DropoffManagerDashboard";
 import { OwnerDashboard } from "@/components/dashboard/OwnerDashboard";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";

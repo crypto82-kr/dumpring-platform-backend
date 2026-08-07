@@ -148,3 +148,8 @@ cython_debug/
 # System Files
 .DS_Store
 Thumbs.db
+
+# Test Scripts and Temp Templates
+scratch/
+scratch_*.py
+tailadmin-free-tailwind-dashboard-template-main/
