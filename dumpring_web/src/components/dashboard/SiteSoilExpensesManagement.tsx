@@ -29,7 +29,7 @@ export default function SiteSoilExpensesManagement({
       unitPrice: 45000,
       truckCount: 10,
       totalAmount: 450000,
-      status: "정산 완료",
+      status: "수령 확인",
     },
     {
       id: 2,
@@ -43,7 +43,7 @@ export default function SiteSoilExpensesManagement({
       unitPrice: 30000,
       truckCount: 8,
       totalAmount: 240000,
-      status: "정산 완료",
+      status: "정산 검토",
     },
     {
       id: 3,
@@ -229,10 +229,50 @@ export default function SiteSoilExpensesManagement({
                     {row.payerType === "SITE_RECEIVES" ? "+" : row.payerType === "SITE_PAYS" ? "-" : ""}
                     {row.totalAmount.toLocaleString()} 원
                   </td>
-                  <td className="py-3.5 px-4 text-right">
-                    <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-slate-100 text-slate-700 border border-slate-200">
+                  <td className="py-3.5 px-4 text-right space-x-2">
+                    <span
+                      className={`px-2.5 py-1 text-[10px] font-extrabold rounded border ${
+                        row.status === "정산 마감"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          : row.status === "수령 확인"
+                          ? "bg-blue-50 text-blue-600 border-blue-200"
+                          : row.status === "송금 완료"
+                          ? "bg-indigo-50 text-indigo-600 border-indigo-200"
+                          : "bg-amber-50 text-amber-600 border-amber-200"
+                      }`}
+                    >
                       {row.status}
                     </span>
+                    {row.status === "정산 검토" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          row.status = "송금 완료";
+                          alert(`[${row.jobPostId}] 흙값 거래에 대한 송금 완료 알림을 상대측에 전송했습니다.`);
+                        }}
+                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
+                      >
+                        송금 처리
+                      </button>
+                    )}
+                    {row.status === "송금 완료" && (
+                      <span className="text-[11px] text-indigo-600 font-bold">상대 수령 확인 대기</span>
+                    )}
+                    {row.status === "수령 확인" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          row.status = "정산 마감";
+                          alert(`[${row.jobPostId}] 흙값 정산 건이 상호 확인 완료되어 최종 마감되었습니다.`);
+                        }}
+                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-sm"
+                      >
+                        최종 마감
+                      </button>
+                    )}
+                    {row.status === "정산 마감" && (
+                      <span className="text-[11px] text-slate-400 font-bold">마감 완료</span>
+                    )}
                   </td>
                 </tr>
               ))}
