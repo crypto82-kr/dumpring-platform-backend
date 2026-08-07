@@ -3,6 +3,10 @@
 import React from "react";
 import DropoffRegisterManagement from "./DropoffRegisterManagement";
 import DropoffRequestManagement from "./DropoffRequestManagement";
+import DropoffDispatchManagement from "./DropoffDispatchManagement";
+import DropoffSoilSettlementManagement from "./DropoffSoilSettlementManagement";
+import DropoffStatsManagement from "./DropoffStatsManagement";
+import DropoffAlertsManagement from "./DropoffAlertsManagement";
 import DropoffOverviewDashboard from "./DropoffOverviewDashboard";
 import { getApiBaseUrl } from "@/utils/api";
 
@@ -174,6 +178,40 @@ export function DropoffManagerDashboard(props: DropoffManagerDashboardProps) {
         handleResetMatchJobPost={props.handleResetMatchJobPost}
       />
     );
+  }
+
+  if (activePath === "/dropoff/dispatch") {
+    return (
+      <DropoffDispatchManagement
+        user={props.user}
+        registeredDropoffList={props.registeredDropoffList}
+        dropoffRequestList={props.dropoffRequestList || []}
+        dispatchRequestList={props.dispatchRequestList || []}
+        registeredSiteList={props.registeredSiteList || []}
+        dbCommonCodes={props.dbCommonCodes}
+      />
+    );
+  }
+
+  if (activePath === "/dropoff/soil-settlement") {
+    return (
+      <DropoffSoilSettlementManagement
+        registeredDropoffList={props.registeredDropoffList}
+        dbCommonCodes={props.dbCommonCodes}
+      />
+    );
+  }
+
+  if (activePath === "/dropoff/stats") {
+    return (
+      <DropoffStatsManagement
+        registeredDropoffList={props.registeredDropoffList}
+      />
+    );
+  }
+
+  if (activePath === "/dropoff/alerts") {
+    return <DropoffAlertsManagement />;
   }
 
   return (

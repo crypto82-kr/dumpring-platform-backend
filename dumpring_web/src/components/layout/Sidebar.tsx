@@ -103,20 +103,9 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "하차지 대시보드", icon: LayoutDashboard, path: "/dropoff" },
     { title: "하차지 등록", icon: MapPin, path: "/dropoff/register" },
     { title: "공고 관리", icon: FileText, path: "/dropoff/dispatch-request" },
-    {
-      title: "배차 관리",
-      icon: Truck,
-      path: "#dropoff-dispatch",
-      subItems: [
-        { title: "배차 현황", path: "/dropoff/dispatch" },
-        { title: "반입 허가 차량 관리", path: "/dropoff/trucks" },
-        { title: "실시간 반입 현황", path: "/dropoff/inbound" },
-        { title: "실시간 반입 확인", path: "/dropoff/verification" },
-      ]
-    },
+    { title: "배차 현황", icon: Truck, path: "/dropoff/dispatch" },
     { title: "흙값 정산 관리", icon: DollarSign, path: "/dropoff/soil-settlement" },
     { title: "하차지 정보 통계", icon: BarChart3, path: "/dropoff/stats" },
-    { title: "알림 수신함", icon: Bell, path: "/dropoff/alerts" },
   ],
   owner: [
     { title: "운송사 대시보드", icon: LayoutDashboard, path: "/owner" },
@@ -124,7 +113,6 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "소속 차량 & 기사 관리", icon: Users, path: "/owner/fleet" },
     { title: "운행 통계 조회", icon: BarChart3, path: "/owner/statistics" },
     { title: "매출 및 운반 정산", icon: DollarSign, path: "/owner/revenues" },
-    { title: "알림 센터", icon: Bell, path: "/owner/notice" },
   ],
 };
 
@@ -132,6 +120,7 @@ export default function Sidebar() {
   const { user, changeRole, logout, activePath, setActivePath } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ "승인 관리": true });
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   // Sync dark mode state with HTML class
   useEffect(() => {
@@ -176,7 +165,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-72 bg-white dark:bg-black border-r border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 flex flex-col justify-between h-screen sticky top-0 transition-colors duration-250">
+    <aside className="w-72 bg-white dark:bg-black border-r border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 flex flex-col justify-between h-screen sticky top-0 z-40 transition-colors duration-250">
       <div>
         {/* Logo / Header with Dark Mode Toggle */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
@@ -217,14 +206,119 @@ export default function Sidebar() {
               </div>
             </div>
             
-            {/* Logout button */}
-            <button
-              onClick={() => logout()}
-              className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-gray-400 transition-all active:scale-95"
-              title="로그아웃"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            {/* Notifications & Logout button */}
+            <div className="flex items-center gap-1 relative">
+              <button
+                type="button"
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className={`p-1.5 rounded-lg border transition-all relative active:scale-95 ${
+                  isNotificationOpen
+                    ? "bg-blue-50 border-blue-300 text-blue-600 dark:bg-blue-950/40 dark:border-blue-800"
+                    : "border-gray-200 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 text-gray-400"
+                }`}
+                title="공통 알림 센터"
+              >
+                <Bell className="w-4 h-4" />
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse border-2 border-white dark:border-slate-900"></span>
+              </button>
+
+              <button
+                onClick={() => logout()}
+                className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-gray-400 transition-all active:scale-95"
+                title="로그아웃"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+
+              {/* 🔔 모던 슬라이드 플로팅 알림 팝업 레이어 (메인 콘텐츠 위로 항상 최상위 렌더링) */}
+              {isNotificationOpen && (
+                <div className="fixed top-24 left-64 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-[9999] p-4 space-y-3 animate-fadeIn backdrop-blur-xl">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-blue-600" />
+                      <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100">
+                        [{user.roleName}] 실시간 알림
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsNotificationOpen(false)}
+                      className="text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      닫기 ✕
+                    </button>
+                  </div>
+
+                  {/* Role-specific Notification Items */}
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {user.role === "site_manager" || user.role === "site_worker" ? (
+                      <>
+                        <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-xs space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-blue-900 dark:text-blue-300">하차지 매칭 완료</span>
+                            <span className="text-[9px] font-mono text-slate-400">10분 전</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-tight">
+                            신길 사토장과 매칭이 완료되어 덤프 기사 모집 공고가 게시되었습니다.
+                          </p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 text-xs space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">기사 콜 신청</span>
+                            <span className="text-[9px] font-mono text-slate-400">30분 전</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-tight">
+                            강동원 기사(25톤)가 배차 콜을 신청했습니다. 승인 대기 중입니다.
+                          </p>
+                        </div>
+                      </>
+                    ) : user.role === "dropoff_manager" ? (
+                      <>
+                        <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 text-xs space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-emerald-900 dark:text-emerald-300">토사 반입 차량 진입</span>
+                            <span className="text-[9px] font-mono text-slate-400">방금 전</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-tight">
+                            마동석 기사 차량(경기80사5678)이 하차지에 진입하여 반입 확인을 요청했습니다.
+                          </p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-xs space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-blue-900 dark:text-blue-300">현장 오더 연동</span>
+                            <span className="text-[9px] font-mono text-slate-400">1시간 전</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-tight">
+                            서초 재건축 현장의 반출 매칭 건이 정상 연결되었습니다.
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 text-xs space-y-1">
+                        <span className="font-bold text-blue-900">시스템 실시간 관제</span>
+                        <p className="text-[11px] text-slate-600 font-medium">
+                          덤프링 실시간 지오펜싱 및 배차 통합 관제가 정상 작동 중입니다.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[10px]">
+                    <span className="text-slate-400 font-bold">읽지 않은 알림 2건</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        alert("모든 알림을 읽음 처리했습니다.");
+                        setIsNotificationOpen(false);
+                      }}
+                      className="text-blue-600 dark:text-blue-400 font-extrabold hover:underline"
+                    >
+                      모두 읽음
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

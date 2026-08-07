@@ -78,6 +78,7 @@ export default function LoginScreen() {
       role: "platform_admin",
       roleName: "플랫폼 관리자",
       phone: "010-0000-0000",
+      password: "password123",
       name: "시스템관리자",
       icon: ShieldCheck,
       color: "from-blue-500 to-cyan-500",
@@ -88,8 +89,9 @@ export default function LoginScreen() {
     {
       role: "site_manager",
       roleName: "현장 관리자",
-      phone: "010-3333-1111",
-      name: "정소장",
+      phone: "010-8888-5555",
+      password: "1234",
+      name: "이태우",
       icon: MapPin,
       color: "from-indigo-500 to-purple-500",
       textColor: "text-indigo-600 dark:text-indigo-400",
@@ -99,7 +101,8 @@ export default function LoginScreen() {
     {
       role: "dropoff_manager",
       roleName: "하차지 관리자",
-      phone: "010-4444-1111",
+      phone: "010-7777-8888",
+      password: "1234",
       name: "오지주",
       icon: Truck,
       color: "from-emerald-500 to-teal-500",
@@ -111,6 +114,7 @@ export default function LoginScreen() {
       role: "owner",
       roleName: "차주 / 운송사",
       phone: "010-1111-1111",
+      password: "password123",
       name: "김차주",
       icon: BarChart3,
       color: "from-amber-500 to-orange-500",
@@ -122,6 +126,7 @@ export default function LoginScreen() {
       role: "developer",
       roleName: "개발자 (시스템 관제)",
       phone: "010-9999-9999",
+      password: "password123",
       name: "개발자",
       icon: Terminal,
       color: "from-slate-700 to-slate-900",
@@ -246,7 +251,7 @@ export default function LoginScreen() {
                 key={preset.role}
                 type="button"
                 disabled={loading}
-                onClick={() => handleLogin(preset.phone, "password123")}
+                onClick={() => handleLogin(preset.phone, preset.password)}
                 className={`flex items-start gap-3 p-3 text-left rounded-2xl border ${preset.bgColor} ${preset.borderColor} hover:scale-[1.02] active:scale-[0.98] transition-all group`}
               >
                 <div className={`p-2 rounded-xl bg-gradient-to-tr ${preset.color} text-white shadow-sm flex-shrink-0 group-hover:rotate-6 transition-all`}>
