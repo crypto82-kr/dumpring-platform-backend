@@ -10,6 +10,7 @@ import {
   FileCheck,
   Search
 } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 
 interface PlatformAdminDashboardProps {
   activePath: string;
@@ -1967,7 +1968,8 @@ export function PlatformAdminDashboard({
                   setPolicySaveSuccess(true);
                   setTimeout(() => setPolicySaveSuccess(false), 3000);
                   try {
-                    await fetch("http://localhost:8000/api/common-codes/pricing-policy", {
+                    const baseUrl = getApiBaseUrl();
+                    await fetch(`${baseUrl}/api/common-codes/pricing-policy`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({

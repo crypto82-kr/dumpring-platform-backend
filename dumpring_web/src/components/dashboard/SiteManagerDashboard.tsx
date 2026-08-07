@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 import { MockMap } from "./MockMap";
 import { MatchStatusCard } from "./MatchStatusCard";
 
@@ -229,7 +230,8 @@ export function SiteManagerDashboard({
   React.useEffect(() => {
     const fetchCodes = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/api/common-codes");
+        const baseUrl = getApiBaseUrl();
+        const res = await fetch(`${baseUrl}/api/common-codes`);
         if (res.ok) {
           const data = await res.json();
           setDbCommonCodes(data);
