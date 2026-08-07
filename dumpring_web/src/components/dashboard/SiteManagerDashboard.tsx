@@ -178,7 +178,8 @@ export function SiteManagerDashboard({
     else setIsUploadingDustReport(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/files/upload", {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/files/upload`, {
         method: "POST",
         body: formData,
       });

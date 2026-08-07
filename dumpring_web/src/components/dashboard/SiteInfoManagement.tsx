@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 import { MockMap } from "./MockMap";
 
 export interface RegisteredSiteItem {
@@ -83,7 +84,8 @@ export default function SiteInfoManagement({
     else setIsUploadingDustReport(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/files/upload", {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/files/upload`, {
         method: "POST",
         body: formData,
       });

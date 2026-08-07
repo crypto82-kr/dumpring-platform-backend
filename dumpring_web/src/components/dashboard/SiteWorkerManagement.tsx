@@ -193,20 +193,21 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
   };
 
   const handleDeleteWorker = async (id: number) => {
-    if (!confirm("해당 현장담당자 인원을 정말 삭제 처리하시겠습니까?")) return;
+    if (!confirm("해당 담당자/근로자를 삭제하시겠습니까?")) return;
     try {
+      const baseUrl = getApiBaseUrl();
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      await fetch(`http://127.0.0.1:8000/api/sites/all-employees/${id}`, {
+      await fetch(`${baseUrl}/api/sites/all-employees/${id}`, {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      setWorkerList((prev) => prev.filter((w) => w.id !== id));
+      fetchWorkers();
       alert("삭제되었습니다.");
       if (selectedWorkerId === id) {
         setSelectedWorkerId(null);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Worker delete error:", err);
       setWorkerList((prev) => prev.filter((w) => w.id !== id));
       alert("삭제되었습니다.");
       if (selectedWorkerId === id) {
