@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { UserCheck, ShieldCheck, UserX, Clock, Search, Plus, User, Phone, Briefcase, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 
 export interface SiteWorkerItem {
   id: number;
@@ -38,8 +39,9 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
   // Fetch Sites List directly from backend for robust dropdown rendering
   const fetchSites = async () => {
     try {
+      const baseUrl = getApiBaseUrl();
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch("http://127.0.0.1:8000/api/sites/admin-sites", {
+      const res = await fetch(`${baseUrl}/api/sites/admin-sites`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {
@@ -62,8 +64,9 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
   const fetchWorkers = async () => {
     setIsLoading(true);
     try {
+      const baseUrl = getApiBaseUrl();
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch("http://127.0.0.1:8000/api/sites/all-employees", {
+      const res = await fetch(`${baseUrl}/api/sites/all-employees`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {

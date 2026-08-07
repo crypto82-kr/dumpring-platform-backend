@@ -19,13 +19,13 @@ import { DropoffManagerDashboard } from "@/components/dashboard/DropoffManagerDa
 import { OwnerDashboard } from "@/components/dashboard/OwnerDashboard";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
 
+import { getApiBaseUrl } from "@/utils/api";
+
 export default function Home() {
   const { user, changeRole, activePath, setActivePath } = useAuth();
   const [inputText, setInputText] = useState("");
 
-  const API_BASE_URL = typeof window !== "undefined" && (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("onrender.com"))
-    ? "https://dumpring-api.onrender.com"
-    : "http://127.0.0.1:8000";
+  const API_BASE_URL = getApiBaseUrl();
 
 
   useEffect(() => {
@@ -1198,7 +1198,7 @@ export default function Home() {
   const handleApproveDriver = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1218,7 +1218,7 @@ export default function Home() {
   const handleApproveOwner = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1239,7 +1239,7 @@ export default function Home() {
   const handleApproveSite = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1259,7 +1259,7 @@ export default function Home() {
   const handleApproveDropoff = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1279,7 +1279,7 @@ export default function Home() {
   const handleRejectMember = async (id: number, reason: string) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/reject?reject_reason=${encodeURIComponent(reason)}`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/reject?reject_reason=${encodeURIComponent(reason)}`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`

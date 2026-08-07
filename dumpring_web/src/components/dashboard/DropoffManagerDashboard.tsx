@@ -1,6 +1,7 @@
 import React from "react";
 import { AlertCircle, Search } from "lucide-react";
 import { MockMap } from "./MockMap";
+import { getApiBaseUrl } from "@/utils/api";
 import { MatchStatusCard } from "./MatchStatusCard";
 import DropoffDispatchManagement from "./DropoffDispatchManagement";
 import DropoffSoilSettlementManagement from "./DropoffSoilSettlementManagement";
@@ -127,9 +128,10 @@ export function DropoffManagerDashboard({
 
   const fetchUploadedDocs = async () => {
     try {
+      const baseUrl = getApiBaseUrl();
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) return;
-      const res = await fetch("http://localhost:8000/api/auth/member-status?role=drop_off", {
+      const res = await fetch(`${baseUrl}/api/auth/member-status?role=drop_off`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -138,7 +140,7 @@ export function DropoffManagerDashboard({
         const docMap: Record<string, string> = {};
         if (data.uploaded_documents) {
           // fetch individual documents to get file name
-          const docsRes = await fetch("http://localhost:8000/api/auth/required-documents?role=drop_off", {
+          const docsRes = await fetch(`${baseUrl}/api/auth/required-documents?role=drop_off`, {
             headers: { "Authorization": `Bearer ${token}` }
           });
           if (docsRes.ok) {
@@ -158,6 +160,7 @@ export function DropoffManagerDashboard({
   const handleFileUpload = async (docCode: string, file: File) => {
     setUploadingDocCode(docCode);
     try {
+      const baseUrl = getApiBaseUrl();
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) return;
 
@@ -166,7 +169,7 @@ export function DropoffManagerDashboard({
       formData.append("file", file);
       formData.append("category", "documents");
 
-      const uploadRes = await fetch("http://localhost:8000/api/files/upload", {
+      const uploadRes = await fetch(`${baseUrl}/api/files/upload`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
         body: formData
@@ -179,7 +182,7 @@ export function DropoffManagerDashboard({
       const uploadData = await uploadRes.json();
 
       // 2. Submit document name/path metadata to DB
-      const submitRes = await fetch("http://localhost:8000/api/auth/upload-document", {
+      const submitRes = await fetch(`${baseUrl}/api/auth/upload-document`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

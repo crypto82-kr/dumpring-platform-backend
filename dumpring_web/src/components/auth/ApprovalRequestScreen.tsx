@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { MapPin, Truck, ShieldCheck, AlertCircle, Loader2, Check, RefreshCw, LogOut } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 
 export default function ApprovalRequestScreen() {
   const { user, logout, updateApprovalStatus } = useAuth();
