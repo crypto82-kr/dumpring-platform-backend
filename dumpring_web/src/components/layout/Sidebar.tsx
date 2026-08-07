@@ -84,11 +84,9 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
       subItems: [
         { title: "배차 요청", path: "/site/dispatch-request" },
         { title: "배차 현황", path: "/site/dispatch" },
-        { title: "배차 승인 처리", path: "/site/dispatch-approve" },
         { title: "운행 이력 조회", path: "/site/history" },
       ]
     },
-    { title: "진출입 실시간 현황", icon: Activity, path: "/site/status" },
     { title: "덤프비 정산 확인", icon: DollarSign, path: "/site/dump-expenses" },
     { title: "흙값 정산 관리", icon: TrendingUp, path: "/site/soil-expenses" },
     { title: "세금계산서 업무", icon: Receipt, path: "/site/tax-invoice" },

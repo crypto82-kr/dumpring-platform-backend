@@ -204,8 +204,8 @@ export function MockMap({
 
         // 2. Custom Overlay / Marker for Site (Blue)
         const siteContent = `
-          <div style="padding:4px 8px; background:#2563eb; color:white; border-radius:12px; font-weight:800; font-size:11px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.2); white-space:nowrap;">
-            🏗️ 상차지: ${siteName || "현장"}
+          <div style="padding:4px 10px; background:#2563eb; color:white; border-radius:8px; font-weight:800; font-size:11px; box-shadow:0 2px 4px rgba(0,0,0,0.15); white-space:nowrap;">
+            상차지: ${siteName || "현장"}
           </div>
         `;
         const siteOverlay = new window.kakao.maps.CustomOverlay({
@@ -218,8 +218,8 @@ export function MockMap({
 
         // 3. Custom Overlay / Marker for Dropoff (Emerald)
         const dropContent = `
-          <div style="padding:4px 8px; background:#059669; color:white; border-radius:12px; font-weight:800; font-size:11px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.2); white-space:nowrap;">
-            🚜 하차지: ${dropoffName || "사토장"}
+          <div style="padding:4px 10px; background:#059669; color:white; border-radius:8px; font-weight:800; font-size:11px; box-shadow:0 2px 4px rgba(0,0,0,0.15); white-space:nowrap;">
+            하차지: ${dropoffName || "사토장"}
           </div>
         `;
         const dropOverlay = new window.kakao.maps.CustomOverlay({
@@ -254,29 +254,13 @@ export function MockMap({
     markerInstance.setMap(mapInstance);
 
     const geocoder = new window.kakao.maps.services.Geocoder();
-    const places = new window.kakao.maps.services.Places();
-
-    const handleCoords = (y: number, x: number) => {
-      const coords = new window.kakao.maps.LatLng(y, x);
-      mapInstance.setCenter(coords);
-      markerInstance.setPosition(coords);
-      setCurrentCoords({ lat: Number(y), lng: Number(x) });
-
-      if (onLocationSelect && (!lat || !lng) && interactive) {
-        onLocationSelect(Number(y), Number(x), address);
-      }
-    };
-
     geocoder.addressSearch(address, (result: any, status: any) => {
       if (status === window.kakao.maps.services.Status.OK && result[0]) {
-        handleCoords(result[0].y, result[0].x);
-      } else {
-        // Fallback to Kakao Places Keyword Search if direct address fails
-        places.keywordSearch(address, (pResult: any, pStatus: any) => {
-          if (pStatus === window.kakao.maps.services.Status.OK && pResult[0]) {
-            handleCoords(pResult[0].y, pResult[0].x);
-          }
-        });
+        const coords = new window.kakao.maps.LatLng(result[0].y, result[0].x);
+        mapInstance.setCenter(coords);
+        markerInstance.setPosition(coords);
+        markerInstance.setMap(mapInstance);
+        setCurrentCoords({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x) });
       }
     });
   }, [address, mapInstance, markerInstance, interactive, isRouteMode]);
@@ -285,18 +269,15 @@ export function MockMap({
     <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-xl">
       <div className="flex justify-between items-center border-b border-slate-100 pb-3">
         <div className="flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-blue-600 animate-bounce" />
-          <span className="font-extrabold text-sm text-slate-900">{title} 위치 관제</span>
+          <span className="font-extrabold text-sm text-slate-900">{title}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-            interactive 
-              ? "bg-blue-50 text-blue-600 border-blue-200" 
-              : "bg-slate-100 text-slate-600 border-slate-200"
-          }`}>
-            {interactive ? "📍 위치 편집 가능" : "🔒 위치 고정 (조회 전용)"}
-          </span>
-        </div>
+        {interactive && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-200">
+              위치 편집 가능
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 지도 영역 */}
@@ -310,7 +291,6 @@ export function MockMap({
 
         {loadError && (
           <div className="absolute inset-0 z-20 bg-slate-50 flex flex-col items-center justify-center space-y-2 p-4 text-center">
-            <MapPin className="w-8 h-8 text-rose-500 mb-1" />
             <p className="text-xs font-bold text-slate-800">카카오 지도 로드 실패</p>
             <p className="text-[10px] text-slate-500">도메인 등록 상태 및 API 키를 점검해 주세요.</p>
           </div>
@@ -319,24 +299,11 @@ export function MockMap({
         <div ref={mapContainerRef} className="w-full h-full" />
       </div>
 
-      {/* 정보 및 좌표 바 */}
-      <div className="flex flex-wrap justify-between items-center text-[10px] text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200 gap-2">
-        <div className="flex items-center gap-1.5 font-medium truncate">
-          <Navigation className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-          <span className="truncate font-semibold text-slate-800">{address || "등록된 위치 주소 정보"}</span>
-        </div>
-        {currentCoords && (
-          <div className="font-mono text-[9.5px] bg-white px-2 py-0.5 rounded border border-slate-200 text-blue-700 font-bold shrink-0">
-            좌표: {currentCoords.lat.toFixed(6)}° N, {currentCoords.lng.toFixed(6)}° E
-          </div>
-        )}
-      </div>
-
-      <p className="text-[9.5px] text-slate-400">
-        {interactive 
-          ? "* 지도를 직접 클릭하거나 마커를 드래그하면 정확한 덤프트럭 진입로 좌표(위경도)를 지정하실 수 있습니다."
-          : "* 위치 조망 전용 지도입니다. (진입로 위치 변경은 정보 수정 메뉴에서 가능합니다)"}
-      </p>
+      {interactive && (
+        <p className="text-[9.5px] text-slate-400">
+          * 지도를 직접 클릭하거나 마커를 드래그하면 정확한 덤프트럭 진입로 좌표(위경도)를 지정하실 수 있습니다.
+        </p>
+      )}
     </div>
   );
 }

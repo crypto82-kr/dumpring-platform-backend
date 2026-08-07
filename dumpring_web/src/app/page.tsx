@@ -9,6 +9,11 @@ import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboar
 import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
 import SiteDispatchRequestManagement from "@/components/dashboard/SiteDispatchRequestManagement";
+import SiteHistoryManagement from "@/components/dashboard/SiteHistoryManagement";
+import SiteDumpExpensesManagement from "@/components/dashboard/SiteDumpExpensesManagement";
+import SiteSoilExpensesManagement from "@/components/dashboard/SiteSoilExpensesManagement";
+import SiteTaxInvoiceManagement from "@/components/dashboard/SiteTaxInvoiceManagement";
+import SiteSafetyManagement from "@/components/dashboard/SiteSafetyManagement";
 import SiteOverviewDashboard from "@/components/dashboard/SiteOverviewDashboard";
 import { DropoffManagerDashboard } from "@/components/dashboard/DropoffManagerDashboard";
 import { OwnerDashboard } from "@/components/dashboard/OwnerDashboard";
@@ -1481,6 +1486,16 @@ export default function Home() {
             handleRejectMatchJobPost={handleRejectMatchJobPost}
             handleResetMatchJobPost={handleResetMatchJobPost}
           />
+        ) : activePath === "/site/history" ? (
+          <SiteHistoryManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} />
+        ) : activePath === "/site/dump-expenses" ? (
+          <SiteDumpExpensesManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} />
+        ) : activePath === "/site/soil-expenses" ? (
+          <SiteSoilExpensesManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} />
+        ) : activePath === "/site/tax-invoice" ? (
+          <SiteTaxInvoiceManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} />
+        ) : activePath === "/site/safety" ? (
+          <SiteSafetyManagement registeredSiteList={registeredSiteList} />
         ) : activePath === "/site/request" ? (
           <SiteInfoManagement
             registeredSiteList={registeredSiteList}

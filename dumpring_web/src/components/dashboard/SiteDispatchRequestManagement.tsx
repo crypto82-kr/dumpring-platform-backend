@@ -264,7 +264,7 @@ export default function SiteDispatchRequestManagement({
                 if (selectedReq.dropoffName && selectedReq.dropoffAddress) {
                   return (
                     <MockMap 
-                      title={`📍 [상차지] ${selectedReq.siteName} ↔ [하차지] ${selectedReq.dropoffName}`} 
+                      title={`[상차지] ${selectedReq.siteName} ↔ [하차지] ${selectedReq.dropoffName}`} 
                       address={selectedReq.dropoffAddress} 
                       pinned={true} 
                       isRouteMode={true}
@@ -279,7 +279,7 @@ export default function SiteDispatchRequestManagement({
                 } else {
                   return (
                     <MockMap 
-                      title={`📍 [상차지 현장 위치] ${selectedReq.siteName}`} 
+                      title={`[상차지 현장 위치] ${selectedReq.siteName}`} 
                       address={actualSiteAddress} 
                       pinned={true} 
                       isRouteMode={false}
@@ -354,14 +354,13 @@ export default function SiteDispatchRequestManagement({
 
           {/* Bottom Full-Width Section: Driver Application & Approval Table (콜 수신 기사 명단) */}
           <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-4">
-            <div className="flex items-center gap-2">
-              <Truck className="w-5 h-5 text-blue-600" />
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
                 <h4 className="font-extrabold text-sm text-slate-900">
-                  배차 콜 신청 기사 목록 및 승인 관리
+                  배차 신청 기사 목록 및 진출입 관제
                 </h4>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  콜을 신청한 기사 정보를 확인하고 승인/반려합니다. 승인된 기사는 상단 지도에서 위치가 추적 표기됩니다.
+                  배차 콜을 신청한 기사의 승인 처리 및 게이트 실시간 입/출차 현황을 관제합니다.
                 </p>
               </div>
             </div>
@@ -371,52 +370,97 @@ export default function SiteDispatchRequestManagement({
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                    <th className="py-3 px-4">기사 성명</th>
-                    <th className="py-3 px-4">차량 번호 / 톤수</th>
+                    <th className="py-3 px-4">기사명</th>
+                    <th className="py-3 px-4">차량번호</th>
                     <th className="py-3 px-4">연락처</th>
-                    <th className="py-3 px-4">평점</th>
-                    <th className="py-3 px-4">신청 시각</th>
                     <th className="py-3 px-4">승인 상태</th>
-                    <th className="py-3 px-4 text-right">배차 승인 / 반려</th>
+                    <th className="py-3 px-4">진출입 상태</th>
+                    <th className="py-3 px-4">입/출차 시각</th>
+                    <th className="py-3 px-4 text-right">관리</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+                  {/* 1. 운행 중 (DRIVING) 기사 사례 */}
                   <tr className="hover:bg-slate-50/80 transition-all">
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900 flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <td className="py-3.5 px-4 font-extrabold text-slate-900">
                       강동원 기사
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                      서울 88바 1234 <span className="text-[10px] font-semibold text-slate-400">(25톤 덤프)</span>
+                      서울 88바 1234 <span className="text-[10px] font-normal text-slate-500">(25톤)</span>
                     </td>
                     <td className="py-3.5 px-4 font-mono text-slate-600">010-8910-1112</td>
-                    <td className="py-3.5 px-4 font-bold text-amber-500">★ 4.9</td>
-                    <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">18:12:05</td>
                     <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">
-                        승인 완료 (운행 중)
+                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
+                        승인완료
                       </span>
                     </td>
+                    <td className="py-3.5 px-4 font-bold text-blue-600">
+                      운행 중
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
+                      입차 08:30 / 출차 08:55
+                    </td>
                     <td className="py-3.5 px-4 text-right">
-                      <span className="text-xs text-slate-400 font-bold">승인 완료 (상단 지도 실시간 추적 중)</span>
+                      <button
+                        type="button"
+                        onClick={() => alert("상단 지도에서 [강동원 기사] 차량의 실시간 동선으로 지도를 이동합니다.")}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
+                      >
+                        지도확인
+                      </button>
                     </td>
                   </tr>
 
+                  {/* 2. 상차지 입차 (ARRIVED_LOADING) 적재 중 기사 사례 */}
                   <tr className="hover:bg-slate-50/80 transition-all">
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900 flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                    <td className="py-3.5 px-4 font-extrabold text-slate-900">
+                      유재석 기사
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
+                      인천 82가 9999 <span className="text-[10px] font-normal text-slate-500">(25톤)</span>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-slate-600">010-1234-9999</td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
+                        승인완료
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-amber-600">
+                      상차지 입차 (적재중)
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
+                      입차 09:10 / 출차 대기
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => alert("상단 지도에서 [유재석 기사] 현장 입차 위치로 지도를 이동합니다.")}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
+                      >
+                        지도확인
+                      </button>
+                    </td>
+                  </tr>
+
+                  {/* 3. 승인대기 기사 사례 */}
+                  <tr className="hover:bg-slate-50/80 transition-all">
+                    <td className="py-3.5 px-4 font-extrabold text-slate-900">
                       마동석 기사
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                      경기 80사 5678 <span className="text-[10px] font-semibold text-slate-400">(25톤 덤프)</span>
+                      경기 80사 5678 <span className="text-[10px] font-normal text-slate-500">(25톤)</span>
                     </td>
                     <td className="py-3.5 px-4 font-mono text-slate-600">010-5678-1234</td>
-                    <td className="py-3.5 px-4 font-bold text-amber-500">★ 4.8</td>
-                    <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">18:15:40</td>
                     <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded-md bg-amber-50 text-amber-600 border border-amber-200">
-                        승인 대기
+                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-amber-50 text-amber-600 border border-amber-200">
+                        승인대기
                       </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-400 font-normal">
+                      -
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
+                      신청 09:05
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-2">
                       <button
