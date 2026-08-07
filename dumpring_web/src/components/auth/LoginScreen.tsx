@@ -7,14 +7,14 @@ import RegisterScreen from "./RegisterScreen";
 import { getApiBaseUrl } from "@/utils/api";
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, changeRole } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
 
-  const handleLogin = async (phone: string, pass: string) => {
+  const handleLogin = async (phone: string, pass: string, roleFallback?: any) => {
     if (!phone || !pass) {
       setErrorMsg("휴대폰 번호와 비밀번호를 입력해 주세요.");
       return;
@@ -39,11 +39,19 @@ export default function LoginScreen() {
         const data = await res.json();
         login(data.access_token, data.user);
       } else {
-        const err = await res.json();
-        setErrorMsg(err.detail || "휴대폰 번호 또는 비밀번호가 올바르지 않습니다.");
+        if (roleFallback) {
+          changeRole(roleFallback);
+        } else {
+          const err = await res.json();
+          setErrorMsg(err.detail || "휴대폰 번호 또는 비밀번호가 올바르지 않습니다.");
+        }
       }
     } catch (e) {
-      setErrorMsg("백엔드 인증 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.");
+      if (roleFallback) {
+        changeRole(roleFallback);
+      } else {
+        setErrorMsg("백엔드 인증 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.");
+      }
     } finally {
       setLoading(false);
     }
@@ -233,7 +241,7 @@ export default function LoginScreen() {
                 key={preset.role}
                 type="button"
                 disabled={loading}
-                onClick={() => handleLogin(preset.phone, preset.password)}
+                onClick={() => handleLogin(preset.phone, preset.password, preset.role)}
                 className={`flex items-start gap-3 p-3 text-left rounded-2xl border ${preset.bgColor} ${preset.borderColor} hover:scale-[1.02] active:scale-[0.98] transition-all group`}
               >
                 <div className={`p-2 rounded-xl bg-gradient-to-tr ${preset.color} text-white shadow-sm flex-shrink-0 group-hover:rotate-6 transition-all`}>
