@@ -185,6 +185,10 @@ export default function Home() {
         setOwners(backendOwners);
         setSites(backendSites);
         setDropoffSites(backendDropoffs);
+      } else if (res.status === 401) {
+        console.warn("401 Unauthorized token detected. Clearing expired session token.");
+        sessionStorage.removeItem("dumpring_token");
+        localStorage.removeItem("accessToken");
       }
     } catch (e) {
       console.error("Failed to fetch pending members from backend:", e);
