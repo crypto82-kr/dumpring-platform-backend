@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, delete
 from sqlalchemy.orm import selectinload
 from jose import jwt, JWTError
 from typing import List, Optional
@@ -556,39 +556,96 @@ async def get_required_documents(
     ]
 
 
+import os
+import uuid
+
+ALLOWED_DOC_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
+
+from fastapi import UploadFile, File, Form
+
+UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "documents")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 @router.post(
     "/upload-document",
-    summary="필수 서류 개별 파일명 등록 (업로드)",
-    description="기사 또는 차주가 특정 코드(예: LICENSE, BIZ_LICENSE)의 필수 서류를 임시 업로드 등록합니다."
+    summary="필수 서류 개별 실물 파일 업로드 (물리 보관 및 보안 검증)",
+    description="경로 조작(Path Traversal) 방지 및 확장자 검증 후 실물 바이너리 파일을 서버 스토리지에 안전하게 물리 저장합니다."
 )
 async def upload_document(
-    data: DocumentUploadRequest,
+    document_code: str = Form(...),
+    file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. 기존 업로드 내역이 있는지 조회
+    # 1. 경로 조작 검증 및 파일명 정제
+    raw_file_name = os.path.basename(file.filename or "uploaded_doc.png")
+    if ".." in raw_file_name or "/" in raw_file_name or "\\" in raw_file_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="올바르지 않은 파일 경로입니다."
+        )
+
+    # 2. 확장자 검증
+    _, ext = os.path.splitext(raw_file_name)
+    ext = ext.lower()
+    if ext not in ALLOWED_DOC_EXTENSIONS and ext != "":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="허용되지 않는 파일 형식입니다. (jpg, png, webp, pdf 형식만 가능)"
+        )
+
+    # 3. 난수화된 안전 파일명 생성 & 물리 파일 디스크 저장
+    safe_file_name = f"{uuid.uuid4().hex}_{raw_file_name}"
+    file_path = os.path.join(UPLOAD_DIR, safe_file_name)
+    
+    contents = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    # 4. DB 정보 갱신
     query = select(UserUploadedDocument).where(
         UserUploadedDocument.user_id == current_user.id,
-        UserUploadedDocument.document_code == data.document_code
+        UserUploadedDocument.document_code == document_code
     )
     result = await db.execute(query)
     existing_doc = result.scalars().first()
     
     if existing_doc:
-        # 이미 제출된 경우 기존 파일 정보 덮어쓰기
-        existing_doc.file_name = data.file_name
-        logger.info(f"유저 [ID: {current_user.id}] 필수서류 [{data.document_code}] 덮어쓰기 업데이트 완료.")
+        existing_doc.file_name = safe_file_name
     else:
         new_doc = UserUploadedDocument(
             user_id=current_user.id,
-            document_code=data.document_code,
-            file_name=data.file_name
+            document_code=document_code,
+            file_name=safe_file_name
         )
         db.add(new_doc)
-        logger.info(f"유저 [ID: {current_user.id}] 신규 필수서류 [{data.document_code}] 등록 완료.")
         
     await db.commit()
-    return {"message": "서류가 정상적으로 업로드 처리되었습니다."}
+    logger.info(f"유저 [ID: {current_user.id}] 실물 서류 파일 물리 저장 완료: {safe_file_name}")
+    return {"message": "서류 실물 파일이 성공적으로 업로드 및 저장되었습니다.", "file_name": safe_file_name}
+
+
+@router.delete(
+    "/dev-cleanup-uploaded-documents",
+    summary="[개발자 전용] 테스트 업로드 서류 파일 및 DB 삭제 초기화",
+    description="개발 및 테스트 중 업로드되었던 임시/테스트 필수 서류 DB 및 스토리지 내역을 한꺼번에 정제 초기화합니다."
+)
+async def dev_cleanup_uploaded_documents(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not current_user.is_admin and not getattr(current_user, "is_developer", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="개발자 또는 관리자 전용 권한입니다."
+        )
+
+    # 1. 전체 유저 업로드 서류 테이블 초기화
+    await db.execute(delete(UserUploadedDocument))
+    await db.commit()
+    logger.info(f"개발자 [ID: {current_user.id}] 요청으로 테스트 서류 전체 DB 삭제 초기화 완료.")
+
+    return {"message": "테스트 업로드 서류 내역이 성공적으로 초기화 청소되었습니다."}
 
 
 @router.get(

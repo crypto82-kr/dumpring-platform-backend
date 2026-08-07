@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: Optional[str] = "postgresql+asyncpg://postgres.vvdydhxmwdrrazwyjvvu:crypto.co.kr@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres"
 
+    # Supabase Storage Configuration
+    SUPABASE_URL: str = "https://vvdydhxmwdrrazwyjvvu.supabase.co"
+    SUPABASE_SERVICE_ROLE_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2ZHlkaHhtd2RycmF6d3lqdnZ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTY4NjY0MzIwMCwiZXhwIjoyMDAyMjE5MjAwfQ.example"
+
 
 
 

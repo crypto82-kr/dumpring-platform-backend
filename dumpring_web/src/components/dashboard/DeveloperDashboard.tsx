@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Activity, Terminal, Database, AlertCircle, PlusCircle, Search, Edit2, Trash2 } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 
 interface DeveloperDashboardProps {
   activePath: string;
@@ -71,17 +72,42 @@ export function DeveloperDashboard({
             <p className="text-xs text-slate-500 mt-0.5">FastAPI 서버의 자원 소비량 및 API 트래픽 인입 상태를 초단위로 모니터링합니다.</p>
           </div>
 
-          {/* Interactive Load Test Simulation Button */}
-          <button
-            onClick={() => setApmLoadTesting(!apmLoadTesting)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95 ${
-              apmLoadTesting
-                ? "bg-rose-600 text-white shadow-rose-600/10 animate-pulse"
-                : "bg-emerald-500 text-white shadow-emerald-500/10"
-            }`}
-          >
-            {apmLoadTesting ? "트래픽 폭주 시뮬레이션 중지 (Stop)" : "트래픽 폭주 시뮬레이션 가동 (Load Test)"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                if (!confirm("테스트 동안 업로드된 모든 임시 서류 파일 및 DB 내역을 청소하시겠습니까?")) return;
+                try {
+                  const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+                  const baseUrl = getApiBaseUrl();
+                  const res = await fetch(`${baseUrl}/api/auth/dev-cleanup-uploaded-documents`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` }
+                  });
+                  if (res.ok) {
+                    alert("테스트 서류 파일 및 DB 내역이 성공적으로 초기화 청소되었습니다.");
+                  } else {
+                    alert("청소 처리 중 오류가 발생했습니다.");
+                  }
+                } catch (e) {
+                  alert("서버 연결 실패");
+                }
+              }}
+              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>테스트 업로드 파일/DB 청소 초기화</span>
+            </button>
+            <button
+              onClick={() => setApmLoadTesting(!apmLoadTesting)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95 ${
+                apmLoadTesting
+                  ? "bg-rose-600 text-white shadow-rose-600/10 animate-pulse"
+                  : "bg-emerald-500 text-white shadow-emerald-500/10"
+              }`}
+            >
+              {apmLoadTesting ? "트래픽 폭주 시뮬레이션 중지 (Stop)" : "트래픽 폭주 시뮬레이션 가동 (Load Test)"}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">

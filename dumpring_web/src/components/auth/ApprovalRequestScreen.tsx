@@ -1,9 +1,8 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { MapPin, Truck, ShieldCheck, AlertCircle, Loader2, Check, RefreshCw, LogOut } from "lucide-react";
+import { MapPin, Truck, ShieldCheck, AlertCircle, Loader2, Check, RefreshCw, LogOut, Upload, FileText } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import { MockMap } from "@/components/dashboard/MockMap";
 
 export default function ApprovalRequestScreen() {
   const { user, logout, updateApprovalStatus } = useAuth();
@@ -55,13 +54,14 @@ export default function ApprovalRequestScreen() {
     setErrorMsg("");
     
     try {
-      const token = sessionStorage.getItem("dumpring_token");
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) {
         setChecking(false);
         return;
       }
 
-      const res = await fetch("http://localhost:8000/api/auth/member-status", {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/auth/member-status`, {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
@@ -92,33 +92,46 @@ export default function ApprovalRequestScreen() {
     }
   };
 
-  // 필수 서류 업로드 핸들러
+  // 필수 서류 실물 파일 업로드 핸들러
   const handleUploadDocument = async (docCode: string, file: File) => {
     setErrorMsg("");
     setSuccessMsg("");
     setUploadingDocCode(docCode);
 
     try {
-      const token = sessionStorage.getItem("dumpring_token");
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) {
         setErrorMsg("인증 세션이 만료되었습니다. 다시 로그인해 주세요.");
         return;
       }
 
-      const res = await fetch("http://localhost:8000/api/auth/upload-document", {
+      const baseUrl = getApiBaseUrl();
+
+      // FileReader로 브라우저 미리보기 데이터 로드 및 localStorage 기사/현장별 보관
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64Url = e.target?.result as string;
+        if (base64Url && user?.id) {
+          const fileKey = `driver_${user.id}_${docCode}`;
+          localStorage.setItem(`doc_${fileKey}`, base64Url);
+        }
+      };
+      reader.readAsDataURL(file);
+
+      const formData = new FormData();
+      formData.append("document_code", docCode);
+      formData.append("file", file);
+
+      const res = await fetch(`${baseUrl}/api/auth/upload-document`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          document_code: docCode,
-          file_name: file.name,
-        }),
+        body: formData,
       });
 
       if (res.ok) {
-        setSuccessMsg(`${file.name} 서류 등록이 임시 완료되었습니다.`);
+        setSuccessMsg(`[${file.name}] 첨부서류 업로드 및 등록이 완료되었습니다.`);
         await checkMemberStatus(false);
       } else {
         const err = await res.json();
@@ -188,12 +201,14 @@ export default function ApprovalRequestScreen() {
     }
 
     try {
-      const token = sessionStorage.getItem("dumpring_token");
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) {
         setErrorMsg("인증 세션이 만료되었습니다. 다시 로그인해 주세요.");
         setLoading(false);
         return;
       }
+
+      const baseUrl = getApiBaseUrl();
 
       // 역할별 파라미터 구성
       const body: any = {};
@@ -223,7 +238,7 @@ export default function ApprovalRequestScreen() {
         body.is_direct_driver = isDirectDriver;
       }
 
-      const res = await fetch("http://localhost:8000/api/auth/submit-approval", {
+      const res = await fetch(`${baseUrl}/api/auth/submit-approval`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -408,60 +423,33 @@ export default function ApprovalRequestScreen() {
                 />
               </div>
 
-              {/* 임시 지도 컨테이너 */}
+              {/* 카카오 지도 핀 위치 지정 컴포넌트 */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center px-1">
-                  <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 block">현장 핀 위치 지정 (위경도)</label>
-                  <span className="text-[9px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-100 dark:border-amber-900/35">
-                    ⚠️ 지도 API Key 미설정 (임시 시뮬레이션 모드)
+                  <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 block">현장/하차지 위치 지도 핀 매핑</label>
+                  <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/35">
+                    📍 지도 인터랙티브 핀 매핑 활성화
                   </span>
                 </div>
                 
                 <p className="text-[10.5px] text-slate-450 leading-relaxed px-1">
-                  주소를 검색하면 중심부 근처에 핀이 활성화됩니다. 아래 영역 내 임의의 위치를 클릭하시면 핀이 이동하고 위도, 경도 정보가 자동으로 계산됩니다.
+                  주소를 검색하면 지도 중심부 근처에 핀이 자동 매핑됩니다. 지도를 드래그하여 정확한 위치로 핀을 조정할 수 있습니다.
                 </p>
 
-                <div
-                  ref={mapRef}
-                  onClick={(e) => {
-                    if (mapRef.current) {
-                      const rect = mapRef.current.getBoundingClientRect();
-                      const x = e.clientX - rect.left;
-                      const y = e.clientY - rect.top;
-                      const pctX = (x / rect.width) * 100;
-                      const pctY = (y / rect.height) * 100;
-                      setPinX(pctX);
-                      setPinY(pctY);
-
-                      const baseLat = parseFloat(latitude) || 37.5665;
-                      const baseLng = parseFloat(longitude) || 126.9780;
-                      const newLat = (baseLat + ((50 - pctY) * 0.0005)).toFixed(6);
-                      const newLng = (baseLng + ((pctX - 50) * 0.0005)).toFixed(6);
-                      setLatitude(newLat);
-                      setLongitude(newLng);
-                    }
-                  }}
-                  className="w-full h-48 rounded-2xl bg-slate-900 border border-slate-350 dark:border-slate-800 relative cursor-crosshair overflow-hidden shadow-inner flex items-center justify-center select-none"
-                >
-                  <div className="absolute inset-0 bg-white/5 opacity-40 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:16px_16px]"></div>
-                  
-                  <div className="absolute text-[9px] text-slate-500 font-mono top-2 left-3 font-semibold pointer-events-none">
-                    MAP PERSPECTIVE (SIMULATED)
-                  </div>
-
-                  <div
-                    style={{ left: `${pinX}%`, top: `${pinY}%` }}
-                    className="absolute -translate-x-1/2 -translate-y-full transition-all duration-300 pointer-events-none flex flex-col items-center"
-                  >
-                    <div className="bg-blue-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-md shadow-md mb-1 whitespace-nowrap">
-                      공사현장 핀 📍
-                    </div>
-                    <MapPin className="w-5 h-5 text-blue-500 drop-shadow-md animate-bounce" />
-                  </div>
-
-                  <span className="text-[10px] text-slate-450 font-bold pointer-events-none select-none text-center px-4 max-w-xs z-10">
-                    {address ? "지도를 클릭해 정확한 핀의 위치를 조정하세요" : "먼저 우측 '주소 검색' 버튼을 통해 현장 주소를 등록해 주세요"}
-                  </span>
+                <div className="h-56 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative">
+                  <MockMap
+                    title={siteName || locationName || "현장/하차지 위치"}
+                    address={address || "대한민국"}
+                    pinned={true}
+                    interactive={true}
+                    lat={latitude ? parseFloat(latitude) : 37.5665}
+                    lng={longitude ? parseFloat(longitude) : 126.9780}
+                    onLocationSelect={(selectedLat, selectedLng, newAddress) => {
+                      setLatitude(selectedLat.toFixed(6));
+                      setLongitude(selectedLng.toFixed(6));
+                      if (newAddress) setAddress(newAddress);
+                    }}
+                  />
                 </div>
               </div>
 

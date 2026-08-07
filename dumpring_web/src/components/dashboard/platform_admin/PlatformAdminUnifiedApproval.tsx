@@ -556,42 +556,52 @@ export function PlatformAdminUnifiedApproval({
                   <div className="h-64 rounded-2xl bg-slate-950 border border-slate-800 relative flex items-center justify-center overflow-hidden shadow-inner group">
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
 
-                    {/* 실제 업로드된 이미지가 있으면 <img> 렌더링, 없으면 서류 대조 카드 렌더링 */}
-                    {selectedItem.rawObj?.biz_license_url || selectedItem.rawObj?.dust_report_url || uploadedFiles[selectedItem.id] ? (
-                      <div className="relative z-10 w-full h-full p-2 flex items-center justify-center">
-                        <img
-                          src={selectedItem.rawObj?.biz_license_url || selectedItem.rawObj?.dust_report_url || uploadedFiles[selectedItem.id] || "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&auto=format&fit=crop&q=60"}
-                          alt="제출 증빙 서류"
-                          className="max-h-full max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
+                    {/* 실제 업로드된 이미지 또는 localStorage 미리보기 데이터 렌더링 */}
+                    {(() => {
+                      const docCode = activeDocTab === "DOC_SAFETY" ? "SAFETY_TRAINING" : activeDocTab === "DOC_SPECIAL" ? "SPECIAL_LABOR" : activeDocTab === "DOC_INSURANCE" ? "INSURANCE" : activeDocTab === "DOC_CONTRACT" ? "CONSTRUCTION_PROOF" : activeDocTab === "DOC_LAND" ? "LAND_USE" : activeDocTab === "DOC_BIZ" ? "BIZ_LICENSE" : activeDocTab === "DOC_DUST" ? "DUST_REPORT" : activeDocTab === "DOC_PERMIT" ? "DEVELOPMENT_PERMIT" : "LICENSE";
+                      const localImg = typeof window !== "undefined" ? localStorage.getItem(`doc_driver_${selectedItem.id}_${docCode}`) : null;
+                      const displaySrc = localImg || selectedItem.rawObj?.biz_license_url || selectedItem.rawObj?.dust_report_url || uploadedFiles[`driver_${selectedItem.id}_${docCode}`] || uploadedFiles[selectedItem.id];
+
+                      if (displaySrc) {
+                        return (
+                          <div className="relative z-10 w-full h-full p-2 flex items-center justify-center">
+                            <img
+                              src={displaySrc}
+                              alt="제출 증빙 서류"
+                              className="max-h-full max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
+                              style={{
+                                transform: `scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
+                              }}
+                            />
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          className="text-center p-6 relative z-10 transition-transform duration-200"
                           style={{
                             transform: `scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
                           }}
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className="text-center p-6 relative z-10 transition-transform duration-200"
-                        style={{
-                          transform: `scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
-                        }}
-                      >
-                        <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-2 shadow-lg">
-                          <FileText className="w-7 h-7" />
+                        >
+                          <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-2 shadow-lg">
+                            <FileText className="w-7 h-7" />
+                          </div>
+                          <h4 className="text-xs font-extrabold text-white">
+                            {activeDocTab === "DOC_SAFETY" && "기초안전보건교육이수증"}
+                            {activeDocTab === "DOC_SPECIAL" && "특수형태근로자 교육확인서"}
+                            {activeDocTab === "DOC_INSURANCE" && "화물 종합보험증권"}
+                            {activeDocTab === "DOC_CONTRACT" && "공사계약서"}
+                            {activeDocTab === "DOC_LAND" && "토지사용승낙서"}
+                            {(activeDocTab === "DOC_1" || activeDocTab === "DOC_LICENSE" || activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_DUST" || activeDocTab === "DOC_PERMIT") &&
+                              `${selectedItem.docName}`}
+                          </h4>
+                          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                            <span>✓ 서류 등록 완료 (보안 전용 뷰어 확인)</span>
+                          </div>
                         </div>
-                        <h4 className="text-xs font-extrabold text-white">
-                          {activeDocTab === "DOC_SAFETY" && "기초안전보건교육이수증"}
-                          {activeDocTab === "DOC_SPECIAL" && "특수형태근로자 교육확인서"}
-                          {activeDocTab === "DOC_INSURANCE" && "화물 종합보험증권"}
-                          {activeDocTab === "DOC_CONTRACT" && "공사계약서"}
-                          {activeDocTab === "DOC_LAND" && "토지사용승낙서"}
-                          {(activeDocTab === "DOC_1" || activeDocTab === "DOC_LICENSE" || activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_DUST" || activeDocTab === "DOC_PERMIT") &&
-                            `${selectedItem.docName}`}
-                        </h4>
-                        <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-                          <span>✓ 정상 업로드 완료 (파일 검증 가능)</span>
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               )}

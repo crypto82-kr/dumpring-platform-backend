@@ -102,7 +102,9 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
           name: name.trim(),
           company_name: "미지정",
           site_name: "미지정",
-          business_number: "000-00-00000"
+          business_number: "000-00-00000",
+          dust_report_file: "temp",
+          construction_contract_file: "temp"
         };
       } else if (role === "dropoff_manager") {
         endpoint = `${baseUrl}/api/auth/signup/drop-off`;
@@ -112,7 +114,9 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
           name: name.trim(),
           location_name: "미지정",
           address: "미지정",
-          permit_number: "0000"
+          permit_number: "0000",
+          development_permit_file: "temp",
+          land_use_agreement_file: "temp"
         };
       } else {
         body = {
@@ -253,7 +257,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {[
-                    { id: "site_manager", name: "현장 총괄 관리자", icon: MapPin },
+                    { id: "site_manager", name: "현장 관리자", icon: MapPin },
                     { id: "site_worker", name: "현장 담당자", icon: UserIcon },
                     { id: "dropoff_manager", name: "하차지 관리자", icon: Truck },
                     { id: "owner", name: "차주 / 운송사", icon: ShieldCheck }
