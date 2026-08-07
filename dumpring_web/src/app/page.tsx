@@ -5,6 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AlertCircle } from "lucide-react";
 
 import { PlatformAdminDashboard } from "@/components/dashboard/PlatformAdminDashboard";
+import { PlatformAdminUnifiedApproval } from "@/components/dashboard/platform_admin/PlatformAdminUnifiedApproval";
+import { PlatformAdminOverviewDashboard } from "@/components/dashboard/platform_admin/PlatformAdminOverviewDashboard";
 import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboard";
 import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
@@ -17,6 +19,11 @@ import SiteSafetyManagement from "@/components/dashboard/SiteSafetyManagement";
 import SiteOverviewDashboard from "@/components/dashboard/SiteOverviewDashboard";
 import { DropoffManagerDashboard } from "@/components/dashboard/DropoffManagerDashboard";
 import { OwnerDashboard } from "@/components/dashboard/OwnerDashboard";
+import { OwnerOverviewDashboard } from "@/components/dashboard/owner/OwnerOverviewDashboard";
+import { OwnerScheduleManagement } from "@/components/dashboard/owner/OwnerScheduleManagement";
+import { OwnerTruckManagement } from "@/components/dashboard/owner/OwnerTruckManagement";
+import { OwnerSettlementManagement } from "@/components/dashboard/owner/OwnerSettlementManagement";
+import { OwnerNoticeManagement } from "@/components/dashboard/owner/OwnerNoticeManagement";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
 
 import { getApiBaseUrl } from "@/utils/api";
@@ -1335,138 +1342,166 @@ export default function Home() {
 
       {/* Dynamic Content based on User Role */}
       {user.role === "platform_admin" && (
-        <PlatformAdminDashboard
-          activePath={activePath}
-          setActivePath={setActivePath}
-          commissionRate={commissionRate}
-          setCommissionRate={setCommissionRate}
-          baseTariff={baseTariff}
-          setBaseTariff={setBaseTariff}
-          tonnages={tonnages}
-          setTonnages={setTonnages}
-          dbCommonCodes={dbCommonCodes}
-          setDbCommonCodes={setDbCommonCodes}
-          selectedGroup={selectedGroup}
-          setSelectedGroup={setSelectedGroup}
-          isCodesLoading={isCodesLoading}
-          setIsCodesLoading={setIsCodesLoading}
-          newGroupCode={newGroupCode}
-          setNewGroupCode={setNewGroupCode}
-          newCodeVal={newCodeVal}
-          setNewCodeVal={setNewCodeVal}
-          newCodeName={newCodeName}
-          setNewCodeName={setNewCodeName}
-          newDisplayOrder={newDisplayOrder}
-          setNewDisplayOrder={setNewDisplayOrder}
-          faqs={faqs}
-          setFaqs={setFaqs}
-          faqCategoryFilter={faqCategoryFilter}
-          setFaqCategoryFilter={setFaqCategoryFilter}
-          expandedFaqId={expandedFaqId}
-          setExpandedFaqId={setExpandedFaqId}
-          inquiries={inquiries}
-          setInquiries={setInquiries}
-          expandedInquiryId={expandedInquiryId}
-          setExpandedInquiryId={setExpandedInquiryId}
-          replyTexts={replyTexts}
-          setReplyTexts={setReplyTexts}
-          inquiryFilter={inquiryFilter}
-          setInquiryFilter={setInquiryFilter}
-          notices={notices}
-          setNotices={setNotices}
-          newNoticeTitle={newNoticeTitle}
-          setNewNoticeTitle={setNewNoticeTitle}
-          newNoticeTarget={newNoticeTarget}
-          setNewNoticeTarget={setNewNoticeTarget}
-          newNoticeContent={newNoticeContent}
-          setNewNoticeContent={setNewNoticeContent}
-          boardActiveTab={boardActiveTab}
-          setBoardActiveTab={setBoardActiveTab}
-          drivers={drivers}
-          setDrivers={setDrivers}
-          owners={owners}
-          setOwners={setOwners}
-          sites={sites}
-          setSites={setSites}
-          dropoffSites={dropoffSites}
-          setDropoffSites={setDropoffSites}
-          disputes={disputes}
-          setDisputes={setDisputes}
-          selectedDriverForVerify={selectedDriverForVerify}
-          setSelectedDriverForVerify={setSelectedDriverForVerify}
-          verifyZoom={verifyZoom}
-          setVerifyZoom={setVerifyZoom}
-          selectedDocTab={selectedDocTab}
-          setSelectedDocTab={setSelectedDocTab}
-          verifyRotate={verifyRotate}
-          setVerifyRotate={setVerifyRotate}
-          panX={panX}
-          setPanX={setPanX}
-          panY={panY}
-          setPanY={setPanY}
-          isDragging={isDragging}
-          setIsDragging={setIsDragging}
-          dragStart={dragStart}
-          setDragStart={setDragStart}
-          selectedOwnerForVerify={selectedOwnerForVerify}
-          setSelectedOwnerForVerify={setSelectedOwnerForVerify}
-          selectedSiteForVerify={selectedSiteForVerify}
-          setSelectedSiteForVerify={setSelectedSiteForVerify}
-          selectedDropoffForVerify={selectedDropoffForVerify}
-          setSelectedDropoffForVerify={setSelectedDropoffForVerify}
-          selectedOwnerDocTab={selectedOwnerDocTab}
-          setSelectedOwnerDocTab={setSelectedOwnerDocTab}
-          selectedSiteDocTab={selectedSiteDocTab}
-          setSelectedSiteDocTab={setSelectedSiteDocTab}
-          selectedDropoffDocTab={selectedDropoffDocTab}
-          setSelectedDropoffDocTab={setSelectedDropoffDocTab}
-          uploadedFiles={uploadedFiles}
-          handleFileUpload={handleFileUpload}
-          handleMouseDown={handleMouseDown}
-          handleMouseMove={handleMouseMove}
-          handleMouseUp={handleMouseUp}
-          handleApproveDriver={handleApproveDriver}
-          handleApproveOwner={handleApproveOwner}
-          handleApproveSite={handleApproveSite}
-          handleApproveDropoff={handleApproveDropoff}
-          handleRejectMember={handleRejectMember}
-          handleResolveDispute={handleResolveDispute}
-          fetchCommonCodes={fetchCommonCodes}
-          calcMethod={calcMethod}
-          setCalcMethod={setCalcMethod}
-          continuousDistanceFare={continuousDistanceFare}
-          setContinuousDistanceFare={setContinuousDistanceFare}
-          continuousTimeFare={continuousTimeFare}
-          setContinuousTimeFare={setContinuousTimeFare}
-          overPlanDistanceFare={overPlanDistanceFare}
-          setOverPlanDistanceFare={setOverPlanDistanceFare}
-          overPlanTimeFare={overPlanTimeFare}
-          setOverPlanTimeFare={setOverPlanTimeFare}
-          policySaveSuccess={policySaveSuccess}
-          setPolicySaveSuccess={setPolicySaveSuccess}
-          approvalTab={approvalTab}
-          setApprovalTab={setApprovalTab}
-          userTab={userTab}
-          setUserTab={setUserTab}
-          userSearchQuery={userSearchQuery}
-          setUserSearchQuery={setUserSearchQuery}
-          isAddUserModalOpen={isAddUserModalOpen}
-          setIsAddUserModalOpen={setIsAddUserModalOpen}
-          editingUser={editingUser}
-          setEditingUser={setEditingUser}
-          viewingUserDetails={viewingUserDetails}
-          setViewingUserDetails={setViewingUserDetails}
-          userFormName={userFormName}
-          setUserFormName={setUserFormName}
-          userFormPhone={userFormPhone}
-          setUserFormPhone={setUserFormPhone}
-          userFormStatus={userFormStatus}
-          setUserFormStatus={setUserFormStatus}
-          userFormExtra1={userFormExtra1}
-          setUserFormExtra1={setUserFormExtra1}
-          userFormExtra2={userFormExtra2}
-          setUserFormExtra2={setUserFormExtra2}
-        />
+        activePath === "/admin" || activePath === "" ? (
+          <PlatformAdminOverviewDashboard
+            setActivePath={setActivePath}
+            drivers={drivers}
+            owners={owners}
+            sites={sites}
+            dropoffSites={dropoffSites}
+            commissionRate={commissionRate}
+            baseTariff={baseTariff}
+            tonnages={tonnages}
+            disputes={disputes}
+          />
+        ) : activePath.startsWith("/admin/approve") ? (
+          <PlatformAdminUnifiedApproval
+            setActivePath={setActivePath}
+            drivers={drivers}
+            owners={owners}
+            sites={sites}
+            dropoffSites={dropoffSites}
+            uploadedFiles={uploadedFiles}
+            handleApproveDriver={handleApproveDriver}
+            handleApproveOwner={handleApproveOwner}
+            handleApproveSite={handleApproveSite}
+            handleApproveDropoff={handleApproveDropoff}
+            handleRejectMember={handleRejectMember}
+          />
+        ) : (
+          <PlatformAdminDashboard
+            activePath={activePath}
+            setActivePath={setActivePath}
+            commissionRate={commissionRate}
+            setCommissionRate={setCommissionRate}
+            baseTariff={baseTariff}
+            setBaseTariff={setBaseTariff}
+            tonnages={tonnages}
+            setTonnages={setTonnages}
+            dbCommonCodes={dbCommonCodes}
+            setDbCommonCodes={setDbCommonCodes}
+            selectedGroup={selectedGroup}
+            setSelectedGroup={setSelectedGroup}
+            isCodesLoading={isCodesLoading}
+            setIsCodesLoading={setIsCodesLoading}
+            newGroupCode={newGroupCode}
+            setNewGroupCode={setNewGroupCode}
+            newCodeVal={newCodeVal}
+            setNewCodeVal={setNewCodeVal}
+            newCodeName={newCodeName}
+            setNewCodeName={setNewCodeName}
+            newDisplayOrder={newDisplayOrder}
+            setNewDisplayOrder={setNewDisplayOrder}
+            faqs={faqs}
+            setFaqs={setFaqs}
+            faqCategoryFilter={faqCategoryFilter}
+            setFaqCategoryFilter={setFaqCategoryFilter}
+            expandedFaqId={expandedFaqId}
+            setExpandedFaqId={setExpandedFaqId}
+            inquiries={inquiries}
+            setInquiries={setInquiries}
+            expandedInquiryId={expandedInquiryId}
+            setExpandedInquiryId={setExpandedInquiryId}
+            replyTexts={replyTexts}
+            setReplyTexts={setReplyTexts}
+            inquiryFilter={inquiryFilter}
+            setInquiryFilter={setInquiryFilter}
+            notices={notices}
+            setNotices={setNotices}
+            newNoticeTitle={newNoticeTitle}
+            setNewNoticeTitle={setNewNoticeTitle}
+            newNoticeTarget={newNoticeTarget}
+            setNewNoticeTarget={setNewNoticeTarget}
+            newNoticeContent={newNoticeContent}
+            setNewNoticeContent={setNewNoticeContent}
+            boardActiveTab={boardActiveTab}
+            setBoardActiveTab={setBoardActiveTab}
+            drivers={drivers}
+            setDrivers={setDrivers}
+            owners={owners}
+            setOwners={setOwners}
+            sites={sites}
+            setSites={setSites}
+            dropoffSites={dropoffSites}
+            setDropoffSites={setDropoffSites}
+            disputes={disputes}
+            setDisputes={setDisputes}
+            selectedDriverForVerify={selectedDriverForVerify}
+            setSelectedDriverForVerify={setSelectedDriverForVerify}
+            verifyZoom={verifyZoom}
+            setVerifyZoom={setVerifyZoom}
+            selectedDocTab={selectedDocTab}
+            setSelectedDocTab={setSelectedDocTab}
+            verifyRotate={verifyRotate}
+            setVerifyRotate={setVerifyRotate}
+            panX={panX}
+            setPanX={setPanX}
+            panY={panY}
+            setPanY={setPanY}
+            isDragging={isDragging}
+            setIsDragging={setIsDragging}
+            dragStart={dragStart}
+            setDragStart={setDragStart}
+            selectedOwnerForVerify={selectedOwnerForVerify}
+            setSelectedOwnerForVerify={setSelectedOwnerForVerify}
+            selectedSiteForVerify={selectedSiteForVerify}
+            setSelectedSiteForVerify={setSelectedSiteForVerify}
+            selectedDropoffForVerify={selectedDropoffForVerify}
+            setSelectedDropoffForVerify={setSelectedDropoffForVerify}
+            selectedOwnerDocTab={selectedOwnerDocTab}
+            setSelectedOwnerDocTab={setSelectedOwnerDocTab}
+            selectedSiteDocTab={selectedSiteDocTab}
+            setSelectedSiteDocTab={setSelectedSiteDocTab}
+            selectedDropoffDocTab={selectedDropoffDocTab}
+            setSelectedDropoffDocTab={setSelectedDropoffDocTab}
+            uploadedFiles={uploadedFiles}
+            handleFileUpload={handleFileUpload}
+            handleMouseDown={handleMouseDown}
+            handleMouseMove={handleMouseMove}
+            handleMouseUp={handleMouseUp}
+            handleApproveDriver={handleApproveDriver}
+            handleApproveOwner={handleApproveOwner}
+            handleApproveSite={handleApproveSite}
+            handleApproveDropoff={handleApproveDropoff}
+            handleRejectMember={handleRejectMember}
+            handleResolveDispute={handleResolveDispute}
+            fetchCommonCodes={fetchCommonCodes}
+            calcMethod={calcMethod}
+            setCalcMethod={setCalcMethod}
+            continuousDistanceFare={continuousDistanceFare}
+            setContinuousDistanceFare={setContinuousDistanceFare}
+            continuousTimeFare={continuousTimeFare}
+            setContinuousTimeFare={setContinuousTimeFare}
+            overPlanDistanceFare={overPlanDistanceFare}
+            setOverPlanDistanceFare={setOverPlanDistanceFare}
+            overPlanTimeFare={overPlanTimeFare}
+            setOverPlanTimeFare={setOverPlanTimeFare}
+            policySaveSuccess={policySaveSuccess}
+            setPolicySaveSuccess={setPolicySaveSuccess}
+            approvalTab={approvalTab}
+            setApprovalTab={setApprovalTab}
+            userTab={userTab}
+            setUserTab={setUserTab}
+            userSearchQuery={userSearchQuery}
+            setUserSearchQuery={setUserSearchQuery}
+            isAddUserModalOpen={isAddUserModalOpen}
+            setIsAddUserModalOpen={setIsAddUserModalOpen}
+            editingUser={editingUser}
+            setEditingUser={setEditingUser}
+            viewingUserDetails={viewingUserDetails}
+            setViewingUserDetails={setViewingUserDetails}
+            userFormName={userFormName}
+            setUserFormName={setUserFormName}
+            userFormPhone={userFormPhone}
+            setUserFormPhone={setUserFormPhone}
+            userFormStatus={userFormStatus}
+            setUserFormStatus={setUserFormStatus}
+            userFormExtra1={userFormExtra1}
+            setUserFormExtra1={setUserFormExtra1}
+            userFormExtra2={userFormExtra2}
+            setUserFormExtra2={setUserFormExtra2}
+          />
+        )
       )}
       {user.role === "site_manager" && (
         activePath === "/site/org-hierarchy" ? (
@@ -1614,12 +1649,28 @@ export default function Home() {
         />
       )}
       {user.role === "owner" && (
-        <OwnerDashboard
-          activePath={activePath}
-          setActivePath={setActivePath}
-          ownerBroadcastSuccess={ownerBroadcastSuccess}
-          setOwnerBroadcastSuccess={setOwnerBroadcastSuccess}
-        />
+        activePath === "/owner/schedule" ? (
+          <OwnerScheduleManagement setActivePath={setActivePath} />
+        ) : activePath === "/owner/fleet" ? (
+          <OwnerTruckManagement setActivePath={setActivePath} />
+        ) : activePath === "/owner/revenues" || activePath === "/owner/settlement" ? (
+          <OwnerSettlementManagement setActivePath={setActivePath} />
+        ) : activePath === "/owner/notice" ? (
+          <OwnerNoticeManagement
+            setActivePath={setActivePath}
+            ownerBroadcastSuccess={ownerBroadcastSuccess}
+            setOwnerBroadcastSuccess={setOwnerBroadcastSuccess}
+          />
+        ) : activePath === "/owner" || activePath === "" ? (
+          <OwnerOverviewDashboard setActivePath={setActivePath} />
+        ) : (
+          <OwnerDashboard
+            activePath={activePath}
+            setActivePath={setActivePath}
+            ownerBroadcastSuccess={ownerBroadcastSuccess}
+            setOwnerBroadcastSuccess={setOwnerBroadcastSuccess}
+          />
+        )
       )}
       {user.role === "developer" && (
         <DeveloperDashboard

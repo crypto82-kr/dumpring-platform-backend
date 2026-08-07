@@ -52,17 +52,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   platform_admin: [
     { title: "플랫폼 대시보드", icon: BarChart3, path: "/admin" },
-    {
-      title: "승인 관리",
-      icon: ShieldCheck,
-      path: "#approve",
-      subItems: [
-        { title: "기사 가입 승인", path: "/admin/approve-driver" },
-        { title: "차주/운송사 승인", path: "/admin/approve-owner" },
-        { title: "현장 관리자 승인", path: "/admin/approve-site" },
-        { title: "하차지 승인 관리", path: "/admin/approve-dropoff" }
-      ]
-    },
+    { title: "통합 승인 심사 관리", icon: ShieldCheck, path: "/admin/approve" },
     { title: "통합 이용자 관리", icon: Users, path: "/admin/users" },
     { title: "운임 및 수수료 설정", icon: Percent, path: "/admin/fees" },
     { title: "분쟁 및 신고 처리", icon: ShieldAlert, path: "/admin/disputes" },

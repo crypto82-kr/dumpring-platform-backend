@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from jose import jwt, JWTError
 from typing import List, Optional
@@ -420,8 +421,12 @@ async def login(
     db: AsyncSession = Depends(get_db)
 ):
     normalized_phone = normalize_phone(data.phone_number)
-    # 1. 사용자 조회
-    query = select(User).where(User.phone_number == normalized_phone)
+    raw_phone = data.phone_number.strip() if isinstance(data.phone_number, str) else data.phone_number
+    # 1. 사용자 조회 (DB 상에 하이픈이 있든 없든 하이픈 제거 후 비교 및 원본 비교)
+    query = select(User).where(
+        (func.replace(User.phone_number, "-", "") == normalized_phone) |
+        (User.phone_number == raw_phone)
+    )
     result = await db.execute(query)
     user = result.scalars().first()
     
