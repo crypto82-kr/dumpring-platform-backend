@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { UserCheck, ShieldCheck, UserX, Clock, Search, Plus, User, Phone, Briefcase, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
-import { getApiBaseUrl } from "@/utils/api";
 
 export interface SiteWorkerItem {
   id: number;
@@ -40,7 +39,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
   const fetchSites = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${getApiBaseUrl()}/api/sites/admin-sites`, {
+      const res = await fetch("http://127.0.0.1:8000/api/sites/admin-sites", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {
@@ -48,7 +47,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
         const mapped = data.map((item: any) => ({
           id: item.id,
           name: item.site_name || item.name || "공사 현장",
-          address: item.site_address || item.address || "주소 미등록",
+          address: item.address || "주소 미등록",
         }));
         if (mapped.length > 0) {
           setSiteOptions(mapped);
@@ -64,14 +63,14 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
     setIsLoading(true);
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${getApiBaseUrl()}/api/sites/all-employees`, {
+      const res = await fetch("http://127.0.0.1:8000/api/sites/all-employees", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {
         const data = await res.json();
         setWorkerList(data);
-        if (data.length > 0) {
-          setSelectedWorkerId((prev) => (prev !== null && data.some((item: any) => item.id === prev) ? prev : data[0].id));
+        if (data.length > 0 && selectedWorkerId === null) {
+          setSelectedWorkerId(data[0].id);
         }
       } else {
         setWorkerList([]);
@@ -115,7 +114,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
 
       if (editingWorkerId !== null) {
         // Edit Mode
-        const res = await fetch(`${getApiBaseUrl()}/api/sites/all-employees/${editingWorkerId}`, {
+        const res = await fetch(`http://127.0.0.1:8000/api/sites/all-employees/${editingWorkerId}`, {
           method: "PUT",
           headers: authHeaders,
           body: JSON.stringify({
@@ -149,7 +148,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
         }
       } else {
         // Create Mode
-        const res = await fetch(`${getApiBaseUrl()}/api/sites/all-employees`, {
+        const res = await fetch("http://127.0.0.1:8000/api/sites/all-employees", {
           method: "POST",
           headers: authHeaders,
           body: JSON.stringify({
@@ -160,15 +159,30 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
           }),
         });
         if (res.ok) {
-          alert("신규 현장담당자 인원 정보가 등록되었습니다. 해당 담당자가 회원가입 진행 시 자동으로 소속 현장과 매핑됩니다.");
+          alert("신규 현장담당자 인원이 등록되었습니다. (플랫폼 관리자 승인 대기)");
           fetchWorkers();
-          setIsModalOpen(false);
-          resetForm();
         } else {
-          const errData = await res.json().catch(() => ({}));
-          alert(errData.detail || "현장담당자 등록에 실패했습니다.");
+          // Local State Fallback
+          const selectedSiteObj = registeredSiteList.find((s) => s.id === formSiteId);
+          const newWorker: SiteWorkerItem = {
+            id: Date.now(),
+            name: formName,
+            phone_number: formPhone,
+            employee_role: formRole,
+            site_id: formSiteId !== "" ? Number(formSiteId) : null,
+            site_name: selectedSiteObj?.name || "소속 현장 미지정",
+            is_approved: false,
+            status: "PENDING",
+            created_at: new Date().toISOString().split("T")[0],
+          };
+          setWorkerList((prev) => [newWorker, ...prev]);
+          setSelectedWorkerId(newWorker.id);
+          alert("신규 현장담당자 인원이 등록되었습니다. (플랫폼 관리자 승인 대기)");
         }
       }
+
+      setIsModalOpen(false);
+      resetForm();
     } catch (err) {
       console.error(err);
       alert("처리 중 에러가 발생했습니다.");
@@ -179,7 +193,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
     if (!confirm("해당 현장담당자 인원을 정말 삭제 처리하시겠습니까?")) return;
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      await fetch(`${getApiBaseUrl()}/api/sites/all-employees/${id}`, {
+      await fetch(`http://127.0.0.1:8000/api/sites/all-employees/${id}`, {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -212,7 +226,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
         <div>
           <h2 className="text-xl font-extrabold text-slate-900">현장담당자 인원 관리</h2>
           <p className="text-xs text-slate-500 mt-1">
-            공사현장에 근무할 담당자 인원의 인적사항(성명, 연락처, 직책)을 등록·수정·관리합니다. [소속 현장 지정 및 사전 등록 연동 지원]
+            공사현장에 근무할 담당자 인원의 인적사항(성명, 연락처, 직책)을 등록·수정·관리합니다. (소속 현장은 현장 관리에서 별도 매핑)
           </p>
         </div>
         <button
@@ -386,11 +400,11 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
                         <span className="text-slate-500">소속 현장 매핑 방식</span>
-                        <span className="text-blue-600 font-bold">담당 현장 선택 및 자동 연동 매핑</span>
+                        <span className="text-blue-600 font-bold">현장 관리에서 별도 지정</span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-slate-500">실물 서류 제출 유무</span>
-                        <span className="text-slate-600 font-bold">서류 제출 없음 (현장관리자 서류 공유)</span>
+                        <span className="text-slate-600 font-bold">서류 제출 없음 (소장님 서류 공유)</span>
                       </div>
                     </div>
                   </div>
@@ -398,10 +412,10 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                   <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 text-xs space-y-2">
                     <div className="flex items-center gap-1.5 text-blue-700 font-bold">
                       <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                      담당자 인원 사전 등록 지침
+                      담당자 인원 등록 지침
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
-                      * 사전 등록한 현장담당자 인원 정보는 해당 담당자가 동일한 휴대폰 번호로 회원가입 시 자동으로 소속 현장에 매핑 연동됩니다.
+                      * 등록된 현장담당자는 플랫폼 관리자의 최종 승인 후 활성화되며, [현장 관리] 메뉴에서 특정 현장의 관제 담당자로 지정/매핑할 수 있습니다.
                     </p>
                   </div>
                 </div>
@@ -489,7 +503,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
               {/* 담당 직책 / 역할은 화면에서 노출하지 않고 백엔드 DB 디폴트 '현장통제/도장' 으로 자동 저장됩니다 */}
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[10.5px] text-slate-500 leading-normal">
-                * 별도 서류 파일 첨부는 없으며, 담당 현장 선택 시 즉시 매핑되고 사전 등록 시 자동으로 연동됩니다.
+                * 별도 서류 파일 첨부는 없으며, 소속 현장 매핑은 현장 관리 화면에서 소장님이 별도 지정합니다.
               </div>
 
               {/* Modal Footer Controls */}
@@ -515,7 +529,6 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
           </div>
         </div>
       )}
-
     </div>
   );
 }

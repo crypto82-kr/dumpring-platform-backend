@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock } from "lucide-react";
 import { MockMap } from "./MockMap";
 import { MatchStatusCard } from "./MatchStatusCard";
-import { getApiBaseUrl } from "@/utils/api";
 
 interface SiteManagerDashboardProps {
   activePath: string;
@@ -178,7 +177,7 @@ export function SiteManagerDashboard({
     else setIsUploadingDustReport(true);
 
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/files/upload`, {
+      const res = await fetch("http://127.0.0.1:8000/api/files/upload", {
         method: "POST",
         body: formData,
       });
@@ -230,7 +229,7 @@ export function SiteManagerDashboard({
   React.useEffect(() => {
     const fetchCodes = async () => {
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/common-codes`);
+        const res = await fetch("http://127.0.0.1:8000/api/common-codes");
         if (res.ok) {
           const data = await res.json();
           setDbCommonCodes(data);
@@ -557,7 +556,7 @@ export function SiteManagerDashboard({
                           </div>
                           {selectedSite.bizLicenseUrl ? (
                             <a
-                              href={`${getApiBaseUrl()}${selectedSite.bizLicenseUrl}`}
+                              href={`http://127.0.0.1:8000${selectedSite.bizLicenseUrl}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[10px] text-blue-600 font-bold hover:underline"
@@ -585,7 +584,7 @@ export function SiteManagerDashboard({
                           </div>
                           {selectedSite.dustReportUrl ? (
                             <a
-                              href={`${getApiBaseUrl()}${selectedSite.dustReportUrl}`}
+                              href={`http://127.0.0.1:8000${selectedSite.dustReportUrl}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[10px] text-blue-600 font-bold hover:underline"
@@ -775,7 +774,7 @@ export function SiteManagerDashboard({
                           </label>
                           {siteFormBizLicenseUrl && (
                             <a
-                              href={`${getApiBaseUrl()}${siteFormBizLicenseUrl}`}
+                              href={`http://127.0.0.1:8000${siteFormBizLicenseUrl}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[9.5px] text-blue-600 font-bold hover:underline block truncate"
@@ -814,7 +813,7 @@ export function SiteManagerDashboard({
                           </label>
                           {siteFormDustReportUrl && (
                             <a
-                              href={`${getApiBaseUrl()}${siteFormDustReportUrl}`}
+                              href={`http://127.0.0.1:8000${siteFormDustReportUrl}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[9.5px] text-blue-600 font-bold hover:underline block truncate"

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { Activity, Terminal, Database, AlertCircle, PlusCircle, Search, Edit2, Trash2 } from "lucide-react";
-import { getApiBaseUrl } from "@/utils/api";
 
 interface DeveloperDashboardProps {
   activePath: string;
@@ -201,7 +200,7 @@ export function DeveloperDashboard({
           </div>
           <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl">
             <span className="text-xs font-bold text-slate-500 block">FastAPI 호스트</span>
-            <p className="text-base font-mono font-bold text-slate-800 mt-1">{getApiBaseUrl()}</p>
+            <p className="text-base font-mono font-bold text-slate-800 mt-1">http://localhost:8000</p>
           </div>
           <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl">
             <span className="text-xs font-bold text-slate-500 block">활성 DB 마이그레이션</span>
@@ -353,7 +352,7 @@ export function DeveloperDashboard({
 
       try {
         const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-        const res = await fetch(`${getApiBaseUrl()}/api/common-codes`, {
+        const res = await fetch("http://localhost:8000/api/common-codes", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -394,7 +393,7 @@ export function DeveloperDashboard({
 
       try {
         const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-        const res = await fetch(`${getApiBaseUrl()}/api/common-codes/${id}`, {
+        const res = await fetch(`http://localhost:8000/api/common-codes/${id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -428,7 +427,7 @@ export function DeveloperDashboard({
 
       try {
         const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-        const res = await fetch(`${getApiBaseUrl()}/api/common-codes/${id}`, {
+        const res = await fetch(`http://localhost:8000/api/common-codes/${id}`, {
           method: "DELETE",
           headers: {
             "Authorization": `Bearer ${token}`

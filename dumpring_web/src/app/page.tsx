@@ -9,10 +9,8 @@ import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboar
 import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
 import SiteDispatchRequestManagement from "@/components/dashboard/SiteDispatchRequestManagement";
-import SiteOverviewDashboard from "@/components/dashboard/SiteOverviewDashboard";
 import DropoffRegisterManagement from "@/components/dashboard/DropoffRegisterManagement";
 import DropoffRequestManagement from "@/components/dashboard/DropoffRequestManagement";
-import DropoffDispatchManagement from "@/components/dashboard/DropoffDispatchManagement";
 import { DropoffManagerDashboard } from "@/components/dashboard/DropoffManagerDashboard";
 import { OwnerDashboard } from "@/components/dashboard/OwnerDashboard";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
@@ -154,18 +152,15 @@ export default function Home() {
           .filter((item: any) => item.type && item.type.includes("현장"))
           .map((item: any) => ({
             id: item.id,
-            name: item.name,
-            phone: item.phone_number,
-            siteName: item.site_name || "공사 현장",
-            companyName: item.company_name || "협력 도급사",
-            role: item.type.includes("현장담당자") ? "site_worker" : "site_manager",
-            is_site_worker: item.type.includes("현장담당자"),
+            name: item.site_name || `${item.name || "미지정"}의 현장`,
+            company: item.company_name || "협력 도급사",
             code: `GD-${item.id}-DUMP`,
             status: "대기",
+            phone: item.phone_number,
             managerName: item.name || "미지정",
             bizRegNo: item.business_number || "미등록",
             address: item.address || "현장 주소 미등록",
-            registeredSites: [item.site_name || "공사 현장"]
+            registeredSites: [item.site_name || `${item.name || "미지정"}의 현장`]
           }));
 
         const backendDropoffs = data
@@ -197,60 +192,29 @@ export default function Home() {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) return;
 
-      // /api/sites/my-mappings 호출하여 본인 연동/소유 현장 목록 불러오기
-      let res = await fetch(`${API_BASE_URL}/api/sites/my-mappings`, {
+      const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
-
-      if (!res.ok) {
-        res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-      }
 
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map((site: any) => {
-            const managerList: string[] = [];
-
-            // 1. site.manager_name (현장관리자)
-            if (site.manager_name) {
-              managerList.push(`현장관리자: ${site.manager_name}${site.manager_phone ? ` (${site.manager_phone})` : ""}`);
-            }
-
-            // 2. site.worker_name or worker_phone (현장담당자)
-            const workerNameVal = site.worker_name || (site.role === "site_worker" || site.is_site_worker ? "임꺽정" : null);
-            if (workerNameVal) {
-              managerList.push(`현장담당자: ${workerNameVal}${site.worker_phone ? ` (${site.worker_phone})` : ""}`);
-            }
-
-            // 3. 만약 site.managers 문자열/배열이 별도로 있다면 파싱
-            if (managerList.length === 0 && site.managers) {
-              if (Array.isArray(site.managers)) {
-                managerList.push(...site.managers);
-              } else if (typeof site.managers === "string") {
-                managerList.push(site.managers);
-              }
-            }
-
-            if (managerList.length === 0) {
-              managerList.push("지정 대기");
-            }
-
-            return {
-              id: site.site_id || site.id,
-              name: site.site_name || site.company_name || "공사 현장",
-              companyName: site.company_name || "건설업체명 없음",
-              address: site.site_address || "현장 주소 미등록",
-              roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
-              managers: managerList,
-              bizRegNo: site.business_number || "",
-              siteKey: site.site_key || `SG-${site.id || site.site_id}-DUMP`,
-              bizLicenseUrl: site.biz_license_url || "",
-              dustReportUrl: site.dust_report_url || ""
-            };
-          });
+          const mapped = data.map((site: any) => ({
+            id: site.id,
+            name: site.site_name || site.company_name || "공사 현장",
+            companyName: site.company_name || "건설업체명 없음",
+            address: site.site_address || "현장 주소 미등록",
+            roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
+            managers: [
+              site.manager_name && site.manager_phone 
+                ? `${site.manager_name} (${site.manager_phone})` 
+                : (site.billing_email || "지정 대기")
+            ],
+            bizRegNo: site.business_number || "",
+            siteKey: site.site_key || `SG-${site.id}-DUMP`,
+            bizLicenseUrl: site.biz_license_url || "",
+            dustReportUrl: site.dust_report_url || ""
+          }));
           setRegisteredSiteList(mapped);
         }
       }
@@ -1230,7 +1194,7 @@ export default function Home() {
   const handleApproveDriver = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1250,7 +1214,7 @@ export default function Home() {
   const handleApproveOwner = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1271,15 +1235,17 @@ export default function Home() {
   const handleApproveSite = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
         }
       });
       if (res.ok) {
-        setSites(prev => prev.filter(s => s.id !== id));
-        await fetchPendingMembers();
+        setSites(prev =>
+          prev.map(s => s.id === id ? { ...s, status: "승인됨", code: `GD-${id}-DUMP` } : s)
+        );
+        fetchPendingMembers();
       }
     } catch (e) {
       console.error("Failed to approve site in backend:", e);
@@ -1289,7 +1255,7 @@ export default function Home() {
   const handleApproveDropoff = async (id: number) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/approve`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1309,7 +1275,7 @@ export default function Home() {
   const handleRejectMember = async (id: number, reason: string) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/reject?reject_reason=${encodeURIComponent(reason)}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/auth/admin/members/${id}/reject?reject_reason=${encodeURIComponent(reason)}`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -1498,10 +1464,10 @@ export default function Home() {
           setUserFormExtra2={setUserFormExtra2}
         />
       )}
-      {(user.role === "site_manager" || user.role === "site_worker") && (
+      {user.role === "site_manager" && (
         activePath === "/site/org-hierarchy" ? (
           <SiteWorkerManagement registeredSiteList={registeredSiteList} />
-        ) : activePath === "/site/dispatch" ? (
+        ) : activePath === "/site/dispatch-request" || activePath === "/site/dispatch" ? (
           <SiteDispatchRequestManagement
             registeredSiteList={registeredSiteList}
             dispatchRequestList={dispatchRequestList}
@@ -1512,73 +1478,6 @@ export default function Home() {
             handleUpdateDispatch={handleUpdateDispatch}
             handleDeleteDispatch={handleDeleteDispatch}
             fetchDispatchRequests={fetchDispatchRequests}
-            handleConfirmMatchJobPost={handleConfirmMatchJobPost}
-            handleRejectMatchJobPost={handleRejectMatchJobPost}
-            handleResetMatchJobPost={handleResetMatchJobPost}
-          />
-        ) : activePath === "/site/dispatch-request" ? (
-          <SiteManagerDashboard
-            activePath={activePath}
-            setActivePath={setActivePath}
-            siteFormName={siteFormName}
-            setSiteFormName={setSiteFormName}
-            siteFormCompanyName={siteFormCompanyName}
-            setSiteFormCompanyName={setSiteFormCompanyName}
-            siteFormAddress={siteFormAddress}
-            setSiteFormAddress={setSiteFormAddress}
-            siteFormRoadDesc={siteFormRoadDesc}
-            setSiteFormRoadDesc={setSiteFormRoadDesc}
-            siteFormManagers={siteFormManagers}
-            setSiteFormManagers={setSiteFormManagers}
-            siteFormSearchQuery={siteFormSearchQuery}
-            setSiteFormSearchQuery={setSiteFormSearchQuery}
-            registeredSiteList={registeredSiteList}
-            setRegisteredSiteList={setRegisteredSiteList}
-            dispatchFormSiteId={dispatchFormSiteId}
-            setDispatchFormSiteId={setDispatchFormSiteId}
-            dispatchFormTonTypes={dispatchFormTonTypes}
-            setDispatchFormTonTypes={setDispatchFormTonTypes}
-            dispatchFormTruckCount={dispatchFormTruckCount}
-            setDispatchFormTruckCount={setDispatchFormTruckCount}
-            dispatchFormSoilType={dispatchFormSoilType}
-            setDispatchFormSoilType={setDispatchFormSoilType}
-            dispatchFormStartDate={dispatchFormStartDate}
-            setDispatchFormStartDate={setDispatchFormStartDate}
-            dispatchFormEndDate={dispatchFormEndDate}
-            setDispatchFormEndDate={setDispatchFormEndDate}
-            dispatchFormDropoffMode={dispatchFormDropoffMode}
-            setDispatchFormDropoffMode={setDispatchFormDropoffMode}
-            dispatchFormDropoffName={dispatchFormDropoffName}
-            setDispatchFormDropoffName={setDispatchFormDropoffName}
-            dispatchFormDropoffAddress={dispatchFormDropoffAddress}
-            setDispatchFormDropoffAddress={setDispatchFormDropoffAddress}
-            dispatchFormDropoffCapacity={dispatchFormDropoffCapacity}
-            setDispatchFormDropoffCapacity={setDispatchFormDropoffCapacity}
-            dispatchFormDropoffSoilType={dispatchFormDropoffSoilType}
-            setDispatchFormDropoffSoilType={setDispatchFormDropoffSoilType}
-            dispatchRequestMode={dispatchRequestMode}
-            setDispatchRequestMode={setDispatchRequestMode}
-            editingDispatchRequestId={editingDispatchRequestId}
-            setEditingDispatchRequestId={setEditingDispatchRequestId}
-            dispatchRequestSearchQuery={dispatchRequestSearchQuery}
-            setDispatchRequestSearchQuery={setDispatchRequestSearchQuery}
-            dispatchRequestList={dispatchRequestList}
-            setDispatchRequestList={setDispatchRequestList}
-            registeredDropoffList={registeredDropoffList}
-            dropoffRequestList={dropoffRequestList}
-            taxInvoiceApproved={taxInvoiceApproved}
-            setTaxInvoiceApproved={setTaxInvoiceApproved}
-            handleCreateSite={handleCreateSite}
-            handleUpdateSite={handleUpdateSite}
-            handleDeleteSite={handleDeleteSite}
-            handleCreateDispatch={handleCreateDispatch}
-            handleUpdateDispatch={handleUpdateDispatch}
-            handleDeleteDispatch={handleDeleteDispatch}
-            fetchDispatchRequests={fetchDispatchRequests}
-            dispatchFormPayerType={dispatchFormPayerType}
-            setDispatchFormPayerType={setDispatchFormPayerType}
-            dispatchFormOfferedUnitPrice={dispatchFormOfferedUnitPrice}
-            setDispatchFormOfferedUnitPrice={setDispatchFormOfferedUnitPrice}
             handleConfirmMatchJobPost={handleConfirmMatchJobPost}
             handleRejectMatchJobPost={handleRejectMatchJobPost}
             handleResetMatchJobPost={handleResetMatchJobPost}

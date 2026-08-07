@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.core.db import get_db
 from app.models import User, Driver, Car, Notification, UserUploadedDocument, CommonCode
 from app.api.auth import get_current_owner, get_current_user
+from app.core.security import normalize_phone
 
 router = APIRouter()
 
@@ -318,7 +319,7 @@ async def invite_driver(
     db: AsyncSession = Depends(get_db),
     current_owner: User = Depends(get_current_owner)
 ):
-    phone = data.phone_number.strip()
+    phone = normalize_phone(data.phone_number)
     name = data.name.strip()
 
     # 1. 기사 회원으로 가입된 유저가 있는지 조회

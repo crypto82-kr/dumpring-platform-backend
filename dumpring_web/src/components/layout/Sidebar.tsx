@@ -24,7 +24,6 @@ import {
   ShieldAlert,
   MessageSquare,
   Receipt,
-  FileCheck,
   Bell,
   Sliders,
   Activity,
@@ -53,7 +52,17 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   platform_admin: [
     { title: "플랫폼 대시보드", icon: BarChart3, path: "/admin" },
-    { title: "통합 승인 심사 센터", icon: FileCheck, path: "/admin/approval" },
+    {
+      title: "승인 관리",
+      icon: ShieldCheck,
+      path: "#approve",
+      subItems: [
+        { title: "기사 가입 승인", path: "/admin/approve-driver" },
+        { title: "차주/운송사 승인", path: "/admin/approve-owner" },
+        { title: "현장 관리자 승인", path: "/admin/approve-site" },
+        { title: "하차지 승인 관리", path: "/admin/approve-dropoff" }
+      ]
+    },
     { title: "통합 이용자 관리", icon: Users, path: "/admin/users" },
     { title: "운임 및 수수료 설정", icon: Percent, path: "/admin/fees" },
     { title: "분쟁 및 신고 처리", icon: ShieldAlert, path: "/admin/disputes" },
@@ -74,7 +83,8 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
       path: "#site-dispatch",
       subItems: [
         { title: "배차 요청", path: "/site/dispatch-request" },
-        { title: "배차 현황", path: "/site/dispatch" },
+        { title: "배차 요청 현황", path: "/site/dispatch" },
+        { title: "배차 승인 처리", path: "/site/dispatch-approve" },
         { title: "운행 이력 조회", path: "/site/history" },
       ]
     },
@@ -84,23 +94,9 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "세금계산서 업무", icon: Receipt, path: "/site/tax-invoice" },
     { title: "현장 안전 공지", icon: HardHat, path: "/site/safety" },
   ],
-  site_worker: [
-    { title: "현장 관제 대시보드", icon: LayoutDashboard, path: "/site" },
-    { title: "현장 정보", icon: MapPin, path: "/site/request" },
-    {
-      title: "배차 현황",
-      icon: Truck,
-      path: "#site-dispatch",
-      subItems: [
-        { title: "배차 현황", path: "/site/dispatch" },
-        { title: "운행 이력 조회", path: "/site/history" },
-      ]
-    },
-    { title: "진출입 실시간 현황", icon: Activity, path: "/site/status" },
-    { title: "현장 안전 공지", icon: HardHat, path: "/site/safety" },
-  ],
   dropoff_manager: [
     { title: "하차지 대시보드", icon: LayoutDashboard, path: "/dropoff" },
+    { title: "하차지 담당자 권한 관리", icon: Users, path: "/dropoff/org-hierarchy" },
     { title: "하차지 등록", icon: MapPin, path: "/dropoff/register" },
     { title: "공고 관리", icon: FileText, path: "/dropoff/dispatch-request" },
     { title: "배차 현황", icon: Truck, path: "/dropoff/dispatch" },

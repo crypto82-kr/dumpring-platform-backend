@@ -479,7 +479,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                     context,
                     MaterialPageRoute(
                       builder: (_) => VehicleManagementScreen(
-                        user: _currentUser,
+                        user: const {'is_owner': true},
                         token: widget.token,
                         isReadOnly: false,
                       ),

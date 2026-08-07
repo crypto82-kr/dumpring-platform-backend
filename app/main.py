@@ -57,11 +57,7 @@ async def startup_event():
             except Exception as e:
                 logger.warning(f"현장 동적 컬럼 추가 무시: {col} -> {e}")
 
-        emp_cols = [
-            ("name", "VARCHAR DEFAULT '현장담당자'"),
-            ("is_approved", "BOOLEAN DEFAULT FALSE"),
-            ("reject_reason", "VARCHAR")
-        ]
+        emp_cols = [("name", "VARCHAR DEFAULT '현장담당자'"), ("is_approved", "BOOLEAN DEFAULT FALSE"), ("reject_reason", "VARCHAR")]
         for col, col_type in emp_cols:
             try:
                 from sqlalchemy import text
