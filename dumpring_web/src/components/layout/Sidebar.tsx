@@ -83,7 +83,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
       path: "#site-dispatch",
       subItems: [
         { title: "배차 요청", path: "/site/dispatch-request" },
-        { title: "배차 요청 현황", path: "/site/dispatch" },
+        { title: "배차 현황", path: "/site/dispatch" },
         { title: "배차 승인 처리", path: "/site/dispatch-approve" },
         { title: "운행 이력 조회", path: "/site/history" },
       ]
@@ -96,7 +96,6 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   dropoff_manager: [
     { title: "하차지 대시보드", icon: LayoutDashboard, path: "/dropoff" },
-    { title: "하차지 담당자 권한 관리", icon: Users, path: "/dropoff/org-hierarchy" },
     { title: "하차지 등록", icon: MapPin, path: "/dropoff/register" },
     { title: "공고 관리", icon: FileText, path: "/dropoff/dispatch-request" },
     { title: "배차 현황", icon: Truck, path: "/dropoff/dispatch" },

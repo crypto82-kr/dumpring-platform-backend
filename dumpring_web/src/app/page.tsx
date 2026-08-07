@@ -1466,7 +1466,7 @@ export default function Home() {
       {user.role === "site_manager" && (
         activePath === "/site/org-hierarchy" ? (
           <SiteWorkerManagement registeredSiteList={registeredSiteList} />
-        ) : activePath === "/site/dispatch-request" || activePath === "/site/dispatch" ? (
+        ) : activePath === "/site/dispatch" ? (
           <SiteDispatchRequestManagement
             registeredSiteList={registeredSiteList}
             dispatchRequestList={dispatchRequestList}
