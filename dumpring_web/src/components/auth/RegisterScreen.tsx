@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { ShieldCheck, MapPin, Truck, Lock, Phone, User as UserIcon, AlertCircle, Loader2, Check, ArrowLeft } from "lucide-react";
+import { getApiBaseUrl } from "@/utils/api";
 
 interface RegisterScreenProps {
   onBackToLogin: () => void;
@@ -74,7 +75,8 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
     setLoading(true);
 
     try {
-      let endpoint = "http://localhost:8000/api/auth/register-owner";
+      const baseUrl = getApiBaseUrl();
+      let endpoint = `${baseUrl}/api/auth/register-owner`;
       let body: any = {
         phone_number: phoneNumber.trim(),
         password: password,
@@ -82,7 +84,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
       };
 
       if (role === "site_worker") {
-        endpoint = "http://localhost:8000/api/auth/signup/site-worker";
+        endpoint = `${baseUrl}/api/auth/signup/site-worker`;
         body = {
           phone_number: phoneNumber.trim(),
           password: password,
@@ -93,7 +95,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
           site_key: "SITE-DEFAULT"
         };
       } else if (role === "site_manager") {
-        endpoint = "http://localhost:8000/api/auth/signup/site-manager";
+        endpoint = `${baseUrl}/api/auth/signup/site-manager`;
         body = {
           phone_number: phoneNumber.trim(),
           password: password,
@@ -103,7 +105,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
           business_number: "000-00-00000"
         };
       } else if (role === "dropoff_manager") {
-        endpoint = "http://localhost:8000/api/auth/signup/drop-off";
+        endpoint = `${baseUrl}/api/auth/signup/drop-off`;
         body = {
           phone_number: phoneNumber.trim(),
           password: password,

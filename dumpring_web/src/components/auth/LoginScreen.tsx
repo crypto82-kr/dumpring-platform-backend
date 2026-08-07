@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ShieldCheck, Truck, MapPin, BarChart3, Lock, Phone, AlertCircle, Loader2, Terminal } from "lucide-react";
 import RegisterScreen from "./RegisterScreen";
+import { getApiBaseUrl } from "@/utils/api";
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -22,7 +23,8 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/login", {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
