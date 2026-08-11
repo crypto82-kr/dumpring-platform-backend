@@ -42,8 +42,8 @@ export default function LoginScreen() {
         const err = await res.json();
         setErrorMsg(err.detail || "휴대폰 번호 또는 비밀번호가 올바르지 않습니다.");
       }
-    } catch (e) {
-      setErrorMsg("백엔드 인증 서버에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요.");
+    } catch (e: any) {
+      setErrorMsg(e?.message || "인증 처리 중 에러가 발생했습니다.");
     } finally {
       setLoading(false);
     }

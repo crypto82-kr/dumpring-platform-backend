@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-export type UserRole = "site_manager" | "dropoff_manager" | "platform_admin" | "developer" | "owner";
+export type UserRole = "site_manager" | "site_worker" | "dropoff_manager" | "platform_admin" | "developer" | "owner";
 
 export interface UserProfile {
   id: string;
@@ -24,34 +24,32 @@ interface AuthContextType {
 }
 
 const roleNames: Record<UserRole, string> = {
-  site_manager: "현장 관리자",
-  dropoff_manager: "하차지 관리자",
   platform_admin: "플랫폼 관리자",
-  developer: "개발자",
+  site_manager: "현장 관리자",
+  site_worker: "현장 담당자",
+  dropoff_manager: "하차지 관리자",
   owner: "차주 / 운송사",
+  developer: "시스템 개발자",
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [activePath, setActivePath] = useState<string>("");
-
-
+  const [activePath, setActivePath] = useState<string>("/");
 
   const changeRole = (role: UserRole) => {
+    if (!user) return;
     setUser({
-      id: `usr_${Math.floor(10000 + Math.random() * 90000)}`,
-      name: `덤프링 ${roleNames[role]}`,
-      phone_number: "010-1234-5678",
+      ...user,
       role,
-      roleName: roleNames[role],
-      isApproved: true
+      roleName: roleNames[role] || role,
     });
 
     const defaultPaths: Record<UserRole, string> = {
       platform_admin: "/admin",
       site_manager: "/site",
+      site_worker: "/site",
       dropoff_manager: "/dropoff",
       owner: "/owner",
       developer: "/dev",
@@ -60,39 +58,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = (token: string, userData: any) => {
+    // Determine role strictly based on API user response flags
+    let role: UserRole | null = null;
+    if (userData.phone_number === "010-9999-9999" || userData.name === "개발자") {
+      role = "developer";
+    } else if (userData.is_admin) {
+      role = "platform_admin";
+    } else if (userData.is_site_manager) {
+      role = "site_manager";
+    } else if (userData.is_site_worker) {
+      role = "site_worker";
+    } else if (userData.is_drop_off) {
+      role = "dropoff_manager";
+    } else if (userData.is_owner || userData.is_driver) {
+      role = "owner";
+    }
+
+    // 보안 강화: 유효한 서비스 이용 권한이 할당되지 않은 경우 접속 엄격 차단
+    if (!role) {
+      localStorage.removeItem("accessToken");
+      sessionStorage.removeItem("dumpring_token");
+      localStorage.removeItem("userData");
+      localStorage.removeItem("userProfile");
+      setUser(null);
+      throw new Error("부여된 서비스 이용 권한이 없습니다. 플랫폼 관리자에게 문의해 주세요.");
+    }
+
     localStorage.setItem("accessToken", token);
     sessionStorage.setItem("dumpring_token", token);
     localStorage.setItem("userData", JSON.stringify(userData));
-    
-    // Determine role based on API user response flags
-    let role: UserRole = "platform_admin";
-    if (userData.phone_number === "010-9999-9999" || userData.name === "개발자") role = "developer";
-    else if (userData.is_admin) role = "platform_admin";
-    else if (userData.is_site_manager) role = "site_manager";
-    else if (userData.is_drop_off) role = "dropoff_manager";
-    else if (userData.is_owner) role = "owner";
-    else if (userData.is_driver) role = "owner"; 
-    
-    const profile = {
+
+    const profile: UserProfile = {
       id: String(userData.id) || `usr_${Math.floor(10000 + Math.random() * 90000)}`,
       name: userData.name || userData.username || "사용자",
       phone_number: userData.phone_number || "",
       role: role,
-      roleName: roleNames[role] || "플랫폼 관리자",
+      roleName: roleNames[role] || "회원",
       isApproved: userData.is_approved !== undefined ? userData.is_approved : true,
     };
     setUser(profile);
     localStorage.setItem("userProfile", JSON.stringify(profile));
-    
+
     const defaultPaths: Record<UserRole, string> = {
       platform_admin: "/admin",
       site_manager: "/site",
+      site_worker: "/site",
       dropoff_manager: "/dropoff",
       owner: "/owner",
       developer: "/dev",
     };
-    
-    if (userData.is_approved === false && (role as string) !== "platform_admin" && (role as string) !== "developer") {
+
+    if (userData.is_approved === false && role !== "platform_admin" && role !== "developer") {
       setActivePath("/approval-request");
     } else {
       setActivePath(defaultPaths[role] || "/");
@@ -108,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const defaultPaths: Record<UserRole, string> = {
           platform_admin: "/admin",
           site_manager: "/site",
+          site_worker: "/site",
           dropoff_manager: "/dropoff",
           owner: "/owner",
           developer: "/dev",

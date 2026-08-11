@@ -82,6 +82,19 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "세금계산서 업무", icon: Receipt, path: "/site/tax-invoice" },
     { title: "현장 안전 공지", icon: HardHat, path: "/site/safety" },
   ],
+  site_worker: [
+    { title: "담당 현장 대시보드", icon: LayoutDashboard, path: "/site" },
+    {
+      title: "배차 관리",
+      icon: Truck,
+      path: "#site-dispatch",
+      subItems: [
+        { title: "배차 현황", path: "/site/dispatch" },
+        { title: "운행 이력 조회", path: "/site/history" },
+      ]
+    },
+    { title: "현장 안전 공지", icon: HardHat, path: "/site/safety" },
+  ],
   dropoff_manager: [
     { title: "하차지 대시보드", icon: LayoutDashboard, path: "/dropoff" },
     { title: "하차지 등록", icon: MapPin, path: "/dropoff/register" },

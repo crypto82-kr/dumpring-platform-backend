@@ -233,7 +233,23 @@ export default function SiteInfoManagement({
                   <p className="text-[10px] text-slate-500 mt-2 font-semibold truncate">{site.address}</p>
                   <div className="flex justify-between items-center text-[9px] text-slate-400 mt-3 pt-2 border-t border-slate-200/50">
                     <span>사업자: {site.bizRegNo || "미등록"}</span>
-                    <span className="text-slate-500 font-medium">담당자: {site.managers?.[0] || "지정대기"}</span>
+                    <div className="flex items-center gap-1 text-slate-600 font-semibold">
+                      <span>담당자:</span>
+                      {site.managers && site.managers.length > 0 ? (
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-slate-700">
+                            {site.managers[0].replace(/\s*\([^)]*\)/, "")}
+                          </span>
+                          {site.managers.length > 1 && (
+                            <span className="px-1 py-0.2 rounded-full bg-blue-100 text-blue-700 font-bold text-[8.5px]">
+                              외 {site.managers.length - 1}명
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 font-medium">지정대기</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -358,8 +374,36 @@ export default function SiteInfoManagement({
                       <div className="text-xs font-semibold text-slate-650 mt-0.5">{selectedSite.roadDesc || "등록된 가이드가 없습니다."}</div>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">담당자</span>
-                      <div className="text-xs font-semibold text-slate-700 mt-0.5">{selectedSite.managers?.join(", ") || "지정 대기"}</div>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase mb-1.5">
+                        현장 관리조직 및 담당자
+                      </span>
+                      <div className="space-y-1.5">
+                        {selectedSite.managers && selectedSite.managers.length > 0 ? (
+                          selectedSite.managers.map((m: string, idx: number) => {
+                            const isManager = idx === 0 || m.includes("소장") || m.includes("관리자");
+                            const cleanName = m.replace(/^현장관리자:\s*/, "").replace(/^현장담당자:\s*/, "");
+                            return (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-xs"
+                              >
+                                <span
+                                  className={`px-2 py-0.5 text-[10px] font-extrabold rounded shrink-0 ${
+                                    isManager
+                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                                      : "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+                                  }`}
+                                >
+                                  {isManager ? "현장관리자" : "현장담당자"}
+                                </span>
+                                <span className="font-extrabold text-slate-800 dark:text-slate-200">{cleanName}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="text-xs text-slate-400 font-semibold p-2">지정 대기</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -393,7 +437,7 @@ export default function SiteInfoManagement({
                         </div>
                         {selectedSite.bizLicenseUrl ? (
                           <a
-                            href={`http://127.0.0.1:8000${selectedSite.bizLicenseUrl}`}
+                            href={selectedSite.bizLicenseUrl.startsWith("http") ? selectedSite.bizLicenseUrl : `${getApiBaseUrl()}${selectedSite.bizLicenseUrl}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[10px] text-blue-600 font-bold hover:underline"
@@ -421,7 +465,7 @@ export default function SiteInfoManagement({
                         </div>
                         {selectedSite.dustReportUrl ? (
                           <a
-                            href={`http://127.0.0.1:8000${selectedSite.dustReportUrl}`}
+                            href={selectedSite.dustReportUrl.startsWith("http") ? selectedSite.dustReportUrl : `${getApiBaseUrl()}${selectedSite.dustReportUrl}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[10px] text-blue-600 font-bold hover:underline"

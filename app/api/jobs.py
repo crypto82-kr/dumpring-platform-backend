@@ -251,10 +251,10 @@ async def get_open_drop_off_requests(
     current_user: User = Depends(get_current_user)
 ):
     print(f"[DEBUG] get_open_drop_off_requests called: user_id={current_user.id}, is_site_manager={current_user.is_site_manager}, is_drop_off={current_user.is_drop_off}, is_admin={current_user.is_admin}")
-    if not current_user.is_site_manager and not current_user.is_drop_off and not current_user.is_admin:
+    if not current_user.is_site_manager and not current_user.is_site_worker and not current_user.is_drop_off and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자(SITE_MANAGER) 또는 하차지관리자(DROP_OFF) 권한이 필요합니다."
+            detail="현장관리자(SITE_MANAGER), 현장담당자(SITE_WORKER) 또는 하차지관리자(DROP_OFF) 권한이 필요합니다."
         )
 
     query = select(DropOffRequest).where(DropOffRequest.status == "OPEN")

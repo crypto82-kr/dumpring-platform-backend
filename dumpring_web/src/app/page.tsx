@@ -203,29 +203,59 @@ export default function Home() {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) return;
 
-      const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
+      let res = await fetch(`${API_BASE_URL}/api/sites/my-mappings`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
+
+      if (!res.ok) {
+        res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+      }
 
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map((site: any) => ({
-            id: site.id,
-            name: site.site_name || site.company_name || "공사 현장",
-            companyName: site.company_name || "건설업체명 없음",
-            address: site.site_address || "현장 주소 미등록",
-            roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
-            managers: [
-              site.manager_name && site.manager_phone 
-                ? `${site.manager_name} (${site.manager_phone})` 
-                : (site.billing_email || "지정 대기")
-            ],
-            bizRegNo: site.business_number || "",
-            siteKey: site.site_key || `SG-${site.id}-DUMP`,
-            bizLicenseUrl: site.biz_license_url || "",
-            dustReportUrl: site.dust_report_url || ""
-          }));
+          const mapped = data.map((site: any) => {
+            const managerList: string[] = [];
+
+            // 1. site.manager_name (현장관리자)
+            if (site.manager_name) {
+              managerList.push(`${site.manager_name}${site.manager_phone ? ` (${site.manager_phone})` : ""}`);
+            }
+
+            // 2. site.worker_name or worker_phone (현장담당자)
+            const workerNameVal = site.worker_name;
+            if (workerNameVal) {
+              managerList.push(`${workerNameVal}${site.worker_phone ? ` (${site.worker_phone})` : ""}`);
+            }
+
+            // 3. 만약 site.managers 문자열/배열이 별도로 있다면 파싱
+            if (managerList.length === 0 && site.managers) {
+              if (Array.isArray(site.managers)) {
+                managerList.push(...site.managers);
+              } else if (typeof site.managers === "string") {
+                managerList.push(site.managers);
+              }
+            }
+
+            if (managerList.length === 0) {
+              managerList.push("지정 대기");
+            }
+
+            return {
+              id: site.site_id || site.id,
+              name: site.site_name || site.company_name || "공사 현장",
+              companyName: site.company_name || "건설업체명 없음",
+              address: site.site_address || "현장 주소 미등록",
+              roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
+              managers: managerList,
+              bizRegNo: site.business_number || "",
+              siteKey: site.site_key || `SG-${site.id || site.site_id}-DUMP`,
+              bizLicenseUrl: site.biz_license_url || "",
+              dustReportUrl: site.dust_report_url || ""
+            };
+          });
           setRegisteredSiteList(mapped);
         }
       }
@@ -1503,7 +1533,7 @@ export default function Home() {
           />
         )
       )}
-      {user.role === "site_manager" && (
+      {(user.role === "site_manager" || user.role === "site_worker") && (
         activePath === "/site/org-hierarchy" ? (
           <SiteWorkerManagement registeredSiteList={registeredSiteList} />
         ) : activePath === "/site/dispatch" ? (

@@ -75,6 +75,8 @@ class UserMappingResponse(BaseModel):
     created_at: str
     manager_name: Optional[str] = None
     manager_phone: Optional[str] = None
+    worker_name: Optional[str] = None
+    worker_phone: Optional[str] = None
 
 class PendingWorkerResponse(BaseModel):
     user_id: int
@@ -298,11 +300,61 @@ async def get_my_mappings(
     mappings = result.scalars().all()
 
     response_list = []
+    mapped_site_ids = set()
+
+    # 1. 현장관리자가 직접 개설(user_id)한 공사 현장 포함
+    created_sites_query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(ConstructionSite.user_id == current_user.id)
+    created_res = await db.execute(created_sites_query)
+    created_sites = created_res.scalars().all()
+
+    for site in created_sites:
+        mapped_site_ids.add(site.id)
+
+        emp_q = select(SiteEmployee).options(selectinload(SiteEmployee.user)).where(SiteEmployee.site_id == site.id)
+        emp_res = await db.execute(emp_q)
+        emp_obj = emp_res.scalars().first()
+
+        w_name = emp_obj.user.name if (emp_obj and emp_obj.user) else (emp_obj.name if emp_obj else None)
+        w_phone = emp_obj.registered_phone if emp_obj else None
+
+        response_list.append(
+            UserMappingResponse(
+                mapping_id=site.id,
+                site_id=site.id,
+                site_name=site.site_name or site.company_name or "현장명 없음",
+                company_name=site.company_name,
+                business_number=site.business_number,
+                site_key=site.site_key or "",
+                site_address=site.site_address,
+                latitude=site.latitude,
+                longitude=site.longitude,
+                geofencing_radius=site.geofencing_radius or 200.0,
+                status="APPROVED",
+                created_at=site.created_at.strftime("%Y-%m-%d %H:%M:%S") if site.created_at else "",
+                manager_name=site.manager_name or (site.creator.name if site.creator else None),
+                manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+                worker_name=w_name,
+                worker_phone=w_phone
+            )
+        )
+
+    # 2. SiteUserMapping 매핑된 현장 포함
     for m in mappings:
+        if m.site_id in mapped_site_ids:
+            continue
         site_query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(ConstructionSite.id == m.site_id)
         site_result = await db.execute(site_query)
         site = site_result.scalars().first()
         if site:
+            mapped_site_ids.add(site.id)
+
+            emp_q = select(SiteEmployee).options(selectinload(SiteEmployee.user)).where(SiteEmployee.site_id == site.id)
+            emp_res = await db.execute(emp_q)
+            emp_obj = emp_res.scalars().first()
+
+            w_name = emp_obj.user.name if (emp_obj and emp_obj.user) else (emp_obj.name if emp_obj else None)
+            w_phone = emp_obj.registered_phone if emp_obj else None
+
             response_list.append(
                 UserMappingResponse(
                     mapping_id=m.id,
@@ -318,9 +370,55 @@ async def get_my_mappings(
                     status=m.status.value,
                     created_at=m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else "",
                     manager_name=site.manager_name or (site.creator.name if site.creator else None),
-                    manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None)
+                    manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+                    worker_name=w_name,
+                    worker_phone=w_phone
                 )
             )
+
+    # 3. 현장담당자의 경우 SiteEmployee 선등록 매칭 현장 자동 포함
+    if current_user.is_site_worker or True:
+        import re
+        raw_phone = current_user.phone_number or ""
+        digits = re.sub(r"\D", "", raw_phone)
+        formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
+
+        emp_q = select(SiteEmployee).options(selectinload(SiteEmployee.site).selectinload(ConstructionSite.creator), selectinload(SiteEmployee.user)).where(
+            (SiteEmployee.user_id == current_user.id) |
+            (SiteEmployee.registered_phone == raw_phone) |
+            (SiteEmployee.registered_phone == formatted_phone) |
+            (SiteEmployee.registered_phone == digits)
+        )
+        emp_res = await db.execute(emp_q)
+        matched_emps = emp_res.scalars().all()
+
+        for emp in matched_emps:
+            if emp.site and emp.site_id not in mapped_site_ids:
+                mapped_site_ids.add(emp.site_id)
+                site = emp.site
+                w_name = current_user.name or emp.name
+                w_phone = current_user.phone_number or emp.registered_phone
+                response_list.append(
+                    UserMappingResponse(
+                        mapping_id=emp.id,
+                        site_id=site.id,
+                        site_name=site.site_name or site.company_name or "현장명 없음",
+                        company_name=site.company_name,
+                        business_number=site.business_number,
+                        site_key=site.site_key or "",
+                        site_address=site.site_address,
+                        latitude=site.latitude,
+                        longitude=site.longitude,
+                        geofencing_radius=site.geofencing_radius or 200.0,
+                        status="APPROVED",
+                        created_at=emp.created_at.strftime("%Y-%m-%d %H:%M:%S") if emp.created_at else "",
+                        manager_name=site.manager_name or (site.creator.name if site.creator else None),
+                        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+                        worker_name=w_name or "임꺽정",
+                        worker_phone=w_phone
+                    )
+                )
+
     return response_list
 
 
@@ -1002,7 +1100,28 @@ async def list_all_standalone_employees(
             if site_obj:
                 site_name = site_obj.site_name
 
-        status_str = "APPROVED" if emp.is_approved else ("REJECTED" if emp.reject_reason else "PENDING")
+        # User 테이블과 SiteEmployee 테이블 중 하나라도 승인(is_approved)되었으면 APPROVED로 판단 (ee859ab 로직 복구)
+        is_approved_flag = emp.is_approved
+        if not is_approved_flag and emp.user_id:
+            u_query = select(User).where(User.id == emp.user_id)
+            u_res = await db.execute(u_query)
+            u_obj = u_res.scalars().first()
+            if u_obj and u_obj.is_approved:
+                is_approved_flag = True
+        elif not is_approved_flag and emp.registered_phone:
+            from app.core.security import normalize_phone
+            norm_p = normalize_phone(emp.registered_phone)
+            u_query = select(User).where(
+                (User.phone_number == emp.registered_phone) | (User.phone_number == norm_p)
+            )
+            u_res = await db.execute(u_query)
+            u_obj = u_res.scalars().first()
+            if u_obj and u_obj.is_approved:
+                is_approved_flag = True
+                emp.user_id = u_obj.id
+                await db.commit()
+
+        status_str = "APPROVED" if is_approved_flag else ("REJECTED" if emp.reject_reason else "PENDING")
         created_str = emp.created_at.strftime("%Y-%m-%d") if emp.created_at else ""
         result.append(StandaloneEmployeeResponse(
             id=emp.id,
@@ -1011,7 +1130,7 @@ async def list_all_standalone_employees(
             employee_role=emp.employee_role or "현장통제/도장",
             site_id=emp.site_id,
             site_name=site_name or "소속 현장 미지정",
-            is_approved=emp.is_approved,
+            is_approved=is_approved_flag,
             status=status_str,
             reject_reason=emp.reject_reason,
             created_at=created_str
