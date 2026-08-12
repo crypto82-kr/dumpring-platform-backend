@@ -198,14 +198,6 @@ export default function SiteDispatchRequestManagement({
   };
 
   const filteredRequests = dispatchRequestList.filter((req) => {
-    // 매칭대기(WAITING_MATCH) 상태인 건은 노출 제외
-    if (req.status === "매칭대기" || req.rawStatus === "WAITING_MATCH") {
-      return false;
-    }
-    // 매칭이 완료되어 기사를 모집 중이거나 배차가 진행 중인 건만 선택 대상에 포함
-    const isMatchedAndActive = req.rawStatus === "OPEN" || req.rawStatus === "CLOSED" || req.status === "매칭완료" || req.status === "배차완료" || Boolean(req.dropoffName);
-    if (!isMatchedAndActive) return false;
-
     if (!dispatchRequestSearchQuery || !dispatchRequestSearchQuery.trim()) return true;
     const q = dispatchRequestSearchQuery.trim().toLowerCase();
     const siteNameStr = (req.siteName || "현장명 없음").toLowerCase();
@@ -245,7 +237,7 @@ export default function SiteDispatchRequestManagement({
                   [{req.siteName} ➔ {req.dropoffName || "지정하차지"}] {req.tonTypes.map(t=>t==='T_25'?'25톤':t).join(',')} ({req.truckCount}대)
                 </option>
               ))}
-              {filteredRequests.length === 0 && <option value="">매칭 완료된 배차 없음</option>}
+              {filteredRequests.length === 0 && <option value="">등록된 배차 정보 없음</option>}
             </select>
           </div>
         </div>

@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
 from app.core.db import get_db
-from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode, SiteUserMapping, SiteUserStatus
+from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode, SiteUserMapping, SiteUserStatus, SiteEmployee
 from app.api.auth import get_current_user
 from app.schemas.jobs import (
     DropOffRequestCreate, DropOffRequestResponse,
@@ -1123,7 +1123,22 @@ async def get_my_job_posts(
         mapped_site_res = await db.execute(mapped_sites_query)
         mapped_site_ids = mapped_site_res.scalars().all()
 
-        allowed_site_ids = list(set(own_site_ids + mapped_site_ids))
+        # SiteEmployee 테이블 선등록 매칭 현장도 함께 허용 범위에 추가
+        import re
+        raw_phone = current_user.phone_number or ""
+        digits = re.sub(r"\D", "", raw_phone)
+        formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
+
+        emp_sites_query = select(SiteEmployee.site_id).where(
+            (SiteEmployee.user_id == current_user.id) |
+            (SiteEmployee.registered_phone == raw_phone) |
+            (SiteEmployee.registered_phone == formatted_phone) |
+            (SiteEmployee.registered_phone == digits)
+        )
+        emp_sites_res = await db.execute(emp_sites_query)
+        emp_site_ids = [sid for sid in emp_sites_res.scalars().all() if sid is not None]
+
+        allowed_site_ids = list(set(own_site_ids + mapped_site_ids + emp_site_ids))
 
         if allowed_site_ids:
             query = select(JobPost).options(

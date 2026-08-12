@@ -278,11 +278,7 @@ export default function SiteInfoManagement({
                     const hasActiveJob = dispatchRequestList.some(
                       job => job.siteId === selectedSite.id && (job.rawStatus === "OPEN" || job.rawStatus === "WAITING_APPROVAL")
                     );
-                    return isWorkerRole ? (
-                      <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-1 rounded">
-                        조회 전용 (담당자 권한)
-                      </span>
-                    ) : (
+                    return isWorkerRole ? null : (
                       <>
                         <button
                           type="button"

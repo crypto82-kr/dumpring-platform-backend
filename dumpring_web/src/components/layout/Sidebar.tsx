@@ -84,6 +84,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   site_worker: [
     { title: "담당 현장 대시보드", icon: LayoutDashboard, path: "/site" },
+    { title: "현장 정보 관리", icon: Building2, path: "/site/request" },
     {
       title: "배차 관리",
       icon: Truck,
