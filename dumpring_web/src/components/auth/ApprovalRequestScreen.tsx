@@ -79,11 +79,6 @@ export default function ApprovalRequestScreen() {
         setRejectReason(data.reject_reason || null);
         setUploadedDocs(data.uploaded_documents || []);
         setMissingDocs(data.missing_documents || []);
-
-        // 2. 누락된 서류가 없고 업로드 완료된 서류가 존재하면 승인 제출 완료 상태로 봄
-        if (data.missing_documents && data.missing_documents.length === 0 && data.uploaded_documents && data.uploaded_documents.length > 0) {
-          setIsSubmitted(true);
-        }
       }
     } catch (e) {
       setErrorMsg("서버로부터 회원 상태 정보를 불러오지 못했습니다.");
@@ -215,6 +210,12 @@ export default function ApprovalRequestScreen() {
       if (user?.role === "site_manager") {
         if (!companyName.trim() || !siteName.trim() || !businessNumber.trim() || !address.trim()) {
           setErrorMsg("모든 필수 항목(건설사, 공사현장명, 사업자번호, 주소)을 입력해 주세요.");
+          setLoading(false);
+          return;
+        }
+        const rawBiz = businessNumber.replace(/[^0-9]/g, "");
+        if (rawBiz.length !== 10) {
+          setErrorMsg("사업자등록번호 10자리를 올바르게 입력해 주세요. (예: 120-81-45678)");
           setLoading(false);
           return;
         }
@@ -384,8 +385,18 @@ export default function ApprovalRequestScreen() {
                 <input
                   type="text"
                   placeholder="10자리 번호 입력 (예: 120-81-45678)"
+                  maxLength={12}
                   value={businessNumber}
-                  onChange={(e) => setBusinessNumber(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9]/g, "").slice(0, 10);
+                    let formatted = raw;
+                    if (raw.length > 5) {
+                      formatted = `${raw.slice(0, 3)}-${raw.slice(3, 5)}-${raw.slice(5)}`;
+                    } else if (raw.length > 3) {
+                      formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
+                    }
+                    setBusinessNumber(formatted);
+                  }}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-black text-slate-800 dark:text-slate-200 transition-all"
                 />
               </div>
@@ -549,13 +560,23 @@ export default function ApprovalRequestScreen() {
                   <div key={docCode} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl text-xs shadow-sm">
                     <div className="flex flex-col gap-0.5">
                       <span className="font-extrabold text-slate-700 dark:text-slate-350">
-                        {docCode === "BIZ_LICENSE"
-                          ? "사업자등록증"
-                          : docCode === "CONSTRUCTION_PROOF"
-                          ? "공사현장 증빙서류"
-                          : docCode === "BANKBOOK"
-                          ? "은행 통장 사본"
-                          : docCode}
+                        {(() => {
+                          const docNameMap: Record<string, string> = {
+                            BIZ_LICENSE: "사업자등록증",
+                            DUST_REPORT: "비산먼지 배출신고서",
+                            CONSTRUCTION_CONTRACT: "공사 계약서",
+                            LICENSE: "운전면허증 (대형/1종)",
+                            SAFETY_TRAINING: "건설업 기초안전교육 이수증",
+                            SPECIAL_LABOR_TRAINING: "교육실시확인서 (특수형태근로자)",
+                            MACHINERY_REG: "건설기계 등록증·검사증",
+                            INSURANCE: "보험가입증",
+                            DEVELOPMENT_PERMIT: "개발행위 허가증",
+                            LAND_USE_AGREEMENT: "토지 사용 승낙서 / 토지 대장",
+                            CONSTRUCTION_PROOF: "공사현장 증빙서류",
+                            BANKBOOK: "은행 통장 사본",
+                          };
+                          return docNameMap[docCode] || docCode;
+                        })()}
                       </span>
                       <span className="text-[10px] text-slate-450 dark:text-slate-500 font-mono">
                         등록 완료 (제출됨)

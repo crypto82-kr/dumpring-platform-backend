@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Search, Filter, ShieldCheck, CheckCircle2, XCircle, FileText, UserCheck, Eye, ZoomIn, ZoomOut, RotateCw, Sparkles, Check, AlertCircle, ArrowUpRight } from "lucide-react";
 
 interface PlatformAdminUnifiedApprovalProps {
@@ -34,8 +34,31 @@ export function PlatformAdminUnifiedApproval({
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [verifyZoom, setVerifyZoom] = useState(1.0);
   const [verifyRotate, setVerifyRotate] = useState(0);
+  const [panPos, setPanPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   const [activeDocTab, setActiveDocTab] = useState<string>("DOC_1");
+  const viewerContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const elem = viewerContainerRef.current;
+    if (!elem) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        setVerifyZoom((prev) => Math.min(prev + 0.15, 4.0));
+      } else {
+        setVerifyZoom((prev) => Math.max(prev - 0.15, 0.5));
+      }
+    };
+
+    elem.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      elem.removeEventListener("wheel", handleWheel);
+    };
+  }, [selectedItem, activeDocTab]);
 
   // 통합 승인 목록 데이터 구성 (미승인 대기 건만 필터링)
   const allApprovalList = [
@@ -76,7 +99,7 @@ export function PlatformAdminUnifiedApproval({
         companyOrSite: isWorker 
           ? (s.siteName || s.name || "소속 현장 미지정")
           : `${s.siteName || s.name || "공사현장"} (${s.companyName || s.company || "시공사"})`,
-        docName: isWorker ? "선등록_연동_정보.dat" : "현장_공사계약서.pdf",
+        docName: isWorker ? "현장_담당자_연동_신청서.pdf" : "비산먼지_배출신고서_및_공사계약서.pdf",
         rawObj: s,
       };
     }),
@@ -253,6 +276,18 @@ export function PlatformAdminUnifiedApproval({
                       setSelectedItem(item);
                       setVerifyZoom(1.0);
                       setVerifyRotate(0);
+                      setPanPos({ x: 0, y: 0 });
+                      if (item.typeKey === "SITE_MANAGER") {
+                        setActiveDocTab("DOC_BIZ");
+                      } else if (item.typeKey === "DRIVER") {
+                        setActiveDocTab("DOC_1");
+                      } else if (item.typeKey === "OWNER") {
+                        setActiveDocTab("DOC_BIZ");
+                      } else if (item.typeKey === "DROPOFF") {
+                        setActiveDocTab("DOC_PERMIT");
+                      } else {
+                        setActiveDocTab("DOC_1");
+                      }
                     }}
                     className={`p-5 rounded-2xl border text-left cursor-pointer transition-all duration-200 relative group overflow-hidden ${
                       isSelected
@@ -347,7 +382,7 @@ export function PlatformAdminUnifiedApproval({
                   <div className="col-span-2">
                     <span className="text-[10px] text-slate-400 font-bold block">공사 현장 주소지</span>
                     <span className="font-semibold text-slate-700 dark:text-slate-300 truncate block">
-                      {selectedItem.address || "현장 주소지 등록됨"}
+                      {selectedItem.address || "현장 주소 미등록"}
                     </span>
                   </div>
                   <div>
@@ -403,42 +438,44 @@ export function PlatformAdminUnifiedApproval({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2 pt-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-                    <h4 className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                      🖼️ 제출 증빙 서류 확인
+                <div className="space-y-3 pt-2">
+                  {/* Clean Document Top Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-200 dark:border-slate-800">
+                    <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                      <span>🖼️</span>
+                      <span>제출 증빙 서류 확인</span>
                     </h4>
-                    <div className="flex items-center gap-3">
-                      {/* Clean document buttons with interactive state */}
-                      <div className="flex flex-wrap gap-1.5">
+
+                    {/* Document Tab Buttons */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar shrink-0">
                         {selectedItem.typeKey === "DRIVER" && (
                           <>
                             <button
                               onClick={() => setActiveDocTab("DOC_LICENSE")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_LICENSE" || activeDocTab === "DOC_1"
-                                  ? "bg-blue-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               운전면허증
                             </button>
                             <button
                               onClick={() => setActiveDocTab("DOC_SAFETY")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_SAFETY"
-                                  ? "bg-blue-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               기초안전보건교육이수증
                             </button>
                             <button
                               onClick={() => setActiveDocTab("DOC_SPECIAL")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_SPECIAL"
-                                  ? "bg-blue-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               특수형태근로자 교육확인서
@@ -449,20 +486,20 @@ export function PlatformAdminUnifiedApproval({
                           <>
                             <button
                               onClick={() => setActiveDocTab("DOC_BIZ")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_1"
-                                  ? "bg-indigo-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  ? "bg-indigo-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               사업자등록증
                             </button>
                             <button
                               onClick={() => setActiveDocTab("DOC_INSURANCE")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_INSURANCE"
-                                  ? "bg-indigo-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  ? "bg-indigo-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               화물 종합보험증권
@@ -472,21 +509,31 @@ export function PlatformAdminUnifiedApproval({
                         {selectedItem.typeKey === "SITE_MANAGER" && (
                           <>
                             <button
+                              onClick={() => setActiveDocTab("DOC_BIZ")}
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
+                                activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_1"
+                                  ? "bg-amber-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                              }`}
+                            >
+                              사업자등록증
+                            </button>
+                            <button
                               onClick={() => setActiveDocTab("DOC_DUST")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                                activeDocTab === "DOC_DUST" || activeDocTab === "DOC_1"
-                                  ? "bg-amber-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
+                                activeDocTab === "DOC_DUST"
+                                  ? "bg-amber-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               비산먼지 배출신고서
                             </button>
                             <button
                               onClick={() => setActiveDocTab("DOC_CONTRACT")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_CONTRACT"
-                                  ? "bg-amber-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  ? "bg-amber-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               공사계약서
@@ -497,85 +544,143 @@ export function PlatformAdminUnifiedApproval({
                           <>
                             <button
                               onClick={() => setActiveDocTab("DOC_PERMIT")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_PERMIT" || activeDocTab === "DOC_1"
-                                  ? "bg-emerald-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  ? "bg-emerald-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               사토장 허가증
                             </button>
                             <button
                               onClick={() => setActiveDocTab("DOC_LAND")}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_LAND"
-                                  ? "bg-emerald-600 text-white shadow-sm font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  ? "bg-emerald-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
                               토지사용승낙서
                             </button>
                           </>
                         )}
-                      </div>
-
-                      {/* Image Zoom Control Toolbar */}
-                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0">
-                        <button
-                          onClick={() => setVerifyZoom((prev) => Math.min(prev + 0.25, 2.5))}
-                          className="p-1.5 hover:bg-white dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-bold transition-all"
-                          title="확대"
-                        >
-                          <ZoomIn className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setVerifyZoom(1.0)}
-                          className="px-2 py-1 text-[10px] hover:bg-white dark:hover:bg-slate-800 rounded-lg font-extrabold text-slate-700 dark:text-slate-300 transition-all"
-                        >
-                          100%
-                        </button>
-                        <button
-                          onClick={() => setVerifyZoom((prev) => Math.max(prev - 0.25, 0.5))}
-                          className="p-1.5 hover:bg-white dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-bold transition-all"
-                          title="축소"
-                        >
-                          <ZoomOut className="w-3.5 h-3.5" />
-                        </button>
-                        <div className="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5"></div>
-                        <button
-                          onClick={() => setVerifyRotate((prev) => (prev + 90) % 360)}
-                          className="p-1.5 hover:bg-white dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-bold transition-all"
-                          title="90도 회전"
-                        >
-                          <RotateCw className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
                     </div>
                   </div>
 
-                  <div className="h-64 rounded-2xl bg-slate-950 border border-slate-800 relative flex items-center justify-center overflow-hidden shadow-inner group">
+                  {/* Viewer Toolbar Row */}
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <span>💡</span>
+                      <span>마우스 드래그로 화면 이동 / 휠 스크롤로 확대축소 가능</span>
+                    </span>
+
+                    {/* Image Zoom Control Toolbar */}
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0">
+                      <button
+                        onClick={() => setVerifyZoom((prev) => Math.min(prev + 0.25, 3.0))}
+                        className="p-1.5 hover:bg-white dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-bold transition-all"
+                        title="확대"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setVerifyZoom(1.0);
+                          setPanPos({ x: 0, y: 0 });
+                        }}
+                        className="px-2 py-1 text-[10px] hover:bg-white dark:hover:bg-slate-800 rounded-lg font-extrabold text-slate-700 dark:text-slate-300 transition-all"
+                      >
+                        100% (위치 리셋)
+                      </button>
+                      <button
+                        onClick={() => setVerifyZoom((prev) => Math.max(prev - 0.25, 0.5))}
+                        className="p-1.5 hover:bg-white dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-bold transition-all"
+                        title="축소"
+                      >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </button>
+                      <div className="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5"></div>
+                      <button
+                        onClick={() => setVerifyRotate((prev) => (prev + 90) % 360)}
+                        className="p-1.5 hover:bg-white dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-bold transition-all"
+                        title="90도 회전"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                      </button>
+                      <div className="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5"></div>
+                      {(() => {
+                        const docCode = activeDocTab === "DOC_SAFETY" ? "SAFETY_TRAINING" : activeDocTab === "DOC_SPECIAL" ? "SPECIAL_LABOR" : activeDocTab === "DOC_INSURANCE" ? "INSURANCE" : activeDocTab === "DOC_CONTRACT" ? "CONSTRUCTION_CONTRACT" : activeDocTab === "DOC_LAND" ? "LAND_USE" : activeDocTab === "DOC_BIZ" ? "BIZ_LICENSE" : activeDocTab === "DOC_DUST" ? "DUST_REPORT" : activeDocTab === "DOC_PERMIT" ? "DEVELOPMENT_PERMIT" : "LICENSE";
+                        const localImg = typeof window !== "undefined" ? localStorage.getItem(`doc_driver_${selectedItem.id}_${docCode}`) : null;
+                        const serverDocPath = selectedItem.uploadedFiles?.[docCode] || selectedItem.rawObj?.uploaded_files?.[docCode];
+                        const serverUrl = serverDocPath ? `http://127.0.0.1:8000${serverDocPath}` : null;
+                        const displaySrc = serverUrl || localImg || selectedItem.rawObj?.biz_license_url || selectedItem.rawObj?.dust_report_url || uploadedFiles[`driver_${selectedItem.id}_${docCode}`] || uploadedFiles[selectedItem.id];
+                        return displaySrc ? (
+                          <button
+                            onClick={() => window.open(displaySrc, "_blank")}
+                            className="px-2 py-1 text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all flex items-center gap-1 shadow-sm shrink-0"
+                            title="새 창에서 원본 크게 보기"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>원본 크게보기</span>
+                          </button>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+
+                  <div
+                    ref={viewerContainerRef}
+                    className="h-[460px] rounded-2xl bg-slate-950 border border-slate-800 relative flex items-center justify-center overflow-hidden shadow-inner group p-2 select-none cursor-grab active:cursor-grabbing"
+                    onMouseDown={(e) => {
+                      setIsDragging(true);
+                      setDragStart({ x: e.clientX - panPos.x, y: e.clientY - panPos.y });
+                    }}
+                    onMouseMove={(e) => {
+                      if (!isDragging) return;
+                      setPanPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+                    }}
+                    onMouseUp={() => setIsDragging(false)}
+                    onMouseLeave={() => setIsDragging(false)}
+                  >
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
 
                     {/* 실제 업로드된 이미지 또는 localStorage 미리보기 데이터 렌더링 */}
                     {(() => {
-                      const docCode = activeDocTab === "DOC_SAFETY" ? "SAFETY_TRAINING" : activeDocTab === "DOC_SPECIAL" ? "SPECIAL_LABOR" : activeDocTab === "DOC_INSURANCE" ? "INSURANCE" : activeDocTab === "DOC_CONTRACT" ? "CONSTRUCTION_PROOF" : activeDocTab === "DOC_LAND" ? "LAND_USE" : activeDocTab === "DOC_BIZ" ? "BIZ_LICENSE" : activeDocTab === "DOC_DUST" ? "DUST_REPORT" : activeDocTab === "DOC_PERMIT" ? "DEVELOPMENT_PERMIT" : "LICENSE";
+                      const docCode = activeDocTab === "DOC_SAFETY" ? "SAFETY_TRAINING" : activeDocTab === "DOC_SPECIAL" ? "SPECIAL_LABOR" : activeDocTab === "DOC_INSURANCE" ? "INSURANCE" : activeDocTab === "DOC_CONTRACT" ? "CONSTRUCTION_CONTRACT" : activeDocTab === "DOC_LAND" ? "LAND_USE" : activeDocTab === "DOC_BIZ" ? "BIZ_LICENSE" : activeDocTab === "DOC_DUST" ? "DUST_REPORT" : activeDocTab === "DOC_PERMIT" ? "DEVELOPMENT_PERMIT" : "LICENSE";
                       const localImg = typeof window !== "undefined" ? localStorage.getItem(`doc_driver_${selectedItem.id}_${docCode}`) : null;
-                      const displaySrc = localImg || selectedItem.rawObj?.biz_license_url || selectedItem.rawObj?.dust_report_url || uploadedFiles[`driver_${selectedItem.id}_${docCode}`] || uploadedFiles[selectedItem.id];
+                      const serverDocPath = selectedItem.uploadedFiles?.[docCode] || selectedItem.rawObj?.uploaded_files?.[docCode];
+                      const serverUrl = serverDocPath ? `http://127.0.0.1:8000${serverDocPath}` : null;
+                      const displaySrc = serverUrl || localImg || selectedItem.rawObj?.biz_license_url || selectedItem.rawObj?.dust_report_url || uploadedFiles[`driver_${selectedItem.id}_${docCode}`] || uploadedFiles[selectedItem.id];
 
                       if (displaySrc) {
                         return (
-                          <div className="relative z-10 w-full h-full p-2 flex items-center justify-center">
+                          <div className="relative z-10 w-full h-full p-2 flex items-center justify-center pointer-events-none">
                             <img
                               src={displaySrc}
                               alt="제출 증빙 서류"
-                              className="max-h-full max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
+                              draggable={false}
+                              className="max-h-full max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-75"
                               style={{
-                                transform: `scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
+                                transform: `translate(${panPos.x}px, ${panPos.y}px) scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
                               }}
                             />
                           </div>
                         );
                       }
+
+                      const docNameMap: Record<string, string> = {
+                        DOC_LICENSE: "운전면허증",
+                        DOC_SAFETY: "기초안전보건교육이수증",
+                        DOC_SPECIAL: "특수형태근로자 교육확인서",
+                        DOC_BIZ: "사업자등록증",
+                        DOC_INSURANCE: "화물 종합보험증권",
+                        DOC_DUST: "비산먼지 배출신고서",
+                        DOC_CONTRACT: "공사계약서",
+                        DOC_PERMIT: "사토장 허가증",
+                        DOC_LAND: "토지사용승낙서"
+                      };
+
+                      const currentDocTitle = docNameMap[activeDocTab] || selectedItem.docName || "증빙 서류";
 
                       return (
                         <div
@@ -584,21 +689,19 @@ export function PlatformAdminUnifiedApproval({
                             transform: `scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
                           }}
                         >
-                          <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-2 shadow-lg">
+                          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-3 shadow-lg">
                             <FileText className="w-7 h-7" />
                           </div>
                           <h4 className="text-xs font-extrabold text-white">
-                            {activeDocTab === "DOC_SAFETY" && "기초안전보건교육이수증"}
-                            {activeDocTab === "DOC_SPECIAL" && "특수형태근로자 교육확인서"}
-                            {activeDocTab === "DOC_INSURANCE" && "화물 종합보험증권"}
-                            {activeDocTab === "DOC_CONTRACT" && "공사계약서"}
-                            {activeDocTab === "DOC_LAND" && "토지사용승낙서"}
-                            {(activeDocTab === "DOC_1" || activeDocTab === "DOC_LICENSE" || activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_DUST" || activeDocTab === "DOC_PERMIT") &&
-                              `${selectedItem.docName}`}
+                            {currentDocTitle}
                           </h4>
-                          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-                            <span>✓ 서류 등록 완료 (보안 전용 뷰어 확인)</span>
+                          <div className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[11px] font-bold">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                            <span>⚠️ 해당 증빙 서류 미제출 (실물 파일 미등록)</span>
                           </div>
+                          <p className="text-[10px] text-slate-500 mt-2">
+                            가입 신청자가 {currentDocTitle} 서류를 아직 제출하지 않았습니다.
+                          </p>
                         </div>
                       );
                     })()}

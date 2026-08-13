@@ -164,13 +164,16 @@ export default function Home() {
           .map((item: any) => ({
             id: item.id,
             name: item.site_name || `${item.name || "미지정"}의 현장`,
+            siteName: item.site_name || `${item.name || "미지정"}의 현장`,
             company: item.company_name || "협력 도급사",
+            companyName: item.company_name || "협력 도급사",
             code: `GD-${item.id}-DUMP`,
             status: "대기",
             phone: item.phone_number,
             managerName: item.name || "미지정",
             bizRegNo: item.business_number || "미등록",
             address: item.address || "현장 주소 미등록",
+            uploadedFiles: item.uploaded_files || {},
             registeredSites: [item.site_name || `${item.name || "미지정"}의 현장`]
           }));
 

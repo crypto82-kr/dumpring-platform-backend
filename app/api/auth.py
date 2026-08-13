@@ -225,8 +225,11 @@ async def signup_site_manager(
             site_key = f"SITE-{uuid.uuid4().hex[:6].upper()}"
             site = ConstructionSite(
                 user_id=new_user.id,
+                site_name=data.site_name,
                 company_name=data.company_name,
                 business_number=data.business_number,
+                manager_name=data.name,
+                manager_phone=normalized_phone,
                 site_key=site_key,
                 billing_email=f"billing@{normalized_phone}.com"  # 임시 이메일
             )
@@ -661,10 +664,10 @@ async def get_member_status(
     # 1. 역할 구분 및 필수 서류 그룹 설정
     if current_user.is_site_manager:
         role = "site_manager"
-        group_code = "REQUIRED_DOC_SITE_MANAGER"
+        group_code = "REQUIRED_DOC_SITE"
     elif current_user.is_drop_off:
         role = "drop_off"
-        group_code = None
+        group_code = "REQUIRED_DOC_DROPOFF"
     elif current_user.is_owner:
         role = "owner"
         group_code = "REQUIRED_DOC_OWNER"
@@ -766,8 +769,11 @@ async def submit_approval(
             site_key = f"SITE-{uuid.uuid4().hex[:6].upper()}"
             site = ConstructionSite(
                 user_id=current_user.id,
+                site_name=data.site_name or "",
                 company_name=data.company_name or "",
                 business_number=data.business_number or "",
+                manager_name=current_user.name,
+                manager_phone=current_user.phone_number,
                 billing_email=f"billing@{current_user.phone_number}.com",
                 site_key=site_key,
                 site_address=data.address or "",
@@ -785,11 +791,14 @@ async def submit_approval(
             )
             db.add(mapping)
         else:
+            if data.site_name: site.site_name = data.site_name
             if data.company_name: site.company_name = data.company_name
             if data.business_number: site.business_number = data.business_number
             if data.address: site.site_address = data.address
             if data.latitude is not None: site.latitude = data.latitude
             if data.longitude is not None: site.longitude = data.longitude
+            site.manager_name = current_user.name
+            site.manager_phone = current_user.phone_number
 
     elif current_user.is_drop_off:
         # Drop Off Profile
@@ -918,6 +927,7 @@ async def get_pending_members(
         doc_res = await db.execute(doc_query)
         docs = doc_res.scalars().all()
         doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+        uploaded_files_map = {d.document_code: f"/uploads/documents/{d.file_name}" for d in docs}
 
         company = "협력 도급사"
         site_name_val = f"{sm.name}의 현장"
@@ -934,6 +944,12 @@ async def get_pending_members(
 
         if sm.construction_sites:
             first_site = sm.construction_sites[0]
+            if first_site.site_name:
+                site_name_val = first_site.site_name
+            if first_site.company_name:
+                company = first_site.company_name
+            if first_site.business_number:
+                biz_no = first_site.business_number
             if first_site.site_address:
                 address_val = first_site.site_address
 
@@ -943,6 +959,7 @@ async def get_pending_members(
             "name": sm.name,
             "phone_number": sm.phone_number,
             "docs": doc_summary or "미제출",
+            "uploaded_files": uploaded_files_map,
             "created_at": sm.created_at,
             "company_name": company,
             "site_name": site_name_val,

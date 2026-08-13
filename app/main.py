@@ -83,8 +83,9 @@ async def startup_event():
             {"group_code": "REQUIRED_DOC_OWNER", "code": "MACHINERY_REG", "code_name": "건설기계 등록증·검사증", "display_order": 2},
             {"group_code": "REQUIRED_DOC_OWNER", "code": "INSURANCE", "code_name": "보험가입증", "display_order": 3},
             # 현장관리자 필수서류
-            {"group_code": "REQUIRED_DOC_SITE", "code": "DUST_REPORT", "code_name": "비산먼지 배출신고서", "display_order": 1},
-            {"group_code": "REQUIRED_DOC_SITE", "code": "CONSTRUCTION_CONTRACT", "code_name": "공사 계약서", "display_order": 2},
+            {"group_code": "REQUIRED_DOC_SITE", "code": "BIZ_LICENSE", "code_name": "사업자등록증", "display_order": 1},
+            {"group_code": "REQUIRED_DOC_SITE", "code": "DUST_REPORT", "code_name": "비산먼지 배출신고서", "display_order": 2},
+            {"group_code": "REQUIRED_DOC_SITE", "code": "CONSTRUCTION_CONTRACT", "code_name": "공사 계약서", "display_order": 3},
             # 하차지 지주 필수서류
             {"group_code": "REQUIRED_DOC_DROPOFF", "code": "DEVELOPMENT_PERMIT", "code_name": "개발행위 허가증", "display_order": 1},
             {"group_code": "REQUIRED_DOC_DROPOFF", "code": "LAND_USE_AGREEMENT", "code_name": "토지 사용 승낙서 / 토지 대장", "display_order": 2},
@@ -221,9 +222,12 @@ app.include_router(files_router, prefix="/api/files", tags=["파일 업로드"])
 
 # Static Files Mount
 static_dir = os.path.join(os.path.dirname(__file__), "static")
+uploads_dir = os.path.join(os.getcwd(), "uploads")
 os.makedirs(os.path.join(static_dir, "uploads", "documents"), exist_ok=True)
 os.makedirs(os.path.join(static_dir, "uploads", "proofs"), exist_ok=True)
+os.makedirs(os.path.join(uploads_dir, "documents"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 
 
