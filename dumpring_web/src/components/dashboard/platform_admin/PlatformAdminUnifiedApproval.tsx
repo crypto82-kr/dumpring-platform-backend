@@ -153,47 +153,16 @@ export function PlatformAdminUnifiedApproval({
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans">
-      {/* Header Banner & Live Stats */}
-      <div className="relative overflow-hidden rounded-3xl bg-slate-900 text-white p-7 shadow-2xl border border-slate-800">
-        <div className="absolute -right-10 -bottom-10 w-80 h-80 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute right-1/3 -top-20 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-              <span>Real-time Member Verification Center</span>
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
-              통합 승인 심사 관제 센터
-            </h1>
-            <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-              기사, 차주/운송사, 하차지, 현장 관리자, 현장 담당자의 가입 요청 및 증빙 서류를 한 화면에서 실시간 대조하고 심사합니다.
-            </p>
-          </div>
-
-          {/* Quick Stat Pill */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3.5 px-5 flex items-center gap-3 backdrop-blur-sm">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                <AlertCircle className="w-5 h-5 animate-pulse" />
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-400 font-semibold block">심사 대기 건수</span>
-                <span className="text-lg font-black text-amber-400">{pendingCount} 건</span>
-              </div>
-            </div>
-
-            <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3.5 px-5 flex items-center gap-3 backdrop-blur-sm">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-400 font-semibold block">승인 완료 누적</span>
-                <span className="text-lg font-black text-emerald-400">{approvedCount} 건</span>
-              </div>
-            </div>
-          </div>
+      {/* Basic Clean Menu Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div>
+          <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <ShieldCheck className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            <span>승인 관리</span>
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            덤프 기사, 차주/운송사, 하차지, 현장 관리자의 가입 승인 요청 및 제출 서류를 심사합니다.
+          </p>
         </div>
       </div>
 
@@ -247,18 +216,19 @@ export function PlatformAdminUnifiedApproval({
       {/* Main Content Split Screen Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Side: Applicants List (5 Cols) */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400 tracking-wider">
-              심사 대상 목록 ({filteredList.length}건)
+        <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between gap-4">
+          <div className="flex items-center justify-between px-1 border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0">
+            <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
+              <span>📋</span>
+              <span>심사 대상 목록 ({filteredList.length}건)</span>
             </span>
             <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
-              <span>카드 클릭 시 오른쪽 서류 조회</span>
+              <span>선택 시 서류 조회</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </span>
           </div>
 
-          <div className="space-y-3 max-h-[620px] overflow-y-auto pr-1">
+          <div className="space-y-3 flex-1 overflow-y-auto pr-1 min-h-[550px] max-h-[780px]">
             {filteredList.length === 0 ? (
               <div className="p-16 text-center border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800 text-slate-400 text-xs font-semibold bg-white dark:bg-slate-900 space-y-2">
                 <ShieldCheck className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-700" />
@@ -266,7 +236,11 @@ export function PlatformAdminUnifiedApproval({
               </div>
             ) : (
               filteredList.map((item, idx) => {
-                const isSelected = selectedItem?.id === item.id && selectedItem?.typeKey === item.typeKey;
+                const isSelected = selectedItem ? (
+                  (selectedItem.phone && item.phone && selectedItem.phone === item.phone && selectedItem.typeKey === item.typeKey) ||
+                  (selectedItem.id && item.id && selectedItem.id === item.id && selectedItem.typeKey === item.typeKey) ||
+                  (selectedItem === item)
+                ) : false;
                 const isApproved = item.status === "승인됨";
 
                 return (
@@ -291,8 +265,8 @@ export function PlatformAdminUnifiedApproval({
                     }}
                     className={`p-5 rounded-2xl border text-left cursor-pointer transition-all duration-200 relative group overflow-hidden ${
                       isSelected
-                        ? "bg-blue-50/60 dark:bg-blue-950/40 border-blue-500 shadow-xl shadow-blue-500/5 ring-2 ring-blue-500/20"
-                        : "bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-850 border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md"
+                        ? "bg-blue-50/80 dark:bg-blue-950/50 border-blue-500 shadow-lg ring-2 ring-blue-500/20"
+                        : "bg-slate-50/70 dark:bg-slate-950/40 hover:bg-blue-50/30 border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md"
                     }`}
                   >
                     <div className="flex justify-between items-start gap-3">

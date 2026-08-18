@@ -882,7 +882,7 @@ async def get_pending_members(
         doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
         
         response_list.append({
-            "id": user_id,
+            "id": user_id or d.id,
             "type": "기사 가입",
             "name": name,
             "phone_number": phone,
