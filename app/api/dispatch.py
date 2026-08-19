@@ -1238,9 +1238,14 @@ async def get_arrived_tickets(
         return []
 
     # 3. 상태가 'ARRIVED' 또는 'WAITING_ABSENT_APPROVAL'인 DispatchTicket 조회
+    from sqlalchemy.orm import selectinload
     ticket_query = select(DispatchTicket).where(
         DispatchTicket.job_post_id.in_(job_ids),
         DispatchTicket.status.in_(["ARRIVED", "WAITING_ABSENT_APPROVAL"])
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
     )
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()

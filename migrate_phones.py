@@ -26,9 +26,16 @@ async def merge_users(session, keep, delete_u):
         update(UnloadingSite).where(UnloadingSite.user_id == delete_u.id).values(user_id=keep.id)
     )
     # 4. Update Driver (user_id and owner_id)
-    await session.execute(
-        update(Driver).where(Driver.user_id == delete_u.id).values(user_id=keep.id)
-    )
+    res_drv_keep = await session.execute(select(Driver).where(Driver.user_id == keep.id))
+    drv_keep = res_drv_keep.scalars().first()
+    if drv_keep:
+        await session.execute(
+            delete(Driver).where(Driver.user_id == delete_u.id)
+        )
+    else:
+        await session.execute(
+            update(Driver).where(Driver.user_id == delete_u.id).values(user_id=keep.id)
+        )
     await session.execute(
         update(Driver).where(Driver.owner_id == delete_u.id).values(owner_id=keep.id)
     )
