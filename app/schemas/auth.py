@@ -146,6 +146,7 @@ class MemberStatusResponse(BaseModel):
     uploaded_documents: list[str] = []
     uploaded_files: dict[str, str] = {}
     missing_documents: list[RequiredDocumentResponse] = []
+    submitted_info: Optional[dict] = None
 
 
 class SubmitApprovalRequest(BaseModel):

@@ -47,6 +47,9 @@ export default function ApprovalRequestScreen() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [rejectReason, setRejectReason] = useState<string | null>(null);
+  
+  // 개별 서류별 에러 상태 관리 (docCode -> 에러 메시지)
+  const [docErrors, setDocErrors] = useState<Record<string, string>>({});
 
   // 회원 상태 확인 (서버 호출)
   const checkMemberStatus = async (showLoading = false) => {
@@ -79,9 +82,27 @@ export default function ApprovalRequestScreen() {
         setRejectReason(data.reject_reason || null);
         setUploadedDocs(data.uploaded_documents || []);
         setMissingDocs(data.missing_documents || []);
+
+        // 기존에 등록해두었던 현장/상세정보 자동 채우기
+        if (data.submitted_info) {
+          const info = data.submitted_info;
+          if (info.company_name) setCompanyName(info.company_name);
+          if (info.site_name) setSiteName(info.site_name);
+          if (info.business_number) setBusinessNumber(info.business_number);
+          if (info.address) setAddress(info.address);
+          if (info.detail_address) setDetailAddress(info.detail_address);
+          if (info.latitude) setLatitude(String(info.latitude));
+          if (info.longitude) setLongitude(String(info.longitude));
+          if (info.location_name) setLocationName(info.location_name);
+          if (info.permit_number) setPermitNumber(info.permit_number);
+          if (info.is_direct_driver !== undefined) setIsDirectDriver(info.is_direct_driver);
+        }
+      } else {
+        const errData = await res.json().catch(() => null);
+        setErrorMsg(errData?.detail || `회원 상태 조회에 실패했습니다. (HTTP ${res.status})`);
       }
     } catch (e) {
-      setErrorMsg("서버로부터 회원 상태 정보를 불러오지 못했습니다.");
+      setErrorMsg("서버로부터 회원 상태 정보를 불러오지 못했습니다. 백엔드 연결 상태를 확인해 주세요.");
     } finally {
       setChecking(false);
     }
@@ -93,25 +114,42 @@ export default function ApprovalRequestScreen() {
     setSuccessMsg("");
     setUploadingDocCode(docCode);
 
+    // 1. 프론트엔드 파일 확장자 사전 검증
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
+    const fileExt = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExt)) {
+      const errMsg = `[${file.name}] 허용되지 않는 파일 형식입니다. (지원 형식: jpg, png, webp, pdf)`;
+      setDocErrors((prev) => ({ ...prev, [docCode]: errMsg }));
+      setErrorMsg(errMsg);
+      alert(`[업로드 불가]\n${errMsg}`);
+      setUploadingDocCode(null);
+      return;
+    }
+
+    // 2. 프론트엔드 파일 용량 사전 검증 (최대 10MB)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_FILE_SIZE) {
+      const currentSizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      const errMsg = `[${file.name}] 파일 용량이 초과되었습니다. (현재: ${currentSizeMb}MB / 최대 허용: 10MB)`;
+      setDocErrors((prev) => ({ ...prev, [docCode]: errMsg }));
+      setErrorMsg(errMsg);
+      alert(`[용량 초과]\n${errMsg}`);
+      setUploadingDocCode(null);
+      return;
+    }
+
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) {
-        setErrorMsg("인증 세션이 만료되었습니다. 다시 로그인해 주세요.");
+        const errMsg = "인증 세션이 만료되었습니다. 다시 로그인해 주세요.";
+        setDocErrors((prev) => ({ ...prev, [docCode]: errMsg }));
+        setErrorMsg(errMsg);
+        alert(`[인증 만료]\n${errMsg}`);
         return;
       }
 
       const baseUrl = getApiBaseUrl();
-
-      // FileReader로 브라우저 미리보기 데이터 로드 및 localStorage 기사/현장별 보관
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64Url = e.target?.result as string;
-        if (base64Url && user?.id) {
-          const fileKey = `driver_${user.id}_${docCode}`;
-          localStorage.setItem(`doc_${fileKey}`, base64Url);
-        }
-      };
-      reader.readAsDataURL(file);
 
       const formData = new FormData();
       formData.append("document_code", docCode);
@@ -126,14 +164,26 @@ export default function ApprovalRequestScreen() {
       });
 
       if (res.ok) {
-        setSuccessMsg(`[${file.name}] 첨부서류 업로드 및 등록이 완료되었습니다.`);
+        setSuccessMsg(`[${file.name}] 첨부서류가 정상적으로 교체/등록되었습니다.`);
+        // 해당 서류의 에러 상태 제거
+        setDocErrors((prev) => {
+          const next = { ...prev };
+          delete next[docCode];
+          return next;
+        });
         await checkMemberStatus(false);
       } else {
         const err = await res.json();
-        setErrorMsg(err.detail || "서류 제출 등록에 실패했습니다.");
+        const msg = err.detail || "서류 제출 등록에 실패했습니다.";
+        setDocErrors((prev) => ({ ...prev, [docCode]: msg }));
+        setErrorMsg(msg);
+        alert(`[업로드 실패]\n${msg}`);
       }
     } catch (e) {
-      setErrorMsg("서버 통신에 실패했습니다.");
+      const errMsg = "서버 통신에 실패했습니다. 네트워크 상태를 확인해 주세요.";
+      setDocErrors((prev) => ({ ...prev, [docCode]: errMsg }));
+      setErrorMsg(errMsg);
+      alert(`[업로드 실패]\n${errMsg}`);
     } finally {
       setUploadingDocCode(null);
     }
@@ -186,11 +236,22 @@ export default function ApprovalRequestScreen() {
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
-    setLoading(true);
+    // 1. 등록 실패한 서류가 있는지 검증
+    const hasDocErrors = Object.keys(docErrors).length > 0;
+    if (hasDocErrors) {
+      const errorDocNames = Object.keys(docErrors);
+      const msg = "등록에 실패한 서류가 있습니다. 올바른 파일(jpg, png, webp, pdf)로 다시 업로드해 주세요.";
+      setErrorMsg(msg);
+      alert(`[승인 요청 불가]\n${msg}`);
+      setLoading(false);
+      return;
+    }
 
-    // 필수 서류 제출 여부 사전 검증
+    // 2. 필수 서류 미제출 여부 사전 검증
     if (filteredMissingDocs.length > 0) {
-      setErrorMsg(`필수 서류를 모두 업로드하셔야 승인 요청이 가능합니다. 미제출 서류: ${filteredMissingDocs.map(d => d.code_name).join(", ")}`);
+      const msg = `필수 서류를 모두 업로드하셔야 승인 요청이 가능합니다.\n미제출 서류: ${filteredMissingDocs.map(d => d.code_name).join(", ")}`;
+      setErrorMsg(msg);
+      alert(`[승인 요청 불가]\n${msg}`);
       setLoading(false);
       return;
     }
@@ -267,10 +328,11 @@ export default function ApprovalRequestScreen() {
 
   if (checking) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
-          <p className="text-xs font-bold text-slate-500">회원 승인 상태를 확인하고 있습니다...</p>
+      <div className="w-full min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-950">
+        <div className="text-center space-y-3 p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl max-w-sm w-full mx-auto">
+          <Loader2 className="w-9 h-9 animate-spin text-blue-600 mx-auto" />
+          <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-200">회원 승인 상태 확인 중</h3>
+          <p className="text-xs font-semibold text-slate-400">승인 심사 진행 및 제출 서류 현황을 안전하게 불러오고 있습니다.</p>
         </div>
       </div>
     );
@@ -341,13 +403,19 @@ export default function ApprovalRequestScreen() {
             </p>
           </div>
 
-          <div className="flex justify-center pt-4">
+          <div className="flex justify-center items-center gap-3 pt-4">
             <button
               onClick={() => checkMemberStatus(true)}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-750 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/10 flex items-center gap-2 active:scale-95 transition-all"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/10 flex items-center gap-2 active:scale-95 transition-all"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>새로고침 (승인 확인)</span>
+              <span>새로고침 (승인 상태 확인)</span>
+            </button>
+            <button
+              onClick={() => setIsSubmitted(false)}
+              className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all"
+            >
+              제출 서류 / 정보 수정하기
             </button>
           </div>
         </div>
@@ -549,94 +617,187 @@ export default function ApprovalRequestScreen() {
 
           {/* Document Upload Section */}
           {(filteredMissingDocs.length > 0 || filteredUploadedDocs.length > 0) && (
-            <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl space-y-4">
-              <span className="text-[11px] font-bold text-slate-550 dark:text-slate-400 block px-1">
-                필수 서류 제출 목록 ({filteredUploadedDocs.length} / {filteredUploadedDocs.length + filteredMissingDocs.length})
-              </span>
+            <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-855 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[11px] font-bold text-slate-550 dark:text-slate-400 block">
+                  필수 서류 제출 목록 ({filteredUploadedDocs.length} / {filteredUploadedDocs.length + filteredMissingDocs.length})
+                </span>
+                <span className="text-[10.5px] text-slate-400 font-medium">
+                  (jpg, png, webp, pdf / 파일당 최대 10MB)
+                </span>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-bold animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
               
               <div className="space-y-3">
                 {/* Uploaded Documents */}
-                {filteredUploadedDocs.map((docCode) => (
-                  <div key={docCode} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl text-xs shadow-sm">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-extrabold text-slate-700 dark:text-slate-350">
-                        {(() => {
-                          const docNameMap: Record<string, string> = {
-                            BIZ_LICENSE: "사업자등록증",
-                            DUST_REPORT: "비산먼지 배출신고서",
-                            CONSTRUCTION_CONTRACT: "공사 계약서",
-                            LICENSE: "운전면허증 (대형/1종)",
-                            SAFETY_TRAINING: "건설업 기초안전교육 이수증",
-                            SPECIAL_LABOR_TRAINING: "교육실시확인서 (특수형태근로자)",
-                            MACHINERY_REG: "건설기계 등록증·검사증",
-                            INSURANCE: "보험가입증",
-                            DEVELOPMENT_PERMIT: "개발행위 허가증",
-                            LAND_USE_AGREEMENT: "토지 사용 승낙서 / 토지 대장",
-                            CONSTRUCTION_PROOF: "공사현장 증빙서류",
-                            BANKBOOK: "은행 통장 사본",
-                          };
-                          return docNameMap[docCode] || docCode;
-                        })()}
-                      </span>
-                      <span className="text-[10px] text-slate-450 dark:text-slate-500 font-mono">
-                        등록 완료 (제출됨)
-                      </span>
+                {filteredUploadedDocs.map((docCode) => {
+                  const docError = docErrors[docCode];
+                  return (
+                    <div
+                      key={docCode}
+                      className={`p-3 rounded-xl text-xs shadow-sm transition-all border ${
+                        docError
+                          ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/50 ring-1 ring-rose-500/20"
+                          : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-extrabold text-slate-700 dark:text-slate-350">
+                            {(() => {
+                              const docNameMap: Record<string, string> = {
+                                BIZ_LICENSE: "사업자등록증",
+                                DUST_REPORT: "비산먼지 배출신고서",
+                                CONSTRUCTION_CONTRACT: "공사 계약서",
+                                LICENSE: "운전면허증 (대형/1종)",
+                                SAFETY_TRAINING: "건설업 기초안전교육 이수증",
+                                SPECIAL_LABOR_TRAINING: "교육실시확인서 (특수형태근로자)",
+                                MACHINERY_REG: "건설기계 등록증·검사증",
+                                INSURANCE: "보험가입증",
+                                DEVELOPMENT_PERMIT: "개발행위 허가증",
+                                LAND_USE_AGREEMENT: "토지 사용 승낙서 / 토지 대장",
+                                CONSTRUCTION_PROOF: "공사현장 증빙서류",
+                                BANKBOOK: "은행 통장 사본",
+                              };
+                              return docNameMap[docCode] || docCode;
+                            })()}
+                          </span>
+                          <span className={`text-[10px] font-mono ${docError ? "text-rose-500 font-bold" : "text-slate-450 dark:text-slate-500"}`}>
+                            {docError ? "등록 실패 (파일 확인 필요)" : "등록 완료 (제출됨)"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {docError ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-[10px] font-extrabold">
+                              등록 실패
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/35 text-emerald-605 dark:text-emerald-400 text-[10px] font-bold">
+                              제출 완료
+                            </span>
+                          )}
+
+                          {/* 서류 교체 / 재업로드 버튼 */}
+                          <label className={`px-2.5 py-1 text-[10px] font-bold rounded-lg cursor-pointer active:scale-95 transition-all shrink-0 flex items-center gap-1 border ${
+                            docError
+                              ? "bg-rose-600 hover:bg-rose-700 text-white border-rose-600 shadow-sm"
+                              : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
+                          }`}>
+                            {uploadingDocCode === docCode ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin text-white" />
+                                <span>등록 중...</span>
+                              </>
+                            ) : (
+                              <span>{docError ? "다시 업로드" : "파일 변경"}</span>
+                            )}
+                            <input
+                              type="file"
+                              className="hidden"
+                              disabled={uploadingDocCode !== null}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  handleUploadDocument(docCode, file);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* 개별 파일 에러 세부 안내 */}
+                      {docError && (
+                        <div className="mt-2 pt-2 border-t border-rose-200 dark:border-rose-900/40 flex items-center gap-1.5 text-[10.5px] text-rose-600 dark:text-rose-400 font-semibold animate-fadeIn">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{docError}</span>
+                        </div>
+                      )}
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/35 text-emerald-605 dark:text-emerald-400 text-[10px] font-bold">
-                      제출 완료
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Missing Documents */}
-                {filteredMissingDocs.map((doc) => (
-                  <div key={doc.code} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl text-xs shadow-sm">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-extrabold text-slate-750 dark:text-slate-250">
-                        {doc.code_name}
-                      </span>
-                      <span className="text-[10px] text-rose-500 font-mono font-bold">
-                        필수 서류 미제출
-                      </span>
-                    </div>
-                    
-                    <label className="px-3 py-1.5 bg-blue-600 hover:bg-blue-750 text-white text-[10px] font-extrabold rounded-lg cursor-pointer active:scale-95 transition-all shrink-0 flex items-center gap-1.5 shadow-sm">
-                      {uploadingDocCode === doc.code ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>등록 중...</span>
-                        </>
-                      ) : (
-                        <span>파일 선택</span>
+                {filteredMissingDocs.map((doc) => {
+                  const docError = docErrors[doc.code];
+                  return (
+                    <div
+                      key={doc.code}
+                      className={`p-3 rounded-xl text-xs shadow-sm transition-all border ${
+                        docError
+                          ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/50 ring-1 ring-rose-500/20"
+                          : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-extrabold text-slate-750 dark:text-slate-250">
+                            {doc.code_name}
+                          </span>
+                          <span className="text-[10px] text-rose-500 font-mono font-bold">
+                            {docError ? "등록 실패 (파일 확인 필요)" : "필수 서류 미제출"}
+                          </span>
+                        </div>
+                        
+                        <label className="px-3 py-1.5 bg-blue-600 hover:bg-blue-750 text-white text-[10px] font-extrabold rounded-lg cursor-pointer active:scale-95 transition-all shrink-0 flex items-center gap-1.5 shadow-sm">
+                          {uploadingDocCode === doc.code ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>등록 중...</span>
+                            </>
+                          ) : (
+                            <span>{docError ? "다시 선택" : "파일 선택"}</span>
+                          )}
+                          <input
+                            type="file"
+                            className="hidden"
+                            disabled={uploadingDocCode !== null}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleUploadDocument(doc.code, file);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      {/* 개별 파일 에러 세부 안내 */}
+                      {docError && (
+                        <div className="mt-2 pt-2 border-t border-rose-200 dark:border-rose-900/40 flex items-center gap-1.5 text-[10.5px] text-rose-600 dark:text-rose-400 font-semibold animate-fadeIn">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{docError}</span>
+                        </div>
                       )}
-                      <input
-                        type="file"
-                        className="hidden"
-                        disabled={uploadingDocCode !== null}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleUploadDocument(doc.code, file);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Submit Action */}
           <div className="flex flex-col gap-2 pt-6 border-t border-slate-100 dark:border-slate-800">
-            {filteredMissingDocs.length > 0 && (
+            {Object.keys(docErrors).length > 0 ? (
+              <p className="text-[11px] text-rose-600 dark:text-rose-400 font-extrabold text-center flex items-center justify-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>등록에 실패한 서류가 있습니다. 올바른 파일(jpg, png, webp, pdf)로 다시 업로드해야 승인 신청이 가능합니다.</span>
+              </p>
+            ) : filteredMissingDocs.length > 0 ? (
               <p className="text-[10px] text-rose-500 font-bold text-center">
                 * 가입 승인을 신청하려면 모든 필수 서류 파일(위 목록)을 먼저 업로드해 주셔야 합니다.
               </p>
-            )}
+            ) : null}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || Object.keys(docErrors).length > 0 || filteredMissingDocs.length > 0}
               className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-blue-500/15 transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-2"
             >
               {loading ? (

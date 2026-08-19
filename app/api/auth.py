@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -594,14 +594,22 @@ async def upload_document(
     if ext not in ALLOWED_DOC_EXTENSIONS and ext != "":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="허용되지 않는 파일 형식입니다. (jpg, png, webp, pdf 형식만 가능)"
+            detail="허용되지 않는 파일 형식입니다. (지원 형식: jpg, png, webp, pdf)"
         )
 
-    # 3. 난수화된 안전 파일명 생성 & 물리 파일 디스크 저장
+    # 3. 파일 용량 검증 (최대 10MB)
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="파일 용량이 10MB를 초과했습니다. 10MB 이하의 파일만 업로드 가능합니다."
+        )
+
+    # 4. 난수화된 안전 파일명 생성 & 물리 파일 디스크 저장
     safe_file_name = f"{uuid.uuid4().hex}_{raw_file_name}"
     file_path = os.path.join(UPLOAD_DIR, safe_file_name)
     
-    contents = await file.read()
     with open(file_path, "wb") as f:
         f.write(contents)
 
@@ -626,6 +634,99 @@ async def upload_document(
     await db.commit()
     logger.info(f"유저 [ID: {current_user.id}] 실물 서류 파일 물리 저장 완료: {safe_file_name}")
     return {"message": "서류 실물 파일이 성공적으로 업로드 및 저장되었습니다.", "file_name": safe_file_name}
+
+
+@router.get(
+    "/documents/{user_id}/{doc_code}/stream",
+    summary="보안 서류 안전 스트리밍 (인가 및 권한 검증)",
+    description="물리 파일 경로를 외부에 노출하지 않고 JWT 권한(본인 또는 관리자)을 검증하여 서류를 안전하게 반환합니다."
+)
+async def stream_user_document(
+    user_id: int,
+    doc_code: str,
+    token: Optional[str] = None,
+    auth_header: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    db: AsyncSession = Depends(get_db)
+):
+    # 1. 토큰 추출 (헤더 또는 쿼리 파라미터)
+    jwt_token = None
+    if auth_header and auth_header.credentials:
+        jwt_token = auth_header.credentials
+    elif token:
+        jwt_token = token
+
+    if not jwt_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="인증 토큰이 필요합니다."
+        )
+
+    try:
+        payload = jwt.decode(jwt_token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        token_sub = payload.get("sub")
+        if token_sub is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="유효하지 않은 토큰입니다.")
+        current_user_id = int(token_sub)
+    except (JWTError, ValueError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="토큰 인증에 실패했습니다.")
+
+    # 사용자 정보 조회
+    user_res = await db.execute(select(User).where(User.id == current_user_id))
+    current_user = user_res.scalars().first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="사용자를 찾을 수 없습니다.")
+
+    # 2. 인가 검증: 관리자이거나 본인의 서류인 경우에만 열람 가능
+    if not current_user.is_admin and current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 서류를 열람할 권한이 없습니다."
+        )
+
+    # 2. DB에서 서류 정보 조회
+    query = select(UserUploadedDocument).where(
+        UserUploadedDocument.user_id == user_id,
+        UserUploadedDocument.document_code == doc_code
+    )
+    result = await db.execute(query)
+    doc = result.scalars().first()
+
+    if not doc or not doc.file_name:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="제출된 서류 정보를 찾을 수 없습니다."
+        )
+
+    # 3. 물리 파일 존재 여부 및 경로 조작 검증
+    safe_file_name = os.path.basename(doc.file_name)
+    file_path = os.path.join(UPLOAD_DIR, safe_file_name)
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="서버 스토리지에 실제 파일이 존재하지 않습니다."
+        )
+
+    # 확장자에 따른 Content-Type 지정
+    _, ext = os.path.splitext(safe_file_name)
+    ext = ext.lower()
+    media_types = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".pdf": "application/pdf"
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        path=file_path,
+        media_type=media_type,
+        headers={
+            "Cache-Control": "private, no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 
 @router.delete(
@@ -710,6 +811,7 @@ async def get_member_status(
     # 5. 심사 승인 여부 확인
     is_approved = False
     reject_reason = None
+    submitted_info = {}
     
     if role == "driver":
         driver_query = select(Driver).where(Driver.user_id == current_user.id)
@@ -718,17 +820,55 @@ async def get_member_status(
         if driver:
             is_approved = driver.is_approved
             reject_reason = driver.reject_reason
+            submitted_info = {
+                "registered_phone": driver.registered_phone
+            }
+    elif role == "site_manager":
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+        
+        # 현장 정보 조회
+        sp_res = await db.execute(select(SiteProfile).where(SiteProfile.user_id == current_user.id))
+        sp = sp_res.scalars().first()
+        cs_res = await db.execute(select(ConstructionSite).where(ConstructionSite.user_id == current_user.id))
+        cs = cs_res.scalars().first()
+        
+        submitted_info = {
+            "company_name": (cs.company_name if cs and cs.company_name else (sp.company_name if sp else "")) or "",
+            "site_name": (cs.site_name if cs and cs.site_name else (sp.site_name if sp else "")) or "",
+            "business_number": (cs.business_number if cs and cs.business_number else (sp.business_number if sp else "")) or "",
+            "address": (cs.site_address if cs else "") or "",
+            "detail_address": "",
+            "latitude": cs.latitude if cs else 37.5665,
+            "longitude": cs.longitude if cs else 126.9780
+        }
+    elif role == "drop_off":
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+        
+        dp_res = await db.execute(select(DropOffProfile).where(DropOffProfile.user_id == current_user.id))
+        dp = dp_res.scalars().first()
+        
+        submitted_info = {
+            "location_name": dp.location_name if dp else "",
+            "address": dp.address if dp else "",
+            "permit_number": dp.permit_number if dp else ""
+        }
     else:
         # 차주
         is_approved = current_user.is_approved
         reject_reason = current_user.reject_reason
+        submitted_info = {
+            "is_direct_driver": current_user.is_driver
+        }
         
     return MemberStatusResponse(
         is_approved=is_approved,
         reject_reason=reject_reason,
         uploaded_documents=uploaded_codes,
         uploaded_files=uploaded_files_map,
-        missing_documents=missing_docs
+        missing_documents=missing_docs,
+        submitted_info=submitted_info
     )
 
 
@@ -742,7 +882,40 @@ async def submit_approval(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    
+    # 1. 역할별 필수 서류 그룹 확인 및 미제출 검증
+    group_code = None
+    if current_user.is_site_manager:
+        group_code = "REQUIRED_DOC_SITE"
+    elif current_user.is_drop_off:
+        group_code = "REQUIRED_DOC_DROPOFF"
+    elif current_user.is_owner:
+        group_code = "REQUIRED_DOC_OWNER"
+    elif current_user.is_driver:
+        group_code = "REQUIRED_DOC_DRIVER"
+
+    if group_code:
+        # 필수 서류 공통코드 조회
+        codes_query = select(CommonCode).where(
+            CommonCode.group_code == group_code,
+            CommonCode.is_active == True
+        )
+        codes_result = await db.execute(codes_query)
+        req_codes = [c.code for c in codes_result.scalars().all()]
+
+        # 실제 유저가 업로드한 서류 조회
+        up_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
+        up_result = await db.execute(up_query)
+        uploaded_docs = up_result.scalars().all()
+        uploaded_codes = [d.document_code for d in uploaded_docs if d.file_name]
+
+        # 누락된 서류 확인
+        missing = [code for code in req_codes if code not in uploaded_codes]
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"필수 증빙 서류가 누락되었습니다. ({', '.join(missing)}) 모든 필수 서류를 정상 등록해 주세요."
+            )
+
     if current_user.is_site_manager:
         # Site Profile
         sp_query = select(SiteProfile).where(SiteProfile.user_id == current_user.id)
@@ -842,6 +1015,14 @@ async def submit_approval(
     elif current_user.is_owner:
         if data.is_direct_driver is not None:
             current_user.is_driver = data.is_direct_driver
+
+    # 승인 요청/재신청 제출 시 기존 반려 사유 초기화
+    current_user.reject_reason = None
+    if current_user.is_driver:
+        d_res = await db.execute(select(Driver).where(Driver.user_id == current_user.id))
+        d_obj = d_res.scalars().first()
+        if d_obj:
+            d_obj.reject_reason = None
             
     await db.commit()
     return {"message": "승인 요청 제출이 완료되었습니다."}
@@ -880,6 +1061,7 @@ async def get_pending_members(
         doc_res = await db.execute(doc_query)
         docs = doc_res.scalars().all()
         doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+        uploaded_files_map = {d.document_code: f"/api/auth/documents/{user_id}/{d.document_code}/stream" for d in docs}
         
         response_list.append({
             "id": user_id or d.id,
@@ -887,7 +1069,9 @@ async def get_pending_members(
             "name": name,
             "phone_number": phone,
             "docs": doc_summary or "미제출",
-            "created_at": d.created_at
+            "uploaded_files": uploaded_files_map,
+            "created_at": d.created_at,
+            "reject_reason": d.reject_reason
         })
         
     # 차주 중 아직 미승인(is_approved = False) 유저 검색
@@ -904,6 +1088,7 @@ async def get_pending_members(
         doc_res = await db.execute(doc_query)
         docs = doc_res.scalars().all()
         doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
+        uploaded_files_map = {d.document_code: f"/api/auth/documents/{o.id}/{d.document_code}/stream" for d in docs}
         
         response_list.append({
             "id": o.id,
@@ -911,7 +1096,9 @@ async def get_pending_members(
             "name": o.name,
             "phone_number": o.phone_number,
             "docs": doc_summary or "미제출",
-            "created_at": o.created_at
+            "uploaded_files": uploaded_files_map,
+            "created_at": o.created_at,
+            "reject_reason": o.reject_reason
         })
 
     # 현장관리자 중 아직 미승인(is_approved = False) 유저 검색 (site_profile 조인)
@@ -927,7 +1114,7 @@ async def get_pending_members(
         doc_res = await db.execute(doc_query)
         docs = doc_res.scalars().all()
         doc_summary = ", ".join([f"{d.document_code}: {d.file_name}" for d in docs])
-        uploaded_files_map = {d.document_code: f"/uploads/documents/{d.file_name}" for d in docs}
+        uploaded_files_map = {d.document_code: f"/api/auth/documents/{sm.id}/{d.document_code}/stream" for d in docs}
 
         company = "협력 도급사"
         site_name_val = f"{sm.name}의 현장"
@@ -964,7 +1151,8 @@ async def get_pending_members(
             "company_name": company,
             "site_name": site_name_val,
             "business_number": biz_no,
-            "address": address_val
+            "address": address_val,
+            "reject_reason": sm.reject_reason
         })
         
     return response_list
@@ -1043,6 +1231,39 @@ async def reject_member(
         
     await db.commit()
     return {"message": "회원 가입 신청이 성공적으로 반려되었습니다."}
+
+
+@router.post(
+    "/admin/members/{user_id}/cancel-reject",
+    summary="[어드민] 특정 회원 반려 취소 (심사 대기 상태로 원복)",
+    description="어드민이 실수로 반려 처리한 회원의 반려 상태를 취소하고 다시 심사 대기 상태로 원복합니다."
+)
+async def cancel_reject_member(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    query = select(User).where(User.id == user_id)
+    result = await db.execute(query)
+    user = result.scalars().first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 유저를 찾을 수 없습니다."
+        )
+        
+    # 반려 사유 초기화 및 미승인 유지 (심사 대기 상태로 원복)
+    user.reject_reason = None
+    if user.is_driver:
+        d_query = select(Driver).where(Driver.user_id == user_id)
+        d_res = await db.execute(d_query)
+        driver = d_res.scalars().first()
+        if driver:
+            driver.reject_reason = None
+            
+    await db.commit()
+    return {"message": "반려 처리가 취소되고 심사 대기 상태로 원복되었습니다."}
 
 
 from pydantic import BaseModel

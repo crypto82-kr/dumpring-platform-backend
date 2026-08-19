@@ -146,7 +146,9 @@ export default function Home() {
             name: item.name,
             phone: item.phone_number,
             license: item.docs || "1종대형면허",
-            status: "대기"
+            status: item.reject_reason ? "반려됨" : "대기",
+            rejectReason: item.reject_reason || null,
+            uploadedFiles: item.uploaded_files || {}
           }));
 
         const backendOwners = data
@@ -156,7 +158,9 @@ export default function Home() {
             name: item.name,
             phone: item.phone_number,
             vehicle: item.docs || "인천 80바 4531 (25.5톤)",
-            status: "대기"
+            status: item.reject_reason ? "반려됨" : "대기",
+            rejectReason: item.reject_reason || null,
+            uploadedFiles: item.uploaded_files || {}
           }));
 
         const backendSites = data
@@ -168,7 +172,8 @@ export default function Home() {
             company: item.company_name || "협력 도급사",
             companyName: item.company_name || "협력 도급사",
             code: `GD-${item.id}-DUMP`,
-            status: "대기",
+            status: item.reject_reason ? "반려됨" : "대기",
+            rejectReason: item.reject_reason || null,
             phone: item.phone_number,
             managerName: item.name || "미지정",
             bizRegNo: item.business_number || "미등록",
@@ -183,11 +188,13 @@ export default function Home() {
             id: item.id,
             name: item.location_name || `${item.name || "미지정"}의 사토장`,
             company: item.company_name || "개인지주 법인",
-            status: "대기",
+            status: item.reject_reason ? "반려됨" : "대기",
+            rejectReason: item.reject_reason || null,
             capacity: item.capacity || "80,000 ㎥",
             phone: item.phone_number,
             bizRegNo: item.permit_number || "허가증 미등록",
             address: item.address || "하차지 주소 미등록",
+            uploadedFiles: item.uploaded_files || {},
             registeredLandfills: [item.location_name || `${item.name || "미지정"}의 사토장`]
           }));
 
@@ -1336,6 +1343,26 @@ export default function Home() {
     }
   };
 
+  const handleCancelRejectMember = async (id: number) => {
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/members/${id}/cancel-reject`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        fetchPendingMembers();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Failed to cancel reject member in backend:", e);
+      return false;
+    }
+  };
+
   const handleResolveDispute = (id: number) => {
     setDisputes(prev =>
       prev.map(d => d.id === id ? { ...d, status: "해결됨" } : d)
@@ -1400,6 +1427,7 @@ export default function Home() {
             handleApproveSite={handleApproveSite}
             handleApproveDropoff={handleApproveDropoff}
             handleRejectMember={handleRejectMember}
+            handleCancelRejectMember={handleCancelRejectMember}
           />
         ) : (
           <PlatformAdminDashboard
