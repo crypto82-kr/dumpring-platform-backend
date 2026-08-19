@@ -1245,7 +1245,8 @@ async def get_arrived_tickets(
     ).options(
         selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request),
+        selectinload(DispatchTicket.car)
     )
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()
@@ -1294,7 +1295,8 @@ async def get_completed_tickets(
     ).options(
         selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request),
+        selectinload(DispatchTicket.car)
     ).order_by(DispatchTicket.completed_at.desc())
 
     ticket_result = await db.execute(ticket_query)

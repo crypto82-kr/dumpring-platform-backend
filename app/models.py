@@ -571,6 +571,7 @@ class DispatchTicket(Base):
 
     # Relationships
     job_post = relationship("JobPost")
+    car = relationship("Car")
 
 
 

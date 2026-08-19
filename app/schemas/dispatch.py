@@ -26,6 +26,15 @@ class MeterPricingPolicy(BaseModel):
     over_plan_distance_unit_fare: int
     over_plan_time_unit_fare: int
 
+class CarInfoResponse(BaseModel):
+    id: int
+    car_number: str
+    tonnage: float
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
 class DispatchTicketResponse(BaseModel):
     id: int
     job_post_id: int
@@ -43,6 +52,7 @@ class DispatchTicketResponse(BaseModel):
     completed_at: Optional[KstDateTime] = None
     job_post: Optional[JobPostResponse] = None
     pricing_policy: Optional[MeterPricingPolicy] = None
+    car: Optional[CarInfoResponse] = None
 
     class Config:
         orm_mode = True
