@@ -1250,3 +1250,54 @@ async def get_arrived_tickets(
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()
     return await attach_pricing_policy(tickets, db)
+
+
+@router.get(
+    "/completed-tickets",
+    response_model=List[DispatchTicketResponse],
+    summary="하차지 지주용 반입 완료 차량 이력 목록 조회"
+)
+async def get_completed_tickets(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_drop_off:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="하차지 지주(DROP_OFF) 권한이 필요합니다."
+        )
+
+    # 1. 지주 소유의 하차지 ID 리스트 조회
+    drop_off_query = select(DropOff.id).where(
+        DropOff.owner_id == current_user.id,
+        DropOff.status != "DELETED"
+    )
+    drop_off_result = await db.execute(drop_off_query)
+    drop_off_ids = drop_off_result.scalars().all()
+
+    if not drop_off_ids:
+        return []
+
+    # 2. 이 하차지들과 연동된 JobPost ID 리스트 조회
+    job_query = select(JobPost.id).where(JobPost.matched_drop_off_id.in_(drop_off_ids))
+    job_result = await db.execute(job_query)
+    job_ids = job_result.scalars().all()
+
+    if not job_ids:
+        return []
+
+    # 3. 상태가 'APPROVED'인 DispatchTicket 조회
+    from sqlalchemy.orm import selectinload
+    ticket_query = select(DispatchTicket).where(
+        DispatchTicket.job_post_id.in_(job_ids),
+        DispatchTicket.status == "APPROVED"
+    ).options(
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+    ).order_by(DispatchTicket.completed_at.desc())
+
+    ticket_result = await db.execute(ticket_query)
+    tickets = ticket_result.scalars().all()
+    return await attach_pricing_policy(tickets, db)
+
