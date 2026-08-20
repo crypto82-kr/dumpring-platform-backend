@@ -83,6 +83,11 @@ export default function ApprovalRequestScreen() {
         setUploadedDocs(data.uploaded_documents || []);
         setMissingDocs(data.missing_documents || []);
 
+        // 2. 이미 서류를 제출하고 승인 대기 중인 상태라면 즉시 '승인 대기 화면(Pending View)'으로 전환
+        if (!data.reject_reason && data.uploaded_documents && data.uploaded_documents.length > 0) {
+          setIsSubmitted(true);
+        }
+
         // 기존에 등록해두었던 현장/상세정보 자동 채우기
         if (data.submitted_info) {
           const info = data.submitted_info;

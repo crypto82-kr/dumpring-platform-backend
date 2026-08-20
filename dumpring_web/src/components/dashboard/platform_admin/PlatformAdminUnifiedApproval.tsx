@@ -568,7 +568,7 @@ export function PlatformAdminUnifiedApproval({
                             </button>
                           </>
                         )}
-                        {selectedItem.typeKey === "SITE_MANAGER" && (
+                        {(selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER") && (
                           <>
                             <button
                               onClick={() => setActiveDocTab("DOC_BIZ")}
@@ -705,48 +705,61 @@ export function PlatformAdminUnifiedApproval({
                     onMouseUp={() => setIsDragging(false)}
                     onMouseLeave={() => setIsDragging(false)}
                   >
-                    <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
-
-                    {/* 실제 업로드된 이미지 또는 localStorage 미리보기 데이터 렌더링 */}
+                    {/* 실제 서류 뷰어 본체 */}
                     {(() => {
-                      const docCode = activeDocTab === "DOC_SAFETY" ? "SAFETY_TRAINING" : activeDocTab === "DOC_SPECIAL" ? "SPECIAL_LABOR" : activeDocTab === "DOC_INSURANCE" ? "INSURANCE" : activeDocTab === "DOC_CONTRACT" ? "CONSTRUCTION_CONTRACT" : activeDocTab === "DOC_LAND" ? "LAND_USE" : activeDocTab === "DOC_BIZ" ? "BIZ_LICENSE" : activeDocTab === "DOC_DUST" ? "DUST_REPORT" : activeDocTab === "DOC_PERMIT" ? "DEVELOPMENT_PERMIT" : "LICENSE";
+                      let docCode = "LICENSE";
+                      if (activeDocTab === "DOC_SAFETY") docCode = "SAFETY_TRAINING";
+                      else if (activeDocTab === "DOC_SPECIAL") docCode = "SPECIAL_LABOR";
+                      else if (activeDocTab === "DOC_INSURANCE") docCode = "INSURANCE";
+                      else if (activeDocTab === "DOC_CONTRACT") docCode = "CONSTRUCTION_CONTRACT";
+                      else if (activeDocTab === "DOC_LAND") docCode = "LAND_USE";
+                      else if (activeDocTab === "DOC_BIZ") docCode = "BIZ_LICENSE";
+                      else if (activeDocTab === "DOC_DUST") docCode = "DUST_REPORT";
+                      else if (activeDocTab === "DOC_PERMIT") docCode = "DEVELOPMENT_PERMIT";
+                      else if (activeDocTab === "DOC_1" || !activeDocTab) {
+                        if (selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER" || selectedItem.typeKey === "OWNER") {
+                          docCode = "BIZ_LICENSE";
+                        } else if (selectedItem.typeKey === "DROPOFF") {
+                          docCode = "DEVELOPMENT_PERMIT";
+                        } else {
+                          docCode = "LICENSE";
+                        }
+                      }
                       const localImg = typeof window !== "undefined" ? localStorage.getItem(`doc_driver_${selectedItem.id}_${docCode}`) : null;
                       const serverDocPath = selectedItem.uploadedFiles?.[docCode] || selectedItem.rawObj?.uploaded_files?.[docCode];
                       const token = typeof window !== "undefined" ? (localStorage.getItem("accessToken") || sessionStorage.getItem("dumpring_token")) : null;
                       const serverUrl = serverDocPath ? `${getApiBaseUrl()}${serverDocPath}${token ? `?token=${token}` : ""}` : null;
                       const displaySrc = serverUrl || localImg || selectedItem.rawObj?.biz_license_url || selectedItem.rawObj?.dust_report_url || uploadedFiles[`driver_${selectedItem.id}_${docCode}`] || uploadedFiles[selectedItem.id];
 
-                      if (displaySrc) {
-                        const isPdf = typeof displaySrc === "string" && (
-                          displaySrc.toLowerCase().includes(".pdf") ||
-                          serverDocPath?.toLowerCase().includes(".pdf") ||
-                          localImg?.startsWith("data:application/pdf")
-                        );
+                      // PDF 여부 판별 (BIZ_LICENSE, PERMIT 등 코드 또는 파일명 기반)
+                      const isPdfDoc = Boolean(
+                        (typeof displaySrc === "string" && (displaySrc.includes(".pdf") || displaySrc.startsWith("data:application/pdf"))) ||
+                        (typeof serverDocPath === "string" && serverDocPath.includes(".pdf")) ||
+                        (typeof selectedItem.docs === "string" && selectedItem.docs.includes(docCode) && selectedItem.docs.toLowerCase().includes(".pdf")) ||
+                        (docCode === "BIZ_LICENSE" && selectedItem.typeKey === "SITE_MANAGER")
+                      );
 
-                        if (isPdf) {
+                      if (displaySrc) {
+                        if (isPdfDoc) {
                           return (
-                            <div className="relative z-10 w-full h-full p-2 flex flex-col items-center justify-center">
-                              <iframe
-                                src={`${displaySrc}#toolbar=0&navpanes=0`}
-                                title="제출 증빙 PDF 서류"
-                                className="w-full h-full rounded-lg bg-white border border-slate-700 shadow-2xl"
-                              />
-                            </div>
+                            <iframe
+                              src={displaySrc}
+                              title="제출 증빙 PDF 서류"
+                              className="w-full h-full rounded-2xl bg-white border-0"
+                            />
                           );
                         }
 
                         return (
-                          <div className="relative z-10 w-full h-full p-2 flex items-center justify-center pointer-events-none">
-                            <img
-                              src={displaySrc}
-                              alt="제출 증빙 서류"
-                              draggable={false}
-                              className="max-h-full max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-75"
-                              style={{
-                                transform: `translate(${panPos.x}px, ${panPos.y}px) scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
-                              }}
-                            />
-                          </div>
+                          <img
+                            src={displaySrc}
+                            alt="제출 증빙 서류"
+                            draggable={false}
+                            className="max-h-full max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-75"
+                            style={{
+                              transform: `translate(${panPos.x}px, ${panPos.y}px) scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
+                            }}
+                          />
                         );
                       }
 
@@ -873,12 +886,37 @@ export function PlatformAdminUnifiedApproval({
 
       {/* 보안 전체화면 서류 뷰어 모달 (URL/경로 비노출 & 고화질 확대 지원) */}
       {isModalOpen && selectedItem && (() => {
-        const docCode = activeDocTab === "DOC_SAFETY" ? "SAFETY_TRAINING" : activeDocTab === "DOC_SPECIAL" ? "SPECIAL_LABOR" : activeDocTab === "DOC_INSURANCE" ? "INSURANCE" : activeDocTab === "DOC_CONTRACT" ? "CONSTRUCTION_CONTRACT" : activeDocTab === "DOC_LAND" ? "LAND_USE" : activeDocTab === "DOC_BIZ" ? "BIZ_LICENSE" : activeDocTab === "DOC_DUST" ? "DUST_REPORT" : activeDocTab === "DOC_PERMIT" ? "DEVELOPMENT_PERMIT" : "LICENSE";
+        let docCode = "LICENSE";
+        if (activeDocTab === "DOC_SAFETY") docCode = "SAFETY_TRAINING";
+        else if (activeDocTab === "DOC_SPECIAL") docCode = "SPECIAL_LABOR";
+        else if (activeDocTab === "DOC_INSURANCE") docCode = "INSURANCE";
+        else if (activeDocTab === "DOC_CONTRACT") docCode = "CONSTRUCTION_CONTRACT";
+        else if (activeDocTab === "DOC_LAND") docCode = "LAND_USE";
+        else if (activeDocTab === "DOC_BIZ") docCode = "BIZ_LICENSE";
+        else if (activeDocTab === "DOC_DUST") docCode = "DUST_REPORT";
+        else if (activeDocTab === "DOC_PERMIT") docCode = "DEVELOPMENT_PERMIT";
+        else if (activeDocTab === "DOC_1" || !activeDocTab) {
+          if (selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER" || selectedItem.typeKey === "OWNER") {
+            docCode = "BIZ_LICENSE";
+          } else if (selectedItem.typeKey === "DROPOFF") {
+            docCode = "DEVELOPMENT_PERMIT";
+          } else {
+            docCode = "LICENSE";
+          }
+        }
         const localImg = typeof window !== "undefined" ? localStorage.getItem(`doc_driver_${selectedItem.id}_${docCode}`) : null;
         const serverDocPath = selectedItem.uploadedFiles?.[docCode] || selectedItem.rawObj?.uploaded_files?.[docCode];
         const token = typeof window !== "undefined" ? (localStorage.getItem("accessToken") || sessionStorage.getItem("dumpring_token")) : null;
         const serverUrl = serverDocPath ? `${getApiBaseUrl()}${serverDocPath}${token ? `?token=${token}` : ""}` : null;
         const displaySrc = serverUrl || localImg || selectedItem.rawObj?.biz_license_url || selectedItem.rawObj?.dust_report_url || uploadedFiles[`driver_${selectedItem.id}_${docCode}`] || uploadedFiles[selectedItem.id];
+
+        // PDF 여부 판별 (BIZ_LICENSE, PERMIT 등 코드 또는 파일명 기반)
+        const isPdfDoc = Boolean(
+          (typeof displaySrc === "string" && (displaySrc.includes(".pdf") || displaySrc.startsWith("data:application/pdf"))) ||
+          (typeof serverDocPath === "string" && serverDocPath.includes(".pdf")) ||
+          (typeof selectedItem.docs === "string" && selectedItem.docs.includes(docCode) && selectedItem.docs.toLowerCase().includes(".pdf")) ||
+          (docCode === "BIZ_LICENSE" && selectedItem.typeKey === "SITE_MANAGER")
+        );
 
         const docNameMap: Record<string, string> = {
           DOC_LICENSE: "운전면허증",
@@ -955,48 +993,36 @@ export function PlatformAdminUnifiedApproval({
 
             {/* Modal Body (Interactive Drag & Zoom Area) */}
             <div
-              className="w-full max-w-6xl flex-1 my-4 bg-slate-950/80 border border-slate-800/80 rounded-3xl relative flex items-center justify-center overflow-hidden shadow-2xl cursor-grab active:cursor-grabbing select-none"
-              onMouseDown={(e) => {
-                setIsDragging(true);
-                setDragStart({ x: e.clientX - panPos.x, y: e.clientY - panPos.y });
-              }}
-              onMouseMove={(e) => {
-                if (!isDragging) return;
-                setPanPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-              }}
-              onMouseUp={() => setIsDragging(false)}
-              onMouseLeave={() => setIsDragging(false)}
+              className="w-full max-w-6xl flex-1 my-4 bg-slate-950/80 border border-slate-800/80 rounded-3xl relative flex items-center justify-center overflow-hidden shadow-2xl p-2 select-none"
             >
               {displaySrc ? (
-                (() => {
-                  const isPdf = typeof displaySrc === "string" && (
-                    displaySrc.toLowerCase().includes(".pdf") ||
-                    serverDocPath?.toLowerCase().includes(".pdf") ||
-                    localImg?.startsWith("data:application/pdf")
-                  );
-
-                  if (isPdf) {
-                    return (
-                      <iframe
-                        src={`${displaySrc}#toolbar=1&navpanes=0`}
-                        title={currentDocTitle}
-                        className="w-full h-full rounded-2xl bg-white border border-slate-700 shadow-2xl"
-                      />
-                    );
-                  }
-
-                  return (
-                    <img
-                      src={displaySrc}
-                      alt={currentDocTitle}
-                      draggable={false}
-                      className="max-h-[85vh] max-w-full object-contain rounded-xl shadow-2xl transition-transform duration-75"
-                      style={{
-                        transform: `translate(${panPos.x}px, ${panPos.y}px) scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
-                      }}
-                    />
-                  );
-                })()
+                isPdfDoc ? (
+                  <iframe
+                    src={displaySrc}
+                    title={currentDocTitle}
+                    className="w-full h-full rounded-2xl bg-white border-0"
+                  />
+                ) : (
+                  <img
+                    src={displaySrc}
+                    alt={currentDocTitle}
+                    draggable={false}
+                    className="max-h-[85vh] max-w-full object-contain rounded-xl shadow-2xl transition-transform duration-75 cursor-grab active:cursor-grabbing"
+                    onMouseDown={(e) => {
+                      setIsDragging(true);
+                      setDragStart({ x: e.clientX - panPos.x, y: e.clientY - panPos.y });
+                    }}
+                    onMouseMove={(e) => {
+                      if (!isDragging) return;
+                      setPanPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+                    }}
+                    onMouseUp={() => setIsDragging(false)}
+                    onMouseLeave={() => setIsDragging(false)}
+                    style={{
+                      transform: `translate(${panPos.x}px, ${panPos.y}px) scale(${verifyZoom}) rotate(${verifyRotate}deg)`,
+                    }}
+                  />
+                )
               ) : (
                 <div className="text-center p-8 text-slate-400">
                   <AlertCircle className="w-12 h-12 mx-auto text-amber-500 mb-2" />
