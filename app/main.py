@@ -225,8 +225,16 @@ import httpx
 
 @app.get("/static/uploads/{category}/{filename}", tags=["파일 프록시"])
 async def proxy_static_uploads(category: str, filename: str):
-    # Supabase Storage에서 파일 조회 및 스트리밍
-    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/upload/{category}/{filename}"
+    # 카테고리 맵핑 (증빙서류 -> documents, 현장사진 -> photos, 기타 -> others)
+    mapped_category = "others"
+    if category in ["documents", "biz_license", "qualification", "license"]:
+        mapped_category = "documents"
+    elif category in ["proofs", "photos"]:
+        mapped_category = "photos"
+    elif category == "others":
+        mapped_category = "others"
+
+    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/upload/{mapped_category}/{filename}"
     headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
     
     try:
@@ -251,8 +259,16 @@ async def proxy_static_uploads(category: str, filename: str):
 
 @app.get("/uploads/{category}/{filename}", tags=["파일 프록시"])
 async def proxy_uploads(category: str, filename: str):
-    # Supabase Storage에서 파일 조회 및 스트리밍
-    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/upload/{category}/{filename}"
+    # 카테고리 맵핑 (증빙서류 -> documents, 현장사진 -> photos, 기타 -> others)
+    mapped_category = "others"
+    if category in ["documents", "biz_license", "qualification", "license"]:
+        mapped_category = "documents"
+    elif category in ["proofs", "photos"]:
+        mapped_category = "photos"
+    elif category == "others":
+        mapped_category = "others"
+
+    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/upload/{mapped_category}/{filename}"
     headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
     
     try:

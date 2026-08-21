@@ -15,10 +15,10 @@ async def upload_file(
     category: str = Form(...),  # e.g., 'documents', 'proofs'
     # current_user: User = Depends(get_current_user)  # 로컬 테스트를 위해 인증 임시 우회
 ):
-    if category not in ["documents", "proofs"]:
+    if category not in ["documents", "proofs", "photos", "others"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="올바르지 않은 카테고리입니다. (documents 또는 proofs만 가능)"
+            detail="올바르지 않은 카테고리입니다. (documents, proofs, photos, others만 가능)"
         )
     
     file_ext = os.path.splitext(file.filename)[1].lower()

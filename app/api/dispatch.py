@@ -947,18 +947,20 @@ async def upload_proof_photo(
 
     # 고유 파일명 생성
     filename = f"{uuid.uuid4().hex}{file_ext}"
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static", "uploads", "proofs"))
-    os.makedirs(base_dir, exist_ok=True)
-    
-    file_path = os.path.join(base_dir, filename)
     
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        contents = await file.read()
+        from app.core.storage import upload_to_supabase
+        await upload_to_supabase(
+            content=contents,
+            content_type=file.content_type or "image/jpeg",
+            category="photos",
+            filename=filename
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"파일 저장 중 에러가 발생했습니다: {str(e)}"
+            detail=f"Supabase 스토리지 사진 저장 중 에러가 발생했습니다: {str(e)}"
         )
 
     static_url = f"/static/uploads/proofs/{filename}"
