@@ -31,19 +31,20 @@ async def upload_file(
     # 고유 파일명 생성
     filename = f"{uuid.uuid4().hex}{file_ext}"
     
-    # 저장 경로
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static", "uploads", category))
-    os.makedirs(base_dir, exist_ok=True)
-    
-    file_path = os.path.join(base_dir, filename)
-    
+    # 3. Supabase 업로드 진행
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        contents = await file.read()
+        from app.core.storage import upload_to_supabase
+        await upload_to_supabase(
+            content=contents,
+            content_type=file.content_type or "application/octet-stream",
+            category=category,
+            filename=filename
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"파일 저장 중 에러가 발생했습니다: {str(e)}"
+            detail=f"Supabase 스토리지 파일 저장 중 에러가 발생했습니다: {str(e)}"
         )
         
     static_url = f"/static/uploads/{category}/{filename}"

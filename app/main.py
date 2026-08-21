@@ -220,6 +220,71 @@ app.include_router(dispatch_router, prefix="/api/dispatch", tags=["실시간 배
 app.include_router(sdui_router, prefix="/api/sdui", tags=["SDUI 서버드리븐 UI"])
 app.include_router(files_router, prefix="/api/files", tags=["파일 업로드"])
 
+from fastapi.responses import StreamingResponse, FileResponse
+import httpx
+
+@app.get("/static/uploads/{category}/{filename}", tags=["파일 프록시"])
+async def proxy_static_uploads(category: str, filename: str):
+    # 1. Supabase Storage에서 파일 조회 시도
+    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/{category}/{filename}"
+    headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
+    
+    try:
+        client = httpx.AsyncClient()
+        req = client.build_request("GET", supabase_url, headers=headers)
+        resp = await client.send(req, stream=True)
+        if resp.status_code == 200:
+            return StreamingResponse(
+                resp.iter_bytes(),
+                status_code=200,
+                headers={
+                    "Content-Type": resp.headers.get("Content-Type", "application/octet-stream"),
+                    "Content-Disposition": resp.headers.get("Content-Disposition", "")
+                }
+            )
+        else:
+            await resp.aclose()
+    except Exception as e:
+        logger.error(f"Supabase file proxy error for static/uploads: {str(e)}")
+
+    # 2. 로컬 디스크 파일로 fallback (기존 파일 호환용)
+    local_path = os.path.join(os.path.dirname(__file__), "static", "uploads", category, filename)
+    if os.path.exists(local_path):
+        return FileResponse(local_path)
+        
+    return HTMLResponse(status_code=404, content="File not found")
+
+@app.get("/uploads/{category}/{filename}", tags=["파일 프록시"])
+async def proxy_uploads(category: str, filename: str):
+    # 1. Supabase Storage에서 파일 조회 시도
+    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/{category}/{filename}"
+    headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
+    
+    try:
+        client = httpx.AsyncClient()
+        req = client.build_request("GET", supabase_url, headers=headers)
+        resp = await client.send(req, stream=True)
+        if resp.status_code == 200:
+            return StreamingResponse(
+                resp.iter_bytes(),
+                status_code=200,
+                headers={
+                    "Content-Type": resp.headers.get("Content-Type", "application/octet-stream"),
+                    "Content-Disposition": resp.headers.get("Content-Disposition", "")
+                }
+            )
+        else:
+            await resp.aclose()
+    except Exception as e:
+        logger.error(f"Supabase file proxy error for uploads: {str(e)}")
+
+    # 2. 로컬 디스크 파일로 fallback (기존 파일 호환용)
+    local_path = os.path.join(os.getcwd(), "uploads", category, filename)
+    if os.path.exists(local_path):
+        return FileResponse(local_path)
+        
+    return HTMLResponse(status_code=404, content="File not found")
+
 # Static Files Mount
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 uploads_dir = os.path.join(os.getcwd(), "uploads")

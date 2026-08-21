@@ -606,12 +606,21 @@ async def upload_document(
             detail="파일 용량이 10MB를 초과했습니다. 10MB 이하의 파일만 업로드 가능합니다."
         )
 
-    # 4. 난수화된 안전 파일명 생성 & 물리 파일 디스크 저장
+    # 4. 난수화된 안전 파일명 생성 & Supabase Storage 업로드
     safe_file_name = f"{uuid.uuid4().hex}_{raw_file_name}"
-    file_path = os.path.join(UPLOAD_DIR, safe_file_name)
-    
-    with open(file_path, "wb") as f:
-        f.write(contents)
+    try:
+        from app.core.storage import upload_to_supabase
+        await upload_to_supabase(
+            content=contents,
+            content_type=file.content_type or "application/octet-stream",
+            category="documents",
+            filename=safe_file_name
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Supabase 스토리지 파일 저장 중 에러가 발생했습니다: {str(e)}"
+        )
 
     # 4. DB 정보 갱신
     query = select(UserUploadedDocument).where(
