@@ -708,7 +708,7 @@ async def stream_user_document(
 
     # 3. Supabase Storage 조회 및 스트리밍 시도
     safe_file_name = os.path.basename(doc.file_name)
-    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/documents/{safe_file_name}"
+    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/upload/documents/{safe_file_name}"
     headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
     
     # 확장자에 따른 Content-Type 지정
