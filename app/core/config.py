@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # Supabase Storage Configuration
     SUPABASE_URL: str = "https://vvdydhxmwdrrazwyjvvu.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2ZHlkaHhtd2RycmF6d3lqdnZ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTY4NjY0MzIwMCwiZXhwIjoyMDAyMjE5MjAwfQ.example"
-    SUPABASE_BUCKET_NAME: str = "dumpring-files"
+    SUPABASE_BUCKET_NAME: str = "dumpring-documents"
 
 
 

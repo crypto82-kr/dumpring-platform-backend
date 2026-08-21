@@ -238,12 +238,20 @@ async def proxy_static_uploads(category: str, filename: str):
     headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
     
     try:
-        client = httpx.AsyncClient()
+        client = httpx.AsyncClient(timeout=30.0)
         req = client.build_request("GET", supabase_url, headers=headers)
         resp = await client.send(req, stream=True)
         if resp.status_code == 200:
+            async def file_streamer():
+                try:
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+                finally:
+                    await resp.aclose()
+                    await client.aclose()
+
             return StreamingResponse(
-                resp.iter_bytes(),
+                file_streamer(),
                 status_code=200,
                 headers={
                     "Content-Type": resp.headers.get("Content-Type", "application/octet-stream"),
@@ -252,6 +260,7 @@ async def proxy_static_uploads(category: str, filename: str):
             )
         else:
             await resp.aclose()
+            await client.aclose()
     except Exception as e:
         logger.error(f"Supabase file proxy error for static/uploads: {str(e)}")
         
@@ -272,12 +281,20 @@ async def proxy_uploads(category: str, filename: str):
     headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
     
     try:
-        client = httpx.AsyncClient()
+        client = httpx.AsyncClient(timeout=30.0)
         req = client.build_request("GET", supabase_url, headers=headers)
         resp = await client.send(req, stream=True)
         if resp.status_code == 200:
+            async def file_streamer():
+                try:
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+                finally:
+                    await resp.aclose()
+                    await client.aclose()
+
             return StreamingResponse(
-                resp.iter_bytes(),
+                file_streamer(),
                 status_code=200,
                 headers={
                     "Content-Type": resp.headers.get("Content-Type", "application/octet-stream"),
@@ -286,6 +303,7 @@ async def proxy_uploads(category: str, filename: str):
             )
         else:
             await resp.aclose()
+            await client.aclose()
     except Exception as e:
         logger.error(f"Supabase file proxy error for uploads: {str(e)}")
         

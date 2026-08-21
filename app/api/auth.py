@@ -606,15 +606,15 @@ async def upload_document(
             detail="파일 용량이 10MB를 초과했습니다. 10MB 이하의 파일만 업로드 가능합니다."
         )
 
-    # 4. 난수화된 안전 파일명 생성 & Supabase Storage 업로드
-    safe_file_name = f"{uuid.uuid4().hex}_{raw_file_name}"
+    # 4. S3/Supabase Storage용 영문+숫자 안전 파일 키 생성 (한글 특수문자 키 에러 방지)
+    storage_file_key = f"{uuid.uuid4().hex}{ext}"
     try:
         from app.core.storage import upload_to_supabase
         await upload_to_supabase(
             content=contents,
             content_type=file.content_type or "application/octet-stream",
             category="documents",
-            filename=safe_file_name
+            filename=storage_file_key
         )
     except Exception as e:
         raise HTTPException(
@@ -622,7 +622,7 @@ async def upload_document(
             detail=f"Supabase 스토리지 파일 저장 중 에러가 발생했습니다: {str(e)}"
         )
 
-    # 4. DB 정보 갱신
+    # 5. DB 정보 갱신 및 이전 물리 파일 자동 삭제
     query = select(UserUploadedDocument).where(
         UserUploadedDocument.user_id == current_user.id,
         UserUploadedDocument.document_code == document_code
@@ -631,18 +631,27 @@ async def upload_document(
     existing_doc = result.scalars().first()
     
     if existing_doc:
-        existing_doc.file_name = safe_file_name
+        old_file_name = existing_doc.file_name
+        existing_doc.file_name = storage_file_key
+        # 이전 물리 파일이 있으면 Supabase Storage에서 자동 삭제
+        if old_file_name:
+            try:
+                from app.core.storage import delete_from_supabase
+                await delete_from_supabase(category="documents", filename=old_file_name)
+                logger.info(f"이전 서류 파일 삭제 완료: {old_file_name}")
+            except Exception as del_err:
+                logger.warning(f"이전 서류 파일 삭제 실패 (무시): {del_err}")
     else:
         new_doc = UserUploadedDocument(
             user_id=current_user.id,
             document_code=document_code,
-            file_name=safe_file_name
+            file_name=storage_file_key
         )
         db.add(new_doc)
         
     await db.commit()
-    logger.info(f"유저 [ID: {current_user.id}] 실물 서류 파일 물리 저장 완료: {safe_file_name}")
-    return {"message": "서류 실물 파일이 성공적으로 업로드 및 저장되었습니다.", "file_name": safe_file_name}
+    logger.info(f"유저 [ID: {current_user.id}] 실물 서류 파일 물리 저장 완료: {storage_file_key}")
+    return {"message": "서류 실물 파일이 성공적으로 업로드 및 저장되었습니다.", "file_name": storage_file_key}
 
 
 @router.get(
@@ -726,16 +735,24 @@ async def stream_user_document(
     import httpx
     from fastapi.responses import StreamingResponse
     try:
-        client = httpx.AsyncClient()
+        client = httpx.AsyncClient(timeout=30.0)
         req = client.build_request("GET", supabase_url, headers=headers)
         resp = await client.send(req, stream=True)
         if resp.status_code == 200:
+            async def file_streamer():
+                try:
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+                finally:
+                    await resp.aclose()
+                    await client.aclose()
+
             return StreamingResponse(
-                resp.iter_bytes(),
+                file_streamer(),
                 status_code=200,
                 headers={
                     "Content-Type": resp.headers.get("Content-Type", media_type),
-                    "Content-Disposition": resp.headers.get("Content-Disposition", ""),
+                    "Content-Disposition": f"inline; filename={safe_file_name}",
                     "Cache-Control": "private, no-cache, no-store, must-revalidate",
                     "Pragma": "no-cache",
                     "Expires": "0"
@@ -743,6 +760,7 @@ async def stream_user_document(
             )
         else:
             await resp.aclose()
+            await client.aclose()
     except Exception as e:
         logger.error(f"Supabase file streaming error for document {doc_code}: {str(e)}")
 
