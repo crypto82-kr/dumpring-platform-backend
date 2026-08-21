@@ -42,6 +42,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   bool _isLoadingWaitingMatch = false;
   List<dynamic> _myDropOffs = [];
   bool _isLoadingMyDropOffs = false;
+  List<dynamic> _myRequests = [];
+  bool _isLoadingMyRequests = false;
+  int? _selectedDropOffId;
 
   @override
   void initState() {
@@ -51,6 +54,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     _fetchArrivedTickets();
     _fetchWaitingMatchJobs();
     _fetchMyDropOffs();
+    _fetchMyRequests();
+    _fetchCompletedTickets();
     
     // 2초마다 도착 차량을 실시간 갱신하는 타이머 가동 (실시간 양방향 매칭 연동 🚨)
     _refreshTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
@@ -87,6 +92,56 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     }
   }
 
+  bool _isLoadingCompleted = false;
+
+  // 1.2 하차 완료 차량 실시간 조회 API 연동
+  Future<void> _fetchCompletedTickets() async {
+    if (_isLoadingCompleted) return;
+    setState(() => _isLoadingCompleted = true);
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/completed-tickets"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        setState(() {
+          _completedImports.clear();
+          for (var item in data) {
+            final carNum = item['car']?['car_number'] ?? "알 수 없음";
+            final tonnage = (item['car']?['tonnage'] ?? 25.5).toDouble();
+            final completedAtStr = item['completed_at'] ?? "";
+            String timeStr = "";
+            if (completedAtStr.isNotEmpty) {
+              try {
+                final dt = DateTime.parse(completedAtStr).toLocal();
+                timeStr = "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+              } catch (_) {
+                timeStr = completedAtStr;
+              }
+            }
+            _completedImports.add({
+              "id": item['id'],
+              "car_number": carNum,
+              "tonnage": tonnage,
+              "soil": _translateMaterial(item['soil_type']),
+              "time": timeStr,
+              "fare": item['accumulated_fare'] ?? 0,
+              "drop_off_id": item['job_post']?['matched_drop_off_id'],
+            });
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("완료 이력 조회 실패: $e");
+    } finally {
+      setState(() => _isLoadingCompleted = false);
+    }
+  }
+
   // 2. 하차 최종 판정(승인/거절) API 연동
   Future<void> _submitInspection(int ticketId, String decision, String soilType) async {
     try {
@@ -104,18 +159,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
       if (response.statusCode == 200) {
         _fetchArrivedTickets();
-        setState(() {
-          if (decision == "APPROVED") {
-            _currentImportedTons += 25.5; // 평균 중량 가산
-            _completedImports.insert(0, {
-              "car_number": "덤프 트럭 #$ticketId",
-              "tonnage": 25.5,
-              "soil": soilType,
-              "time": "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}",
-              "fare": 95000,
-            });
-          }
-        });
+        _fetchCompletedTickets();
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -241,12 +285,66 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       if (response.statusCode == 200) {
         setState(() {
           _myDropOffs = jsonDecode(utf8.decode(response.bodyBytes));
+          if (_selectedDropOffId == null && _myDropOffs.isNotEmpty) {
+            _selectedDropOffId = _myDropOffs.first['id'];
+          }
         });
       }
     } catch (e) {
       debugPrint("하차지 목록 조회 실패: $e");
     } finally {
       setState(() => _isLoadingMyDropOffs = false);
+    }
+  }
+
+  // 지주가 올린 전체 수용 공고 목록 조회
+  Future<void> _fetchMyRequests() async {
+    setState(() => _isLoadingMyRequests = true);
+    final endpoint = "$_baseUrl/api/drop-offs/my/requests";
+    try {
+      final response = await http.get(
+        Uri.parse(endpoint),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          _myRequests = jsonDecode(utf8.decode(response.bodyBytes));
+        });
+      }
+    } catch (e) {
+      debugPrint("수용 공고 목록 조회 실패: $e");
+    } finally {
+      setState(() => _isLoadingMyRequests = false);
+    }
+  }
+
+  // 수용 공고 삭제
+  Future<void> _deleteRequest(int requestId) async {
+    final endpoint = "$_baseUrl/api/drop-offs/requests/$requestId";
+    try {
+      final response = await http.delete(
+        Uri.parse(endpoint),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("🗑️ 수용 공고가 성공적으로 삭제되었습니다.")),
+        );
+        _fetchMyRequests();
+      } else {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("오류: ${decoded['detail'] ?? '삭제 실패'}")),
+        );
+      }
+    } catch (e) {
+      debugPrint("수용 공고 삭제 실패: $e");
     }
   }
 
@@ -387,7 +485,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text("주행 기사 ID: ${ticket['driver_id']}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black))),
+                    Text("차량 번호: ${ticket['car'] != null ? ticket['car']['car_number'] : '알 수 없음'}", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black))),
+                    const SizedBox(height: 6),
+                    Text("주행 기사 ID: ${ticket['driver_id']}", style: TextStyle(fontSize: 13, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)))),
                     const SizedBox(height: 6),
                     Text("주행 거리: ${ticket['drive_distance_km']} km", style: const TextStyle(fontSize: 13, color: Colors.grey)),
                     Text("누적 요금: ${ticket['accumulated_fare']} 원", style: const TextStyle(fontSize: 13, color: Colors.grey)),
@@ -472,13 +572,68 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     );
   }
 
+  Widget _buildDropOffSelector() {
+    if (_myDropOffs.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _selectedDropOffId,
+          hint: const Text("사토장을 선택하세요"),
+          isExpanded: true,
+          dropdownColor: Theme.of(context).cardColor,
+          icon: Icon(Icons.keyboard_arrow_down, color: Theme.of(context).colorScheme.primary),
+          items: _myDropOffs.map<DropdownMenuItem<int>>((dynamic drop) {
+            return DropdownMenuItem<int>(
+              value: drop['id'] as int,
+              child: Text(
+                drop['name'] ?? '하차지',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            );
+          }).toList(),
+          onChanged: (int? newValue) {
+            setState(() {
+              _selectedDropOffId = newValue;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   // Tab 0: 반입 관제 화면 빌드
   Widget _buildTab0Control() {
-    final double percent = (_currentImportedTons / _dailyLimitTons).clamp(0.0, 1.0);
+    double importedTons = 0.0;
+    double limitTons = 0.0;
+    
+    if (_selectedDropOffId != null) {
+      final activeRequests = _myRequests.where((r) => r['drop_off_id'] == _selectedDropOffId);
+      for (var req in activeRequests) {
+        limitTons += req['target_quantity'] * 25.5;
+      }
+      
+      final completedForDropOff = _completedImports.where((item) => item['drop_off_id'] == _selectedDropOffId);
+      for (var item in completedForDropOff) {
+        importedTons += item['tonnage'];
+      }
+    }
+    
+    final double percent = limitTons > 0.0 ? (importedTons / limitTons).clamp(0.0, 1.0) : 0.0;
+
     return RefreshIndicator(
       onRefresh: () async {
         _fetchPendingB2BJobs();
         _fetchArrivedTickets();
+        _fetchMyDropOffs();
+        _fetchMyRequests();
+        await _fetchCompletedTickets();
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -486,9 +641,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildLimitCard(percent),
-            const SizedBox(height: 20),
-            _buildB2BMatchApprovalsSection(),
+            _buildDropOffSelector(),
+            _buildLimitCard(percent, importedTons, limitTons),
             const SizedBox(height: 20),
             _buildWaitingQueueSection(),
             const SizedBox(height: 20),
@@ -704,8 +858,189 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     );
   }
 
-  // Tab 2: 하차지 설정 및 수용 설정 화면 빌드
-  Widget _buildTab2Settings() {
+  // Tab 2: 내가 등록한 수용 공고 목록 화면 빌드
+  Widget _buildTab2Requests() {
+    final filteredRequests = _selectedDropOffId == null
+        ? _myRequests
+        : _myRequests.where((r) => r['drop_off_id'] == _selectedDropOffId).toList();
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        _fetchMyRequests();
+        _fetchPendingB2BJobs();
+        _fetchMyDropOffs();
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildDropOffSelector(),
+            _buildB2BMatchApprovalsSection(),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "📄 내 수용 공고 목록",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
+                  ),
+                ),
+                Text(
+                  "총 ${filteredRequests.length}건",
+                  style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_isLoadingMyRequests)
+              const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()))
+            else if (filteredRequests.isEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 36),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+                ),
+                child: const Center(
+                  child: Text(
+                    "등록된 수용 공고가 없습니다.",
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filteredRequests.length,
+                itemBuilder: (context, index) {
+                  final req = filteredRequests[index];
+                    final double progressPercent = req['target_quantity'] > 0
+                        ? (req['current_quantity'] / req['target_quantity']).clamp(0.0, 1.0)
+                        : 0.0;
+
+                    return Card(
+                      color: Theme.of(context).cardColor,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    req['drop_off_name'] ?? '하차지',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: req['status'] == 'OPEN' ? Colors.green.withOpacity(0.15) : Colors.grey.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    req['status'] == 'OPEN' ? "진행중" : "마감됨",
+                                    style: TextStyle(
+                                      color: req['status'] == 'OPEN' ? Colors.green : Colors.grey,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text("토사 종류: ${_translateMaterial(req['material_type'])}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text("차량 규격: ${_translateTruck(req['truck_type'])}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text("수용 단가: ${_formatter(req['unit_price'])} 원", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text("정산/정리: ${_translatePayer(req['payer_type'])} (${req['payment_method'] == 'MONTHLY' ? '월정산' : '일정산'})", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            const Divider(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text("매칭 달성률", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                Text(
+                                  "${req['current_quantity']} / ${req['target_quantity']} 대 (${(progressPercent * 100).toInt()}%)",
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: progressPercent,
+                                backgroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB)),
+                                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                                minHeight: 6,
+                              ),
+                            ),
+                            if (req['status'] == 'OPEN') ...[
+                              const Divider(height: 24),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text("공고 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
+                                          content: const Text("해당 수용 공고를 정말 삭제하시겠습니까?\n진행 중인 매칭 요청이 있는 경우 삭제되지 않습니다."),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소")),
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+                                              onPressed: () => Navigator.pop(ctx, true),
+                                              child: const Text("삭제", style: TextStyle(color: Colors.white)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirm == true) {
+                                        _deleteRequest(req['id']);
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppColors.danger,
+                                      side: const BorderSide(color: AppColors.danger),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    ),
+                                    icon: const Icon(Icons.delete_outline, size: 14),
+                                    label: const Text("공고 삭제", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+  }
+
+  // Tab 3: 하차지 설정 및 수용 설정 화면 빌드
+  Widget _buildTab3Settings() {
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
@@ -1104,7 +1439,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               ? "반입 관제 시스템"
               : _currentTabIndex == 1
                   ? "상차지 매칭 신청"
-                  : "하차지 설정 및 수용 등록",
+                  : _currentTabIndex == 2
+                      ? "수용 공고 관리"
+                      : "하차지 설정 및 수용 등록",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
@@ -1119,7 +1456,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           children: [
             _buildTab0Control(),
             _buildTab1Matching(),
-            _buildTab2Settings(),
+            _buildTab2Requests(),
+            _buildTab3Settings(),
           ],
         ),
       ),
@@ -1136,22 +1474,26 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             _fetchWaitingMatchJobs();
             _fetchMyDropOffs();
           } else if (index == 2) {
+            _fetchMyRequests();
+          } else if (index == 3) {
             _fetchMyDropOffs();
           }
         },
         backgroundColor: Theme.of(context).cardColor,
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed, // 4개 이상의 탭 시 디자인 밀림 방지
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: "반입 관제"),
           BottomNavigationBarItem(icon: Icon(Icons.compare_arrows), label: "상차지 매칭"),
+          BottomNavigationBarItem(icon: Icon(Icons.campaign_outlined), label: "공고 관리"),
           BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: "하차지 설정"),
         ],
       ),
     );
   }
 
-  Widget _buildLimitCard(double percent) {
+  Widget _buildLimitCard(double percent, double importedTons, double limitTons) {
     return Card(
       color: Theme.of(context).cardColor, // 다크 카드
       elevation: 4,
@@ -1176,10 +1518,10 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  "${_currentImportedTons.toStringAsFixed(1)} 톤 수용",
+                  "${importedTons.toStringAsFixed(1)} 톤 수용",
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
                 ),
-                Text("일일 한도 ${_dailyLimitTons.toStringAsFixed(0)} 톤", style: TextStyle(fontSize: 12, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)))),
+                Text("일일 한도 ${limitTons.toStringAsFixed(0)} 톤", style: TextStyle(fontSize: 12, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)))),
               ],
             ),
             const SizedBox(height: 12),
@@ -1199,20 +1541,24 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   }
 
   Widget _buildB2BMatchApprovalsSection() {
+    final filteredB2BJobs = _selectedDropOffId == null
+        ? _pendingB2BJobs
+        : _pendingB2BJobs.where((j) => j['matched_drop_off_id'] == _selectedDropOffId || (j['drop_off_request'] != null && j['drop_off_request']['drop_off_id'] == _selectedDropOffId)).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: const [
-            Text("🤝 B2B 매칭 오더 승인 대기열", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            Text("지주 승인 필요", style: TextStyle(fontSize: 11, color: Color(0xFFFF7A00), fontWeight: FontWeight.bold)),
+          children: [
+            const Text("🤝 상차지 매칭 요청 목록", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            Text("대기 ${filteredB2BJobs.length}건", style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 12),
         if (_isLoadingB2B)
           const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()))
-        else if (_pendingB2BJobs.isEmpty)
+        else if (filteredB2BJobs.isEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
             decoration: BoxDecoration(
@@ -1220,15 +1566,15 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
             ),
-            child: const Center(child: Text("대기 중인 B2B 매칭 오더가 없습니다.", style: TextStyle(color: Colors.grey, fontSize: 12))),
+            child: const Center(child: Text("대기 중인 상차지 매칭 요청이 없습니다.", style: TextStyle(color: Colors.grey, fontSize: 12))),
           )
         else
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _pendingB2BJobs.length,
+            itemCount: filteredB2BJobs.length,
             itemBuilder: (context, index) {
-              final job = _pendingB2BJobs[index];
+              final job = filteredB2BJobs[index];
               return Card(
                 color: Theme.of(context).cardColor,
                 margin: const EdgeInsets.only(bottom: 10),
@@ -1245,7 +1591,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(job['site_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text(job['site_name'] ?? '상차지 현장', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           Text("차량 ${job['required_trucks']}대", style: const TextStyle(color: Colors.grey, fontSize: 11)),
                         ],
                       ),
@@ -1284,6 +1630,10 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   }
 
   Widget _buildWaitingQueueSection() {
+    final filteredArrivedTickets = _selectedDropOffId == null
+        ? _arrivedTickets
+        : _arrivedTickets.where((t) => t['job_post'] != null && (t['job_post']['matched_drop_off_id'] == _selectedDropOffId || (t['job_post']['drop_off_request'] != null && t['job_post']['drop_off_request']['drop_off_id'] == _selectedDropOffId))).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1291,11 +1641,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text("🚚 실시간 게이트 반입 대기열", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)))),
-            Text("GPS 실시간 연동", style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+            Text("대기 ${filteredArrivedTickets.length}대", style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 12),
-        if (_arrivedTickets.isEmpty)
+        if (filteredArrivedTickets.isEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 36),
             decoration: BoxDecoration(
@@ -1309,9 +1659,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _arrivedTickets.length,
+            itemCount: filteredArrivedTickets.length,
             itemBuilder: (context, index) {
-              final ticket = _arrivedTickets[index];
+              final ticket = filteredArrivedTickets[index];
               return Card(
                 color: Theme.of(context).cardColor,
                 margin: const EdgeInsets.only(bottom: 10),
@@ -1321,7 +1671,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   side: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB)), width: 1),
                 ),
                 child: ListTile(
-                  title: Text("덤프트럭 티켓 #${ticket['id']}", style: TextStyle(fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)))),
+                  title: Text(ticket['car'] != null ? ticket['car']['car_number'] : "덤프트럭 티켓 #${ticket['id']}", style: TextStyle(fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)))),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1372,20 +1722,22 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   }
 
   Widget _buildCompletedSection() {
+    final filteredCompleted = _completedImports.where((item) => item['drop_off_id'] == _selectedDropOffId).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text("📊 오늘 반입 완료 이력", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
-        if (_completedImports.isEmpty)
+        if (filteredCompleted.isEmpty)
           const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text("오늘 완료된 이력이 없습니다.", style: TextStyle(color: Colors.grey, fontSize: 12)))
         else
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _completedImports.length,
+            itemCount: filteredCompleted.length,
             itemBuilder: (context, index) {
-              final item = _completedImports[index];
+              final item = filteredCompleted[index];
               return Card(
                 color: Theme.of(context).cardColor,
                 margin: const EdgeInsets.only(bottom: 8),
@@ -1430,8 +1782,10 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     }
   }
 
-  String _formatter(int val) {
-    return val.toString().replaceAllMapped(
+  String _formatter(dynamic val) {
+    if (val == null) return "0";
+    final intValue = val is num ? val.toInt() : (int.tryParse(val.toString()) ?? 0);
+    return intValue.toString().replaceAllMapped(
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (Match m) => '${m[1]},',
         );

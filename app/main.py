@@ -225,7 +225,7 @@ import httpx
 
 @app.get("/static/uploads/{category}/{filename}", tags=["파일 프록시"])
 async def proxy_static_uploads(category: str, filename: str):
-    # 1. Supabase Storage에서 파일 조회 시도
+    # Supabase Storage에서 파일 조회 및 스트리밍
     supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/{category}/{filename}"
     headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
     
@@ -246,17 +246,12 @@ async def proxy_static_uploads(category: str, filename: str):
             await resp.aclose()
     except Exception as e:
         logger.error(f"Supabase file proxy error for static/uploads: {str(e)}")
-
-    # 2. 로컬 디스크 파일로 fallback (기존 파일 호환용)
-    local_path = os.path.join(os.path.dirname(__file__), "static", "uploads", category, filename)
-    if os.path.exists(local_path):
-        return FileResponse(local_path)
         
     return HTMLResponse(status_code=404, content="File not found")
 
 @app.get("/uploads/{category}/{filename}", tags=["파일 프록시"])
 async def proxy_uploads(category: str, filename: str):
-    # 1. Supabase Storage에서 파일 조회 시도
+    # Supabase Storage에서 파일 조회 및 스트리밍
     supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/{category}/{filename}"
     headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
     
@@ -277,11 +272,6 @@ async def proxy_uploads(category: str, filename: str):
             await resp.aclose()
     except Exception as e:
         logger.error(f"Supabase file proxy error for uploads: {str(e)}")
-
-    # 2. 로컬 디스크 파일로 fallback (기존 파일 호환용)
-    local_path = os.path.join(os.getcwd(), "uploads", category, filename)
-    if os.path.exists(local_path):
-        return FileResponse(local_path)
         
     return HTMLResponse(status_code=404, content="File not found")
 
