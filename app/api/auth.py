@@ -706,15 +706,11 @@ async def stream_user_document(
             detail="제출된 서류 정보를 찾을 수 없습니다."
         )
 
-    # 3. 물리 파일 존재 여부 및 경로 조작 검증
+    # 3. Supabase Storage 조회 및 스트리밍 시도
     safe_file_name = os.path.basename(doc.file_name)
-    file_path = os.path.join(UPLOAD_DIR, safe_file_name)
-    if not os.path.exists(file_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="서버 스토리지에 실제 파일이 존재하지 않습니다."
-        )
-
+    supabase_url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET_NAME}/documents/{safe_file_name}"
+    headers = {"Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"}
+    
     # 확장자에 따른 Content-Type 지정
     _, ext = os.path.splitext(safe_file_name)
     ext = ext.lower()
@@ -727,14 +723,45 @@ async def stream_user_document(
     }
     media_type = media_types.get(ext, "application/octet-stream")
 
-    return FileResponse(
-        path=file_path,
-        media_type=media_type,
-        headers={
-            "Cache-Control": "private, no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0"
-        }
+    import httpx
+    from fastapi.responses import StreamingResponse
+    try:
+        client = httpx.AsyncClient()
+        req = client.build_request("GET", supabase_url, headers=headers)
+        resp = await client.send(req, stream=True)
+        if resp.status_code == 200:
+            return StreamingResponse(
+                resp.iter_bytes(),
+                status_code=200,
+                headers={
+                    "Content-Type": resp.headers.get("Content-Type", media_type),
+                    "Content-Disposition": resp.headers.get("Content-Disposition", ""),
+                    "Cache-Control": "private, no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+        else:
+            await resp.aclose()
+    except Exception as e:
+        logger.error(f"Supabase file streaming error for document {doc_code}: {str(e)}")
+
+    # 4. 로컬 디스크 파일 fallback (기존 파일 호환용)
+    file_path = os.path.join(UPLOAD_DIR, safe_file_name)
+    if os.path.exists(file_path):
+        return FileResponse(
+            path=file_path,
+            media_type=media_type,
+            headers={
+                "Cache-Control": "private, no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="서버 스토리지에 실제 파일이 존재하지 않습니다."
     )
 
 
