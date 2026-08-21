@@ -741,9 +741,10 @@ export function PlatformAdminUnifiedApproval({
 
                       if (displaySrc) {
                         if (isPdfDoc) {
+                          const cleanPdfSrc = displaySrc.includes("#") ? displaySrc : `${displaySrc}#toolbar=0&navpanes=0&scrollbar=1`;
                           return (
                             <iframe
-                              src={displaySrc}
+                              src={cleanPdfSrc}
                               title="제출 증빙 PDF 서류"
                               className="w-full h-full rounded-2xl bg-white border-0"
                             />
@@ -998,7 +999,7 @@ export function PlatformAdminUnifiedApproval({
               {displaySrc ? (
                 isPdfDoc ? (
                   <iframe
-                    src={displaySrc}
+                    src={displaySrc.includes("#") ? displaySrc : `${displaySrc}#toolbar=0&navpanes=0&scrollbar=1`}
                     title={currentDocTitle}
                     className="w-full h-full rounded-2xl bg-white border-0"
                   />
