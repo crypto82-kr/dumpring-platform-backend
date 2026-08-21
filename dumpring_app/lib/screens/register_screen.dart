@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
+import '../shared/file_picker_helper.dart';
 
 class RegisterScreen extends StatefulWidget {
   final bool initialIsDriver;
@@ -89,13 +90,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _pickAndUploadDocument(String docCode) async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
-
-      if (image == null) return;
+      final SelectedFile? file = await FilePickerHelper.pickFile();
+      if (file == null) return;
 
       setState(() {
         _uploadingStates[docCode] = true;
@@ -107,12 +103,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Uri.parse("${AppConfig.baseUrl}/api/files/upload"),
       );
 
-      final bytes = await image.readAsBytes();
       final multipartFile = http.MultipartFile.fromBytes(
         'file',
-        bytes,
-        filename: image.name,
-        contentType: MediaType('image', 'jpeg'),
+        file.bytes,
+        filename: file.name,
+        contentType: MediaType('application', 'octet-stream'),
       );
 
       request.files.add(multipartFile);

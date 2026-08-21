@@ -4,6 +4,7 @@ import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:http_parser/http_parser.dart';
+import '../shared/file_picker_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
@@ -293,33 +294,25 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
   Future<void> _uploadDocument(String docType) async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
-
-      if (image == null) return;
-
-      final bytes = await image.readAsBytes();
-      final String imagePath = image.path;
+      final SelectedFile? file = await FilePickerHelper.pickFile();
+      if (file == null) return;
 
       setState(() {
         if (docType == 'REG') {
           _isUploadingRegFile = true;
-          _machineryRegFile = image.name;
-          _machineryRegUrl = imagePath;
-          _machineryRegBytes = bytes;
+          _machineryRegFile = file.name;
+          _machineryRegUrl = file.path ?? file.name;
+          _machineryRegBytes = file.bytes;
         } else if (docType == 'BIZ') {
           _isUploadingBizFile = true;
-          _bizLicenseFile = image.name;
-          _bizLicenseUrl = imagePath;
-          _bizLicenseBytes = bytes;
+          _bizLicenseFile = file.name;
+          _bizLicenseUrl = file.path ?? file.name;
+          _bizLicenseBytes = file.bytes;
         } else if (docType == 'INS') {
           _isUploadingInsuranceFile = true;
-          _insuranceFile = image.name;
-          _insuranceUrl = imagePath;
-          _insuranceBytes = bytes;
+          _insuranceFile = file.name;
+          _insuranceUrl = file.path ?? file.name;
+          _insuranceBytes = file.bytes;
         }
       });
 
@@ -331,9 +324,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
       final multipartFile = http.MultipartFile.fromBytes(
         'file',
-        bytes,
-        filename: image.name,
-        contentType: MediaType('image', 'jpeg'),
+        file.bytes,
+        filename: file.name,
+        contentType: MediaType('application', 'octet-stream'),
       );
 
       request.files.add(multipartFile);
