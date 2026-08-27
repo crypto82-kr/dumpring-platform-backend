@@ -9,6 +9,7 @@ interface RegisterScreenProps {
 }
 
 export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
+  const API_BASE_URL = getApiBaseUrl();
   const [role, setRole] = useState<"site_manager" | "site_worker" | "dropoff_manager" | "owner">("site_manager");
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -26,20 +27,51 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 본인인증 시뮬레이션
-  const handleVerifyPhone = () => {
+  // 본인인증 전 DB 사전 검증 및 본인인증 처리 (현재는 모듈 미연동으로 패스 처리)
+  const handleVerifyPhone = async () => {
+    if (!name.trim()) {
+      setErrorMsg("실명/담당자명을 먼저 입력해 주세요.");
+      return;
+    }
     if (!phoneNumber.trim()) {
       setErrorMsg("휴대폰 번호를 입력해 주세요.");
       return;
     }
     setErrorMsg("");
+    setSuccessMsg("");
     setVerifying(true);
     
-    // 1초 후 인증 완료 시뮬레이션
-    setTimeout(() => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/check-phone-register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone_number: phoneNumber,
+          name: name.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.is_available) {
+        setErrorMsg(data.message || "이미 가입되었거나 유효하지 않은 정보입니다.");
+        setVerifying(false);
+        return;
+      }
+
+      // 사전 체크 통과 후 본인인증 시뮬레이션 (현재는 모듈 연동 전이므로 패스 처리)
+      setTimeout(() => {
+        setVerifying(false);
+        setIsVerified(true);
+        if (data.pre_registered_role === "SITE_WORKER") {
+          setSuccessMsg("소속 현장담당자 확인이 완료되었습니다.");
+        } else if (data.pre_registered_role === "DRIVER") {
+          setSuccessMsg("소속 기사 확인이 완료되었습니다.");
+        }
+      }, 700);
+    } catch (err: any) {
+      setErrorMsg("사전 검증 서버 통신에 실패했습니다. 다시 시도해 주세요.");
       setVerifying(false);
-      setIsVerified(true);
-    }, 1000);
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -283,7 +315,25 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
                 </div>
               </div>
 
-              {/* Phone and Verification */}
+              {/* 1. Name (실명/담당자명) */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block px-1">
+                  실명 / 담당자명
+                </label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    disabled={loading || isVerified}
+                    placeholder="홍길동"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-black text-slate-800 dark:text-slate-200 transition-all disabled:opacity-75"
+                  />
+                </div>
+              </div>
+
+              {/* 2. Phone and Verification (휴대폰 번호 및 본인인증) */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block px-1">
                   휴대폰 번호 (로그인 ID)
@@ -324,25 +374,7 @@ export default function RegisterScreen({ onBackToLogin }: RegisterScreenProps) {
                 </div>
               </div>
 
-              {/* Name */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block px-1">
-                  실명 / 담당자명
-                </label>
-                <div className="relative">
-                  <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    disabled={loading}
-                    placeholder="홍길동"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-black text-slate-800 dark:text-slate-200 transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
+              {/* 3. Password */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block px-1">
                   비밀번호

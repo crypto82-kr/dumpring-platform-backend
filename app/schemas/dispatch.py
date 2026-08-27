@@ -35,6 +35,15 @@ class CarInfoResponse(BaseModel):
         orm_mode = True
         from_attributes = True
 
+class DriverInfoResponse(BaseModel):
+    id: int
+    name: str
+    phone_number: str
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
 class DispatchTicketResponse(BaseModel):
     id: int
     job_post_id: int
@@ -52,6 +61,7 @@ class DispatchTicketResponse(BaseModel):
     completed_at: Optional[KstDateTime] = None
     job_post: Optional[JobPostResponse] = None
     pricing_policy: Optional[MeterPricingPolicy] = None
+    driver: Optional[DriverInfoResponse] = None
     car: Optional[CarInfoResponse] = None
 
     class Config:

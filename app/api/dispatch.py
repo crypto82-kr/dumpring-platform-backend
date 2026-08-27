@@ -1305,3 +1305,50 @@ async def get_completed_tickets(
     tickets = ticket_result.scalars().all()
     return await attach_pricing_policy(tickets, db)
 
+
+@router.get(
+    "/job/{job_id}/tickets",
+    response_model=List[DispatchTicketResponse],
+    summary="특정 공고(JobPost)에 매칭/신청된 기사 배차 티켓 목록 조회",
+    description="현장관리자가 자신의 배차 공고를 신청한 기사 목록 및 실시간 운행/진출입 현황을 조회합니다."
+)
+async def get_job_tickets(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from sqlalchemy.orm import selectinload
+    
+    # 1. JobPost 유효성 확인
+    job = await db.get(JobPost, job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="존재하지 않는 배차 공고입니다."
+        )
+
+    # 2. 권한 검증: 관리자이거나, 해당 공고의 작성자이거나, 해당 현장의 관리자인지 확인
+    if not current_user.is_admin and job.author_id != current_user.id:
+        site = await db.get(ConstructionSite, job.site_id)
+        if not site or site.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="해당 배차 공고의 기사 목록을 조회할 권한이 없습니다."
+            )
+
+    # 3. 해당 공고에 연동된 DispatchTicket 목록 조회
+    ticket_query = select(DispatchTicket).where(
+        DispatchTicket.job_post_id == job_id
+    ).options(
+        selectinload(DispatchTicket.driver),
+        selectinload(DispatchTicket.car),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
+    ).order_by(DispatchTicket.accepted_at.desc())
+
+    ticket_result = await db.execute(ticket_query)
+    tickets = ticket_result.scalars().all()
+    return await attach_pricing_policy(tickets, db)
+
+

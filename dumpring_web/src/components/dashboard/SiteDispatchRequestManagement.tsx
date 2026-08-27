@@ -85,6 +85,41 @@ export default function SiteDispatchRequestManagement({
   const [rejectingJobId, setRejectingJobId] = useState<number | null>(null);
   const [rejectionReasonInput, setRejectionReasonInput] = useState<string>("");
 
+  // DB 연동: 실제 배차 신청 기사 티켓 목록
+  const [jobTickets, setJobTickets] = useState<any[]>([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState<boolean>(false);
+
+  // 선택된 배차 요청이 바뀔 때 실제 DB 티켓 조회
+  useEffect(() => {
+    if (!selectedRequestId) {
+      setJobTickets([]);
+      return;
+    }
+
+    const fetchTickets = async () => {
+      setIsLoadingTickets(true);
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const res = await fetch(`/api/dispatch/job/${selectedRequestId}/tickets`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setJobTickets(Array.isArray(data) ? data : []);
+        } else {
+          setJobTickets([]);
+        }
+      } catch (err) {
+        console.error("기사 티켓 조회 실패:", err);
+        setJobTickets([]);
+      } finally {
+        setIsLoadingTickets(false);
+      }
+    };
+
+    fetchTickets();
+  }, [selectedRequestId]);
+
   const resetDispatchForm = () => {
     setDispatchFormSiteId(registeredSiteList[0]?.id || "");
     setDispatchFormTonTypes(["T_25"]);
@@ -365,112 +400,131 @@ export default function SiteDispatchRequestManagement({
                     <th className="py-3 px-4">기사명</th>
                     <th className="py-3 px-4">차량번호</th>
                     <th className="py-3 px-4">연락처</th>
-                    <th className="py-3 px-4">승인 상태</th>
-                    <th className="py-3 px-4">진출입 상태</th>
-                    <th className="py-3 px-4">입/출차 시각</th>
+                    <th className="py-3 px-4">운행 상태</th>
+                    <th className="py-3 px-4">수락/운행 시각</th>
+                    <th className="py-3 px-4">주행거리 / 요금</th>
                     <th className="py-3 px-4 text-right">관리</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
-                  {/* 1. 운행 중 (DRIVING) 기사 사례 */}
-                  <tr className="hover:bg-slate-50/80 transition-all">
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900">
-                      강동원 기사
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                      서울 88바 1234 <span className="text-[10px] font-normal text-slate-500">(25톤)</span>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600">010-8910-1112</td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
-                        승인완료
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-blue-600">
-                      운행 중
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
-                      입차 08:30 / 출차 08:55
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => alert("상단 지도에서 [강동원 기사] 차량의 실시간 동선으로 지도를 이동합니다.")}
-                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
-                      >
-                        지도확인
-                      </button>
-                    </td>
-                  </tr>
+                  {isLoadingTickets ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                        배차 신청 기사 목록을 불러오는 중입니다...
+                      </td>
+                    </tr>
+                  ) : jobTickets.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                        <div className="flex flex-col items-center justify-center space-y-1">
+                          <Truck className="w-6 h-6 text-slate-300 mb-1" />
+                          <p className="font-bold text-slate-600">아직 배차를 신청한 기사가 없습니다.</p>
+                          <p className="text-[11px] text-slate-400">기사가 공고를 수락하면 실시간으로 목록에 반영됩니다.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    jobTickets.map((ticket: any) => {
+                      const driverName = ticket.driver?.name || "기사 (미연동)";
+                      const driverPhone = ticket.driver?.phone_number || "-";
+                      const carNumber = ticket.car?.car_number || "-";
+                      const carTonnage = ticket.car?.tonnage ? `${ticket.car.tonnage}톤` : "";
 
-                  {/* 2. 상차지 입차 (ARRIVED_LOADING) 적재 중 기사 사례 */}
-                  <tr className="hover:bg-slate-50/80 transition-all">
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900">
-                      유재석 기사
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                      인천 82가 9999 <span className="text-[10px] font-normal text-slate-500">(25톤)</span>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600">010-1234-9999</td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
-                        승인완료
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-amber-600">
-                      상차지 입차 (적재중)
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
-                      입차 09:10 / 출차 대기
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => alert("상단 지도에서 [유재석 기사] 현장 입차 위치로 지도를 이동합니다.")}
-                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
-                      >
-                        지도확인
-                      </button>
-                    </td>
-                  </tr>
+                      // 상태 뱃지 매핑
+                      const getStatusBadge = (status: string) => {
+                        switch (status) {
+                          case "ACCEPTED":
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-amber-50 text-amber-600 border border-amber-200">
+                                수락 (상차지 이동)
+                              </span>
+                            );
+                          case "ARRIVED_LOADING":
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-orange-50 text-orange-600 border border-orange-200">
+                                상차지 도착 (적재중)
+                              </span>
+                            );
+                          case "LOADING_APPROVED":
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-blue-50 text-blue-600 border border-blue-200">
+                                상차 승인완료
+                              </span>
+                            );
+                          case "DRIVING":
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-indigo-50 text-indigo-600 border border-indigo-200 animate-pulse">
+                                하차지 운행중
+                              </span>
+                            );
+                          case "ARRIVED":
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-purple-50 text-purple-600 border border-purple-200">
+                                하차지 도착 (확인대기)
+                              </span>
+                            );
+                          case "APPROVED":
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                운행 완료 (정산확정)
+                              </span>
+                            );
+                          case "REJECTED":
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-rose-50 text-rose-600 border border-rose-200">
+                                반려 (회차)
+                              </span>
+                            );
+                          case "CANCELLED":
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-slate-100 text-slate-500 border border-slate-200">
+                                취소됨
+                              </span>
+                            );
+                          default:
+                            return (
+                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-slate-100 text-slate-600">
+                                {status}
+                              </span>
+                            );
+                        }
+                      };
 
-                  {/* 3. 승인대기 기사 사례 */}
-                  <tr className="hover:bg-slate-50/80 transition-all">
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900">
-                      마동석 기사
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                      경기 80사 5678 <span className="text-[10px] font-normal text-slate-500">(25톤)</span>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600">010-5678-1234</td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-amber-50 text-amber-600 border border-amber-200">
-                        승인대기
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-400 font-normal">
-                      -
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
-                      신청 09:05
-                    </td>
-                    <td className="py-3.5 px-4 text-right space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => alert("[마동석 기사] 배차 신청이 승인되었습니다. 실시간 지도 관제가 활성화됩니다.")}
-                        className="px-3 py-1.5 text-xs font-black rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-500/10"
-                      >
-                        승인
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => alert("[마동석 기사] 배차 신청이 반려되었습니다.")}
-                        className="px-3 py-1.5 text-xs font-black rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 active:scale-95 transition-all"
-                      >
-                        반려
-                      </button>
-                    </td>
-                  </tr>
+                      return (
+                        <tr key={ticket.id} className="hover:bg-slate-50/80 transition-all">
+                          <td className="py-3.5 px-4 font-extrabold text-slate-900">
+                            {driverName}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
+                            {carNumber} {carTonnage && <span className="text-[10px] font-normal text-slate-500">({carTonnage})</span>}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-600">
+                            {driverPhone}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {getStatusBadge(ticket.status)}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
+                            {ticket.accepted_at ? new Date(ticket.accepted_at).toLocaleTimeString("ko-KR", { hour: '2-digit', minute: '2-digit' }) : "-"}
+                            {ticket.completed_at && ` ~ ${new Date(ticket.completed_at).toLocaleTimeString("ko-KR", { hour: '2-digit', minute: '2-digit' })}`}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-[11px] text-slate-700">
+                            {ticket.drive_distance_km ? `${ticket.drive_distance_km.toFixed(1)} km` : "0.0 km"}
+                            {ticket.accumulated_fare ? ` / ${ticket.accumulated_fare.toLocaleString()}원` : ""}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => alert(`[${driverName}] 차량의 관제 정보를 확인합니다.`)}
+                              className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
+                            >
+                              관제상세
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

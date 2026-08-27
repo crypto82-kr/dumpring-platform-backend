@@ -333,9 +333,17 @@ export function PlatformAdminUnifiedApproval({
                           </span>
                         </div>
 
-                        <div className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
-                          {item.companyOrSite}
-                        </div>
+                        {/* 현장/하차지인 경우에만 현장명 표시 */}
+                        {(item.typeKey === "SITE_MANAGER" || item.typeKey === "SITE_WORKER") && item.siteName && (
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
+                            {item.siteName}
+                          </div>
+                        )}
+                        {item.typeKey === "DROPOFF" && (item.locationName || item.name) && (
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
+                            {item.locationName || item.name}
+                          </div>
+                        )}
 
                         <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
                           <span>연락처: {item.phone}</span>
@@ -413,51 +421,135 @@ export function PlatformAdminUnifiedApproval({
                 </div>
               )}
 
-              {/* 1. Upper Area: Full Detailed Information Grid */}
+              {/* 1. Upper Area: Full Detailed Information Grid (권한별 맞춤형 상세 정보) */}
               <div className="space-y-2">
                 <h4 className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block px-1">
-                  📋 가입 신청자 상세 정보
+                  📋 가입 신청자 상세 정보 ({selectedItem.typeName})
                 </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">신청자 성명</span>
-                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{selectedItem.name}</span>
+
+                {/* 1) 덤프 기사 전용 상세 정보 그리드 */}
+                {selectedItem.typeKey === "DRIVER" && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-sky-50/50 dark:bg-slate-950 border border-sky-200/60 dark:border-slate-800 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">기사 성명</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-200">{selectedItem.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">기사 연락처</span>
+                      <span className="font-mono font-extrabold text-blue-600 dark:text-blue-400">{selectedItem.phone}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">운전면허 자격</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">1종 대형 면허</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">본인인증 (CI)</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">✓ 휴대폰 본인확인 완료</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">신청자 연락처</span>
-                    <span className="font-mono font-extrabold text-blue-600 dark:text-blue-400">{selectedItem.phone}</span>
+                )}
+
+                {/* 2) 차주 / 운송사 전용 상세 정보 그리드 */}
+                {selectedItem.typeKey === "OWNER" && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-indigo-50/50 dark:bg-slate-950 border border-indigo-200/60 dark:border-slate-800 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">차주(대표) 성명</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-200">{selectedItem.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">차주 연락처</span>
+                      <span className="font-mono font-extrabold text-blue-600 dark:text-blue-400">{selectedItem.phone}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">기사 직접운전(겸직)</span>
+                      <span className={`font-bold ${selectedItem.rawObj?.is_driver ? "text-blue-600" : "text-slate-600"}`}>
+                        {selectedItem.rawObj?.is_driver ? "겸직 (직접 운전)" : "차주 전용"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">본인인증 (CI)</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">✓ 본인인증 완료</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">
-                      {selectedItem.typeKey === "SITE_MANAGER" ? "공사 현장명" : "소속 / 현장명"}
-                    </span>
-                    <span className="font-bold text-slate-700 dark:text-slate-300 truncate block">
-                      {selectedItem.siteName || selectedItem.companyOrSite}
-                    </span>
+                )}
+
+                {/* 3) 공사 현장 관리자 전용 상세 정보 그리드 */}
+                {(selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER") && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-amber-50/50 dark:bg-slate-950 border border-amber-200/60 dark:border-slate-800 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">담당자/관리자 성명</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-200">{selectedItem.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">관리자 연락처</span>
+                      <span className="font-mono font-extrabold text-blue-600 dark:text-blue-400">{selectedItem.phone}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">공사 현장명</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300 truncate block">
+                        {selectedItem.siteName || selectedItem.companyOrSite}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">시공 / 도급 건설사</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300 truncate block">
+                        {selectedItem.companyName || selectedItem.company || "건설사 미등록"}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-[10px] text-slate-400 font-bold block">공사 현장 주소지</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 truncate block">
+                        {selectedItem.address || "현장 주소 미등록"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">사업자등록번호</span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300 truncate block">
+                        {selectedItem.bizRegNo || "000-00-00000"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">본인인증 (CI)</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">✓ 본인인증 완료</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">시공 / 도급 건설사</span>
-                    <span className="font-bold text-slate-700 dark:text-slate-300 truncate block">
-                      {selectedItem.companyName || selectedItem.company || "건설업체"}
-                    </span>
+                )}
+
+                {/* 4) 하차지(사토장) 전용 상세 정보 그리드 */}
+                {selectedItem.typeKey === "DROPOFF" && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-emerald-50/50 dark:bg-slate-950 border border-emerald-200/60 dark:border-slate-800 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">지주/대표 성명</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-200">{selectedItem.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">대표 연락처</span>
+                      <span className="font-mono font-extrabold text-blue-600 dark:text-blue-400">{selectedItem.phone}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">하차지 / 사토장 명칭</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300 truncate block">
+                        {selectedItem.name || selectedItem.companyOrSite}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">토사 반입 허가번호</span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300 truncate block">
+                        {selectedItem.bizRegNo || "허가번호 미등록"}
+                      </span>
+                    </div>
+                    <div className="col-span-3">
+                      <span className="text-[10px] text-slate-400 font-bold block">하차지 상세 주소</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 truncate block">
+                        {selectedItem.address || "하차지 주소 미등록"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block">본인인증 (CI)</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">✓ 본인인증 완료</span>
+                    </div>
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-[10px] text-slate-400 font-bold block">공사 현장 주소지</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300 truncate block">
-                      {selectedItem.address || "현장 주소 미등록"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">사업자등록번호</span>
-                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300 truncate block">
-                      {selectedItem.bizRegNo || "000-00-00000"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">본인인증 (CI)</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">✓ 본인인증 완료</span>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* 2. Lower Area: Proof Verification Area */}
@@ -540,7 +632,27 @@ export function PlatformAdminUnifiedApproval({
                                   : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
                             >
-                              특수형태근로자 교육확인서
+                              특수형태근로자 확인서
+                            </button>
+                            <button
+                              onClick={() => setActiveDocTab("DOC_QUALIFICATION")}
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
+                                activeDocTab === "DOC_QUALIFICATION"
+                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                              }`}
+                            >
+                              화물운송종사자격
+                            </button>
+                            <button
+                              onClick={() => setActiveDocTab("DOC_BANKBOOK")}
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
+                                activeDocTab === "DOC_BANKBOOK"
+                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                              }`}
+                            >
+                              통장사본
                             </button>
                           </>
                         )}
@@ -557,6 +669,16 @@ export function PlatformAdminUnifiedApproval({
                               사업자등록증
                             </button>
                             <button
+                              onClick={() => setActiveDocTab("DOC_MACHINERY")}
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
+                                activeDocTab === "DOC_MACHINERY"
+                                  ? "bg-indigo-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                              }`}
+                            >
+                              건설기계등록증
+                            </button>
+                            <button
                               onClick={() => setActiveDocTab("DOC_INSURANCE")}
                               className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
                                 activeDocTab === "DOC_INSURANCE"
@@ -566,6 +688,41 @@ export function PlatformAdminUnifiedApproval({
                             >
                               화물 종합보험증권
                             </button>
+                            <button
+                              onClick={() => setActiveDocTab("DOC_BANKBOOK")}
+                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
+                                activeDocTab === "DOC_BANKBOOK"
+                                  ? "bg-indigo-600 text-white shadow-md font-extrabold"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                              }`}
+                            >
+                              통장사본
+                            </button>
+                            {/* 겸직 차주인 경우 기사 서류 탭 추가 노출 */}
+                            {(selectedItem.rawObj?.is_driver || selectedItem.rawObj?.is_direct_driver) && (
+                              <>
+                                <button
+                                  onClick={() => setActiveDocTab("DOC_LICENSE")}
+                                  className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
+                                    activeDocTab === "DOC_LICENSE"
+                                      ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100"
+                                  }`}
+                                >
+                                  [기사] 운전면허증
+                                </button>
+                                <button
+                                  onClick={() => setActiveDocTab("DOC_SAFETY")}
+                                  className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
+                                    activeDocTab === "DOC_SAFETY"
+                                      ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100"
+                                  }`}
+                                >
+                                  [기사] 안전교육이수증
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                         {(selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER") && (
@@ -709,13 +866,17 @@ export function PlatformAdminUnifiedApproval({
                     {(() => {
                       let docCode = "LICENSE";
                       if (activeDocTab === "DOC_SAFETY") docCode = "SAFETY_TRAINING";
-                      else if (activeDocTab === "DOC_SPECIAL") docCode = "SPECIAL_LABOR";
+                      else if (activeDocTab === "DOC_SPECIAL") docCode = "SPECIAL_LABOR_TRAINING";
+                      else if (activeDocTab === "DOC_QUALIFICATION") docCode = "QUALIFICATION";
+                      else if (activeDocTab === "DOC_BANKBOOK") docCode = "BANKBOOK";
+                      else if (activeDocTab === "DOC_MACHINERY") docCode = "MACHINERY_REG";
                       else if (activeDocTab === "DOC_INSURANCE") docCode = "INSURANCE";
                       else if (activeDocTab === "DOC_CONTRACT") docCode = "CONSTRUCTION_CONTRACT";
-                      else if (activeDocTab === "DOC_LAND") docCode = "LAND_USE";
+                      else if (activeDocTab === "DOC_LAND") docCode = "LAND_USE_AGREEMENT";
                       else if (activeDocTab === "DOC_BIZ") docCode = "BIZ_LICENSE";
                       else if (activeDocTab === "DOC_DUST") docCode = "DUST_REPORT";
                       else if (activeDocTab === "DOC_PERMIT") docCode = "DEVELOPMENT_PERMIT";
+                      else if (activeDocTab === "DOC_LICENSE") docCode = "LICENSE";
                       else if (activeDocTab === "DOC_1" || !activeDocTab) {
                         if (selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER" || selectedItem.typeKey === "OWNER") {
                           docCode = "BIZ_LICENSE";

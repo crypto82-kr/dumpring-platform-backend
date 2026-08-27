@@ -571,6 +571,7 @@ class DispatchTicket(Base):
 
     # Relationships
     job_post = relationship("JobPost")
+    driver = relationship("User", foreign_keys=[driver_id])
     car = relationship("Car")
 
 

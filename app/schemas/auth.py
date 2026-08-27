@@ -2,6 +2,16 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
 
+class CheckPhoneRegisterRequest(BaseModel):
+    phone_number: str = Field(..., description="휴대폰 번호")
+    name: str = Field(..., description="실명/담당자명")
+
+class CheckPhoneRegisterResponse(BaseModel):
+    is_available: bool
+    status: str # "AVAILABLE", "ALREADY_REGISTERED", "NAME_MISMATCH"
+    message: str
+    pre_registered_role: Optional[str] = None # "SITE_WORKER", "DRIVER"
+
 class DriverRegister(BaseModel):
     """
     덤프 트럭 기사 회원가입 요청 스키마

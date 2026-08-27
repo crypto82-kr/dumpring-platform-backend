@@ -14,7 +14,8 @@ from app.core.db import get_db
 from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus
 from app.schemas.auth import (
     DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse,
-    SiteManagerRegister, SiteWorkerRegister, DropOffRegister
+    SiteManagerRegister, SiteWorkerRegister, DropOffRegister,
+    CheckPhoneRegisterRequest, CheckPhoneRegisterResponse
 )
 from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM, normalize_phone
 from app.core.config import settings
@@ -25,6 +26,81 @@ logger = logging.getLogger("dumpring.auth")
 security = HTTPBearer()
 
 router = APIRouter()
+
+
+@router.post(
+    "/check-phone-register",
+    response_model=CheckPhoneRegisterResponse,
+    summary="회원가입 본인인증 전 휴대폰 번호 및 선등록 성명 사전 검증",
+    description="휴대폰 번호가 이미 users에 존재하는지, 혹은 현장담당자/기사로 선등록된 경우 성명이 일치하는지 확인합니다."
+)
+async def check_phone_register(
+    data: CheckPhoneRegisterRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    normalized_phone = normalize_phone(data.phone_number)
+    input_name = data.name.strip()
+
+    # 1. 이미 가입된 정식 계정(User)인지 체크
+    user_query = select(User).where(User.phone_number == normalized_phone)
+    user_res = await db.execute(user_query)
+    existing_user = user_res.scalars().first()
+
+    if existing_user:
+        return CheckPhoneRegisterResponse(
+            is_available=False,
+            status="ALREADY_REGISTERED",
+            message="이미 가입된 휴대폰 번호입니다. 로그인해 주세요."
+        )
+
+    # 2. 현장담당자(SiteEmployee) 선등록 확인
+    employee_query = select(SiteEmployee).where(
+        SiteEmployee.registered_phone == normalized_phone,
+        SiteEmployee.user_id.is_(None)
+    )
+    emp_res = await db.execute(employee_query)
+    emp = emp_res.scalars().first()
+
+    if emp:
+        # 성명 불일치 검증 (관리자가 등록한 이름과 다른 경우)
+        if emp.name and emp.name.strip() != "" and emp.name.strip() != "현장담당자":
+            if emp.name.strip() != input_name:
+                return CheckPhoneRegisterResponse(
+                    is_available=False,
+                    status="NAME_MISMATCH",
+                    message=f"관리자가 등록한 담당자 성명({emp.name})과 일치하지 않습니다. 성명을 확인해 주세요.",
+                    pre_registered_role="SITE_WORKER"
+                )
+        return CheckPhoneRegisterResponse(
+            is_available=True,
+            status="AVAILABLE",
+            message="소속 현장담당자 선등록 확인 완료",
+            pre_registered_role="SITE_WORKER"
+        )
+
+    # 3. 차주 소속 기사(Driver) 선등록 확인
+    driver_query = select(Driver).where(
+        Driver.registered_phone == normalized_phone,
+        Driver.user_id.is_(None)
+    )
+    drv_res = await db.execute(driver_query)
+    drv = drv_res.scalars().first()
+
+    if drv:
+        return CheckPhoneRegisterResponse(
+            is_available=True,
+            status="AVAILABLE",
+            message="차주 소속 기사 선등록 확인 완료",
+            pre_registered_role="DRIVER"
+        )
+
+    # 4. 일반 신규 회원
+    return CheckPhoneRegisterResponse(
+        is_available=True,
+        status="AVAILABLE",
+        message="가입 가능한 번호입니다."
+    )
+
 
 
 @router.post(
@@ -817,24 +893,28 @@ async def get_member_status(
     db: AsyncSession = Depends(get_db)
 ):
     # 1. 역할 구분 및 필수 서류 그룹 설정
+    group_codes = []
     if current_user.is_site_manager:
         role = "site_manager"
-        group_code = "REQUIRED_DOC_SITE"
+        group_codes = ["REQUIRED_DOC_SITE"]
     elif current_user.is_drop_off:
         role = "drop_off"
-        group_code = "REQUIRED_DOC_DROPOFF"
+        group_codes = ["REQUIRED_DOC_DROPOFF"]
     elif current_user.is_owner:
         role = "owner"
-        group_code = "REQUIRED_DOC_OWNER"
+        group_codes = ["REQUIRED_DOC_OWNER"]
+        # 차주 사장님이 직접 운전(기사 겸직)하는 경우 기사 필수 서류도 함께 제출
+        if current_user.is_driver:
+            group_codes.append("REQUIRED_DOC_DRIVER")
     else:
         role = "driver"
-        group_code = "REQUIRED_DOC_DRIVER"
+        group_codes = ["REQUIRED_DOC_DRIVER"]
     
     # 2. 필수 공통코드 가져오기
     req_codes = []
-    if group_code:
+    if group_codes:
         codes_query = select(CommonCode).where(
-            CommonCode.group_code == group_code,
+            CommonCode.group_code.in_(group_codes),
             CommonCode.is_active == True
         ).order_by(CommonCode.display_order.asc())
         codes_result = await db.execute(codes_query)
@@ -843,7 +923,7 @@ async def get_member_status(
     # 3. 유저가 제출한 서류 목록
     uploaded_codes = []
     uploaded_files_map = {}
-    if group_code:
+    if group_codes:
         uploaded_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
         uploaded_result = await db.execute(uploaded_query)
         uploaded_docs = uploaded_result.scalars().all()
@@ -852,15 +932,18 @@ async def get_member_status(
     
     # 4. 미제출 서류 목록 도출
     missing_docs = []
+    seen_codes = set()
     for rc in req_codes:
-        if rc.code not in uploaded_codes:
-            missing_docs.append(
-                RequiredDocumentResponse(
-                    code=rc.code,
-                    code_name=rc.code_name,
-                    display_order=rc.display_order
+        if rc.code not in seen_codes:
+            seen_codes.add(rc.code)
+            if rc.code not in uploaded_codes:
+                missing_docs.append(
+                    RequiredDocumentResponse(
+                        code=rc.code,
+                        code_name=rc.code_name,
+                        display_order=rc.display_order
+                    )
                 )
-            )
             
     # 5. 심사 승인 여부 확인
     is_approved = False
@@ -937,24 +1020,26 @@ async def submit_approval(
     db: AsyncSession = Depends(get_db)
 ):
     # 1. 역할별 필수 서류 그룹 확인 및 미제출 검증
-    group_code = None
+    group_codes = []
     if current_user.is_site_manager:
-        group_code = "REQUIRED_DOC_SITE"
+        group_codes = ["REQUIRED_DOC_SITE"]
     elif current_user.is_drop_off:
-        group_code = "REQUIRED_DOC_DROPOFF"
+        group_codes = ["REQUIRED_DOC_DROPOFF"]
     elif current_user.is_owner:
-        group_code = "REQUIRED_DOC_OWNER"
+        group_codes = ["REQUIRED_DOC_OWNER"]
+        if current_user.is_driver:
+            group_codes.append("REQUIRED_DOC_DRIVER")
     elif current_user.is_driver:
-        group_code = "REQUIRED_DOC_DRIVER"
+        group_codes = ["REQUIRED_DOC_DRIVER"]
 
-    if group_code:
+    if group_codes:
         # 필수 서류 공통코드 조회
         codes_query = select(CommonCode).where(
-            CommonCode.group_code == group_code,
+            CommonCode.group_code.in_(group_codes),
             CommonCode.is_active == True
         )
         codes_result = await db.execute(codes_query)
-        req_codes = [c.code for c in codes_result.scalars().all()]
+        req_codes = list(set([c.code for c in codes_result.scalars().all()]))
 
         # 실제 유저가 업로드한 서류 조회
         up_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id == current_user.id)
@@ -1069,6 +1154,45 @@ async def submit_approval(
     elif current_user.is_owner:
         if data.is_direct_driver is not None:
             current_user.is_driver = data.is_direct_driver
+            
+            if data.is_direct_driver:
+                # 겸직(True): Driver 테이블에 레코드가 없으면 생성하여 기사 승인 대기 목록에 정상 반영
+                drv_res = await db.execute(select(Driver).where(Driver.user_id == current_user.id))
+                existing_drv = drv_res.scalars().first()
+                if not existing_drv:
+                    new_drv = Driver(
+                        user_id=current_user.id,
+                        owner_id=current_user.id,
+                        registered_phone=current_user.phone_number,
+                        is_approved=False
+                    )
+                    db.add(new_drv)
+                    logger.info(f"차주 [ID: {current_user.id}] 겸직 기사 Driver 레코드 자동 생성 완료.")
+            else:
+                # 차주가 기사 겸직을 '해제(False)'하고 승인 요청한 경우:
+                # 기사용 서류(면허증, 안전교육, 화물자격증 등) 및 Driver 대기 레코드를 DB/스토리지에서 깔끔하게 정리 삭제
+                DRIVER_DOCS = ["LICENSE", "SAFETY_TRAINING", "SPECIAL_LABOR_TRAINING", "QUALIFICATION"]
+                
+                # 1. 기사용 업로드 서류 파일 조회 및 Supabase 스토리지/DB 삭제
+                driver_docs_query = select(UserUploadedDocument).where(
+                    UserUploadedDocument.user_id == current_user.id,
+                    UserUploadedDocument.document_code.in_(DRIVER_DOCS)
+                )
+                driver_docs_res = await db.execute(driver_docs_query)
+                docs_to_delete = driver_docs_res.scalars().all()
+                
+                for d in docs_to_delete:
+                    if d.file_name:
+                        try:
+                            from app.core.storage import delete_from_supabase
+                            await delete_from_supabase(category="documents", filename=d.file_name)
+                        except Exception as e:
+                            logger.warning(f"기사 서류 스토리지 파일 삭제 실패 (무시): {e}")
+                    await db.delete(d)
+                
+                # 2. 기사 테이블 레코드 삭제
+                await db.execute(delete(Driver).where(Driver.user_id == current_user.id))
+                logger.info(f"차주 [ID: {current_user.id}] 기사 겸직 해제 요청으로 기사 서류 및 Driver 레코드 정리 완료.")
 
     # 승인 요청/재신청 제출 시 기존 반려 사유 초기화
     current_user.reject_reason = None

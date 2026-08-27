@@ -11,29 +11,41 @@ export default function ApprovalRequestScreen() {
   const [companyName, setCompanyName] = useState("");
   const [siteName, setSiteName] = useState("");
   const [businessNumber, setBusinessNumber] = useState("");
-  
-  // 필수 서류 관리 상태
-  const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
-  const [missingDocs, setMissingDocs] = useState<any[]>([]);
-  const [uploadingDocCode, setUploadingDocCode] = useState<string | null>(null);
-
-  // 현장관리자(site_manager)일 경우 불필요한 운전자 서류(LICENSE, QUALIFICATION) 제외
-  const filteredMissingDocs = user?.role === "site_manager"
-    ? missingDocs.filter((d) => d.code !== "LICENSE" && d.code !== "QUALIFICATION")
-    : missingDocs;
-
-  const filteredUploadedDocs = user?.role === "site_manager"
-    ? uploadedDocs.filter((code) => code !== "LICENSE" && code !== "QUALIFICATION")
-    : uploadedDocs;
-  
   const [locationName, setLocationName] = useState("");
   const [address, setAddress] = useState("");
   const [detailAddress, setDetailAddress] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [permitNumber, setPermitNumber] = useState("");
-  
   const [isDirectDriver, setIsDirectDriver] = useState(false);
+  
+  // 필수 서류 관리 상태
+  const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
+  const [missingDocs, setMissingDocs] = useState<any[]>([]);
+  const [uploadingDocCode, setUploadingDocCode] = useState<string | null>(null);
+
+  // 차주(owner) 및 현장관리자(site_manager)의 기사 겸직 여부에 따른 서류 동적 필터링
+  const DRIVER_DOC_CODES = ["LICENSE", "SAFETY_TRAINING", "SPECIAL_LABOR_TRAINING", "QUALIFICATION"];
+
+  const filteredMissingDocs = missingDocs.filter((d) => {
+    if (user?.role === "site_manager") {
+      return !DRIVER_DOC_CODES.includes(d.code);
+    }
+    if (user?.role === "owner" && !isDirectDriver) {
+      return !DRIVER_DOC_CODES.includes(d.code);
+    }
+    return true;
+  });
+
+  const filteredUploadedDocs = uploadedDocs.filter((code) => {
+    if (user?.role === "site_manager") {
+      return !DRIVER_DOC_CODES.includes(code);
+    }
+    if (user?.role === "owner" && !isDirectDriver) {
+      return !DRIVER_DOC_CODES.includes(code);
+    }
+    return true;
+  });
 
   // 지도 핀 찍기용 임시 상태
   const [pinX, setPinX] = useState(50);
@@ -83,10 +95,8 @@ export default function ApprovalRequestScreen() {
         setUploadedDocs(data.uploaded_documents || []);
         setMissingDocs(data.missing_documents || []);
 
-        // 2. 이미 서류를 제출하고 승인 대기 중인 상태라면 즉시 '승인 대기 화면(Pending View)'으로 전환
-        if (!data.reject_reason && data.uploaded_documents && data.uploaded_documents.length > 0) {
-          setIsSubmitted(true);
-        }
+        // 주의: 파일 1개만 올려도 승인 대기로 넘어가는 이상 동작을 막기 위해 setIsSubmitted(true) 자동 전환 제거!
+        // 모든 서류를 다 올리고 하단의 [승인 요청] 버튼을 직접 눌렀을 때만 승인 대기 상태로 전환됩니다.
 
         // 기존에 등록해두었던 현장/상세정보 자동 채우기
         if (data.submitted_info) {
@@ -176,7 +186,11 @@ export default function ApprovalRequestScreen() {
           delete next[docCode];
           return next;
         });
-        await checkMemberStatus(false);
+
+        // 화면 새로고침(checkMemberStatus)으로 인한 폼 상태(체크박스 등) 초기화 방지:
+        // 로컬 상태를 직접 갱신하여 화면 깜빡임 없이 즉시 반영
+        setUploadedDocs((prev) => Array.from(new Set([...prev, docCode])));
+        setMissingDocs((prev) => prev.filter((d) => d.code !== docCode));
       } else {
         const err = await res.json();
         const msg = err.detail || "서류 제출 등록에 실패했습니다.";
@@ -609,13 +623,40 @@ export default function ApprovalRequestScreen() {
                 <input
                   type="checkbox"
                   checked={isDirectDriver}
-                  onChange={(e) => setIsDirectDriver(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsDirectDriver(checked);
+                    // 겸직 체크 시 즉시 기사 필수 서류(운전면허증, 안전교육 등) 동적 추가/제거
+                    if (checked) {
+                      setMissingDocs((prev) => {
+                        const driverDocs = [
+                          { code: "LICENSE", code_name: "운전면허증 (대형/1종)", display_order: 5 },
+                          { code: "SAFETY_TRAINING", code_name: "건설업 기초안전교육 이수증", display_order: 6 },
+                          { code: "SPECIAL_LABOR_TRAINING", code_name: "교육실시확인서 (특수형태근로자)", display_order: 7 },
+                          { code: "QUALIFICATION", code_name: "화물운송종사 자격증", display_order: 8 },
+                        ];
+                        const existingCodes = new Set([...uploadedDocs, ...prev.map((d) => d.code)]);
+                        const newDocs = driverDocs.filter((d) => !existingCodes.has(d.code));
+                        return [...prev, ...newDocs];
+                      });
+                    } else {
+                      setMissingDocs((prev) =>
+                        prev.filter(
+                          (d) =>
+                            d.code !== "LICENSE" &&
+                            d.code !== "SAFETY_TRAINING" &&
+                            d.code !== "SPECIAL_LABOR_TRAINING" &&
+                            d.code !== "QUALIFICATION"
+                        )
+                      );
+                    }
+                  }}
                   className="w-4 h-4 rounded text-blue-600 border-slate-350 dark:border-slate-750 focus:ring-blue-500"
                 />
                 <span>차주 사장님이 직접 덤프 트럭을 몰고 현장에서 운행하십니까?</span>
               </label>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-normal font-semibold">
-                * 체크할 경우, 차주 권한 외에 '기사 권한'도 함께 승인되어 오더 수락 및 미터기 관제가 가능해집니다.
+                * 체크할 경우, 차주 권한 외에 '기사 권한'도 함께 승인되며 **운전면허증, 안전교육이수증 등 기사 필수 서류** 제출 목록이 아래에 추가됩니다.
               </p>
             </div>
           )}
@@ -663,8 +704,9 @@ export default function ApprovalRequestScreen() {
                                 LICENSE: "운전면허증 (대형/1종)",
                                 SAFETY_TRAINING: "건설업 기초안전교육 이수증",
                                 SPECIAL_LABOR_TRAINING: "교육실시확인서 (특수형태근로자)",
+                                QUALIFICATION: "화물운송종사 자격증",
                                 MACHINERY_REG: "건설기계 등록증·검사증",
-                                INSURANCE: "보험가입증",
+                                INSURANCE: "화물 종합보험증권",
                                 DEVELOPMENT_PERMIT: "개발행위 허가증",
                                 LAND_USE_AGREEMENT: "토지 사용 승낙서 / 토지 대장",
                                 CONSTRUCTION_PROOF: "공사현장 증빙서류",
