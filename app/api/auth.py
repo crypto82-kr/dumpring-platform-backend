@@ -172,7 +172,21 @@ async def register_driver(
             db.add(new_driver_profile)
             logger.info(f"기사 선등록 데이터가 없어 신규 Driver 프로필을 생성했습니다. (User ID: {new_user.id})")
 
-        # 4. 최종 커밋 반영
+        # 4. 가입 시 전달받은 기사 필수 서류를 user_uploaded_documents 테이블에 저장
+        doc_files = [
+            ("LICENSE", data.license_file),
+            ("SAFETY_TRAINING", data.safety_training_file),
+            ("SPECIAL_LABOR_TRAINING", data.special_labor_training_file),
+        ]
+        for doc_code, file_url in doc_files:
+            if file_url and file_url != "temp":
+                db.add(UserUploadedDocument(
+                    user_id=new_user.id,
+                    document_code=doc_code,
+                    file_name=file_url
+                ))
+
+        # 5. 최종 커밋 반영
         await db.commit()
         await db.refresh(new_user)
         
@@ -226,6 +240,29 @@ async def register_owner(
         )
         
         db.add(new_user)
+        await db.flush()
+        
+        # 3. 차주/겸직 기사 서류 저장
+        owner_doc_files = [
+            ("BIZ_LICENSE", data.biz_license_file),
+            ("MACHINERY_REG", data.machinery_reg_file),
+            ("INSURANCE", data.insurance_file),
+        ]
+        if data.is_direct_driver:
+            owner_doc_files.extend([
+                ("LICENSE", data.license_file),
+                ("SAFETY_TRAINING", data.safety_training_file),
+                ("SPECIAL_LABOR_TRAINING", data.special_labor_training_file),
+            ])
+            
+        for doc_code, file_url in owner_doc_files:
+            if file_url and file_url != "temp":
+                db.add(UserUploadedDocument(
+                    user_id=new_user.id,
+                    document_code=doc_code,
+                    file_name=file_url
+                ))
+
         await db.commit()
         await db.refresh(new_user)
         
@@ -642,21 +679,65 @@ ALLOWED_DOC_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
 
 from fastapi import UploadFile, File, Form
 
-UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "documents")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+from fastapi import UploadFile, File, Form, Request
 
 @router.post(
     "/upload-document",
     summary="필수 서류 개별 실물 파일 업로드 (물리 보관 및 보안 검증)",
-    description="경로 조작(Path Traversal) 방지 및 확장자 검증 후 실물 바이너리 파일을 서버 스토리지에 안전하게 물리 저장합니다."
+    description="경로 조작(Path Traversal) 방지 및 확장자 검증 후 실물 바이너리 파일을 서버 스토리지에 안전하게 물리 저장하거나 파일명을 등록합니다."
 )
 async def upload_document(
-    document_code: str = Form(...),
-    file: UploadFile = File(...),
+    request: Request,
+    document_code: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. 경로 조작 검증 및 파일명 정제
+    # 1. JSON Payload 요청인 경우 처리 (모바일 앱 호환)
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            doc_code = body.get("document_code")
+            file_name = body.get("file_name")
+            if not doc_code or not file_name:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="document_code와 file_name은 필수 항목입니다."
+                )
+            
+            # DB 조회 및 갱신/등록
+            query = select(UserUploadedDocument).where(
+                UserUploadedDocument.user_id == current_user.id,
+                UserUploadedDocument.document_code == doc_code
+            )
+            result = await db.execute(query)
+            existing_doc = result.scalars().first()
+            if existing_doc:
+                existing_doc.file_name = file_name
+            else:
+                new_doc = UserUploadedDocument(
+                    user_id=current_user.id,
+                    document_code=doc_code,
+                    file_name=file_name
+                )
+                db.add(new_doc)
+            await db.commit()
+            logger.info(f"유저 [ID: {current_user.id}] 모바일 서류 JSON 등록 완료: {doc_code} -> {file_name}")
+            return {"message": "서류 정보가 성공적으로 등록되었습니다.", "file_name": file_name}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"서류 JSON 등록 에러: {e}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    # 2. Multipart Form 바이너리 업로드인 경우 처리 (웹 호환)
+    if not document_code or not file:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="document_code와 파일은 필수입니다."
+        )
+
     raw_file_name = os.path.basename(file.filename or "uploaded_doc.png")
     if ".." in raw_file_name or "/" in raw_file_name or "\\" in raw_file_name:
         raise HTTPException(

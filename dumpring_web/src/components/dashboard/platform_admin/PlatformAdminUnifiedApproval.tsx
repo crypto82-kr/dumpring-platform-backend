@@ -828,7 +828,28 @@ export function PlatformAdminUnifiedApproval({
                       </button>
                       <div className="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5"></div>
                       {(() => {
-                        const docCode = activeDocTab === "DOC_SAFETY" ? "SAFETY_TRAINING" : activeDocTab === "DOC_SPECIAL" ? "SPECIAL_LABOR" : activeDocTab === "DOC_INSURANCE" ? "INSURANCE" : activeDocTab === "DOC_CONTRACT" ? "CONSTRUCTION_CONTRACT" : activeDocTab === "DOC_LAND" ? "LAND_USE" : activeDocTab === "DOC_BIZ" ? "BIZ_LICENSE" : activeDocTab === "DOC_DUST" ? "DUST_REPORT" : activeDocTab === "DOC_PERMIT" ? "DEVELOPMENT_PERMIT" : "LICENSE";
+                        let docCode = "LICENSE";
+                        if (activeDocTab === "DOC_SAFETY") docCode = "SAFETY_TRAINING";
+                        else if (activeDocTab === "DOC_SPECIAL") docCode = "SPECIAL_LABOR_TRAINING";
+                        else if (activeDocTab === "DOC_QUALIFICATION") docCode = "QUALIFICATION";
+                        else if (activeDocTab === "DOC_BANKBOOK") docCode = "BANKBOOK";
+                        else if (activeDocTab === "DOC_MACHINERY") docCode = "MACHINERY_REG";
+                        else if (activeDocTab === "DOC_INSURANCE") docCode = "INSURANCE";
+                        else if (activeDocTab === "DOC_CONTRACT") docCode = "CONSTRUCTION_CONTRACT";
+                        else if (activeDocTab === "DOC_LAND") docCode = "LAND_USE_AGREEMENT";
+                        else if (activeDocTab === "DOC_BIZ") docCode = "BIZ_LICENSE";
+                        else if (activeDocTab === "DOC_DUST") docCode = "DUST_REPORT";
+                        else if (activeDocTab === "DOC_PERMIT") docCode = "DEVELOPMENT_PERMIT";
+                        else if (activeDocTab === "DOC_LICENSE") docCode = "LICENSE";
+                        else if (activeDocTab === "DOC_1" || !activeDocTab) {
+                          if (selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER" || selectedItem.typeKey === "OWNER") {
+                            docCode = "BIZ_LICENSE";
+                          } else if (selectedItem.typeKey === "DROPOFF") {
+                            docCode = "DEVELOPMENT_PERMIT";
+                          } else {
+                            docCode = "LICENSE";
+                          }
+                        }
                         const localImg = typeof window !== "undefined" ? localStorage.getItem(`doc_driver_${selectedItem.id}_${docCode}`) : null;
                         const serverDocPath = selectedItem.uploadedFiles?.[docCode] || selectedItem.rawObj?.uploaded_files?.[docCode];
                         const token = typeof window !== "undefined" ? (localStorage.getItem("accessToken") || sessionStorage.getItem("dumpring_token")) : null;
