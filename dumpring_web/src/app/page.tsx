@@ -22,6 +22,7 @@ import { OwnerDashboard } from "@/components/dashboard/OwnerDashboard";
 import { OwnerOverviewDashboard } from "@/components/dashboard/owner/OwnerOverviewDashboard";
 import { OwnerScheduleManagement } from "@/components/dashboard/owner/OwnerScheduleManagement";
 import { OwnerTruckManagement } from "@/components/dashboard/owner/OwnerTruckManagement";
+import { OwnerDriverManagement } from "@/components/dashboard/owner/OwnerDriverManagement";
 import { OwnerSettlementManagement } from "@/components/dashboard/owner/OwnerSettlementManagement";
 import { OwnerNoticeManagement } from "@/components/dashboard/owner/OwnerNoticeManagement";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
@@ -1060,21 +1061,23 @@ export default function Home() {
   useEffect(() => {
     // Initial fetch on mount
     fetchCommonCodes();
-    fetchRegisteredSites();
     const profileStr = localStorage.getItem("userProfile");
     if (profileStr) {
       try {
         const parsed = JSON.parse(profileStr);
         if (parsed.role === "dropoff_manager") {
           fetchMyDropOffs();
-        } else {
+          fetchOpenDropOffRequests();
+        } else if (parsed.role === "site_manager" || parsed.role === "site_worker") {
+          fetchRegisteredSites();
+          fetchOpenDropOffRequests();
+        } else if (parsed.role === "admin") {
+          fetchRegisteredSites();
           fetchOpenDropOffRequests();
         }
       } catch (e) {
-        fetchOpenDropOffRequests();
+        console.error("Profile parse error on mount:", e);
       }
-    } else {
-      fetchOpenDropOffRequests();
     }
   }, []);
 
@@ -1712,8 +1715,10 @@ export default function Home() {
       {user.role === "owner" && (
         activePath === "/owner/schedule" ? (
           <OwnerScheduleManagement setActivePath={setActivePath} />
-        ) : activePath === "/owner/fleet" ? (
+        ) : activePath === "/owner/trucks" || activePath === "/owner/fleet" ? (
           <OwnerTruckManagement setActivePath={setActivePath} />
+        ) : activePath === "/owner/drivers" ? (
+          <OwnerDriverManagement setActivePath={setActivePath} />
         ) : activePath === "/owner/revenues" || activePath === "/owner/settlement" ? (
           <OwnerSettlementManagement setActivePath={setActivePath} />
         ) : activePath === "/owner/notice" ? (

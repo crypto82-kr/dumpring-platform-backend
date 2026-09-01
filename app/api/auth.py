@@ -763,10 +763,10 @@ async def upload_document(
             detail="파일 용량이 10MB를 초과했습니다. 10MB 이하의 파일만 업로드 가능합니다."
         )
 
-    # 4. S3/Supabase Storage용 영문+숫자 안전 파일 키 생성 (한글 특수문자 키 에러 방지)
+    # 4. S3/Supabase Storage용 안전 파일 키 생성
     storage_file_key = f"{uuid.uuid4().hex}{ext}"
     try:
-        from app.core.storage import upload_to_supabase
+        from app.core.storage import upload_to_supabase, delete_from_supabase
         await upload_to_supabase(
             content=contents,
             content_type=file.content_type or "application/octet-stream",
@@ -776,7 +776,7 @@ async def upload_document(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Supabase 스토리지 파일 저장 중 에러가 발생했습니다: {str(e)}"
+            detail=f"스토리지 파일 저장 중 에러가 발생했습니다: {str(e)}"
         )
 
     # 5. DB 정보 갱신 및 이전 물리 파일 자동 삭제
@@ -793,7 +793,6 @@ async def upload_document(
         # 이전 물리 파일이 있으면 Supabase Storage에서 자동 삭제
         if old_file_name:
             try:
-                from app.core.storage import delete_from_supabase
                 await delete_from_supabase(category="documents", filename=old_file_name)
                 logger.info(f"이전 서류 파일 삭제 완료: {old_file_name}")
             except Exception as del_err:
@@ -808,7 +807,11 @@ async def upload_document(
         
     await db.commit()
     logger.info(f"유저 [ID: {current_user.id}] 실물 서류 파일 물리 저장 완료: {storage_file_key}")
-    return {"message": "서류 실물 파일이 성공적으로 업로드 및 저장되었습니다.", "file_name": storage_file_key}
+    return {
+        "message": "서류 실물 파일이 성공적으로 업로드 및 저장되었습니다.",
+        "file_name": storage_file_key,
+        "file_url": f"/api/files/stream/{storage_file_key}?category=documents"
+    }
 
 
 @router.get(

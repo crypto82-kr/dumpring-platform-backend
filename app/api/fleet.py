@@ -33,6 +33,7 @@ async def get_my_drivers(
     car_result = await db.execute(car_query)
     cars = car_result.scalars().all()
     car_ids = [c.id for c in cars]
+    cars_by_id = {c.id: c for c in cars}
 
     # 차량에 배정된 기사 또는 차주 소속 기사들 조회
     driver_query = select(Driver).where(
@@ -42,21 +43,22 @@ async def get_my_drivers(
     driver_result = await db.execute(driver_query)
     drivers = driver_result.scalars().all()
 
+    user_ids = [d.user_id for d in drivers if d.user_id]
+    user_map = {}
+    if user_ids:
+        user_query = select(User).where(User.id.in_(user_ids))
+        user_result = await db.execute(user_query)
+        for u in user_result.scalars().all():
+            user_map[u.id] = (u.name, u.phone_number)
+
     response_list = []
     for d in drivers:
-        # 기사 유저 정보 매핑
         name = "선등록 대기기사"
         phone = d.registered_phone
-        if d.user_id:
-            user_query = select(User).where(User.id == d.user_id)
-            user_result = await db.execute(user_query)
-            u = user_result.scalars().first()
-            if u:
-                name = u.name
-                phone = u.phone_number
+        if d.user_id and d.user_id in user_map:
+            name, phone = user_map[d.user_id]
 
-        # 차량 정보 매핑
-        car = next((c for c in cars if c.id == d.current_car_id), None)
+        car = cars_by_id.get(d.current_car_id)
         car_number = car.car_number if car else "미지정"
         tonnage = car.tonnage if car else 0.0
 
@@ -128,6 +130,8 @@ class CarResponse(BaseModel):
     id: int
     car_number: str
     tonnage: float
+    truck_type: str | None = "T_25"
+    truck_type_name: str | None = "25톤"
     driver_name: str
     inspection_date: str
     machinery_reg_file: str | None = None
@@ -136,7 +140,11 @@ class CarResponse(BaseModel):
     biz_license_url: str | None = None
     insurance_file: str | None = None
     insurance_url: str | None = None
- 
+
+    class Config:
+        orm_mode = True
+
+
 @router.get(
     "/my-cars",
     response_model=List[CarResponse],
@@ -150,31 +158,53 @@ async def get_my_cars(
     car_result = await db.execute(car_query)
     cars = car_result.scalars().all()
     
+    if not cars:
+        return []
+
+    car_ids = [c.id for c in cars]
+
+    # 이 차량들에 배정된 기사들 일괄 조회
+    driver_query = select(Driver).where(Driver.current_car_id.in_(car_ids))
+    driver_result = await db.execute(driver_query)
+    drivers = driver_result.scalars().all()
+
+    driver_by_car = {d.current_car_id: d for d in drivers}
+    user_ids = [d.user_id for d in drivers if d.user_id]
+    
+    user_map = {}
+    if user_ids:
+        user_query = select(User).where(User.id.in_(user_ids))
+        user_result = await db.execute(user_query)
+        for u in user_result.scalars().all():
+            user_map[u.id] = u.name
+
+    # 공통코드 톤수 매핑 딕셔너리 생성
+    codes_query = select(CommonCode).where(CommonCode.group_code == "TRUCK_TYPE")
+    codes_res = await db.execute(codes_query)
+    truck_type_map = {c.code: c.code_name for c in codes_res.scalars().all()}
+
     response_list = []
     for c in cars:
-        # 이 차량에 지정된 기사 찾기
-        driver_query = select(Driver).where(Driver.current_car_id == c.id)
-        driver_result = await db.execute(driver_query)
-        d = driver_result.scalars().first()
-        
+        d = driver_by_car.get(c.id)
         driver_name = "미배정"
         if d:
-            if d.user_id:
-                user_query = select(User).where(User.id == d.user_id)
-                user_result = await db.execute(user_query)
-                u = user_result.scalars().first()
-                if u:
-                    driver_name = u.name
+            if d.user_id and d.user_id in user_map:
+                driver_name = user_map[d.user_id]
             else:
                 driver_name = "선등록 대기기사"
+        
+        t_code = getattr(c, "truck_type", None) or "T_25"
+        t_name = truck_type_map.get(t_code, f"{c.tonnage}톤")
                 
         response_list.append(
             CarResponse(
                 id=c.id,
                 car_number=c.car_number,
                 tonnage=c.tonnage,
+                truck_type=t_code,
+                truck_type_name=t_name,
                 driver_name=driver_name,
-                inspection_date="2026-12-31",
+                inspection_date=getattr(c, "inspection_date", None) or "2026-12-31",
                 machinery_reg_file=getattr(c, "machinery_reg_file", None),
                 machinery_reg_url=getattr(c, "machinery_reg_url", None),
                 biz_license_file=getattr(c, "biz_license_file", None),
@@ -188,7 +218,9 @@ async def get_my_cars(
 
 class CreateCarRequest(BaseModel):
     car_number: str
-    tonnage: float
+    truck_type: str | None = "T_25"
+    tonnage: float | None = None
+    inspection_date: str | None = None
     car_model: str | None = None
     machinery_reg_file: str | None = None
     machinery_reg_url: str | None = None
@@ -202,6 +234,8 @@ class CarResponse(BaseModel):
     id: int
     car_number: str
     tonnage: float
+    truck_type: str | None = "T_25"
+    truck_type_name: str | None = "25톤"
     driver_name: str
     inspection_date: str
     machinery_reg_file: str | None = None
@@ -226,6 +260,24 @@ async def create_my_car(
     db: AsyncSession = Depends(get_db),
     current_owner: User = Depends(get_current_owner)
 ):
+    # 공통코드 톤수 숫자 파싱
+    truck_type_val = data.truck_type or "T_25"
+    parsed_tonnage = 25.0
+    if data.tonnage is not None and data.tonnage > 0:
+        parsed_tonnage = data.tonnage
+    elif truck_type_val == "T_15":
+        parsed_tonnage = 15.0
+    elif truck_type_val == "T_25":
+        parsed_tonnage = 25.0
+    elif truck_type_val == "T_27":
+        parsed_tonnage = 27.0
+
+    # 공통코드 명칭 조회
+    code_q = select(CommonCode).where(CommonCode.group_code == "TRUCK_TYPE", CommonCode.code == truck_type_val)
+    code_r = await db.execute(code_q)
+    c_item = code_r.scalars().first()
+    t_name = c_item.code_name if c_item else f"{parsed_tonnage}톤"
+
     # 중복 차량 번호 확인
     query = select(Car).where(Car.car_number == data.car_number.strip())
     result = await db.execute(query)
@@ -234,7 +286,10 @@ async def create_my_car(
     if existing_car:
         # 이미 등록된 차량인 경우 소유권 및 정보 업데이트
         existing_car.owner_id = current_owner.id
-        existing_car.tonnage = data.tonnage
+        existing_car.truck_type = truck_type_val
+        existing_car.tonnage = parsed_tonnage
+        if data.inspection_date:
+            existing_car.inspection_date = data.inspection_date.strip()
         if data.machinery_reg_file:
             existing_car.machinery_reg_file = data.machinery_reg_file
         if data.machinery_reg_url:
@@ -253,8 +308,10 @@ async def create_my_car(
             id=existing_car.id,
             car_number=existing_car.car_number,
             tonnage=existing_car.tonnage,
+            truck_type=existing_car.truck_type or truck_type_val,
+            truck_type_name=t_name,
             driver_name="미배정",
-            inspection_date="2026-12-31",
+            inspection_date=existing_car.inspection_date or "2026-12-31",
             machinery_reg_file=existing_car.machinery_reg_file,
             machinery_reg_url=existing_car.machinery_reg_url,
             biz_license_file=existing_car.biz_license_file,
@@ -267,7 +324,9 @@ async def create_my_car(
     new_car = Car(
         owner_id=current_owner.id,
         car_number=data.car_number.strip(),
-        tonnage=data.tonnage,
+        truck_type=truck_type_val,
+        tonnage=parsed_tonnage,
+        inspection_date=data.inspection_date.strip() if data.inspection_date else "2026-12-31",
         machinery_reg_file=data.machinery_reg_file,
         machinery_reg_url=data.machinery_reg_url,
         biz_license_file=data.biz_license_file,
@@ -282,8 +341,10 @@ async def create_my_car(
         id=new_car.id,
         car_number=new_car.car_number,
         tonnage=new_car.tonnage,
+        truck_type=new_car.truck_type,
+        truck_type_name=t_name,
         driver_name="미배정",
-        inspection_date="2026-12-31",
+        inspection_date=new_car.inspection_date or "2026-12-31",
         machinery_reg_file=new_car.machinery_reg_file,
         machinery_reg_url=new_car.machinery_reg_url,
         biz_license_file=new_car.biz_license_file,

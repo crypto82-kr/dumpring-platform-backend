@@ -106,8 +106,9 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
   ],
   owner: [
     { title: "운송사 대시보드", icon: LayoutDashboard, path: "/owner" },
+    { title: "차량 관리", icon: Truck, path: "/owner/trucks" },
+    { title: "기사 관리", icon: Users, path: "/owner/drivers" },
     { title: "배차 스케줄러", icon: Calendar, path: "/owner/schedule" },
-    { title: "소속 차량 & 기사 관리", icon: Users, path: "/owner/fleet" },
     { title: "운행 통계 조회", icon: BarChart3, path: "/owner/statistics" },
     { title: "매출 및 운반 정산", icon: DollarSign, path: "/owner/revenues" },
   ],

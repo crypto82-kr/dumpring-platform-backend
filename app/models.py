@@ -137,7 +137,9 @@ class Car(Base):
     id = Column(Integer, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # 소유 차주 사장님
     car_number = Column(String, unique=True, nullable=False, index=True)  # 차량 번호 (예: 경기80사1234)
-    tonnage = Column(Float, nullable=False)  # 덤프 톤수 (15.0, 24.0, 25.5 등)
+    tonnage = Column(Float, nullable=False, default=25.0)  # 덤프 톤수 (하위 호환성 유지)
+    truck_type = Column(String, nullable=True, default="T_25")  # 공통코드 TRUCK_TYPE (T_15, T_25, T_27)
+    inspection_date = Column(String, nullable=True, default="2026-12-31")  # 정기검사 유효기간 (YYYY-MM-DD)
 
     # 차량 필수 구비서류 3종 파일명 및 서버 URL 컬럼
     machinery_reg_file = Column(String, nullable=True)
