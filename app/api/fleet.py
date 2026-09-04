@@ -17,6 +17,8 @@ class DriverResponse(BaseModel):
     phone_number: str
     car_number: str
     tonnage: float
+    truck_type: str | None = None
+    truck_type_name: str | None = None
     is_approved: bool
 
 @router.get(
@@ -34,6 +36,11 @@ async def get_my_drivers(
     cars = car_result.scalars().all()
     car_ids = [c.id for c in cars]
     cars_by_id = {c.id: c for c in cars}
+
+    # 공통코드 톤수 매핑 딕셔너리 생성
+    codes_query = select(CommonCode).where(CommonCode.group_code == "TRUCK_TYPE")
+    codes_res = await db.execute(codes_query)
+    truck_type_map = {c.code: c.code_name for c in codes_res.scalars().all()}
 
     # 차량에 배정된 기사 또는 차주 소속 기사들 조회
     driver_query = select(Driver).where(
@@ -61,6 +68,12 @@ async def get_my_drivers(
         car = cars_by_id.get(d.current_car_id)
         car_number = car.car_number if car else "미지정"
         tonnage = car.tonnage if car else 0.0
+        
+        truck_type = None
+        truck_type_name = None
+        if car:
+            truck_type = getattr(car, "truck_type", None) or "T_25"
+            truck_type_name = truck_type_map.get(truck_type, f"{car.tonnage}톤")
 
         response_list.append(
             DriverResponse(
@@ -69,6 +82,8 @@ async def get_my_drivers(
                 phone_number=phone,
                 car_number=car_number,
                 tonnage=tonnage,
+                truck_type=truck_type,
+                truck_type_name=truck_type_name,
                 is_approved=d.is_approved
             )
         )
@@ -357,6 +372,7 @@ async def create_my_car(
 class InviteDriverRequest(BaseModel):
     phone_number: str
     name: str
+    driver_id: int | None = None
 
 
 class NotificationResponse(BaseModel):
@@ -388,10 +404,36 @@ async def invite_driver(
     user_result = await db.execute(user_query)
     driver_user = user_result.scalars().first()
 
+    # 타 역할(현장관리자, 현장담당자, 하차지 관리자) 전용 계정인지 검증
+    if driver_user:
+        if driver_user.is_site_manager or driver_user.is_site_worker:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="해당 휴대폰 번호는 공사현장 관리자(담당자)로 가입된 계정입니다. 기사로 등록할 수 없습니다."
+            )
+        if driver_user.is_drop_off:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="해당 휴대폰 번호는 하차지/사토장 지주 계정으로 가입되어 있습니다. 기사로 등록할 수 없습니다."
+            )
+
     # 2. Driver 테이블 선등록/링크 확인
     driver_query = select(Driver).where(Driver.registered_phone == phone)
     driver_result = await db.execute(driver_query)
     existing_driver = driver_result.scalars().first()
+
+    # 신규 등록(driver_id가 없음) 시 중복 검사
+    if data.driver_id is None and existing_driver:
+        if existing_driver.owner_id == current_owner.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="이미 소속 기사로 등록되어 있는 휴대폰 번호입니다. 기존 목록에서 정보를 수정해 주세요."
+            )
+        elif existing_driver.owner_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="해당 휴대폰 번호는 이미 다른 차주에게 소속된 기사입니다."
+            )
 
     if not existing_driver:
         new_driver = Driver(
@@ -406,6 +448,8 @@ async def invite_driver(
         if driver_user and not existing_driver.user_id:
             existing_driver.user_id = driver_user.id
 
+    target_driver = existing_driver or new_driver
+
     # 3. 알림 전송 저장
     new_notif = Notification(
         target_phone=phone,
@@ -414,8 +458,12 @@ async def invite_driver(
     )
     db.add(new_notif)
     await db.commit()
+    await db.refresh(target_driver)
 
-    return {"message": "기사 초대 알림이 정상적으로 전송되었습니다."}
+    return {
+        "message": "기사 초대 알림이 정상적으로 전송되었습니다.",
+        "driver_id": target_driver.id
+    }
 
 
 @router.get(

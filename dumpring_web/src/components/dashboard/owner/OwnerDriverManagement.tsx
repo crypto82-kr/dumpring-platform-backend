@@ -28,6 +28,8 @@ interface DriverItem {
   phone_number: string;
   car_number: string;
   tonnage: number;
+  truck_type?: string | null;
+  truck_type_name?: string | null;
   is_approved: boolean;
 }
 
@@ -35,6 +37,9 @@ interface CarOption {
   id: number;
   car_number: string;
   tonnage: number;
+  truck_type?: string | null;
+  truck_type_name?: string | null;
+  driver_name?: string | null;
 }
 
 interface OwnerDriverManagementProps {
@@ -131,6 +136,18 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
       return;
     }
 
+    // 프론트엔드 1차 중복 검증: 신규 등록인데 이미 목록에 있는 번호인 경우
+    if (!editingDriverId) {
+      const normalizedInputPhone = formDriverPhone.replace(/[^0-9]/g, "");
+      const isDuplicate = drivers.some(
+        (d) => d.phone_number.replace(/[^0-9]/g, "") === normalizedInputPhone
+      );
+      if (isDuplicate) {
+        setErrorMsg("이미 소속 기사로 등록되어 있는 휴대폰 번호입니다. 기존 목록에서 정보를 수정해 주세요.");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
@@ -146,31 +163,55 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
         },
         body: JSON.stringify({
           name: formDriverName.trim(),
-          phone_number: formDriverPhone.trim()
+          phone_number: formDriverPhone.trim(),
+          driver_id: editingDriverId || null
         })
       });
 
       if (!inviteRes.ok) {
         const err = await inviteRes.json();
-        throw new Error(err.detail || "기사 저장에 실패했습니다.");
+        throw new Error(err.detail || "기사 저장 및 초대에 실패했습니다.");
       }
 
-      // 2. 차량을 지정한 경우 선등록/배정 연동
-      if (formCarNumber) {
-        const selectedCarObj = cars.find((c) => c.car_number === formCarNumber);
-        if (selectedCarObj) {
-          await fetch(`${baseUrl}/api/owner/register-fleet`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              car_number: selectedCarObj.car_number,
-              tonnage: selectedCarObj.tonnage,
-              driver_phone: formDriverPhone.trim()
-            })
-          });
+      const inviteData = await inviteRes.json();
+      let targetDriverId = editingDriverId || inviteData?.driver_id;
+
+      // 2. 차량 배정 또는 배정 해제 연동
+      if (targetDriverId) {
+        if (formCarNumber) {
+          const selectedCarObj = cars.find((c) => c.car_number === formCarNumber);
+          if (selectedCarObj) {
+            await fetch(`${baseUrl}/api/fleet/assign-driver`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                car_id: selectedCarObj.id,
+                driver_id: targetDriverId
+              })
+            });
+          }
+        } else if (editingDriverId) {
+          // '차량 미배정'을 선택했고 기존에 기사가 수정 중이었던 경우, 기존 배정 차량 해제
+          const currentEditingDriver = drivers.find((d) => d.driver_id === editingDriverId);
+          if (currentEditingDriver && currentEditingDriver.car_number !== "미지정") {
+            const oldCarObj = cars.find((c) => c.car_number === currentEditingDriver.car_number);
+            if (oldCarObj) {
+              await fetch(`${baseUrl}/api/fleet/assign-driver`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  car_id: oldCarObj.id,
+                  driver_id: null
+                })
+              });
+            }
+          }
         }
       }
 
@@ -323,7 +364,7 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                       <span className="font-semibold">배정 차량:</span>
                       {hasCar ? (
                         <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                          {driver.car_number} ({driver.tonnage}톤)
+                          {driver.car_number} ({driver.truck_type_name || `${driver.tonnage}톤`})
                         </span>
                       ) : (
                         <span className="text-slate-400 font-semibold">미배정</span>
@@ -421,7 +462,9 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                       </div>
                       <div className="flex justify-between py-1 border-b border-slate-200 dark:border-slate-700/60">
                         <span className="text-slate-500">적재 규격</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">{selectedDriver.tonnage}톤</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {selectedDriver.truck_type_name || `${selectedDriver.tonnage}톤`}
+                        </span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-slate-500">운행 상태</span>
@@ -541,12 +584,18 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                 >
                   <option value="">차량 미배정 (추후 배정)</option>
-                  {cars.map((c) => (
-                    <option key={c.id} value={c.car_number}>
-                      {c.car_number} ({c.tonnage}톤)
-                    </option>
-                  ))}
+                  {cars.map((c) => {
+                    const isAssignedToOther = c.driver_name && c.driver_name !== "미배정" && (!editingDriverId || drivers.find(d => d.driver_id === editingDriverId)?.car_number !== c.car_number);
+                    return (
+                      <option key={c.id} value={c.car_number}>
+                        {c.car_number} ({c.truck_type_name || `${c.tonnage}톤`}){isAssignedToOther ? ` [배정중: ${c.driver_name}]` : ""}
+                      </option>
+                    );
+                  })}
                 </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  이미 다른 기사에게 배정된 차량을 선택할 경우, 기존 기사는 자동으로 미배정 상태로 변경됩니다.
+                </p>
               </div>
 
               <div className="pt-3 flex gap-2">
