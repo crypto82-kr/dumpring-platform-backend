@@ -576,7 +576,6 @@ async def assign_driver(
             )
 
         driver.current_car_id = data.car_id
-        driver.is_approved = True  # 배정 시 자동 승인 처리
 
     await db.commit()
     return {"message": "차량 기사 매핑이 성공적으로 업데이트되었습니다."}
