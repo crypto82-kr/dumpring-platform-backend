@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     PORTONE_API_SECRET: Optional[str] = None
     PORTONE_STORE_ID: Optional[str] = None
     PORTONE_CHANNEL_KEY: Optional[str] = None
+    PORTONE_CHANNEL_KEY2: Optional[str] = None
     PORTONE_DANAL_CHANNEL_KEY: Optional[str] = None
     PORTONE_PASS_CHANNEL_KEY: Optional[str] = None
     PORTONE_API_BASE_URL: str = "https://api.portone.io"

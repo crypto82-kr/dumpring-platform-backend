@@ -37,12 +37,22 @@ router = APIRouter()
     description="클라이언트(웹/앱)에서 포트원 본인인증 SDK 호출 시 필요한 상점 ID 및 채널 키를 반환합니다."
 )
 async def get_portone_config():
+    danal_key = (
+        settings.PORTONE_CHANNEL_KEY2
+        or settings.PORTONE_DANAL_CHANNEL_KEY
+        or settings.PORTONE_CHANNEL_KEY
+    )
+    pass_key = (
+        settings.PORTONE_PASS_CHANNEL_KEY
+        or (settings.PORTONE_CHANNEL_KEY if settings.PORTONE_CHANNEL_KEY2 else None)
+    )
     return PortoneConfigResponse(
         store_id=settings.PORTONE_STORE_ID,
-        channel_key=settings.PORTONE_CHANNEL_KEY or settings.PORTONE_DANAL_CHANNEL_KEY,
-        danal_channel_key=settings.PORTONE_DANAL_CHANNEL_KEY or settings.PORTONE_CHANNEL_KEY,
-        pass_channel_key=settings.PORTONE_PASS_CHANNEL_KEY,
+        channel_key=danal_key,
+        danal_channel_key=danal_key,
+        pass_channel_key=pass_key,
     )
+
 
 
 
