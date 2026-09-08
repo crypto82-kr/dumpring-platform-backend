@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Truck, MapPin, Search } from "lucide-react";
 import { MockMap } from "./MockMap";
-import { getApiBaseUrl } from "@/lib/api";
+import { getApiBaseUrl } from "@/utils/api";
 
 interface DropoffDispatchManagementProps {
   user?: any;
