@@ -70,8 +70,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role = "site_worker";
     } else if (userData.is_drop_off) {
       role = "dropoff_manager";
-    } else if (userData.is_owner || userData.is_driver) {
+    } else if (userData.is_owner) {
       role = "owner";
+    } else if (userData.is_driver) {
+      // 기사는 모바일 앱 전용 사용자이므로 웹 로그인 차단
+      localStorage.removeItem("accessToken");
+      sessionStorage.removeItem("dumpring_token");
+      localStorage.removeItem("userData");
+      localStorage.removeItem("userProfile");
+      setUser(null);
+      throw new Error("기사님은 덤프링 모바일 앱을 이용해 주세요. (웹 대시보드는 차주/운송사 및 관리자 전용입니다)");
     }
 
     // 보안 강화: 유효한 서비스 이용 권한이 할당되지 않은 경우 접속 엄격 차단
@@ -81,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem("userData");
       localStorage.removeItem("userProfile");
       setUser(null);
-      throw new Error("부여된 서비스 이용 권한이 없습니다. 플랫폼 관리자에게 문의해 주세요.");
+      throw new Error("부여된 웹 서비스 이용 권한이 없습니다. 플랫폼 관리자에게 문의해 주세요.");
     }
 
     localStorage.setItem("accessToken", token);

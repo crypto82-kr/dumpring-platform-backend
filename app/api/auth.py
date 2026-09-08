@@ -1692,3 +1692,147 @@ async def update_profile(
     }}
 
 
+@router.get(
+    "/admin/all-users",
+    summary="[어드민] 전체 가입자 및 이용자 상세 목록 조회",
+    description="플랫폼 관리자가 가입된 모든 이용자(기사, 차주, 현장관리자, 하차지관리자 등)의 정보, 승인여부, 배정 차량 등을 조회합니다."
+)
+async def get_all_users_for_admin(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    from app.models import Car, Driver, UserUploadedDocument, SiteProfile, DropOffProfile, SiteEmployee
+    
+    # 1. 오직 정상 승인 완료된 활동 회원만 조회 (관리자 제외, is_approved=True 필수, 최신 가입순)
+    users_query = select(User).where(
+        User.is_admin == False,
+        User.is_approved == True
+    ).order_by(User.created_at.desc())
+    users_res = await db.execute(users_query)
+    all_users = users_res.scalars().all()
+    # 개발자 계정도 제외
+    users = [u for u in all_users if u.phone_number != "010-9999-9999" and u.name != "개발자"]
+
+    # 2. 기사 테이블 데이터 맵 구성 (승인된 기사 기준)
+    driver_query = select(Driver).where(Driver.is_approved == True)
+    driver_res = await db.execute(driver_query)
+    drivers = driver_res.scalars().all()
+    driver_by_user_id = {d.user_id: d for d in drivers if d.user_id}
+
+    # 3. 차량 테이블 데이터 맵 구성
+    car_query = select(Car)
+    car_res = await db.execute(car_query)
+    cars = car_res.scalars().all()
+    car_by_id = {c.id: c for c in cars}
+    cars_by_owner_id = {}
+    for c in cars:
+        cars_by_owner_id.setdefault(c.owner_id, []).append(c)
+
+    # 4. 차주(Owner) 이름 맵 구성
+    user_name_map = {u.id: u.name for u in users}
+
+    # 5. 현장 프로필 및 하차지 프로필 데이터 맵 구성
+    sp_res = await db.execute(select(SiteProfile))
+    site_profiles = {sp.user_id: sp for sp in sp_res.scalars().all()}
+
+    dp_res = await db.execute(select(DropOffProfile))
+    dropoff_profiles = {dp.user_id: dp for dp in dp_res.scalars().all()}
+
+    # 6. 서류 매핑
+    docs_query = select(UserUploadedDocument)
+    docs_res = await db.execute(docs_query)
+    all_docs = docs_res.scalars().all()
+    docs_by_user_id = {}
+    for doc in all_docs:
+        docs_by_user_id.setdefault(doc.user_id, []).append({
+            "code": doc.document_code,
+            "file_name": doc.file_name,
+            "url": doc.file_name if doc.file_name.startswith("http") else f"/api/files/stream/{doc.file_name.split('/')[-1]}?category=documents"
+        })
+
+    result_list = []
+    for u in users:
+        # 역할 명칭 및 타입 결정
+        roles = []
+        if u.is_owner:
+            roles.append("차주 / 운송사")
+        if u.is_driver:
+            roles.append("덤프 기사")
+        if u.is_site_manager:
+            roles.append("현장 관리자")
+        if u.is_site_worker:
+            roles.append("현장 담당자")
+        if u.is_drop_off:
+            roles.append("하차지 지주")
+        
+        primary_role = roles[0] if roles else "일반 회원"
+
+        # 기사인 경우 배정 차량 및 소속 차주 정보
+        assigned_car_number = None
+        assigned_car_tonnage = None
+        owner_name = None
+        driver_record = driver_by_user_id.get(u.id)
+        if driver_record:
+            if driver_record.current_car_id and driver_record.current_car_id in car_by_id:
+                car = car_by_id[driver_record.current_car_id]
+                assigned_car_number = car.car_number
+                assigned_car_tonnage = car.tonnage
+            if driver_record.owner_id and driver_record.owner_id in user_name_map:
+                owner_name = user_name_map[driver_record.owner_id]
+
+        # 차주인 경우 보유 차량 대수 및 목록
+        owned_cars_list = []
+        if u.is_owner:
+            owned = cars_by_owner_id.get(u.id, [])
+            owned_cars_list = [{"id": c.id, "car_number": c.car_number, "tonnage": c.tonnage} for c in owned]
+
+        # 승인 상태
+        approval_status = "APPROVED" if u.is_approved else ("REJECTED" if u.reject_reason else "PENDING")
+        if driver_record and not u.is_owner and not u.is_site_manager and not u.is_drop_off:
+            approval_status = "APPROVED" if driver_record.is_approved else ("REJECTED" if driver_record.reject_reason else "PENDING")
+
+        # 현장관리자 프로필 정보
+        sp = site_profiles.get(u.id)
+        site_name = sp.site_name if sp else None
+        company_name = sp.company_name if sp else None
+        site_address = getattr(sp, "site_address", None) or getattr(sp, "address", None) if sp else None
+        business_number = sp.business_number if sp else None
+
+        # 하차지 지주 프로필 정보
+        dp = dropoff_profiles.get(u.id)
+        dropoff_name = dp.location_name if dp else None
+        permit_number = dp.permit_number if dp else None
+        dropoff_address = dp.address if dp else None
+
+        result_list.append({
+            "id": u.id,
+            "name": u.name,
+            "phone_number": u.phone_number,
+            "roles": roles,
+            "primary_role": primary_role,
+            "is_driver": u.is_driver,
+            "is_owner": u.is_owner,
+            "is_site_manager": u.is_site_manager,
+            "is_site_worker": u.is_site_worker,
+            "is_drop_off": u.is_drop_off,
+            "is_admin": u.is_admin,
+            "created_at": u.created_at.strftime("%Y-%m-%d") if u.created_at else None,
+            "assigned_car_number": assigned_car_number,
+            "assigned_car_tonnage": assigned_car_tonnage,
+            "owner_name": owner_name,
+            "owned_cars_count": len(owned_cars_list),
+            "owned_cars": owned_cars_list,
+            "site_name": site_name,
+            "company_name": company_name,
+            "site_address": site_address,
+            "business_number": business_number,
+            "dropoff_name": dropoff_name,
+            "permit_number": permit_number,
+            "dropoff_address": dropoff_address,
+            "documents": docs_by_user_id.get(u.id, [])
+        })
+
+    return result_list
+
+
+

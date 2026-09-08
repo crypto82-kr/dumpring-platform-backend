@@ -231,12 +231,12 @@ async def get_open_dispatch_jobs(
         except ValueError:
             pass  # 잘못된 날짜 형식은 무시
 
-    # select(JobPost)와 함께 Site, DropOff, DropOffRequest 정보를 로드하도록 변경
+    # select(JobPost)와 함께 Site, DropOff, DropOffRequest (및 DropOffRequest.drop_off) 정보를 로드하도록 변경
     from sqlalchemy.orm import selectinload
     query = query.options(
         selectinload(JobPost.site),
         selectinload(JobPost.matched_drop_off),
-        selectinload(JobPost.drop_off_request)
+        selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off)
     ).order_by(JobPost.created_at.desc()).offset(offset).limit(limit)
 
     result = await db.execute(query)

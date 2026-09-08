@@ -7,6 +7,7 @@ import { AlertCircle } from "lucide-react";
 import { PlatformAdminDashboard } from "@/components/dashboard/PlatformAdminDashboard";
 import { PlatformAdminUnifiedApproval } from "@/components/dashboard/platform_admin/PlatformAdminUnifiedApproval";
 import { PlatformAdminOverviewDashboard } from "@/components/dashboard/platform_admin/PlatformAdminOverviewDashboard";
+import { PlatformAdminUserManagement } from "@/components/dashboard/platform_admin/PlatformAdminUserManagement";
 import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboard";
 import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
@@ -1448,6 +1449,8 @@ export default function Home() {
             handleRejectMember={handleRejectMember}
             handleCancelRejectMember={handleCancelRejectMember}
           />
+        ) : activePath === "/admin/users" ? (
+          <PlatformAdminUserManagement setActivePath={setActivePath} />
         ) : (
           <PlatformAdminDashboard
             activePath={activePath}
