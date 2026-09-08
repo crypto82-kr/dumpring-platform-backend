@@ -71,6 +71,20 @@ export const MatchStatusCard: React.FC<MatchStatusCardProps> = ({
         </span>
       );
     }
+    if (rawStatus === "COMPLETED") {
+      return (
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200 shadow-sm">
+          운행 완료 (반입 완료)
+        </span>
+      );
+    }
+    if (rawStatus === "CLOSED") {
+      return (
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-slate-100 text-slate-700 border-slate-300 shadow-sm">
+          모집 마감
+        </span>
+      );
+    }
     if (rawStatus === "WAITING_MATCH") {
       return (
         <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200 shadow-sm">

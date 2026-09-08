@@ -521,7 +521,7 @@ async def get_pending_jobs(
             JobPost.drop_off_request_id.in_(request_ids) if request_ids else False,
             JobPost.matched_drop_off_id.in_(dropoff_ids) if dropoff_ids else False
         ),
-        JobPost.status.in_(["WAITING_APPROVAL", "CANCELLED", "OPEN"])
+        JobPost.status.in_(["WAITING_APPROVAL", "CANCELLED", "OPEN", "COMPLETED", "CLOSED"])
     )
     job_result = await db.execute(job_query)
     return job_result.scalars().all()

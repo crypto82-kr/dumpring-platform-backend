@@ -385,6 +385,7 @@ export default function Home() {
               case "WAITING_APPROVAL": return "승인대기";
               case "WAITING_MATCH": return "매칭대기";
               case "CANCELLED": return "매칭반려";
+              case "COMPLETED": return "운행완료";
               case "CLOSED": return "마감";
               default: return "대기중";
             }
@@ -495,6 +496,7 @@ export default function Home() {
             case "OPEN": return "매칭완료";
             case "WAITING_APPROVAL": return "승인대기";
             case "WAITING_MATCH": return "매칭대기";
+            case "COMPLETED": return "운행완료";
             case "CLOSED": return "마감";
             case "CANCELLED": return "취소됨";
             default: return "대기중";

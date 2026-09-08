@@ -1059,8 +1059,8 @@ export function DropoffManagerDashboard({
                     {(() => {
                       const linkedJobs = dispatchRequestList.filter(job => job.dropOffRequestId === announce.id);
                       if (linkedJobs.length === 0) return null;
-                      // WAITING_APPROVAL이나 OPEN인 주체 하나 판별
-                      const activeJob = linkedJobs.find(j => j.rawStatus === "WAITING_APPROVAL" || j.rawStatus === "OPEN");
+                      // WAITING_APPROVAL, OPEN, COMPLETED, CLOSED 등 유효 매칭 오더 판별
+                      const activeJob = linkedJobs.find(j => j.rawStatus === "WAITING_APPROVAL" || j.rawStatus === "OPEN" || j.rawStatus === "COMPLETED" || j.rawStatus === "CLOSED") || linkedJobs[0];
                       if (!activeJob) return null;
                       const isMySent = Number(activeJob.authorId) === Number(user?.id);
                       return (

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Truck, MapPin, Search } from "lucide-react";
 import { MockMap } from "./MockMap";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface DropoffDispatchManagementProps {
   user?: any;
@@ -22,14 +23,22 @@ export default function DropoffDispatchManagement({
 }: DropoffDispatchManagementProps) {
   const [selectedDropoffFilter, setSelectedDropoffFilter] = useState<string>("");
   const [selectedOrderRequestId, setSelectedOrderRequestId] = useState<number | null>(null);
+  const [assignedTickets, setAssignedTickets] = useState<any[]>([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState<boolean>(false);
 
   // 1. 하차지 관리자의 내 운영 하차지 리스트
   const myDropoffs = registeredDropoffList;
 
-  // 2. 매칭이 완료되어 반입(배차) 진행 중인 배차건 필터링
+  // 2. 매칭이 완료되어 반입(배차) 진행 중이거나 완료된 배차건 필터링
   const activeMatchedDispatches = dispatchRequestList.filter((req) => {
-    // 하차지가 연동되어 매칭완료/배차완료/운행중 상태인 오더만 포함
-    const isMatched = req.rawStatus === "OPEN" || req.rawStatus === "CLOSED" || req.status === "매칭완료" || req.status === "배차완료" || Boolean(req.dropoffName);
+    // 하차지가 연동되어 매칭완료/배차완료/운행완료/OPEN/COMPLETED 상태인 오더 모두 포함
+    const isMatched =
+      req.rawStatus === "OPEN" ||
+      req.rawStatus === "COMPLETED" ||
+      req.rawStatus === "CLOSED" ||
+      req.status === "매칭완료" ||
+      req.status === "운행완료" ||
+      Boolean(req.dropoffName);
     if (!isMatched) return false;
 
     if (!selectedDropoffFilter) return true;
@@ -40,6 +49,64 @@ export default function DropoffDispatchManagement({
 
   const activeSelectedId = selectedOrderRequestId || (activeMatchedDispatches.length > 0 ? activeMatchedDispatches[0].id : null);
   const selectedReq = dispatchRequestList.find((r) => r.id === activeSelectedId) || null;
+
+  // 3. 선택된 오더에 배정된 실제 기사 티켓 DB 조회
+  useEffect(() => {
+    if (!selectedReq?.id) {
+      setAssignedTickets([]);
+      return;
+    }
+
+    const fetchTickets = async () => {
+      setIsLoadingTickets(true);
+      try {
+        const baseUrl = getApiBaseUrl();
+        const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+        if (!token) return;
+
+        const res = await fetch(`${baseUrl}/api/dispatch/job/${selectedReq.id}/tickets`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setAssignedTickets(Array.isArray(data) ? data : []);
+        } else {
+          setAssignedTickets([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch assigned tickets:", err);
+        setAssignedTickets([]);
+      } finally {
+        setIsLoadingTickets(false);
+      }
+    };
+
+    fetchTickets();
+  }, [selectedReq?.id]);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "ACCEPTED":
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-blue-50 text-blue-600 border border-blue-200">배차 수락</span>;
+      case "ARRIVED_LOADING":
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-amber-50 text-amber-600 border border-amber-200">상차지 도착</span>;
+      case "LOADING_APPROVED":
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-purple-50 text-purple-600 border border-purple-200">상차 승인완료</span>;
+      case "DRIVING":
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-indigo-50 text-indigo-600 border border-indigo-200 animate-pulse">하차지 이동 중</span>;
+      case "ARRIVED":
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-orange-50 text-orange-600 border border-orange-200">하차지 도착 (승인대기)</span>;
+      case "APPROVED":
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-600 border border-emerald-200">반입 완료</span>;
+      case "REJECTED":
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-rose-50 text-rose-600 border border-rose-200">반입 반려</span>;
+      case "CANCELLED":
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-slate-100 text-slate-500 border border-slate-200">배차 취소</span>;
+      default:
+        return <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-slate-100 text-slate-600">{status}</span>;
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -75,7 +142,7 @@ export default function DropoffDispatchManagement({
 
           {/* 2. 진행 중인 반입/배차 오더 선택 */}
           <div className="flex items-center gap-2 min-w-[340px] flex-1">
-            <span className="text-xs font-extrabold text-slate-500 whitespace-nowrap">반입 진행 오더:</span>
+            <span className="text-xs font-extrabold text-slate-500 whitespace-nowrap">반입 오더 선택:</span>
             <select
               value={activeSelectedId || ""}
               onChange={(e) => setSelectedOrderRequestId(Number(e.target.value))}
@@ -83,7 +150,7 @@ export default function DropoffDispatchManagement({
             >
               {activeMatchedDispatches.map((req) => (
                 <option key={req.id} value={req.id}>
-                  [{req.siteName} ➔ {req.dropoffName || "내 하차지"}] {req.tonTypes?.map((t: string) => t === 'T_25' ? '25톤' : t).join(',')} ({req.truckCount}대)
+                  [{req.siteName} ➔ {req.dropoffName || "내 하차지"}] {req.tonTypes?.map((t: string) => t === "T_25" ? "25톤" : t).join(",")} ({req.truckCount}대) - {req.status}
                 </option>
               ))}
               {activeMatchedDispatches.length === 0 && <option value="">진행 중인 반입 배차 오더 없음</option>}
@@ -104,10 +171,10 @@ export default function DropoffDispatchManagement({
 
                 if (selectedReq.dropoffName && selectedReq.dropoffAddress) {
                   return (
-                    <MockMap 
-                      title={`📍 [상차지] ${selectedReq.siteName} ↔ [하차지] ${selectedReq.dropoffName}`} 
-                      address={selectedReq.dropoffAddress} 
-                      pinned={true} 
+                    <MockMap
+                      title={`📍 [상차지] ${selectedReq.siteName} ↔ [하차지] ${selectedReq.dropoffName}`}
+                      address={selectedReq.dropoffAddress}
+                      pinned={true}
                       isRouteMode={true}
                       siteName={selectedReq.siteName}
                       siteAddress={actualSiteAddress}
@@ -119,10 +186,10 @@ export default function DropoffDispatchManagement({
                   );
                 } else {
                   return (
-                    <MockMap 
-                      title={`📍 [하차지 위치] ${selectedReq.dropoffName || "하차지"}`} 
-                      address={selectedReq.dropoffAddress || "주소 미등록"} 
-                      pinned={true} 
+                    <MockMap
+                      title={`📍 [하차지 위치] ${selectedReq.dropoffName || "하차지"}`}
+                      address={selectedReq.dropoffAddress || "주소 미등록"}
+                      pinned={true}
                       isRouteMode={false}
                     />
                   );
@@ -193,7 +260,7 @@ export default function DropoffDispatchManagement({
             </div>
           </div>
 
-          {/* Bottom Full-Width Section: Driver List & Inbound Tracking Table */}
+          {/* Bottom Full-Width Section: Driver List & Inbound Tracking Table (Real DB Connected) */}
           <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-4">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
               <Truck className="w-5 h-5 text-blue-600" />
@@ -202,7 +269,7 @@ export default function DropoffDispatchManagement({
                   반입 진입 차량 및 운행 기사 현황 목록
                 </h4>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  해당 오더에 배정되어 현재 하차지로 토사를 운반 중인 차주/기사 명단을 관제합니다.
+                  해당 오더에 배정되어 현재 하차지로 토사를 운반 중인 실제 차주/기사 명단을 실시간으로 관제합니다.
                 </p>
               </div>
             </div>
@@ -215,57 +282,49 @@ export default function DropoffDispatchManagement({
                     <th className="py-3 px-4">기사 성명</th>
                     <th className="py-3 px-4">차량 번호 / 톤수</th>
                     <th className="py-3 px-4">연락처</th>
-                    <th className="py-3 px-4">평점</th>
-                    <th className="py-3 px-4">운행 상태</th>
-                    <th className="py-3 px-4 text-right">반입 상태 확인</th>
+                    <th className="py-3 px-4">배차 수락 일시</th>
+                    <th className="py-3 px-4 text-center">운행 상태</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
-                  <tr className="hover:bg-slate-50/80 transition-all">
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900 flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      강동원 기사
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                      서울 88바 1234 <span className="text-[10px] font-semibold text-slate-400">(25톤 덤프)</span>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600">010-8910-1112</td>
-                    <td className="py-3.5 px-4 font-bold text-amber-500">★ 4.9</td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">
-                        하차지 이동 중
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => alert("[강동원 기사] 토사 반입 확인 처리가 완료되었습니다.")}
-                        className="px-3 py-1.5 text-xs font-black rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-500/10"
-                      >
-                        반입 확인 처리
-                      </button>
-                    </td>
-                  </tr>
+                  {isLoadingTickets ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                        기사 운행 정보를 불러오는 중입니다...
+                      </td>
+                    </tr>
+                  ) : assignedTickets.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                        현재 배차를 수락하거나 운행 중인 기사가 없습니다. (기사 배차 대기 중)
+                      </td>
+                    </tr>
+                  ) : (
+                    assignedTickets.map((t) => {
+                      const driverName = t.driver?.name || "기사명 미등록";
+                      const carPlate = t.car?.car_number || "차량번호 미등록";
+                      const carTonnage = t.car?.tonnage ? `${t.car.tonnage}톤` : "덤프";
+                      const phone = t.driver?.phone || "-";
+                      const acceptedTime = t.accepted_at ? new Date(t.accepted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-";
 
-                  <tr className="hover:bg-slate-50/80 transition-all">
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900 flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                      마동석 기사
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                      경기 80사 5678 <span className="text-[10px] font-semibold text-slate-400">(25톤 덤프)</span>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600">010-5678-1234</td>
-                    <td className="py-3.5 px-4 font-bold text-amber-500">★ 4.8</td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded-md bg-blue-50 text-blue-600 border border-blue-200">
-                        상차 완료 (이동 대기)
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <span className="text-xs text-slate-400 font-bold">운행 이동 중</span>
-                    </td>
-                  </tr>
+                      return (
+                        <tr key={t.id} className="hover:bg-slate-50/80 transition-all">
+                          <td className="py-3.5 px-4 font-extrabold text-slate-900 flex items-center gap-2">
+                            <span className={`w-2.5 h-2.5 rounded-full ${t.status === "APPROVED" ? "bg-emerald-500" : "bg-blue-500 animate-pulse"}`}></span>
+                            {driverName}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
+                            {carPlate} <span className="text-[10px] font-semibold text-slate-400">({carTonnage})</span>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-600">{phone}</td>
+                          <td className="py-3.5 px-4 text-slate-500 font-mono">{acceptedTime}</td>
+                          <td className="py-3.5 px-4 text-center">
+                            {getStatusBadge(t.status)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

@@ -1002,17 +1002,15 @@ async def inspect_and_confirm(
     ticket.completed_at = datetime.now()
 
     # [내실 다지기 🚨] 해당 JobPost에 연동된 모든 DispatchTicket들의 반입 완료 여부 검증
-    # 만약 배차 신청한 모든 차량의 운행이 완료(APPROVED 또는 REJECTED 등)되었고,
+    # 만약 배차 신청한 모든 차량의 운행이 완료(APPROVED)되었고,
     # 성공적으로 APPROVED된 티켓 대수가 B2B 공고의 목표 차량대수(required_trucks)에 도달하면 JobPost 자체를 완료(COMPLETED) 처리
     all_tickets_query = select(DispatchTicket).where(DispatchTicket.job_post_id == job.id)
     all_tickets_res = await db.execute(all_tickets_query)
     all_tickets = all_tickets_res.scalars().all()
 
-    approved_count = sum(1 for t in all_tickets if t.status == "APPROVED")
-    
-    # 현재 승인 판정 건을 포함하여 카운트
-    if decision_status == "APPROVED":
-        approved_count += 1
+    # ticket.status는 이미 세션 메모리에서 decision_status로 업데이트되었으므로
+    # all_tickets 내의 APPROVED 상태 티켓 수만 세면 정확합니다. (2중 가산 버그 제거)
+    approved_count = sum(1 for t in all_tickets if (t.id == ticket.id and decision_status == "APPROVED") or (t.id != ticket.id and t.status == "APPROVED"))
 
     if approved_count >= job.required_trucks:
         job.status = "COMPLETED"
@@ -1220,14 +1218,32 @@ async def get_job_tickets(
             detail="존재하지 않는 배차 공고입니다."
         )
 
-    # 2. 권한 검증: 관리자이거나, 해당 공고의 작성자이거나, 해당 현장의 관리자인지 확인
-    if not current_user.is_admin and job.author_id != current_user.id:
+    # 2. 권한 검증: 관리자이거나, 해당 공고의 작성자이거나, 해당 현장 관리자이거나, 매칭된 하차지의 지주인지 확인
+    is_authorized = current_user.is_admin or (job.author_id == current_user.id)
+
+    if not is_authorized and job.site_id:
         site = await db.get(ConstructionSite, job.site_id)
-        if not site or site.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="해당 배차 공고의 기사 목록을 조회할 권한이 없습니다."
-            )
+        if site and site.user_id == current_user.id:
+            is_authorized = True
+
+    if not is_authorized and job.matched_drop_off_id:
+        dropoff = await db.get(DropOff, job.matched_drop_off_id)
+        if dropoff and dropoff.owner_id == current_user.id:
+            is_authorized = True
+
+    if not is_authorized and job.drop_off_request_id:
+        req_query = select(DropOffRequest).where(DropOffRequest.id == job.drop_off_request_id)
+        req_obj = (await db.execute(req_query)).scalar_one_or_none()
+        if req_obj:
+            dropoff = await db.get(DropOff, req_obj.drop_off_id)
+            if dropoff and dropoff.owner_id == current_user.id:
+                is_authorized = True
+
+    if not is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 배차 공고의 기사 목록을 조회할 권한이 없습니다."
+        )
 
     # 3. 해당 공고에 연동된 DispatchTicket 목록 조회
     ticket_query = select(DispatchTicket).where(
