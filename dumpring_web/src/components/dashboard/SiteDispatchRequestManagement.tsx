@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock } from "lucide-react";
 import { MockMap } from "./MockMap";
 import { MatchStatusCard } from "./MatchStatusCard";
+import { getApiBaseUrl } from "@/utils/api";
 
 export interface DispatchRequestItem {
   id: number;
@@ -89,9 +90,21 @@ export default function SiteDispatchRequestManagement({
   const [jobTickets, setJobTickets] = useState<any[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState<boolean>(false);
 
+  const filteredRequests = dispatchRequestList.filter((req) => {
+    if (!dispatchRequestSearchQuery || !dispatchRequestSearchQuery.trim()) return true;
+    const q = dispatchRequestSearchQuery.trim().toLowerCase();
+    const siteNameStr = (req.siteName || "현장명 없음").toLowerCase();
+    const soilTypeStr = (req.soilType || "일반 토사").toLowerCase();
+    const dropoffNameStr = (req.dropoffName || "").toLowerCase();
+    return siteNameStr.includes(q) || soilTypeStr.includes(q) || dropoffNameStr.includes(q);
+  });
+
+  const activeSelectedId = selectedRequestId || (filteredRequests.length > 0 ? filteredRequests[0].id : null);
+  const selectedReq = dispatchRequestList.find((r) => r.id === activeSelectedId) || null;
+
   // 선택된 배차 요청이 바뀔 때 실제 DB 티켓 조회
   useEffect(() => {
-    if (!selectedRequestId) {
+    if (!activeSelectedId) {
       setJobTickets([]);
       return;
     }
@@ -99,8 +112,10 @@ export default function SiteDispatchRequestManagement({
     const fetchTickets = async () => {
       setIsLoadingTickets(true);
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        const res = await fetch(`/api/dispatch/job/${selectedRequestId}/tickets`, {
+        const token = typeof window !== "undefined"
+          ? (sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken") || localStorage.getItem("token"))
+          : null;
+        const res = await fetch(`${getApiBaseUrl()}/api/dispatch/job/${activeSelectedId}/tickets`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) {
@@ -118,7 +133,7 @@ export default function SiteDispatchRequestManagement({
     };
 
     fetchTickets();
-  }, [selectedRequestId]);
+  }, [activeSelectedId]);
 
   const resetDispatchForm = () => {
     setDispatchFormSiteId(registeredSiteList[0]?.id || "");
@@ -231,18 +246,6 @@ export default function SiteDispatchRequestManagement({
       setIsDispatchModalOpen(false);
     }
   };
-
-  const filteredRequests = dispatchRequestList.filter((req) => {
-    if (!dispatchRequestSearchQuery || !dispatchRequestSearchQuery.trim()) return true;
-    const q = dispatchRequestSearchQuery.trim().toLowerCase();
-    const siteNameStr = (req.siteName || "현장명 없음").toLowerCase();
-    const soilTypeStr = (req.soilType || "일반 토사").toLowerCase();
-    const dropoffNameStr = (req.dropoffName || "").toLowerCase();
-    return siteNameStr.includes(q) || soilTypeStr.includes(q) || dropoffNameStr.includes(q);
-  });
-
-  const activeSelectedId = selectedRequestId || (filteredRequests.length > 0 ? filteredRequests[0].id : null);
-  const selectedReq = dispatchRequestList.find((r) => r.id === activeSelectedId) || null;
 
   return (
     <div className="space-y-6 animate-fadeIn">
