@@ -12,4 +12,9 @@ class AppConfig {
 
   /// TMap API App Key
   static const String tmapAppKey = "5gUKBVLN7Q2rfidZTfVZK7VA6bIg2ykN6qXXXJmQ";
+
+  /// 포트원(PortOne) V2 본인인증 키
+  static const String portoneStoreId = "store-d234f526-1ff5-408d-a485-67e36e53f003";
+  static const String portoneChannelKey = "channel-key-b9cc6ecd-0a1c-4d4e-a849-9e9c5168c25e";
 }
+

@@ -18,8 +18,11 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2ZHlkaHhtd2RycmF6d3lqdnZ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTY4NjY0MzIwMCwiZXhwIjoyMDAyMjE5MjAwfQ.example"
     SUPABASE_BUCKET_NAME: str = "dumpring-documents"
 
-
-
+    # PortOne V2 Identity Verification Configuration
+    PORTONE_API_SECRET: Optional[str] = None
+    PORTONE_STORE_ID: Optional[str] = None
+    PORTONE_CHANNEL_KEY: Optional[str] = None
+    PORTONE_API_BASE_URL: str = "https://api.portone.io"
 
     # Settings Config
     model_config = SettingsConfigDict(

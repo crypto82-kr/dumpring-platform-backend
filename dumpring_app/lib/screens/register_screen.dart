@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart'; // AppColors, AppTextStyles 패키지 임포트
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import '../shared/file_picker_helper.dart';
+import 'portone_identity_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   final bool initialIsDriver;
-  const RegisterScreen({Key? key, this.initialIsDriver = true}) : super(key: key);
+  const RegisterScreen({super.key, this.initialIsDriver = true});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -30,6 +30,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isDirectDriver = false; // (차주일 때만 활성) 차주 사장님이 직접 운전 여부
   bool _obscurePassword = true; // 비밀번호 숨김 여부
   bool _isLoading = false; // API 로딩 상태
+  bool _isVerifying = false; // 본인인증 검증 중 상태
+  bool _isVerified = false; // 본인인증 완료 여부
+  String? _ci; // 본인인증으로 발급된 고유 CI
   String? _errorMessage; // 화면 에러 메시지
 
   // 업로드된 파일명 보관 변수 (MOCK 업로드용)
@@ -65,6 +68,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // 필수 항목 및 서류들이 누락 없이 채워졌는지 유효성 검사
   bool get _isFormValid {
+    if (!_isVerified || _ci == null) {
+      return false;
+    }
     if (_nameController.text.trim().isEmpty ||
         _phoneController.text.trim().length < 10 ||
         _passwordController.text.length < 4) {
@@ -195,7 +201,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       "phone_number": _phoneController.text.trim(),
       "password": _passwordController.text,
       "name": _nameController.text.trim(),
-      "ci": "MOCK_MOBILE_CI_KEY_${_phoneController.text.trim()}"
+      "ci": _ci
     };
 
     if (_isDriverRole) {
@@ -247,6 +253,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  // 포트원 통합 본인인증 실행
+  Future<void> _startPortOneVerification() async {
+    setState(() {
+      _errorMessage = null;
+    });
+
+    final String? verificationId = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PortoneIdentityScreen(),
+      ),
+    );
+
+    if (verificationId == null) {
+      return; // 사용자가 취소함
+    }
+
+    setState(() {
+      _isVerifying = true;
+    });
+
+    try {
+      final verifyRes = await http.post(
+        Uri.parse("$_baseUrl/api/auth/portone/verify-identity"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"identity_verification_id": verificationId}),
+      );
+
+      final verifyData = jsonDecode(utf8.decode(verifyRes.bodyBytes));
+
+      if (verifyRes.statusCode == 200 && verifyData["verified"] == true) {
+        setState(() {
+          _ci = verifyData["ci"];
+          if (verifyData["name"] != null && verifyData["name"].toString().isNotEmpty) {
+            _nameController.text = verifyData["name"];
+          }
+          if (verifyData["phone_number"] != null && verifyData["phone_number"].toString().isNotEmpty) {
+            _phoneController.text = verifyData["phone_number"];
+          }
+          _isVerified = true;
+          _errorMessage = null;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("본인인증이 완료되었습니다. (성명/휴대폰번호 자동 반영)"),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } else if (verifyData["error_code"] == "ALREADY_REGISTERED") {
+        _showErrorDialog(verifyData["message"] ?? "이미 가입된 본인인증 정보입니다. 로그인해 주세요.");
+      } else {
+        final msg = verifyData["detail"] ?? verifyData["message"] ?? "본인인증 검증에 실패했습니다.";
+        _showErrorDialog(msg.toString());
+      }
+    } catch (e) {
+      _showErrorDialog("인증 서버와 통신할 수 없습니다: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isVerifying = false;
+        });
+      }
     }
   }
 
@@ -494,20 +568,131 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // 포트원 통합 본인인증 안내/상태 카드
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 24),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: _isVerified
+                                ? (themeIsDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
+                                : (themeIsDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _isVerified ? AppColors.success : AppColors.divider,
+                              width: _isVerified ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    _isVerified ? Icons.verified : Icons.security,
+                                    color: _isVerified ? AppColors.success : AppColors.primary,
+                                    size: 26,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _isVerified ? "통합 본인인증 완료" : "본인인증 필수 (CI 발급)",
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                            color: _isVerified ? AppColors.success : AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          _isVerified
+                                              ? "실명 및 휴대폰 번호가 인증된 정보로 설정되었습니다."
+                                              : "카카오, 토스, PASS 등으로 간편하게 본인인증을 진행해 주세요.",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              if (!_isVerified)
+                                ElevatedButton.icon(
+                                  onPressed: _isVerifying ? null : _startPortOneVerification,
+                                  icon: _isVerifying
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : const Icon(Icons.touch_app_outlined, size: 18),
+                                  label: Text(
+                                    _isVerifying ? "인증 확인 중..." : "통합 본인인증하기 (카카오·토스·PASS)",
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                )
+                              else
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "CI: ${_ci != null ? '${_ci!.substring(0, _ci!.length.clamp(0, 16))}...' : ''}",
+                                      style: TextStyle(fontSize: 11, color: AppColors.textTertiary, fontFamily: 'monospace'),
+                                    ),
+                                    TextButton(
+                                      onPressed: _startPortOneVerification,
+                                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(60, 24)),
+                                      child: Text("다시 인증하기", style: TextStyle(fontSize: 12, color: AppColors.primary)),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+
                         // 성명 입력칸
-                        Text("성명 (실명)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("성명 (실명)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                            if (_isVerified)
+                              const Text("인증 완료 (수정 불가)", style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _nameController,
+                          readOnly: _isVerified,
                           keyboardType: TextInputType.name,
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                          style: TextStyle(
+                            fontSize: 16, 
+                            fontWeight: FontWeight.w500, 
+                            color: _isVerified ? AppColors.textSecondary : AppColors.textPrimary
+                          ),
                           decoration: InputDecoration(
-                            hintText: "실명을 입력해 주세요",
+                            hintText: _isVerified ? "인증된 실명" : "본인인증 완료 시 자동 입력됩니다",
                             hintStyle: TextStyle(color: AppColors.textTertiary),
                             filled: true,
-                            fillColor: AppColors.background,
+                            fillColor: _isVerified 
+                                ? (themeIsDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
+                                : AppColors.background,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                            prefixIcon: Icon(Icons.person_outline, color: AppColors.textSecondary),
+                            prefixIcon: Icon(Icons.person_outline, color: _isVerified ? AppColors.success : AppColors.textSecondary),
+                            suffixIcon: _isVerified ? const Icon(Icons.check_circle, color: AppColors.success, size: 20) : null,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(color: AppColors.divider, width: 1),
@@ -521,24 +706,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               borderSide: BorderSide(color: AppColors.primary, width: 1.5),
                             ),
                           ),
-                          validator: (value) => (value == null || value.trim().isEmpty) ? "성명을 입력해 주세요" : null,
+                          validator: (value) => (value == null || value.trim().isEmpty) ? "본인인증을 통해 성명을 등록해 주세요" : null,
                         ),
                         const SizedBox(height: 20),
 
                         // 휴대폰 번호 입력칸
-                        Text("휴대폰 번호 (로그인 ID)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("휴대폰 번호 (로그인 ID)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                            if (_isVerified)
+                              const Text("인증 완료 (수정 불가)", style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _phoneController,
+                          readOnly: _isVerified,
                           keyboardType: TextInputType.phone,
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                          style: TextStyle(
+                            fontSize: 16, 
+                            fontWeight: FontWeight.w500, 
+                            color: _isVerified ? AppColors.textSecondary : AppColors.textPrimary
+                          ),
                           decoration: InputDecoration(
-                            hintText: "- 없이 숫자만 입력해 주세요",
+                            hintText: _isVerified ? "인증된 휴대폰 번호" : "본인인증 완료 시 자동 입력됩니다",
                             hintStyle: TextStyle(color: AppColors.textTertiary),
                             filled: true,
-                            fillColor: AppColors.background,
+                            fillColor: _isVerified 
+                                ? (themeIsDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
+                                : AppColors.background,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                            prefixIcon: Icon(Icons.phone_android_outlined, color: AppColors.textSecondary),
+                            prefixIcon: Icon(Icons.phone_android_outlined, color: _isVerified ? AppColors.success : AppColors.textSecondary),
+                            suffixIcon: _isVerified ? const Icon(Icons.check_circle, color: AppColors.success, size: 20) : null,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(color: AppColors.divider, width: 1),
@@ -554,7 +754,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return "휴대폰 번호를 입력해 주세요";
+                              return "본인인증을 통해 휴대폰 번호를 등록해 주세요";
                             }
                             if (value.length < 10) {
                               return "올바른 번호 형식이 아닙니다";

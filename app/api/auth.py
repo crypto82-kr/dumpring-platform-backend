@@ -15,10 +15,12 @@ from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, 
 from app.schemas.auth import (
     DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse,
     SiteManagerRegister, SiteWorkerRegister, DropOffRegister,
-    CheckPhoneRegisterRequest, CheckPhoneRegisterResponse
+    CheckPhoneRegisterRequest, CheckPhoneRegisterResponse,
+    PortoneConfigResponse, PortoneVerifyIdentityRequest, PortoneVerifyIdentityResponse
 )
 from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM, normalize_phone
 from app.core.config import settings
+from app.services.portone import portone_service
 
 logger = logging.getLogger("dumpring.auth")
 
@@ -26,6 +28,84 @@ logger = logging.getLogger("dumpring.auth")
 security = HTTPBearer()
 
 router = APIRouter()
+
+
+@router.get(
+    "/portone/config",
+    response_model=PortoneConfigResponse,
+    summary="포트원 V2 본인인증 초기화 설정값 조회",
+    description="클라이언트(웹/앱)에서 포트원 본인인증 SDK 호출 시 필요한 상점 ID 및 채널 키를 반환합니다."
+)
+async def get_portone_config():
+    return PortoneConfigResponse(
+        store_id=settings.PORTONE_STORE_ID,
+        channel_key=settings.PORTONE_CHANNEL_KEY
+    )
+
+
+@router.post(
+    "/portone/verify-identity",
+    response_model=PortoneVerifyIdentityResponse,
+    summary="포트원 V2 통합 본인인증 결과 검증 및 신원 조회",
+    description="포트원 본인인증 완료 후 발급된 identity_verification_id를 전달받아 CI, 실명, 휴대폰 번호를 검증하고 중복 가입 여부를 확인합니다."
+)
+async def verify_portone_identity(
+    data: PortoneVerifyIdentityRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        verification = await portone_service.get_identity_verification(data.identity_verification_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"포트원 본인인증 검증 중 서버 오류: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"포트원 인증 서버와의 연동에 실패했습니다: {str(e)}"
+        )
+
+    ci = verification["ci"]
+    name = verification["name"]
+    raw_phone = verification["phone_number"]
+    normalized_phone = normalize_phone(raw_phone) if raw_phone else ""
+
+    # 1. CI 기반 기존 가입자 중복 검증
+    ci_query = select(User).where(User.ci == ci)
+    ci_res = await db.execute(ci_query)
+    existing_user_by_ci = ci_res.scalars().first()
+    if existing_user_by_ci:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error_code": "ALREADY_REGISTERED",
+                "message": "이미 해당 본인인증 정보(CI)로 가입된 계정이 존재합니다. 로그인해 주세요."
+            }
+        )
+
+    # 2. 휴대폰 번호 기반 중복 검증 (normalized_phone이 있는 경우)
+    if normalized_phone:
+        phone_query = select(User).where(User.phone_number == normalized_phone)
+        phone_res = await db.execute(phone_query)
+        existing_user_by_phone = phone_res.scalars().first()
+        if existing_user_by_phone:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "error_code": "ALREADY_REGISTERED",
+                    "message": "이미 해당 휴대폰 번호로 가입된 계정이 존재합니다. 로그인해 주세요."
+                }
+            )
+
+    return PortoneVerifyIdentityResponse(
+        verified=True,
+        ci=ci,
+        name=name,
+        phone_number=normalized_phone,
+        message="본인인증이 성공적으로 완료되었습니다."
+    )
 
 
 @router.post(
@@ -115,7 +195,20 @@ async def register_driver(
     db: AsyncSession = Depends(get_db)
 ):
     normalized_phone = normalize_phone(data.phone_number)
-    # 1. 중복 가입 체크
+    # 1. 중복 가입 체크 (CI 및 휴대폰 번호)
+    if data.ci:
+        ci_query = select(User).where(User.ci == data.ci)
+        ci_res = await db.execute(ci_query)
+        if ci_res.scalars().first():
+            logger.warning(f"기사 가입 실패: 이미 존재하는 CI ({data.ci})")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "error_code": "ALREADY_REGISTERED",
+                    "message": "이미 해당 본인인증 정보(CI)로 가입된 계정이 존재합니다. 로그인해 주세요."
+                }
+            )
+
     query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
@@ -210,7 +303,20 @@ async def register_owner(
     db: AsyncSession = Depends(get_db)
 ):
     normalized_phone = normalize_phone(data.phone_number)
-    # 1. 중복 가입 체크
+    # 1. 중복 가입 체크 (CI 및 휴대폰 번호)
+    if data.ci:
+        ci_query = select(User).where(User.ci == data.ci)
+        ci_res = await db.execute(ci_query)
+        if ci_res.scalars().first():
+            logger.warning(f"차주 가입 실패: 이미 존재하는 CI ({data.ci})")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "error_code": "ALREADY_REGISTERED",
+                    "message": "이미 해당 본인인증 정보(CI)로 가입된 계정이 존재합니다. 로그인해 주세요."
+                }
+            )
+
     query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()

@@ -173,3 +173,28 @@ class SubmitApprovalRequest(BaseModel):
     
     is_direct_driver: Optional[bool] = None
 
+
+class PortoneConfigResponse(BaseModel):
+    """
+    클라이언트가 포트원 본인인증 SDK 호출 시 필요한 공개 설정값
+    """
+    store_id: Optional[str] = Field(None, description="포트원 상점 ID")
+    channel_key: Optional[str] = Field(None, description="포트원 본인인증 채널 키")
+
+
+class PortoneVerifyIdentityRequest(BaseModel):
+    """
+    클라이언트가 본인인증 성공 후 전달하는 식별자
+    """
+    identity_verification_id: str = Field(..., description="포트원 본인인증 건 식별자")
+
+
+class PortoneVerifyIdentityResponse(BaseModel):
+    """
+    본인인증 검증 완료 후 반환하는 신원 정보
+    """
+    verified: bool = Field(..., description="인증 성공 여부")
+    ci: str = Field(..., description="고유 연계정보(CI)")
+    name: str = Field(..., description="인증된 실명")
+    phone_number: str = Field(..., description="인증된 휴대폰 번호")
+    message: Optional[str] = Field(None, description="안내 메시지")
