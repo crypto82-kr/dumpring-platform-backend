@@ -422,16 +422,6 @@ async def get_active_tickets(
             j = ticket.job_post
             if j.offered_unit_price is None and j.drop_off_request:
                 j.offered_unit_price = j.drop_off_request.unit_price
-            if j.site:
-                j.site_name = j.site.company_name
-                j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
-                j.site_latitude = j.site.latitude
-                j.site_longitude = j.site.longitude
-            if j.matched_drop_off:
-                j.drop_off_name = j.matched_drop_off.name
-                j.drop_off_latitude = j.matched_drop_off.latitude
-                j.drop_off_longitude = j.matched_drop_off.longitude
-                j.drop_off_address = j.matched_drop_off.address
 
             if j.distance is None or j.estimated_time is None:
                 if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
@@ -493,16 +483,6 @@ async def get_active_ticket(
         j = ticket.job_post
         if j.offered_unit_price is None and j.drop_off_request:
             j.offered_unit_price = j.drop_off_request.unit_price
-        if j.site:
-            j.site_name = j.site.company_name
-            j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
-            j.site_latitude = j.site.latitude
-            j.site_longitude = j.site.longitude
-        if j.matched_drop_off:
-            j.drop_off_name = j.matched_drop_off.name
-            j.drop_off_latitude = j.matched_drop_off.latitude
-            j.drop_off_longitude = j.matched_drop_off.longitude
-            j.drop_off_address = j.matched_drop_off.address
 
         if j.distance is None or j.estimated_time is None:
             if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
@@ -1076,16 +1056,6 @@ async def get_tickets_history(
             j = ticket.job_post
             if j.offered_unit_price is None and j.drop_off_request:
                 j.offered_unit_price = j.drop_off_request.unit_price
-            if j.site:
-                j.site_name = j.site.company_name
-                j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
-                j.site_latitude = j.site.latitude
-                j.site_longitude = j.site.longitude
-            if j.matched_drop_off:
-                j.drop_off_name = j.matched_drop_off.name
-                j.drop_off_latitude = j.matched_drop_off.latitude
-                j.drop_off_longitude = j.matched_drop_off.longitude
-                j.drop_off_address = j.matched_drop_off.address
 
             if j.distance is None or j.estimated_time is None:
                 if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
@@ -1125,16 +1095,6 @@ async def get_dispatch_ticket(
         j = ticket.job_post
         if j.offered_unit_price is None and j.drop_off_request:
             j.offered_unit_price = j.drop_off_request.unit_price
-        if j.site:
-            j.site_name = j.site.company_name
-            j.site_address = j.site.site_address or f"현장 주소 (현장 ID {j.site_id} 부근)"
-            j.site_latitude = j.site.latitude
-            j.site_longitude = j.site.longitude
-        if j.matched_drop_off:
-            j.drop_off_name = j.matched_drop_off.name
-            j.drop_off_latitude = j.matched_drop_off.latitude
-            j.drop_off_longitude = j.matched_drop_off.longitude
-            j.drop_off_address = j.matched_drop_off.address
 
         if j.distance is None or j.estimated_time is None:
             if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
