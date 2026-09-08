@@ -140,7 +140,10 @@ class _PortoneIdentityScreenState extends State<PortoneIdentityScreen> {
         spinner.style.display = 'none';
         retryBtn.style.display = 'inline-block';
         title.innerText = "본인인증 안내";
-        desc.innerText = err.message || "인증창을 불러오는 중 문제가 발생했습니다.";
+        desc.innerHTML = (err.message || "인증창을 불러오는 중 문제가 발생했습니다.") +
+          "<br><br><div style='background:#1E293B; padding:10px; border-radius:8px; font-size:11px; text-align:left; color:#94A3B8; word-break:break-all;'>" +
+          "<b>요청 채널키:</b> " + '$_effectiveChannelKey' + "<br>" +
+          "<b>상점 ID:</b> " + '$_effectiveStoreId' + "</div>";
       }
     }
 

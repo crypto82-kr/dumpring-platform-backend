@@ -257,16 +257,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   // 포트원 본인확인 (문자/PASS) 실행
-  Future<void> _startPortOneVerification({String? channelKey, String? title}) async {
+  Future<void> _startPortOneVerification({String? channelKey, String? title, bool isDanal = true}) async {
     setState(() {
       _errorMessage = null;
     });
+
+    String effectiveStoreId = AppConfig.portoneStoreId;
+    String effectiveChannelKey = channelKey ?? (isDanal ? AppConfig.portoneDanalChannelKey : AppConfig.portonePassChannelKey);
+
+    // Render 서버에서 최신 채널키(PORTONE_CHANNEL_KEY2 등) 실시간 동기화 조회
+    try {
+      final cfgRes = await http.get(Uri.parse("$_baseUrl/api/auth/portone/config")).timeout(const Duration(seconds: 4));
+      if (cfgRes.statusCode == 200) {
+        final cfg = jsonDecode(utf8.decode(cfgRes.bodyBytes));
+        if (cfg["store_id"] != null && cfg["store_id"].toString().isNotEmpty) {
+          effectiveStoreId = cfg["store_id"].toString();
+        }
+        if (isDanal) {
+          final sKey = cfg["danal_channel_key"] ?? cfg["channel_key"];
+          if (sKey != null && sKey.toString().isNotEmpty) {
+            effectiveChannelKey = sKey.toString();
+          }
+        } else {
+          final pKey = cfg["pass_channel_key"];
+          if (pKey != null && pKey.toString().isNotEmpty) {
+            effectiveChannelKey = pKey.toString();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("포트원 설정 실시간 조회 예외, 로컬 기본값 사용: $e");
+    }
 
     final String? verificationId = await Navigator.push<String>(
       context,
       MaterialPageRoute(
         builder: (context) => PortoneIdentityScreen(
-          channelKey: channelKey,
+          storeId: effectiveStoreId,
+          channelKey: effectiveChannelKey,
           title: title ?? "휴대폰 본인확인",
         ),
       ),
@@ -660,6 +688,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       : () => _startPortOneVerification(
                                             channelKey: AppConfig.portonePassChannelKey,
                                             title: "PASS 간편인증",
+                                            isDanal: false,
                                           ),
                                   icon: const Icon(Icons.touch_app_outlined, size: 17),
                                   label: const Text(
