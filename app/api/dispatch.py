@@ -608,6 +608,20 @@ async def accept_job(
         status="ACCEPTED"
     )
     db.add(new_ticket)
+
+    # 🚨 목표 대수(required_trucks) 충족 여부 검사: 정원이 다 찼으면 공고를 마감(CLOSED) 처리
+    # 이번에 새로 발급된 new_ticket을 포함한 현재 활성 티켓 수량 조회
+    active_tickets_query = select(DispatchTicket).where(
+        DispatchTicket.job_post_id == job_post_id,
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "APPROVED"])
+    )
+    active_tickets_res = await db.execute(active_tickets_query)
+    # new_ticket이 아직 commit 전이므로 + 1
+    active_count = len(active_tickets_res.scalars().all()) + 1
+
+    if active_count >= job.required_trucks:
+        job.status = "CLOSED"
+
     await db.commit()
     
     # 직렬화 에러(500) 방지를 위해 연관 데이터(site, drop_off, driver, car)를 완전히 로드하여 반환
@@ -739,6 +753,10 @@ async def cancel_dispatch(
     await validate_dispatch_status("CANCELLED", db)
     ticket.status = "CANCELLED"
     ticket.completed_at = datetime.now()
+
+    # 🚨 기사 취소로 공고에 빈자리가 생겼다면 CLOSED -> OPEN 으로 자동 복구!
+    if ticket.job_post and ticket.job_post.status == "CLOSED":
+        ticket.job_post.status = "OPEN"
 
     await db.commit()
     await db.refresh(ticket)

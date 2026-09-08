@@ -71,7 +71,8 @@ async def upload_file(
         "message": "파일이 성공적으로 업로드되었습니다.",
         "file_name": storage_file_key,
         "original_name": file.filename,
-        "file_url": file_url
+        "file_url": file_url,
+        "url": file_url
     }
 
 
