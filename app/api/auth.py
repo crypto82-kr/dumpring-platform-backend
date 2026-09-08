@@ -39,8 +39,11 @@ router = APIRouter()
 async def get_portone_config():
     return PortoneConfigResponse(
         store_id=settings.PORTONE_STORE_ID,
-        channel_key=settings.PORTONE_CHANNEL_KEY
+        channel_key=settings.PORTONE_CHANNEL_KEY or settings.PORTONE_DANAL_CHANNEL_KEY,
+        danal_channel_key=settings.PORTONE_DANAL_CHANNEL_KEY or settings.PORTONE_CHANNEL_KEY,
+        pass_channel_key=settings.PORTONE_PASS_CHANNEL_KEY,
     )
+
 
 
 @router.post(

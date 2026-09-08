@@ -179,7 +179,9 @@ class PortoneConfigResponse(BaseModel):
     클라이언트가 포트원 본인인증 SDK 호출 시 필요한 공개 설정값
     """
     store_id: Optional[str] = Field(None, description="포트원 상점 ID")
-    channel_key: Optional[str] = Field(None, description="포트원 본인인증 채널 키")
+    channel_key: Optional[str] = Field(None, description="기본 본인인증 채널 키 (다날)")
+    danal_channel_key: Optional[str] = Field(None, description="다날 본인확인 채널 키 (문자/PASS)")
+    pass_channel_key: Optional[str] = Field(None, description="PASS 간편인증 전용 채널 키")
 
 
 class PortoneVerifyIdentityRequest(BaseModel):

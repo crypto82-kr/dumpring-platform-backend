@@ -338,21 +338,21 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         final String uploadedUrl = decoded['url'] as String;
-        final String realOriginalName = image.name;
+        final String realOriginalName = file.name;
 
         setState(() {
           if (docType == 'REG') {
             _machineryRegFile = realOriginalName;
             _machineryRegUrl = uploadedUrl;
-            _machineryRegBytes = bytes;
+            _machineryRegBytes = file.bytes;
           } else if (docType == 'BIZ') {
             _bizLicenseFile = realOriginalName;
             _bizLicenseUrl = uploadedUrl;
-            _bizLicenseBytes = bytes;
+            _bizLicenseBytes = file.bytes;
           } else if (docType == 'INS') {
             _insuranceFile = realOriginalName;
             _insuranceUrl = uploadedUrl;
-            _insuranceBytes = bytes;
+            _insuranceBytes = file.bytes;
           }
         });
 

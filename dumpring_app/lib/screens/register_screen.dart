@@ -256,8 +256,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 포트원 통합 본인인증 실행
-  Future<void> _startPortOneVerification() async {
+  // 포트원 본인확인 (문자/PASS) 실행
+  Future<void> _startPortOneVerification({String? channelKey, String? title}) async {
     setState(() {
       _errorMessage = null;
     });
@@ -265,7 +265,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final String? verificationId = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder: (context) => const PortoneIdentityScreen(),
+        builder: (context) => PortoneIdentityScreen(
+          channelKey: channelKey,
+          title: title ?? "휴대폰 본인확인",
+        ),
       ),
     );
 
@@ -598,7 +601,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          _isVerified ? "통합 본인인증 완료" : "본인인증 필수 (CI 발급)",
+                                          _isVerified ? "휴대폰 본인확인 완료" : "휴대폰 본인확인 필수",
                                           style: TextStyle(
                                             fontSize: 15,
                                             fontWeight: FontWeight.bold,
@@ -609,7 +612,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         Text(
                                           _isVerified
                                               ? "실명 및 휴대폰 번호가 인증된 정보로 설정되었습니다."
-                                              : "카카오, 토스, PASS 등으로 간편하게 본인인증을 진행해 주세요.",
+                                              : "문자(SMS) 인증 또는 PASS 앱으로 인증해 주세요.",
                                           style: TextStyle(
                                             fontSize: 12,
                                             color: AppColors.textSecondary,
@@ -621,31 +624,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ],
                               ),
                               const SizedBox(height: 14),
-                              if (!_isVerified)
+                              if (!_isVerified) ...[
                                 ElevatedButton.icon(
-                                  onPressed: _isVerifying ? null : _startPortOneVerification,
+                                  onPressed: _isVerifying
+                                      ? null
+                                      : () => _startPortOneVerification(
+                                            channelKey: AppConfig.portoneDanalChannelKey,
+                                            title: "휴대폰 본인확인 (문자/PASS)",
+                                          ),
                                   icon: _isVerifying
                                       ? const SizedBox(
                                           width: 16,
                                           height: 16,
                                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                         )
-                                      : const Icon(Icons.touch_app_outlined, size: 18),
+                                      : const Icon(Icons.sms_outlined, size: 18),
                                   label: Text(
-                                    _isVerifying ? "인증 확인 중..." : "통합 본인인증하기 (카카오·토스·PASS)",
+                                    _isVerifying ? "인증 확인 중..." : "휴대폰 본인확인 (문자 SMS / PASS)",
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     elevation: 0,
                                   ),
-                                )
-                              else
+                                ),
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed: _isVerifying
+                                      ? null
+                                      : () => _startPortOneVerification(
+                                            channelKey: AppConfig.portonePassChannelKey,
+                                            title: "PASS 간편인증",
+                                          ),
+                                  icon: const Icon(Icons.touch_app_outlined, size: 17),
+                                  label: const Text(
+                                    "PASS 간편인증 앱으로 바로하기",
+                                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.textSecondary,
+                                    side: BorderSide(color: AppColors.divider),
+                                    padding: const EdgeInsets.symmetric(vertical: 11),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ] else
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
@@ -654,7 +684,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       style: TextStyle(fontSize: 11, color: AppColors.textTertiary, fontFamily: 'monospace'),
                                     ),
                                     TextButton(
-                                      onPressed: _startPortOneVerification,
+                                      onPressed: () => _startPortOneVerification(
+                                        channelKey: AppConfig.portoneDanalChannelKey,
+                                        title: "휴대폰 본인확인 (문자/PASS)",
+                                      ),
                                       style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(60, 24)),
                                       child: Text("다시 인증하기", style: TextStyle(fontSize: 12, color: AppColors.primary)),
                                     ),

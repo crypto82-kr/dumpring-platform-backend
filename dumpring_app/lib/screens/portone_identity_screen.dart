@@ -7,11 +7,13 @@ import '../shared/widgets/layouts/dr_scaffold.dart';
 class PortoneIdentityScreen extends StatefulWidget {
   final String? storeId;
   final String? channelKey;
+  final String title;
 
   const PortoneIdentityScreen({
     super.key,
     this.storeId,
     this.channelKey,
+    this.title = "휴대폰 본인확인",
   });
 
   @override
@@ -42,7 +44,7 @@ class _PortoneIdentityScreenState extends State<PortoneIdentityScreen> {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>덤프링 통합 본인인증</title>
+  <title>${widget.title}</title>
   <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
   <style>
     * { box-sizing: border-box; }
@@ -99,8 +101,8 @@ class _PortoneIdentityScreenState extends State<PortoneIdentityScreen> {
 </head>
 <body>
   <div class="spinner" id="spinner"></div>
-  <div class="title" id="status-title">통합 본인인증 연결 중</div>
-  <div class="desc" id="status-desc">인증 화면(PASS, 카카오, 토스 등)으로 이동하고 있습니다...</div>
+  <div class="title" id="status-title">본인확인 연결 중</div>
+  <div class="desc" id="status-desc">인증 화면(문자인증 / PASS)으로 이동하고 있습니다...</div>
   <button class="retry-btn" id="retry-btn" onclick="startVerification()">다시 시도하기</button>
 
   <script>
@@ -112,8 +114,8 @@ class _PortoneIdentityScreenState extends State<PortoneIdentityScreen> {
 
       spinner.style.display = 'block';
       retryBtn.style.display = 'none';
-      title.innerText = "통합 본인인증 연결 중";
-      desc.innerText = "인증 화면(PASS, 카카오, 토스 등)으로 이동하고 있습니다...";
+      title.innerText = "본인확인 연결 중";
+      desc.innerText = "인증 화면(문자인증 / PASS)으로 이동하고 있습니다...";
 
       try {
         if (typeof PortOne === 'undefined') {
@@ -212,12 +214,22 @@ class _PortoneIdentityScreenState extends State<PortoneIdentityScreen> {
                   // intent: URL 파싱 처리
                   if (url.startsWith('intent:')) {
                     final schemeMatch = RegExp(r'scheme=([^;]+)').firstMatch(url);
+                    final packageMatch = RegExp(r'package=([^;]+)').firstMatch(url);
+                    bool launched = false;
                     if (schemeMatch != null) {
                       final fallbackScheme = schemeMatch.group(1);
                       final raw = url.split('#Intent;')[0].replaceFirst(RegExp(r'^intent:/*'), '');
                       final fallbackUri = Uri.parse('$fallbackScheme://$raw');
                       if (await canLaunchUrl(fallbackUri)) {
                         await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+                        launched = true;
+                      }
+                    }
+                    if (!launched && packageMatch != null) {
+                      final packageName = packageMatch.group(1);
+                      final marketUri = Uri.parse('market://details?id=$packageName');
+                      if (await canLaunchUrl(marketUri)) {
+                        await launchUrl(marketUri, mode: LaunchMode.externalApplication);
                       }
                     }
                   }
@@ -243,9 +255,9 @@ class _PortoneIdentityScreenState extends State<PortoneIdentityScreen> {
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          "통합 본인인증",
-          style: TextStyle(
+        title: Text(
+          widget.title,
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 17,

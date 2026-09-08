@@ -15,6 +15,12 @@ class AppConfig {
 
   /// 포트원(PortOne) V2 본인인증 키
   static const String portoneStoreId = "store-d234f526-1ff5-408d-a485-67e36e53f003";
-  static const String portoneChannelKey = "channel-key-b9cc6ecd-0a1c-4d4e-a849-9e9c5168c25e";
+  /// 다날 본인확인 (문자인증 + PASS 모두 지원 - 기본 채널)
+  static const String portoneChannelKey = "channel-key-06d9c6cc-fa1e-4f98-a2b4-f129ccaba6d8";
+  /// 다날 휴대폰 본인확인 채널 키 (문자인증 지원)
+  static const String portoneDanalChannelKey = "channel-key-06d9c6cc-fa1e-4f98-a2b4-f129ccaba6d8";
+  /// PASS 간편인증 전용 채널 키 (아톤)
+  static const String portonePassChannelKey = "channel-key-b9cc6ecd-0a1c-4d4e-a849-9e9c5168c25e";
 }
+
 
