@@ -69,6 +69,26 @@ async def get_active_pricing_policy(db: AsyncSession):
             
     return MeterPricingPolicy(**policy)
 
+def get_ticket_eager_options():
+    """DispatchTicketResponse 직렬화 시 MissingGreenlet 500 에러를 방지하기 위한 연관 데이터 eager loading 옵션 목록"""
+    from sqlalchemy.orm import selectinload
+    return [
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+        selectinload(DispatchTicket.driver),
+        selectinload(DispatchTicket.car),
+    ]
+
+async def fetch_loaded_ticket(ticket_id: int, db: AsyncSession) -> Optional[DispatchTicket]:
+    """연관 관계(job_post, site, drop_off, driver, car)를 완전히 로드한 DispatchTicket 조회"""
+    res = await db.execute(
+        select(DispatchTicket)
+        .where(DispatchTicket.id == ticket_id)
+        .options(*get_ticket_eager_options())
+    )
+    return res.scalars().first()
+
 async def attach_pricing_policy(ticket_or_tickets, db: AsyncSession):
     if not ticket_or_tickets:
         return ticket_or_tickets
@@ -377,15 +397,10 @@ async def get_active_tickets(
             detail="기사(DRIVER) 권한이 필요합니다."
         )
 
-    from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
         DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
-    ).options(
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
-    )
+    ).options(*get_ticket_eager_options())
     
     result = await db.execute(query)
     tickets = result.scalars().all()
@@ -451,15 +466,10 @@ async def get_active_ticket(
             detail="기사(DRIVER) 권한이 필요합니다."
         )
 
-    from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
         DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
-    ).options(
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
-    )
+    ).options(*get_ticket_eager_options())
     
     result = await db.execute(query)
     tickets = result.scalars().all()
@@ -620,14 +630,8 @@ async def accept_job(
     db.add(new_ticket)
     await db.commit()
     
-    # 직렬화 에러(500) 방지를 위해 selectinload 옵션으로 job_post와 관계 데이터를 함께 다시 조회
-    from sqlalchemy.orm import selectinload
-    res = await db.execute(
-        select(DispatchTicket)
-        .where(DispatchTicket.id == new_ticket.id)
-        .options(selectinload(DispatchTicket.job_post))
-    )
-    ticket_to_return = res.scalars().first()
+    # 직렬화 에러(500) 방지를 위해 연관 데이터(site, drop_off, driver, car)를 완전히 로드하여 반환
+    ticket_to_return = await fetch_loaded_ticket(new_ticket.id, db)
     return await attach_pricing_policy(ticket_to_return, db)
 
 
@@ -641,15 +645,9 @@ async def arrive_loading(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy.orm import selectinload
-    query = select(DispatchTicket).where(
-        DispatchTicket.id == ticket_id,
-        DispatchTicket.driver_id == current_user.id
-    ).options(selectinload(DispatchTicket.job_post))
-    result = await db.execute(query)
-    ticket = result.scalars().first()
+    ticket = await fetch_loaded_ticket(ticket_id, db)
 
-    if not ticket:
+    if not ticket or ticket.driver_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 운행 티켓을 찾을 수 없습니다."
@@ -679,15 +677,9 @@ async def approve_loading(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy.orm import selectinload
-    query = select(DispatchTicket).where(
-        DispatchTicket.id == ticket_id,
-        DispatchTicket.driver_id == current_user.id
-    ).options(selectinload(DispatchTicket.job_post))
-    result = await db.execute(query)
-    ticket = result.scalars().first()
+    ticket = await fetch_loaded_ticket(ticket_id, db)
 
-    if not ticket:
+    if not ticket or ticket.driver_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 운행 티켓을 찾을 수 없습니다."
@@ -717,15 +709,9 @@ async def start_driving(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy.orm import selectinload
-    query = select(DispatchTicket).where(
-        DispatchTicket.id == ticket_id,
-        DispatchTicket.driver_id == current_user.id
-    ).options(selectinload(DispatchTicket.job_post))
-    result = await db.execute(query)
-    ticket = result.scalars().first()
+    ticket = await fetch_loaded_ticket(ticket_id, db)
 
-    if not ticket:
+    if not ticket or ticket.driver_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 운행 티켓을 찾을 수 없습니다."
@@ -756,15 +742,9 @@ async def cancel_dispatch(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy.orm import selectinload
-    query = select(DispatchTicket).where(
-        DispatchTicket.id == ticket_id,
-        DispatchTicket.driver_id == current_user.id
-    ).options(selectinload(DispatchTicket.job_post))
-    result = await db.execute(query)
-    ticket = result.scalars().first()
+    ticket = await fetch_loaded_ticket(ticket_id, db)
 
-    if not ticket:
+    if not ticket or ticket.driver_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 운행 티켓을 찾을 수 없습니다."
@@ -796,17 +776,7 @@ async def arrive_at_dropoff(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy.orm import selectinload
-    query = select(DispatchTicket).where(
-        DispatchTicket.id == ticket_id,
-        DispatchTicket.driver_id == current_user.id
-    ).options(
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
-    )
-    result = await db.execute(query)
-    ticket = result.scalars().first()
+    ticket = await fetch_loaded_ticket(ticket_id, db)
 
     if not ticket:
         raise HTTPException(
@@ -994,17 +964,8 @@ async def inspect_and_confirm(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 1. 티켓 조회
-    from sqlalchemy.orm import selectinload
-    ticket_query = select(DispatchTicket).where(
-        DispatchTicket.id == ticket_id
-    ).options(
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
-    )
-    ticket_result = await db.execute(ticket_query)
-    ticket = ticket_result.scalars().first()
+    # 1. 티켓 조회 (직렬화 500 방지를 위한 연관 관계 풀 로딩)
+    ticket = await fetch_loaded_ticket(ticket_id, db)
 
     if not ticket:
         raise HTTPException(
@@ -1099,15 +1060,10 @@ async def get_tickets_history(
             detail="기사(DRIVER) 권한이 필요합니다."
         )
 
-    from sqlalchemy.orm import selectinload
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
         DispatchTicket.status.in_(["APPROVED", "REJECTED", "CANCELLED"])
-    ).options(
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
-    ).order_by(
+    ).options(*get_ticket_eager_options()).order_by(
         DispatchTicket.completed_at.desc(),
         DispatchTicket.id.desc()
     ).limit(limit).offset(offset)
@@ -1157,16 +1113,7 @@ async def get_dispatch_ticket(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy.orm import selectinload
-    query = select(DispatchTicket).where(
-        DispatchTicket.id == ticket_id
-    ).options(
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
-    )
-    result = await db.execute(query)
-    ticket = result.scalars().first()
+    ticket = await fetch_loaded_ticket(ticket_id, db)
 
     if not ticket:
         raise HTTPException(
@@ -1240,16 +1187,10 @@ async def get_arrived_tickets(
         return []
 
     # 3. 상태가 'ARRIVED' 또는 'WAITING_ABSENT_APPROVAL'인 DispatchTicket 조회
-    from sqlalchemy.orm import selectinload
     ticket_query = select(DispatchTicket).where(
         DispatchTicket.job_post_id.in_(job_ids),
         DispatchTicket.status.in_(["ARRIVED", "WAITING_ABSENT_APPROVAL"])
-    ).options(
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request),
-        selectinload(DispatchTicket.car)
-    )
+    ).options(*get_ticket_eager_options())
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()
     return await attach_pricing_policy(tickets, db)
@@ -1290,16 +1231,10 @@ async def get_completed_tickets(
         return []
 
     # 3. 상태가 'APPROVED'인 DispatchTicket 조회
-    from sqlalchemy.orm import selectinload
     ticket_query = select(DispatchTicket).where(
         DispatchTicket.job_post_id.in_(job_ids),
         DispatchTicket.status == "APPROVED"
-    ).options(
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request),
-        selectinload(DispatchTicket.car)
-    ).order_by(DispatchTicket.completed_at.desc())
+    ).options(*get_ticket_eager_options()).order_by(DispatchTicket.completed_at.desc())
 
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()
@@ -1317,8 +1252,6 @@ async def get_job_tickets(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    from sqlalchemy.orm import selectinload
-    
     # 1. JobPost 유효성 확인
     job = await db.get(JobPost, job_id)
     if not job:
@@ -1339,13 +1272,7 @@ async def get_job_tickets(
     # 3. 해당 공고에 연동된 DispatchTicket 목록 조회
     ticket_query = select(DispatchTicket).where(
         DispatchTicket.job_post_id == job_id
-    ).options(
-        selectinload(DispatchTicket.driver),
-        selectinload(DispatchTicket.car),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
-        selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request)
-    ).order_by(DispatchTicket.accepted_at.desc())
+    ).options(*get_ticket_eager_options()).order_by(DispatchTicket.accepted_at.desc())
 
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()

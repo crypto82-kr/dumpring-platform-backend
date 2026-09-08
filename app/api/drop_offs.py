@@ -195,12 +195,10 @@ async def update_drop_off_request(
             detail="본인의 하차지 공고만 수정할 수 있습니다."
         )
 
-    # 제약 조건: 대기 중이거나 진행 중인 매칭 오더가 없어야 수정이 가능
+    # 제약 조건: 해당 수용 공고에 대해 이미 대기 중이거나 진행 중인 매칭 오더가 있는 경우 수정 제한
+    # (다른 공고나 하차지 전체에 걸린 오더로 인해 불필요하게 차단되지 않도록 request_id 기준으로만 검증)
     job_query = select(JobPost).where(
-        sa.or_(
-            JobPost.drop_off_request_id == request_id,
-            JobPost.matched_drop_off_id == dropoff_req.drop_off_id
-        ),
+        JobPost.drop_off_request_id == request_id,
         JobPost.status.in_(["WAITING_APPROVAL", "OPEN"])
     )
     job_result = await db.execute(job_query)

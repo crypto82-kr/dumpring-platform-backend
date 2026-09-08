@@ -18,9 +18,30 @@ import {
   Edit2,
   Calendar,
   Layers,
-  UserCheck
+  UserCheck,
+  FileText,
+  ExternalLink,
+  Trash2
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+
+interface DriverDocItem {
+  code: string;
+  code_name: string;
+  file_name: string;
+  file_url: string;
+}
+
+interface DriverDetailData {
+  driver_id: number;
+  name: string;
+  phone_number: string;
+  car_number: string;
+  is_approved: boolean;
+  reject_reason?: string | null;
+  user_id?: number | null;
+  documents: DriverDocItem[];
+}
 
 interface DriverItem {
   driver_id: number;
@@ -31,6 +52,8 @@ interface DriverItem {
   truck_type?: string | null;
   truck_type_name?: string | null;
   is_approved: boolean;
+  user_id?: number | null;
+  is_matched?: boolean;
 }
 
 interface CarOption {
@@ -50,6 +73,8 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
   const [cars, setCars] = useState<CarOption[]>([]);
   const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null);
+  const [driverDetail, setDriverDetail] = useState<DriverDetailData | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -62,7 +87,7 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const fetchDriversAndCars = async () => {
+  const fetchDriversAndCars = async (preferSelectedId?: number | null) => {
     setIsLoading(true);
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
@@ -75,10 +100,22 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
         headers: { Authorization: `Bearer ${token}` }
       });
       if (driverRes.ok) {
-        const driverData = await driverRes.json();
-        setDrivers(driverData || []);
-        if (driverData && driverData.length > 0 && selectedDriverId === null) {
-          setSelectedDriverId(driverData[0].driver_id);
+        const driverData: DriverItem[] = (await driverRes.json()) || [];
+        setDrivers(driverData);
+        
+        if (preferSelectedId !== undefined) {
+          if (preferSelectedId !== null && driverData.some(d => d.driver_id === preferSelectedId)) {
+            setSelectedDriverId(preferSelectedId);
+          } else {
+            setSelectedDriverId(driverData.length > 0 ? driverData[0].driver_id : null);
+          }
+        } else {
+          setSelectedDriverId(prev => {
+            if (prev !== null && driverData.some(d => d.driver_id === prev)) {
+              return prev;
+            }
+            return driverData.length > 0 ? driverData[0].driver_id : null;
+          });
         }
       }
 
@@ -100,6 +137,40 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
   useEffect(() => {
     fetchDriversAndCars();
   }, []);
+
+  // 선택된 기사의 상세 정보 및 실물 서류 목록 조회
+  useEffect(() => {
+    if (!selectedDriverId) {
+      setDriverDetail(null);
+      return;
+    }
+
+    const fetchDetail = async () => {
+      setIsDetailLoading(true);
+      try {
+        const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+        if (!token) return;
+
+        const baseUrl = getApiBaseUrl();
+        const res = await fetch(`${baseUrl}/api/fleet/driver-detail/${selectedDriverId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDriverDetail(data);
+        } else {
+          setDriverDetail(null);
+        }
+      } catch (err) {
+        console.error("기사 상세 조회 에러:", err);
+        setDriverDetail(null);
+      } finally {
+        setIsDetailLoading(false);
+      }
+    };
+
+    fetchDetail();
+  }, [selectedDriverId]);
 
   const selectedDriver = drivers.find((d) => d.driver_id === selectedDriverId) || drivers[0] || null;
 
@@ -216,7 +287,7 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
       }
 
       setIsModalOpen(false);
-      await fetchDriversAndCars();
+      await fetchDriversAndCars(targetDriverId);
     } catch (e: any) {
       setErrorMsg(e.message || "처리 도중 오류가 발생했습니다.");
     } finally {
@@ -224,9 +295,13 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
     }
   };
 
-  // 기사 등록 해제(소속 방출) 핸들러
-  const handleDisconnectDriver = async (driverId: number, name: string) => {
-    if (!confirm(`'${name}' 기사님을 소속 기사 목록에서 해제하시겠습니까?\n차량 배정이 취소되고 소속 그룹에서 제외됩니다.`)) {
+  // 기사 등록 해제(소속 방출) 또는 선등록 삭제 핸들러
+  const handleDisconnectDriver = async (driverId: number, name: string, isRegisteredUser: boolean) => {
+    const confirmMessage = isRegisteredUser
+      ? `'${name}' 기사님을 소속 기사 목록에서 해제하시겠습니까?\n차량 배정이 취소되고 소속 그룹에서 제외됩니다.`
+      : `'${name}' 선등록 기사 정보를 삭제하시겠습니까?\n아직 앱에 가입하지 않은 대기 정보이며, 삭제 시 목록에서 완전히 제거됩니다.`;
+
+    if (!confirm(confirmMessage)) {
       return;
     }
 
@@ -242,16 +317,18 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
       });
 
       if (res.ok) {
-        await fetchDriversAndCars();
+        // 프론트엔드 목록 상태 즉시 반영 (낙관적 갱신으로 즉시 재등록 시 중복 감지 방지)
+        setDrivers(prev => prev.filter(d => d.driver_id !== driverId));
         if (selectedDriverId === driverId) {
           setSelectedDriverId(null);
         }
+        await fetchDriversAndCars();
       } else {
         const err = await res.json();
-        alert(err.detail || "기사 해제 처리에 실패했습니다.");
+        alert(err.detail || "기사 삭제/해제 처리에 실패했습니다.");
       }
     } catch (e) {
-      alert("기사 해제 도중 오류가 발생했습니다.");
+      alert("기사 삭제/해제 도중 오류가 발생했습니다.");
     }
   };
 
@@ -273,7 +350,7 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
 
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchDriversAndCars}
+            onClick={() => fetchDriversAndCars()}
             className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5"
             title="새로고침"
           >
@@ -348,10 +425,16 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                         className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
                           driver.is_approved
                             ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                            : "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                            : driver.user_id || driver.is_matched
+                            ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
                         }`}
                       >
-                        {driver.is_approved ? "승인완료" : "심사대기"}
+                        {driver.is_approved
+                          ? "승인완료"
+                          : driver.user_id || driver.is_matched
+                          ? "심사대기"
+                          : "가입대기"}
                       </span>
                     </div>
 
@@ -392,10 +475,16 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                       className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold border ${
                         selectedDriver.is_approved
                           ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                          : "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                          : driverDetail?.user_id || selectedDriver.user_id || selectedDriver.is_matched
+                          ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
                       }`}
                     >
-                      {selectedDriver.is_approved ? "승인 완료" : "심사 대기"}
+                      {selectedDriver.is_approved
+                        ? "승인 완료"
+                        : driverDetail?.user_id || selectedDriver.user_id || selectedDriver.is_matched
+                        ? "심사 대기"
+                        : "가입 대기"}
                     </span>
                   </div>
                 </div>
@@ -408,13 +497,28 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                     <Edit2 className="w-3.5 h-3.5 text-slate-500" />
                     <span>정보 수정 및 차량 배정</span>
                   </button>
-                  <button
-                    onClick={() => handleDisconnectDriver(selectedDriver.driver_id, selectedDriver.name)}
-                    className="px-3.5 py-2 bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-xs transition-all border border-rose-200 dark:border-rose-800 flex items-center gap-1.5"
-                  >
-                    <UserX className="w-3.5 h-3.5" />
-                    <span>소속 해제</span>
-                  </button>
+                  {(() => {
+                    const isRegistered = Boolean(driverDetail?.user_id || selectedDriver.user_id || selectedDriver.is_matched);
+                    return (
+                      <button
+                        onClick={() => handleDisconnectDriver(selectedDriver.driver_id, selectedDriver.name, isRegistered)}
+                        className="px-3.5 py-2 bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-xs transition-all border border-rose-200 dark:border-rose-800 flex items-center gap-1.5"
+                        title={isRegistered ? "소속 기사 그룹에서 연결을 해제합니다." : "미가입된 선등록 기사 정보를 목록에서 완전히 삭제합니다."}
+                      >
+                        {isRegistered ? (
+                          <>
+                            <UserX className="w-3.5 h-3.5" />
+                            <span>소속 해제</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>선등록 삭제</span>
+                          </>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -437,12 +541,26 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200 dark:border-slate-700/60">
                       <span className="text-slate-500">모바일 앱</span>
-                      <span className="font-bold text-emerald-600">연동 완료</span>
+                      {driverDetail?.user_id || selectedDriver.user_id || selectedDriver.is_matched ? (
+                        <span className="font-bold text-emerald-600 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>연동 완료</span>
+                        </span>
+                      ) : (
+                        <span className="font-bold text-amber-500 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>가입 대기</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex justify-between py-1">
                       <span className="text-slate-500">승인 상태</span>
                       <span className="font-bold text-slate-700 dark:text-slate-300">
-                        {selectedDriver.is_approved ? "승인 완료" : "심사 진행 중"}
+                        {selectedDriver.is_approved
+                          ? "승인 완료"
+                          : driverDetail?.user_id || selectedDriver.user_id || selectedDriver.is_matched
+                          ? "심사 대기 (서류 검증중)"
+                          : "가입 대기 (미가입)"}
                       </span>
                     </div>
                   </div>
@@ -486,26 +604,89 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                 </div>
               </div>
 
-              {/* 3. 필수 제출 서류 심사 현황 카드 */}
+              {/* 3. 필수 제출 서류 심사 현황 카드 (동적 DB 연동) */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-3">
-                <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  <span>기사 서류</span>
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <p className="font-bold text-slate-800 dark:text-slate-200">운전면허증</p>
-                    <span className="text-[10px] text-emerald-600 font-bold">제출 완료</span>
-                  </div>
-                  <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <p className="font-bold text-slate-800 dark:text-slate-200">기초안전교육이수증</p>
-                    <span className="text-[10px] text-emerald-600 font-bold">제출 완료</span>
-                  </div>
-                  <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <p className="font-bold text-slate-800 dark:text-slate-200">특수형태근로자확인서</p>
-                    <span className="text-[10px] text-emerald-600 font-bold">제출 완료</span>
-                  </div>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    <span>기사 필수 구비 서류</span>
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-bold">
+                    제출 완료 {driverDetail?.documents?.length || 0}종 / 총 5종
+                  </span>
                 </div>
+
+                {isDetailLoading ? (
+                  <div className="p-6 text-center text-slate-400 text-xs">
+                    <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-1 text-blue-600" />
+                    서류 정보 조회 중...
+                  </div>
+                ) : !driverDetail?.user_id ? (
+                  <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-1">
+                    <AlertCircle className="w-6 h-6 mx-auto text-amber-500 opacity-60" />
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      선등록 상태 (기사 모바일 앱 미가입)
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      기사님이 해당 휴대폰 번호로 모바일 앱 회원가입을 완료하면 제출 서류가 여기에 자동으로 표시됩니다.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
+                    {[
+                      { code: "LICENSE", label: "운전면허증 (대형/1종)" },
+                      { code: "SAFETY_TRAINING", label: "건설업 기초안전교육증" },
+                      { code: "SPECIAL_LABOR_TRAINING", label: "특수형태근로자 확인서" },
+                      { code: "QUALIFICATION", label: "화물운송종사 자격증" },
+                      { code: "BANKBOOK", label: "은행 통장 사본" },
+                    ].map((docDef) => {
+                      const docItem = driverDetail?.documents?.find((d) => d.code === docDef.code);
+                      const isUploaded = Boolean(docItem);
+                      const fileUrl = docItem ? `${getApiBaseUrl()}${docItem.file_url}` : null;
+
+                      return (
+                        <div
+                          key={docDef.code}
+                          className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2 flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="font-bold text-slate-800 dark:text-slate-200 truncate" title={docDef.label}>
+                                {docDef.label}
+                              </p>
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                                  isUploaded
+                                    ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
+                                }`}
+                              >
+                                {isUploaded ? "제출 완료" : "미제출"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {isUploaded && fileUrl ? (
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-blue-600 hover:underline flex items-center gap-1 font-bold pt-1 border-t border-slate-100 dark:border-slate-800"
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span>서류 확인 / 미리보기</span>
+                              <ExternalLink className="w-2.5 h-2.5 ml-auto opacity-70" />
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                              서류 미등록 상태
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           ) : (

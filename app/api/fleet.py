@@ -20,6 +20,8 @@ class DriverResponse(BaseModel):
     truck_type: str | None = None
     truck_type_name: str | None = None
     is_approved: bool
+    user_id: int | None = None
+    is_matched: bool = False
 
 @router.get(
     "/my-drivers",
@@ -84,7 +86,9 @@ async def get_my_drivers(
                 tonnage=tonnage,
                 truck_type=truck_type,
                 truck_type_name=truck_type_name,
-                is_approved=d.is_approved
+                is_approved=d.is_approved,
+                user_id=d.user_id,
+                is_matched=d.user_id is not None
             )
         )
     return response_list
@@ -111,32 +115,23 @@ async def disconnect_driver(
             detail="해당 기사를 찾을 수 없습니다."
         )
 
-    # 2. 권한 검증: 배정 차량의 소유자가 현재 차주인지 체크
-    if driver.current_car_id:
+    # 2. 권한 검증: 배정 차량 소유자가 차주이거나, 기사의 owner_id가 차주인지 확인
+    is_owner_driver = (driver.owner_id == current_owner.id)
+    if not is_owner_driver and driver.current_car_id:
         car_query = select(Car).where(Car.id == driver.current_car_id)
         car_result = await db.execute(car_query)
         car = car_result.scalars().first()
-        
-        if not car or car.owner_id != current_owner.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="해당 기사는 귀하의 소속 기사가 아니므로 등록 해제할 수 없습니다."
-            )
-    else:
-        # 차량이 지정되지 않고 폰 번호로만 있는 경우 (또는 이미 매핑된 경우)
-        if driver.user_id:
-            # 기사 유저의 ID를 확인하여 매칭 해제 지원
-            pass
+        if car and car.owner_id == current_owner.id:
+            is_owner_driver = True
 
-    # 3. 해제 처리: 드라이버 레코드의 차 배정을 끊고, 승인 취소 및 매칭 초기화
-    driver.current_car_id = None
-    driver.is_approved = False
-    
-    # 또는 영구 삭제를 원할 경우: db.delete(driver)도 고려할 수 있으나, soft-reset인 user_id 초기화가 더욱 안전함
-    # 여기서는 차주 소속에서 완전히 방출하기 위해 레코드를 제거하거나 초기화합니다.
-    # 안전하게 기사 테이블에서 해당 관계 레코드를 완전 삭제하여 차주 리스트에서 치워버립니다.
+    if not is_owner_driver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 기사는 귀하의 소속 기사가 아니므로 등록 해제할 수 없습니다."
+        )
+
+    # 3. 해제 처리: 소속 그룹에서 완전 방출 (Driver 레코드 삭제)
     await db.delete(driver)
- 
     await db.commit()
     return {"message": "기사 등록이 정상적으로 해제되었습니다."}
  
@@ -646,14 +641,15 @@ async def get_driver_detail(
             cc = cc_result.scalars().first()
             code_name = cc.code_name if cc else "기타 서류"
             
-            url = doc.file_name
-            if url and not url.startswith("http"):
-                url = "/static/uploads/documents/" + url.split("/")[-1]
+            raw_file = doc.file_name.split("/")[-1].split("?")[0]
+            url = f"/api/files/stream/{raw_file}?category=documents"
+            if doc.file_name.startswith("http"):
+                url = doc.file_name
             
             documents.append({
                 "code": doc.document_code,
                 "code_name": code_name,
-                "file_name": doc.file_name.split("/")[-1],
+                "file_name": raw_file,
                 "file_url": url
             })
 

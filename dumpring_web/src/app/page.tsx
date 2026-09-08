@@ -740,10 +740,10 @@ export default function Home() {
         body: JSON.stringify({
           material_type: payload.materialType || "GOOD_SOIL",
           truck_type: payload.capacityType || "T_25",
-          target_quantity: payload.targetQuantity || 100,
+          target_quantity: Number(payload.targetQuantity) || 100,
           payer_type: payload.payerType || "SITE_PAYS",
           payment_method: payload.paymentMethod || "MONTHLY",
-          unit_price: Number(payload.unitPrice),
+          unit_price: Number(payload.unitPrice) || 0,
           has_washing_facility: payload.hasWashingFacility || false,
           night_work_allowed: payload.nightWorkAllowed || false,
           rain_work_allowed: payload.rainWorkAllowed || false,
@@ -760,11 +760,25 @@ export default function Home() {
         await fetchDropoffJobs();
         return true;
       }
-      const errBody = await res.json().catch(() => ({}));
-      if (errBody.detail) {
-        alert(errBody.detail);
+      let errDetail = "";
+      try {
+        const errBody = await res.json();
+        if (typeof errBody.detail === "string") {
+          errDetail = errBody.detail;
+        } else if (Array.isArray(errBody.detail)) {
+          errDetail = errBody.detail.map((d: any) => d.msg || JSON.stringify(d)).join(", ");
+        } else if (errBody.detail) {
+          errDetail = JSON.stringify(errBody.detail);
+        } else {
+          errDetail = JSON.stringify(errBody);
+        }
+      } catch {
+        errDetail = await res.text().catch(() => "");
       }
-      console.error("handleUpdateDropoffRequest failed:", res.status, errBody);
+      if (errDetail && errDetail !== "{}") {
+        alert(errDetail);
+      }
+      console.error("handleUpdateDropoffRequest failed:", res.status, errDetail);
       return false;
     } catch (e) {
       console.error("handleUpdateDropoffRequest error:", e);
