@@ -406,6 +406,20 @@ async def signup_site_manager(
     db: AsyncSession = Depends(get_db)
 ):
     normalized_phone = normalize_phone(data.phone_number)
+    # 1. 중복 가입 체크 (CI 및 휴대폰 번호)
+    if data.ci:
+        ci_query = select(User).where(User.ci == data.ci)
+        ci_res = await db.execute(ci_query)
+        if ci_res.scalars().first():
+            logger.warning(f"현장관리자 가입 실패: 이미 존재하는 CI ({data.ci})")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "error_code": "ALREADY_REGISTERED",
+                    "message": "이미 해당 본인인증 정보(CI)로 가입된 계정이 존재합니다. 로그인해 주세요."
+                }
+            )
+
     query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
@@ -500,6 +514,20 @@ async def signup_site_worker(
     db: AsyncSession = Depends(get_db)
 ):
     normalized_phone = normalize_phone(data.phone_number)
+    # 1. 중복 가입 체크 (CI 및 휴대폰 번호)
+    if data.ci:
+        ci_query = select(User).where(User.ci == data.ci)
+        ci_res = await db.execute(ci_query)
+        if ci_res.scalars().first():
+            logger.warning(f"현장담당자 가입 실패: 이미 존재하는 CI ({data.ci})")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "error_code": "ALREADY_REGISTERED",
+                    "message": "이미 해당 본인인증 정보(CI)로 가입된 계정이 존재합니다. 로그인해 주세요."
+                }
+            )
+
     query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
@@ -594,6 +622,20 @@ async def signup_drop_off(
     db: AsyncSession = Depends(get_db)
 ):
     normalized_phone = normalize_phone(data.phone_number)
+    # 1. 중복 가입 체크 (CI 및 휴대폰 번호)
+    if data.ci:
+        ci_query = select(User).where(User.ci == data.ci)
+        ci_res = await db.execute(ci_query)
+        if ci_res.scalars().first():
+            logger.warning(f"하차지 지주 가입 실패: 이미 존재하는 CI ({data.ci})")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "error_code": "ALREADY_REGISTERED",
+                    "message": "이미 해당 본인인증 정보(CI)로 가입된 계정이 존재합니다. 로그인해 주세요."
+                }
+            )
+
     query = select(User).where(User.phone_number == normalized_phone)
     result = await db.execute(query)
     existing_user = result.scalars().first()
