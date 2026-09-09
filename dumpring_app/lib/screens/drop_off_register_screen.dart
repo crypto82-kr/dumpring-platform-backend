@@ -3,6 +3,7 @@ import '../shared/app_config.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart'; // AppColors, AppTextStyles 패키지 임포트
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'portone_identity_screen.dart';
 
 class DropOffRegisterScreen extends StatefulWidget {
   const DropOffRegisterScreen({Key? key}) : super(key: key);
@@ -26,6 +27,9 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isVerifying = false;
+  bool _isVerified = false;
+  String? _ci;
   String? _errorMessage;
 
   // 필수 서류 파일 보관 변수
@@ -60,7 +64,9 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
 
   // 폼 및 필수서류 완비 여부 검증
   bool get _isFormValid {
-    return _nameController.text.trim().isNotEmpty &&
+    return _isVerified &&
+        _ci != null &&
+        _nameController.text.trim().isNotEmpty &&
         _phoneController.text.trim().length >= 10 &&
         _passwordController.text.length >= 4 &&
         _locationController.text.trim().isNotEmpty &&
@@ -68,6 +74,105 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
         _permitController.text.trim().isNotEmpty &&
         _developmentPermitFile != null &&
         _landUseAgreementFile != null;
+  }
+
+  // 포트원 본인확인 (문자/PASS) 실행
+  Future<void> _startPortOneVerification({String? channelKey, String? title, bool isDanal = true}) async {
+    setState(() {
+      _errorMessage = null;
+    });
+
+    String effectiveStoreId = AppConfig.portoneStoreId;
+    String effectiveChannelKey = channelKey ?? (isDanal ? AppConfig.portoneDanalChannelKey : AppConfig.portonePassChannelKey);
+
+    // Render 서버에서 최신 채널키(PORTONE_CHANNEL_KEY2 등) 실시간 동기화 조회
+    try {
+      final cfgRes = await http.get(Uri.parse("$_baseUrl/api/auth/portone/config")).timeout(const Duration(seconds: 4));
+      if (cfgRes.statusCode == 200) {
+        final cfg = jsonDecode(utf8.decode(cfgRes.bodyBytes));
+        if (cfg["store_id"] != null && cfg["store_id"].toString().isNotEmpty) {
+          effectiveStoreId = cfg["store_id"].toString();
+        }
+        if (isDanal) {
+          final sKey = cfg["danal_channel_key"] ?? cfg["channel_key"];
+          if (sKey != null && sKey.toString().isNotEmpty) {
+            effectiveChannelKey = sKey.toString();
+          }
+        } else {
+          final pKey = cfg["pass_channel_key"];
+          if (pKey != null && pKey.toString().isNotEmpty) {
+            effectiveChannelKey = pKey.toString();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("포트원 설정 실시간 조회 예외, 로컬 기본값 사용: $e");
+    }
+
+    final String? verificationId = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PortoneIdentityScreen(
+          storeId: effectiveStoreId,
+          channelKey: effectiveChannelKey,
+          title: title ?? "휴대폰 본인확인",
+        ),
+      ),
+    );
+
+    if (verificationId == null) {
+      return; // 사용자가 취소함
+    }
+
+    setState(() {
+      _isVerifying = true;
+    });
+
+    try {
+      final verifyRes = await http.post(
+        Uri.parse("$_baseUrl/api/auth/portone/verify-identity"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"identity_verification_id": verificationId}),
+      );
+
+      final verifyData = jsonDecode(utf8.decode(verifyRes.bodyBytes));
+
+      if (verifyRes.statusCode == 200 && verifyData["verified"] == true) {
+        setState(() {
+          _ci = verifyData["ci"];
+          if (verifyData["name"] != null && verifyData["name"].toString().isNotEmpty) {
+            _nameController.text = verifyData["name"];
+          }
+          if (verifyData["phone_number"] != null && verifyData["phone_number"].toString().isNotEmpty) {
+            _phoneController.text = verifyData["phone_number"];
+          }
+          _isVerified = true;
+          _errorMessage = null;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("본인확인이 완료되었습니다. (성명/휴대폰번호 자동 반영)"),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } else if (verifyData["error_code"] == "ALREADY_REGISTERED") {
+        _showErrorDialog(verifyData["message"] ?? "이미 가입된 본인인증 정보입니다. 로그인해 주세요.");
+      } else {
+        final msg = verifyData["detail"] ?? verifyData["message"] ?? "본인확인 검증에 실패했습니다.";
+        _showErrorDialog(msg.toString());
+      }
+    } catch (e) {
+      _showErrorDialog("인증 서버와 통신할 수 없습니다: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isVerifying = false;
+        });
+      }
+    }
   }
 
   // 가상의 프리미엄 서류 파일 업로드 시뮬레이션
@@ -120,7 +225,7 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
       "phone_number": _phoneController.text.trim(),
       "password": _passwordController.text,
       "name": _nameController.text.trim(),
-      "ci": "MOCK_DROPOFF_CI_${_phoneController.text.trim()}",
+      "ci": _ci,
       "location_name": _locationController.text.trim(),
       "address": _addressController.text.trim(),
       "permit_number": _permitController.text.trim(),
@@ -339,15 +444,145 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // 포트원 통합 본인인증 안내/상태 카드
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 24),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: _isVerified
+                                ? (themeIsDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
+                                : (themeIsDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _isVerified ? AppColors.success : AppColors.divider,
+                              width: _isVerified ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    _isVerified ? Icons.verified : Icons.security,
+                                    color: _isVerified ? AppColors.success : AppColors.primary,
+                                    size: 26,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _isVerified ? "휴대폰 본인확인 완료" : "휴대폰 본인확인 필수",
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                            color: _isVerified ? AppColors.success : AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          _isVerified
+                                              ? "실명 및 휴대폰 번호가 인증된 정보로 설정되었습니다."
+                                              : "문자(SMS) 인증 또는 PASS 앱으로 인증해 주세요.",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              if (!_isVerified) ...[
+                                ElevatedButton.icon(
+                                  onPressed: _isVerifying
+                                      ? null
+                                      : () => _startPortOneVerification(
+                                            channelKey: AppConfig.portoneDanalChannelKey,
+                                            title: "휴대폰 본인확인 (문자/PASS)",
+                                            isDanal: true,
+                                          ),
+                                  icon: _isVerifying
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : const Icon(Icons.sms_outlined, size: 18),
+                                  label: Text(
+                                    _isVerifying ? "인증 확인 중..." : "휴대폰 본인확인 (문자 SMS / PASS)",
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed: _isVerifying
+                                      ? null
+                                      : () => _startPortOneVerification(
+                                            channelKey: AppConfig.portonePassChannelKey,
+                                            title: "PASS 간편인증",
+                                            isDanal: false,
+                                          ),
+                                  icon: const Icon(Icons.touch_app_outlined, size: 17),
+                                  label: const Text(
+                                    "PASS 간편인증 앱으로 바로하기",
+                                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.textSecondary,
+                                    side: BorderSide(color: AppColors.divider),
+                                    padding: const EdgeInsets.symmetric(vertical: 11),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ] else
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "CI: ${_ci != null ? '${_ci!.substring(0, _ci!.length.clamp(0, 16))}...' : ''}",
+                                      style: TextStyle(fontSize: 11, color: AppColors.textTertiary, fontFamily: 'monospace'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => _startPortOneVerification(
+                                        channelKey: AppConfig.portoneDanalChannelKey,
+                                        title: "휴대폰 본인확인 (문자/PASS)",
+                                        isDanal: true,
+                                      ),
+                                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(60, 24)),
+                                      child: Text("다시 인증하기", style: TextStyle(fontSize: 12, color: AppColors.primary)),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+
                         // 성명
                         Text("지주 성명 (실명)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _nameController,
+                          readOnly: _isVerified,
                           keyboardType: TextInputType.name,
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
-                          decoration: _buildInputDecoration("실명을 입력해 주세요", Icons.person_outline),
-                          validator: (value) => (value == null || value.trim().isEmpty) ? "성명을 입력해 주세요" : null,
+                          decoration: _buildInputDecoration(_isVerified ? "인증된 실명" : "본인인증 완료 시 자동 입력됩니다", Icons.person_outline),
+                          validator: (value) => (value == null || value.trim().isEmpty) ? "본인확인을 완료해 주세요" : null,
                         ),
                         const SizedBox(height: 20),
 
@@ -356,9 +591,10 @@ class _DropOffRegisterScreenState extends State<DropOffRegisterScreen> {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _phoneController,
+                          readOnly: _isVerified,
                           keyboardType: TextInputType.phone,
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
-                          decoration: _buildInputDecoration("- 없이 숫자만 입력해 주세요", Icons.phone_android_outlined),
+                          decoration: _buildInputDecoration(_isVerified ? "인증된 휴대폰 번호" : "본인인증 완료 시 자동 입력됩니다", Icons.phone_android_outlined),
                           validator: (value) => (value == null || value.trim().length < 10) ? "올바른 휴대폰 번호를 입력해 주세요" : null,
                         ),
                         const SizedBox(height: 20),
