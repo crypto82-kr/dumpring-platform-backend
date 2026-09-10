@@ -77,6 +77,8 @@ class UserMappingResponse(BaseModel):
     manager_phone: Optional[str] = None
     worker_name: Optional[str] = None
     worker_phone: Optional[str] = None
+    biz_license_url: Optional[str] = None
+    dust_report_url: Optional[str] = None
 
 class PendingWorkerResponse(BaseModel):
     user_id: int
@@ -102,6 +104,8 @@ def parse_managers_string(managers_str: Optional[str]):
     name = managers_str
     if phone:
         name = name.replace(phone, "")
+    # Remove role prefixes like '현장관리자:' or '현장담당자:'
+    name = re.sub(r'^(현장관리자|현장담당자)\s*:\s*', '', name.strip())
     name = re.sub(r'[\(\)\-\s,]+', ' ', name).strip()
     if not name:
         name = None
@@ -334,7 +338,9 @@ async def get_my_mappings(
                 manager_name=site.manager_name or (site.creator.name if site.creator else None),
                 manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
                 worker_name=w_name,
-                worker_phone=w_phone
+                worker_phone=w_phone,
+                biz_license_url=site.biz_license_url,
+                dust_report_url=site.dust_report_url
             )
         )
 
@@ -372,7 +378,9 @@ async def get_my_mappings(
                     manager_name=site.manager_name or (site.creator.name if site.creator else None),
                     manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
                     worker_name=w_name,
-                    worker_phone=w_phone
+                    worker_phone=w_phone,
+                    biz_license_url=site.biz_license_url,
+                    dust_report_url=site.dust_report_url
                 )
             )
 
@@ -415,7 +423,9 @@ async def get_my_mappings(
                         manager_name=site.manager_name or (site.creator.name if site.creator else None),
                         manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
                         worker_name=w_name or "임꺽정",
-                        worker_phone=w_phone
+                        worker_phone=w_phone,
+                        biz_license_url=site.biz_license_url,
+                        dust_report_url=site.dust_report_url
                     )
                 )
 
@@ -600,6 +610,8 @@ class ConstructionSiteDetailResponse(BaseModel):
     geofencing_radius: float
     manager_name: Optional[str] = None
     manager_phone: Optional[str] = None
+    biz_license_url: Optional[str] = None
+    dust_report_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -615,6 +627,8 @@ class UpdateSiteRequest(BaseModel):
     longitude: Optional[float] = None
     geofencing_radius: Optional[float] = None
     managers: Optional[str] = None
+    biz_license_url: Optional[str] = None
+    dust_report_url: Optional[str] = None
 
 
 @router.get(
@@ -660,7 +674,9 @@ async def list_all_sites(
             longitude=s.longitude,
             geofencing_radius=s.geofencing_radius,
             manager_name=s.manager_name or (s.creator.name if s.creator else None),
-            manager_phone=s.manager_phone or (s.creator.phone_number if s.creator else None)
+            manager_phone=s.manager_phone or (s.creator.phone_number if s.creator else None),
+            biz_license_url=s.biz_license_url,
+            dust_report_url=s.dust_report_url
         ) for s in sites
     ]
 
@@ -689,7 +705,9 @@ async def admin_create_site(
         geofencing_radius=data.geofencing_radius,
         billing_email=f"billing@{current_user.phone_number}.com",
         manager_name=m_name,
-        manager_phone=m_phone
+        manager_phone=m_phone,
+        biz_license_url=data.biz_license_url,
+        dust_report_url=data.dust_report_url
     )
     db.add(site)
     await db.commit()
@@ -712,7 +730,9 @@ async def admin_create_site(
         longitude=site.longitude,
         geofencing_radius=site.geofencing_radius,
         manager_name=site.manager_name or (site.creator.name if site.creator else None),
-        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None)
+        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+        biz_license_url=site.biz_license_url,
+        dust_report_url=site.dust_report_url
     )
 
 
@@ -766,6 +786,10 @@ async def update_site_detail(
         m_name, m_phone = parse_managers_string(data.managers)
         site.manager_name = m_name
         site.manager_phone = m_phone
+    if data.biz_license_url is not None:
+        site.biz_license_url = data.biz_license_url
+    if data.dust_report_url is not None:
+        site.dust_report_url = data.dust_report_url
 
     await db.commit()
     
@@ -787,7 +811,9 @@ async def update_site_detail(
         longitude=site.longitude,
         geofencing_radius=site.geofencing_radius,
         manager_name=site.manager_name or (site.creator.name if site.creator else None),
-        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None)
+        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+        biz_license_url=site.biz_license_url,
+        dust_report_url=site.dust_report_url
     )
 
 

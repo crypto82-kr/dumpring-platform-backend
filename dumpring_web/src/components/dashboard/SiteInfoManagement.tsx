@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2, X } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 import { MockMap } from "./MockMap";
 
@@ -35,6 +35,10 @@ export default function SiteInfoManagement({
 }: SiteInfoManagementProps) {
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // 서류 통합 뷰어 팝업 상태
+  const [viewingDoc, setViewingDoc] = useState<{ title: string; url: string } | null>(null);
+
   const [siteFormName, setSiteFormName] = useState("");
   const [siteFormCompanyName, setSiteFormCompanyName] = useState("");
   const [siteFormAddress, setSiteFormAddress] = useState("");
@@ -46,6 +50,56 @@ export default function SiteInfoManagement({
   const [isUploadingBizLicense, setIsUploadingBizLicense] = useState(false);
   const [isUploadingDustReport, setIsUploadingDustReport] = useState(false);
   const [siteFormSearchQuery, setSiteFormSearchQuery] = useState("");
+
+  // 현장 담당자 선택 관련 상태
+  const [availableWorkers, setAvailableWorkers] = useState<any[]>([]);
+  const [selectedWorkerId, setSelectedWorkerId] = useState<number | "">("");
+
+  // 현재 로그인한 사용자 정보 (현장 관리자)
+  const [currentManagerInfo, setCurrentManagerInfo] = useState<{ name: string; phone: string }>({
+    name: "현장 관리자",
+    phone: "",
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("userProfile");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setCurrentManagerInfo({
+            name: parsed.name || "현장 관리자",
+            phone: parsed.phone_number || "",
+          });
+        }
+      } catch (e) {
+        console.error("userProfile parse error:", e);
+      }
+    }
+  }, []);
+
+  // 백엔드에서 등록된 현장 담당자(site_worker) 목록 조회
+  const fetchAvailableWorkers = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const res = await fetch(`${baseUrl}/api/sites/all-employees`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setAvailableWorkers(data);
+        }
+      }
+    } catch (e) {
+      console.error("fetchAvailableWorkers error:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchAvailableWorkers();
+  }, []);
 
   // Load Daum Postcode Script dynamically on mount
   useEffect(() => {
@@ -131,12 +185,24 @@ export default function SiteInfoManagement({
       return;
     }
 
+    // 1. 기본 현장 관리자 정보 (접두사 없이 이름과 연락처만)
+    const managerText = `${currentManagerInfo.name}${currentManagerInfo.phone ? ` (${currentManagerInfo.phone})` : ""}`;
+
+    // 2. 추가 선택된 현장 담당자 정보
+    const managersList: string[] = [managerText];
+    if (selectedWorkerId) {
+      const matchedWorker = availableWorkers.find((w) => w.id === selectedWorkerId);
+      if (matchedWorker) {
+        managersList.push(`${matchedWorker.name} (${matchedWorker.phone_number})`);
+      }
+    }
+
     const payload = {
       name: siteFormName,
       companyName: siteFormCompanyName || activeSite?.companyName || "담다건설",
       address: siteFormAddress,
       roadDesc: siteFormRoadDesc,
-      managers: siteFormManagers,
+      managers: managersList.join(", "),
       bizRegNo: siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678",
       biz_license_url: siteFormBizLicenseUrl,
       dust_report_url: siteFormDustReportUrl,
@@ -156,6 +222,7 @@ export default function SiteInfoManagement({
       setSiteFormAddress("");
       setSiteFormRoadDesc("");
       setSiteFormManagers("");
+      setSelectedWorkerId("");
       setSiteFormBizRegNo("");
       setSiteFormBizLicenseUrl("");
       setSiteFormDustReportUrl("");
@@ -186,6 +253,9 @@ export default function SiteInfoManagement({
               setSiteFormRoadDesc("");
               setSiteFormManagers("");
               setSiteFormBizRegNo(activeSite?.bizRegNo || "");
+              setSiteFormBizLicenseUrl("");
+              setSiteFormDustReportUrl("");
+              setSelectedWorkerId("");
               setEditingSiteId(null);
               setIsModalOpen(true);
             }}
@@ -238,7 +308,11 @@ export default function SiteInfoManagement({
                       {site.managers && site.managers.length > 0 ? (
                         <div className="flex items-center gap-1">
                           <span className="font-bold text-slate-700">
-                            {site.managers[0].replace(/\s*\([^)]*\)/, "")}
+                            {site.managers[0]
+                              .replace(/^현장관리자:\s*/, "")
+                              .replace(/^현장담당자:\s*/, "")
+                              .replace(/\s*\([^)]*\)/, "")
+                              .trim()}
                           </span>
                           {site.managers.length > 1 && (
                             <span className="px-1 py-0.2 rounded-full bg-blue-100 text-blue-700 font-bold text-[8.5px]">
@@ -296,6 +370,16 @@ export default function SiteInfoManagement({
                             setSiteFormBizRegNo(selectedSite.bizRegNo || "");
                             setSiteFormBizLicenseUrl(selectedSite.bizLicenseUrl || "");
                             setSiteFormDustReportUrl(selectedSite.dustReportUrl || "");
+
+                            // 기존에 등록된 현장 담당자가 있다면 드롭다운에 매핑
+                            const workerManager = selectedSite.managers?.find(m => m.startsWith("현장담당자:"));
+                            if (workerManager && availableWorkers.length > 0) {
+                              const matchedWorker = availableWorkers.find(w => workerManager.includes(w.phone_number) || workerManager.includes(w.name));
+                              setSelectedWorkerId(matchedWorker ? matchedWorker.id : "");
+                            } else {
+                              setSelectedWorkerId("");
+                            }
+
                             setIsModalOpen(true);
                           }}
                           title={hasActiveJob ? "매칭 진행 중/승인 대기 오더 존재 시 현장 수정 불가" : "현장 정보 수정"}
@@ -376,7 +460,7 @@ export default function SiteInfoManagement({
                       <div className="space-y-1.5">
                         {selectedSite.managers && selectedSite.managers.length > 0 ? (
                           selectedSite.managers.map((m: string, idx: number) => {
-                            const isManager = idx === 0 || m.includes("소장") || m.includes("관리자");
+                            const isManager = m.startsWith("현장관리자:") || idx === 0 || m.includes("관리자");
                             const cleanName = m.replace(/^현장관리자:\s*/, "").replace(/^현장담당자:\s*/, "");
                             return (
                               <div
@@ -387,10 +471,10 @@ export default function SiteInfoManagement({
                                   className={`px-2 py-0.5 text-[10px] font-extrabold rounded shrink-0 ${
                                     isManager
                                       ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-                                      : "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+                                      : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
                                   }`}
                                 >
-                                  {isManager ? "현장관리자" : "현장담당자"}
+                                  {isManager ? "현장 관리자" : "현장 담당자"}
                                 </span>
                                 <span className="font-extrabold text-slate-800 dark:text-slate-200">{cleanName}</span>
                               </div>
@@ -596,27 +680,52 @@ export default function SiteInfoManagement({
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-slate-700 font-bold block">사업자등록번호</label>
-                      <input
-                        type="text"
-                        value={siteFormBizRegNo}
-                        onChange={(e) => setSiteFormBizRegNo(e.target.value)}
-                        placeholder="예: 120-81-45678"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                      />
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-slate-700 font-bold block">사업자등록번호</label>
+                        <input
+                          type="text"
+                          value={siteFormBizRegNo}
+                          onChange={(e) => setSiteFormBizRegNo(e.target.value)}
+                          placeholder="예: 120-81-45678"
+                          className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                        />
+                      </div>
+
+                      {/* 현장 관리자 (기본) */}
+                      <div className="space-y-1.5">
+                        <label className="text-slate-700 font-bold block">현장 관리자</label>
+                        <div className="w-full bg-slate-100 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold text-xs truncate">
+                          {currentManagerInfo.name} {currentManagerInfo.phone ? `(${currentManagerInfo.phone})` : ""}
+                        </div>
+                      </div>
                     </div>
 
+                    {/* 현장 담당자 (선택) */}
                     <div className="space-y-1.5">
-                      <label className="text-slate-700 font-bold block">현장 담당자 연락처</label>
-                      <input
-                        type="text"
-                        value={siteFormManagers}
-                        onChange={(e) => setSiteFormManagers(e.target.value)}
-                        placeholder="예: 김과장 (010-1234-5678)"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                      />
+                      <label className="text-slate-700 font-bold block">현장 담당자</label>
+                      {availableWorkers.length > 0 ? (
+                        <select
+                          value={selectedWorkerId}
+                          onChange={(e) => {
+                            const val = e.target.value ? Number(e.target.value) : "";
+                            setSelectedWorkerId(val);
+                          }}
+                          className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-xs text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                        >
+                          <option value="">선택 안 함</option>
+                          {availableWorkers.map((w) => (
+                            <option key={w.id} value={w.id}>
+                              {w.name} ({w.phone_number})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-400">
+                          등록된 현장 담당자가 없습니다.
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -684,16 +793,15 @@ export default function SiteInfoManagement({
                 </div>
 
                 {/* Right Column: Interactive Map */}
-                <div className="space-y-2.5 flex flex-col">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">위치 관제 지도 미리보기</span>
-                  <div className="h-full min-h-[300px] rounded-xl border border-slate-200 overflow-hidden relative shadow-inner flex-1">
-                    <MockMap
-                      title="현장"
-                      address={siteFormAddress}
-                      pinned={true}
-                      onPinClick={() => {}}
-                    />
-                  </div>
+                <div className="flex flex-col h-full">
+                  <MockMap
+                    title="현장 위치 지도"
+                    address={siteFormAddress}
+                    pinned={true}
+                    onPinClick={() => {}}
+                    className="flex-1 flex flex-col"
+                    mapHeightClass="flex-1 min-h-[350px]"
+                  />
                 </div>
               </div>
 

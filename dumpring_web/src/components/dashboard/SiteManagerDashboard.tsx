@@ -55,8 +55,8 @@ interface SiteManagerDashboardProps {
   dropoffRequestList?: any[];
   taxInvoiceApproved: boolean;
   setTaxInvoiceApproved: (val: boolean) => void;
-  handleCreateSite: (site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => Promise<boolean>;
-  handleUpdateSite: (id: number, site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => Promise<boolean>;
+  handleCreateSite: (site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => Promise<boolean>;
+  handleUpdateSite: (id: number, site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => Promise<boolean>;
   handleDeleteSite: (id: number) => Promise<boolean>;
   handleCreateDispatch: (formData: {
     siteId: number;

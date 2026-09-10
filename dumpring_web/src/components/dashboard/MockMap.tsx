@@ -23,6 +23,8 @@ interface MockMapProps {
   dropoffAddress?: string;
   distance?: number;
   estimatedTime?: number;
+  className?: string;
+  mapHeightClass?: string;
 }
 
 export function MockMap({
@@ -41,6 +43,8 @@ export function MockMap({
   dropoffAddress,
   distance,
   estimatedTime,
+  className = "",
+  mapHeightClass = "h-64",
 }: MockMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -266,7 +270,7 @@ export function MockMap({
   }, [address, mapInstance, markerInstance, interactive, isRouteMode]);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-xl">
+    <div className={`rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-xl ${className}`}>
       <div className="flex justify-between items-center border-b border-slate-100 pb-3">
         <div className="flex items-center gap-2">
           <span className="font-extrabold text-sm text-slate-900">{title}</span>
@@ -281,7 +285,7 @@ export function MockMap({
       </div>
 
       {/* 지도 영역 */}
-      <div className="relative h-64 rounded-xl border border-slate-200 overflow-hidden bg-slate-100">
+      <div className={`relative ${mapHeightClass} rounded-xl border border-slate-200 overflow-hidden bg-slate-100`}>
         {!isLoaded && !loadError && (
           <div className="absolute inset-0 z-20 bg-slate-50 flex flex-col items-center justify-center space-y-2">
             <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />

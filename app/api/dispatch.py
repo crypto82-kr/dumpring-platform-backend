@@ -218,18 +218,25 @@ async def get_open_dispatch_jobs(
                 )
             )
 
-    # 작업 예정일 날짜 필터 (yyyy-MM-dd 형식)
+    # 작업 예정일 날짜 필터 (KST 기준 과거 지난 공고 원천 차단)
+    from datetime import timezone as tz, timedelta as td
+    kst = tz(td(hours=9))
+    now_kst = datetime.now(kst)
+    today_start_kst = datetime.combine(now_kst.date(), datetime.min.time()).replace(tzinfo=kst)
+
     if work_date:
         try:
             target_date = date.fromisoformat(work_date)
             # KST(UTC+9) 기준으로 해당 날짜의 시작과 끝을 UTC 시각으로 변환하여 조회
-            from datetime import timezone as tz, timedelta as td
-            kst = tz(td(hours=9))
             day_start = datetime.combine(target_date, datetime.min.time()).replace(tzinfo=kst)
             day_end = datetime.combine(target_date + td(days=1), datetime.min.time()).replace(tzinfo=kst)
             query = query.where(JobPost.work_date >= day_start, JobPost.work_date < day_end)
         except ValueError:
-            pass  # 잘못된 날짜 형식은 무시
+            # 잘못된 날짜 형식 입력 시에도 과거 공고가 새어나가지 않도록 오늘 이후만 조회
+            query = query.where(JobPost.work_date >= today_start_kst)
+    else:
+        # 특정 날짜를 선택하지 않은 기본 목록 조회 시: 오늘 00:00:00 이후(오늘 및 미래) 공고만 노출
+        query = query.where(JobPost.work_date >= today_start_kst)
 
     # select(JobPost)와 함께 Site, DropOff, DropOffRequest (및 DropOffRequest.drop_off) 정보를 로드하도록 변경
     from sqlalchemy.orm import selectinload
@@ -527,6 +534,20 @@ async def accept_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="모집 중(OPEN)인 배차 공고가 아닙니다."
         )
+
+    # 1.2. 작업 예정일 유효성 검사 (과거 날짜 배차 수락 원천 차단)
+    from datetime import timezone as tz, timedelta as td
+    kst = tz(td(hours=9))
+    now_kst = datetime.now(kst)
+    today_start_kst = datetime.combine(now_kst.date(), datetime.min.time()).replace(tzinfo=kst)
+
+    if job.work_date:
+        job_work_kst = job.work_date.astimezone(kst) if job.work_date.tzinfo else job.work_date.replace(tzinfo=kst)
+        if job_work_kst < today_start_kst:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"작업 예정일({job_work_kst.strftime('%Y-%m-%d')})이 이미 지난 공고는 배차를 수락할 수 없습니다."
+            )
 
     # 1.5. [내실 다지기 🚨] 실시간 차량 수락 대수 제한 체크
     # 현재 취소되거나 반려되지 않은 활성 배차 티켓 수량 조회

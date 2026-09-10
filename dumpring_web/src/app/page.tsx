@@ -276,7 +276,7 @@ export default function Home() {
     }
   };
 
-  const handleCreateSite = async (siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => {
+  const handleCreateSite = async (siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
@@ -291,7 +291,9 @@ export default function Home() {
           business_number: siteData.bizRegNo || "000-00-00000",
           site_address: siteData.address,
           geofencing_radius: 200.0,
-          managers: siteData.managers
+          managers: siteData.managers,
+          biz_license_url: siteData.biz_license_url,
+          dust_report_url: siteData.dust_report_url
         })
       });
       if (res.ok) {
@@ -305,7 +307,7 @@ export default function Home() {
     }
   };
 
-  const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string }) => {
+  const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites/${id}`, {
@@ -319,7 +321,9 @@ export default function Home() {
           company_name: siteData.companyName,
           business_number: siteData.bizRegNo,
           site_address: siteData.address,
-          managers: siteData.managers
+          managers: siteData.managers,
+          biz_license_url: siteData.biz_license_url,
+          dust_report_url: siteData.dust_report_url
         })
       });
       if (res.ok) {
