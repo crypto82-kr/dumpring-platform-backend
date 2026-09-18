@@ -8,6 +8,7 @@ import { PlatformAdminDashboard } from "@/components/dashboard/PlatformAdminDash
 import { PlatformAdminUnifiedApproval } from "@/components/dashboard/platform_admin/PlatformAdminUnifiedApproval";
 import { PlatformAdminOverviewDashboard } from "@/components/dashboard/platform_admin/PlatformAdminOverviewDashboard";
 import { PlatformAdminUserManagement } from "@/components/dashboard/platform_admin/PlatformAdminUserManagement";
+import { PlatformAdminFeeManagement } from "@/components/dashboard/platform_admin/PlatformAdminFeeManagement";
 import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboard";
 import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
@@ -118,10 +119,27 @@ export default function Home() {
   const fetchCommonCodes = async () => {
     setIsCodesLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/common-codes`);
-      if (res.ok) {
-        const data = await res.json();
+      const [resCodes, resPolicy] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/common-codes`),
+        fetch(`${API_BASE_URL}/api/common-codes/pricing-policy`)
+      ]);
+      if (resCodes.ok) {
+        const data = await resCodes.json();
         setDbCommonCodes(data);
+      }
+      if (resPolicy.ok) {
+        const pData = await resPolicy.json();
+        if (pData.tonnage_tariffs && pData.tonnage_tariffs.length > 0) {
+          setTonnages(pData.tonnage_tariffs.map((t: any) => ({
+            code: t.code,
+            name: t.name,
+            desc: t.desc,
+            baseTariff: t.base_tariff
+          })));
+        }
+        if (pData.commission_rate !== undefined) {
+          setCommissionRate(pData.commission_rate);
+        }
       }
     } catch (e) {
       console.error("Failed to fetch common codes from backend:", e);
@@ -262,6 +280,10 @@ export default function Home() {
               address: site.site_address || "현장 주소 미등록",
               roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
               managers: managerList,
+              managerName: site.manager_name,
+              managerPhone: site.manager_phone,
+              workerName: site.worker_name,
+              workerPhone: site.worker_phone,
               bizRegNo: site.business_number || "",
               siteKey: site.site_key || `SG-${site.id || site.site_id}-DUMP`,
               bizLicenseUrl: site.biz_license_url || "",
@@ -1455,6 +1477,8 @@ export default function Home() {
           />
         ) : activePath === "/admin/users" ? (
           <PlatformAdminUserManagement setActivePath={setActivePath} />
+        ) : activePath === "/admin/fees" ? (
+          <PlatformAdminFeeManagement setActivePath={setActivePath} />
         ) : (
           <PlatformAdminDashboard
             activePath={activePath}
@@ -1609,7 +1633,7 @@ export default function Home() {
             handleResetMatchJobPost={handleResetMatchJobPost}
           />
         ) : activePath === "/site/history" ? (
-          <SiteHistoryManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} />
+          <SiteHistoryManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} dbCommonCodes={dbCommonCodes} />
         ) : activePath === "/site/dump-expenses" ? (
           <SiteDumpExpensesManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} />
         ) : activePath === "/site/soil-expenses" ? (

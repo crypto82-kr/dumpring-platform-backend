@@ -766,19 +766,29 @@ export function DropoffManagerDashboard({
     // 1. 본인의 하차지 수용 공고 목록 필터링 및 검색어 적용
     const myDropoffIds = registeredDropoffList.map(d => d.id);
     const rawAnnouncements = dropoffRequestList.filter(req => myDropoffIds.includes(req.dropOffId));
-    const myAnnouncements = rawAnnouncements.filter(announce => {
-      if (!announceSearchQuery.trim()) return true;
-      const q = announceSearchQuery.toLowerCase();
-      const nameMatch = announce.name?.toLowerCase().includes(q);
-      const addressMatch = announce.address?.toLowerCase().includes(q);
-      const soilMatch = (
-        announce.soilType === "GOOD_SOIL" ? "양질토" :
-        announce.soilType === "MUD_SOIL" ? "뻘흙" :
-        announce.soilType === "ROCK" ? "암버럭" :
-        announce.soilType === "MIXED" ? "혼합" : announce.soilType || ""
-      ).toLowerCase().includes(q);
-      return nameMatch || addressMatch || soilMatch;
-    });
+    const myAnnouncements = rawAnnouncements
+      .filter(announce => {
+        if (!announceSearchQuery.trim()) return true;
+        const q = announceSearchQuery.toLowerCase();
+        const nameMatch = announce.name?.toLowerCase().includes(q);
+        const addressMatch = announce.address?.toLowerCase().includes(q);
+        const soilMatch = (
+          announce.soilType === "GOOD_SOIL" ? "양질토" :
+          announce.soilType === "MUD_SOIL" ? "뻘흙" :
+          announce.soilType === "ROCK" ? "암버럭" :
+          announce.soilType === "MIXED" ? "혼합" : announce.soilType || ""
+        ).toLowerCase().includes(q);
+        return nameMatch || addressMatch || soilMatch;
+      })
+      .sort((a, b) => {
+        // 작업일(startDate) 최신순(내림차순) 정렬
+        const dateA = a.startDate || "";
+        const dateB = b.startDate || "";
+        if (dateA !== dateB) {
+          return dateB.localeCompare(dateA);
+        }
+        return b.id - a.id;
+      });
 
     const activeSelectedReqId = selectedReqId || (myAnnouncements.length > 0 ? myAnnouncements[0].id : null);
     const selectedAnnounce = myAnnouncements.find(a => a.id === activeSelectedReqId) || null;
@@ -1010,7 +1020,10 @@ export function DropoffManagerDashboard({
                         {(() => {
                           const linkedJobs = dispatchRequestList.filter(job => 
                             job.dropOffRequestId === announce.id || 
-                            (job.matchedDropOffId !== null && Number(job.matchedDropOffId) === Number(announce.dropOffId) && job.soilType === announce.soilType)
+                            (job.matchedDropOffId !== null && 
+                             Number(job.matchedDropOffId) === Number(announce.dropOffId) && 
+                             job.soilType === announce.soilType && 
+                             job.startDate === announce.startDate)
                           );
                           if (linkedJobs.length === 0) return null;
                           return (
@@ -1287,10 +1300,22 @@ export function DropoffManagerDashboard({
 
                 {/* 🏢 연계된 현장 매칭 상세 현황 (Flow A: 현장➔하차지, Flow B: 하차지➔현장 통합 노출) */}
                 {(() => {
-                  const connectedRequests = dispatchRequestList.filter(
-                    job => job.dropOffRequestId === selectedAnnounce.id || 
-                    (job.matchedDropOffId !== null && Number(job.matchedDropOffId) === Number(selectedAnnounce.dropOffId) && job.soilType === selectedAnnounce.soilType)
-                  );
+                  const connectedRequests = dispatchRequestList
+                    .filter(
+                      job => job.dropOffRequestId === selectedAnnounce.id || 
+                      (job.matchedDropOffId !== null && 
+                       Number(job.matchedDropOffId) === Number(selectedAnnounce.dropOffId) && 
+                       job.soilType === selectedAnnounce.soilType && 
+                       job.startDate === selectedAnnounce.startDate)
+                    )
+                    .sort((a, b) => {
+                      const dateA = a.startDate || "";
+                      const dateB = b.startDate || "";
+                      if (dateA !== dateB) {
+                        return dateB.localeCompare(dateA);
+                      }
+                      return b.id - a.id;
+                    });
                   if (connectedRequests.length > 0) {
                     return (
                       <div className="p-6 rounded-2xl bg-white border border-blue-200 shadow-xl space-y-4">

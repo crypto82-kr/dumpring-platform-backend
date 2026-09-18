@@ -12,6 +12,10 @@ export interface RegisteredSiteItem {
   address: string;
   roadDesc?: string;
   managers?: string[];
+  managerName?: string;
+  managerPhone?: string;
+  workerName?: string;
+  workerPhone?: string;
   bizRegNo?: string;
   siteKey: string;
   bizLicenseUrl?: string;
@@ -372,14 +376,43 @@ export default function SiteInfoManagement({
                             setSiteFormDustReportUrl(selectedSite.dustReportUrl || "");
 
                             // 기존에 등록된 현장 담당자가 있다면 드롭다운에 매핑
-                            const workerManager = selectedSite.managers?.find(m => m.startsWith("현장담당자:"));
-                            if (workerManager && availableWorkers.length > 0) {
-                              const matchedWorker = availableWorkers.find(w => workerManager.includes(w.phone_number) || workerManager.includes(w.name));
-                              setSelectedWorkerId(matchedWorker ? matchedWorker.id : "");
-                            } else {
-                              setSelectedWorkerId("");
+                            let matchedWorker = null;
+                            if (availableWorkers.length > 0) {
+                              // 1순위: 해당 현장 ID(site_id)로 매핑된 담당자
+                              matchedWorker = availableWorkers.find(w => w.site_id === selectedSite.id);
+
+                              // 2순위: workerPhone 또는 workerName과 일치하는 담당자
+                              if (!matchedWorker && (selectedSite.workerPhone || selectedSite.workerName)) {
+                                matchedWorker = availableWorkers.find(w => 
+                                  (selectedSite.workerPhone && w.phone_number?.replace(/\D/g, '') === selectedSite.workerPhone.replace(/\D/g, '')) ||
+                                  (selectedSite.workerName && w.name === selectedSite.workerName)
+                                );
+                              }
+
+                              // 3순위: managers 배열 내 담당자 텍스트 매칭
+                              if (!matchedWorker && selectedSite.managers && selectedSite.managers.length > 1) {
+                                // 0번 인덱스는 통상 현장 관리자이므로 1번 이후 검사
+                                const workerTextCandidates = selectedSite.managers.slice(1);
+                                matchedWorker = availableWorkers.find(w => 
+                                  workerTextCandidates.some(text => 
+                                    (w.phone_number && text.includes(w.phone_number)) || 
+                                    (w.name && text.includes(w.name))
+                                  )
+                                );
+                              }
+
+                              // 4순위: managers 전체 항목에서 전화번호/이름 일치 여부 확인
+                              if (!matchedWorker && selectedSite.managers) {
+                                matchedWorker = availableWorkers.find(w => 
+                                  selectedSite.managers?.some(text => 
+                                    (w.phone_number && text.includes(w.phone_number)) || 
+                                    (w.name && text.includes(w.name))
+                                  )
+                                );
+                              }
                             }
 
+                            setSelectedWorkerId(matchedWorker ? matchedWorker.id : "");
                             setIsModalOpen(true);
                           }}
                           title={hasActiveJob ? "매칭 진행 중/승인 대기 오더 존재 시 현장 수정 불가" : "현장 정보 수정"}

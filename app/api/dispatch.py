@@ -4,6 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy import or_, and_, update
 from typing import List, Optional
 from datetime import datetime, date, timedelta
+from pydantic import BaseModel
 
 from app.core.db import get_db
 from app.models import (
@@ -77,7 +78,7 @@ def get_ticket_eager_options():
         selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
         selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
         selectinload(DispatchTicket.driver),
-        selectinload(DispatchTicket.car),
+        selectinload(DispatchTicket.car).selectinload(Car.owner),
     ]
 
 async def fetch_loaded_ticket(ticket_id: int, db: AsyncSession) -> Optional[DispatchTicket]:
@@ -1292,5 +1293,794 @@ async def get_job_tickets(
     ticket_result = await db.execute(ticket_query)
     tickets = ticket_result.scalars().all()
     return await attach_pricing_policy(tickets, db)
+
+
+@router.get(
+    "/settlements/site-dump-expenses",
+    summary="[현장관리자용] 현장별 덤프비(운송비) 실 DB 정산 대장 및 통계 조회"
+)
+async def get_site_dump_expenses(
+    site_id: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    현장관리자(또는 관리자)가 본인 소속 공사현장의 배차 및 티켓(DispatchTicket)을 기반으로
+    발생한 실제 덤프비 정산 내역과 현장별/기사별/운송사별 집계 통계를 조회합니다.
+    """
+    # 1. 대상 현장 목록 확인 (관리자면 전체, 현장관리자면 본인이 등록/소속된 현장)
+    site_query = select(ConstructionSite)
+    if not current_user.is_admin:
+        site_query = site_query.where(ConstructionSite.user_id == current_user.id)
+    
+    if site_id:
+        site_query = site_query.where(ConstructionSite.id == site_id)
+
+    sites_res = await db.execute(site_query)
+    sites = sites_res.scalars().all()
+    site_ids = [s.id for s in sites]
+
+    if not site_ids:
+        return {
+            "summary": {
+                "totalAmount": 0,
+                "driverCount": 0,
+                "companyCount": 0,
+                "completedTrips": 0,
+                "pendingSettlementTrips": 0
+            },
+            "siteSummaries": [],
+            "driverExpenses": [],
+            "companyExpenses": []
+        }
+
+    # 2. 해당 현장들의 JobPost ID 조회
+    job_query = select(JobPost).where(JobPost.site_id.in_(site_ids))
+    jobs_res = await db.execute(job_query)
+    jobs = jobs_res.scalars().all()
+    job_map = {j.id: j for j in jobs}
+    job_ids = list(job_map.keys())
+
+    if not job_ids:
+        return {
+            "summary": {
+                "totalAmount": 0,
+                "driverCount": 0,
+                "companyCount": 0,
+                "completedTrips": 0,
+                "pendingSettlementTrips": 0
+            },
+            "siteSummaries": [
+                {
+                    "siteId": s.id,
+                    "siteName": s.site_name or s.company_name,
+                    "totalAmount": 0,
+                    "tripCount": 0,
+                    "driverCount": 0
+                } for s in sites
+            ],
+            "driverExpenses": [],
+            "companyExpenses": []
+        }
+
+    # 3. 해당 배차들의 DispatchTicket 조회 (연관 eager loading)
+    ticket_query = select(DispatchTicket).where(
+        DispatchTicket.job_post_id.in_(job_ids)
+    ).options(*get_ticket_eager_options()).order_by(DispatchTicket.completed_at.desc(), DispatchTicket.id.desc())
+
+    tickets_res = await db.execute(ticket_query)
+    tickets = tickets_res.scalars().all()
+
+    # 날짜 필터링 및 데이터 가공
+    driver_items = []
+    company_dict = {}
+    site_summary_dict = {
+        s.id: {
+            "siteId": s.id,
+            "siteName": s.site_name or s.company_name,
+            "companyName": s.company_name,
+            "totalAmount": 0,
+            "tripCount": 0,
+            "driverIds": set(),
+            "dates": set()
+        } for s in sites
+    }
+
+    total_amount = 0
+    completed_trips = 0
+    pending_trips = 0
+    distinct_driver_ids = set()
+
+    for t in tickets:
+        job = job_map.get(t.job_post_id)
+        if not job:
+            continue
+
+        work_date_str = ""
+        if job.work_date:
+            work_date_str = job.work_date.strftime("%Y-%m-%d")
+        elif t.completed_at:
+            work_date_str = t.completed_at.strftime("%Y-%m-%d")
+        elif t.accepted_at:
+            work_date_str = t.accepted_at.strftime("%Y-%m-%d")
+
+        # 날짜 범위 필터
+        if start_date and work_date_str and work_date_str < start_date:
+            continue
+        if end_date and work_date_str and work_date_str > end_date:
+            continue
+
+        site_obj = job.site
+        site_id_val = site_obj.id if site_obj else job.site_id
+        site_name_val = (site_obj.site_name or site_obj.company_name) if site_obj else "현장"
+
+        # 금액 산출: 미터기 누적 운임 또는 배차 제시 단가
+        fare = t.accumulated_fare if t.accumulated_fare and t.accumulated_fare > 0 else (job.offered_unit_price or 0)
+        
+        # 덤프비 정산 5단계 상태 매핑:
+        # 1. SETTLEMENT_REVIEW (정산 검토) - 운행 완료 후 현장관리자 검토 대기
+        # 2. SETTLEMENT_APPROVED (승인 완료) - 현장관리자 승인 완료, 송금(돈줌) 대기
+        # 3. SETTLEMENT_PAID (송금 완료) - 현장관리자 송금 완료, 기사/수령처 최종 확인 대기
+        # 4. SETTLEMENT_CONFIRMED (정산 완료) - 기사/수령처 최종 수령 확인 완료
+        # 5. SETTLEMENT_DISPUTED (정산 분쟁/이의제기) - 금액 불일치 등 기사/운송사 이의 제기
+        # 6. REJECTED / CANCELLED (반려/취소)
+        is_cancelled = t.status in ["CANCELLED", "REJECTED"]
+        
+        if t.status == "SETTLEMENT_CONFIRMED":
+            status_desc = "정산 완료"
+            completed_trips += 1
+        elif t.status == "SETTLEMENT_DISPUTED":
+            if getattr(t, "dispute_type", None) == "SITE":
+                status_desc = "현장 보류(이의)"
+            else:
+                status_desc = "기사 이의제기"
+            pending_trips += 1
+        elif t.status == "SETTLEMENT_PAID":
+            status_desc = "송금 완료"
+            completed_trips += 1
+        elif t.status == "SETTLEMENT_APPROVED":
+            status_desc = "승인 완료"
+            completed_trips += 1
+        elif t.status in ["APPROVED", "COMPLETED", "SETTLEMENT_REVIEW"]:
+            status_desc = "정산 검토"
+            completed_trips += 1
+        elif t.status == "REJECTED":
+            status_desc = "반려됨"
+        elif t.status == "CANCELLED":
+            status_desc = "취소됨"
+        else:
+            status_desc = "운행 진행중"
+            pending_trips += 1
+
+        # 취소/반려된 운행 건은 정산 덤프비 0원 처리 (정산 합산 및 운행횟수 집계 제외)
+        if is_cancelled:
+            fare = 0
+
+        # 정상 완료 또는 운행 진행 건만 총 정산액 및 현장 집계에 반영
+        if not is_cancelled:
+            total_amount += fare
+            if t.driver_id:
+                distinct_driver_ids.add(t.driver_id)
+
+            # 현장별 통계 누적
+            if site_id_val in site_summary_dict:
+                site_summary_dict[site_id_val]["totalAmount"] += fare
+                site_summary_dict[site_id_val]["tripCount"] += 1
+                if work_date_str:
+                    site_summary_dict[site_id_val]["dates"].add(work_date_str)
+                if t.driver_id:
+                    site_summary_dict[site_id_val]["driverIds"].add(t.driver_id)
+
+        driver_user = t.driver
+        car_obj = t.car
+
+        driver_name = driver_user.name if driver_user else "기사명 없음"
+        driver_phone = driver_user.phone_number if driver_user else "-"
+        car_plate = f"{car_obj.car_number} ({int(car_obj.tonnage)}톤)" if car_obj else "차량 미등록"
+        
+        # 소속 운송사 또는 개인 차주 구분 및 실제 정산금 수령 주체 판별
+        recipient_type = "INDIVIDUAL"  # "COMPANY" or "INDIVIDUAL"
+        company_name = "개인 차주"
+        recipient_name = driver_name
+
+        if car_obj and car_obj.owner:
+            owner_user = car_obj.owner
+            if getattr(owner_user, "is_owner", False) and owner_user.id != t.driver_id:
+                recipient_type = "COMPANY"
+                company_name = f"{owner_user.name} (운송사)"
+                recipient_name = owner_user.name
+            else:
+                recipient_type = "INDIVIDUAL"
+                company_name = "개인 차주"
+                recipient_name = owner_user.name
+
+        driver_items.append({
+            "ticketId": f"TKT-#{t.id:04d}",
+            "rawTicketId": t.id,
+            "jobPostId": job.id,
+            "date": work_date_str,
+            "siteId": site_id_val,
+            "siteName": site_name_val,
+            "driverId": t.driver_id,
+            "driverName": driver_name,
+            "phone": driver_phone,
+            "carPlate": car_plate,
+            "recipientType": recipient_type,
+            "recipientName": recipient_name,
+            "companyName": company_name,
+            "rawStatus": t.status,
+            "status": status_desc,
+            "disputeType": getattr(t, "dispute_type", None),
+            "disputeReason": getattr(t, "dispute_reason", None),
+            "disputeAmount": getattr(t, "dispute_amount", None),
+            "disputedAt": t.disputed_at.strftime("%Y-%m-%d %H:%M") if getattr(t, "disputed_at", None) else None,
+            "driveDistanceKm": t.drive_distance_km or 0,
+            "unitPrice": job.offered_unit_price or 0,
+            "totalFare": fare,
+            "tripCount": 1
+        })
+
+        # 운송사별 집계 (취소/반려 건 제외)
+        if not is_cancelled:
+            if company_name not in company_dict:
+                company_dict[company_name] = {
+                    "companyName": company_name,
+                    "siteId": site_id_val,
+                    "siteName": site_name_val,
+                    "driverIds": set(),
+                    "totalTrips": 0,
+                    "totalAmount": 0,
+                    "taxInvoiceStatus": "발행 대기",
+                    "status": "정산 진행중"
+                }
+            comp_entry = company_dict[company_name]
+            if t.driver_id:
+                comp_entry["driverIds"].add(t.driver_id)
+            comp_entry["totalTrips"] += 1
+            comp_entry["totalAmount"] += fare
+
+    company_items = []
+    for c_name, c_data in company_dict.items():
+        company_items.append({
+            "companyName": c_name,
+            "siteId": c_data["siteId"],
+            "siteName": c_data["siteName"],
+            "driverCount": len(c_data["driverIds"]),
+            "totalTrips": c_data["totalTrips"],
+            "totalAmount": c_data["totalAmount"],
+            "taxInvoiceStatus": c_data["taxInvoiceStatus"],
+            "status": c_data["status"]
+        })
+
+    site_summaries = []
+    for s_id, s_data in site_summary_dict.items():
+        sorted_dates = sorted(list(s_data["dates"]))
+        if not sorted_dates:
+            period_str = "-"
+        elif len(sorted_dates) == 1:
+            period_str = sorted_dates[0]
+        else:
+            period_str = f"{sorted_dates[0]} ~ {sorted_dates[-1]}"
+
+        site_summaries.append({
+            "siteId": s_data["siteId"],
+            "siteName": s_data["siteName"],
+            "companyName": s_data.get("companyName", ""),
+            "workDatePeriod": period_str,
+            "startDate": sorted_dates[0] if sorted_dates else "",
+            "endDate": sorted_dates[-1] if sorted_dates else "",
+            "totalAmount": s_data["totalAmount"],
+            "tripCount": s_data["tripCount"],
+            "driverCount": len(s_data["driverIds"])
+        })
+
+    return {
+        "summary": {
+            "totalAmount": total_amount,
+            "driverCount": len(distinct_driver_ids),
+            "companyCount": len(company_items),
+            "completedTrips": completed_trips,
+            "pendingSettlementTrips": pending_trips
+        },
+        "siteSummaries": site_summaries,
+        "driverExpenses": driver_items,
+        "companyExpenses": company_items
+    }
+
+
+class SettlementStatusUpdateRequest(BaseModel):
+    ticket_ids: List[int]
+    target_status: str  # 'SETTLEMENT_APPROVED', 'SETTLEMENT_PAID', 'SETTLEMENT_CONFIRMED', 'SETTLEMENT_DISPUTED'
+    dispute_type: Optional[str] = "SITE"  # 'SITE'(현장담당자 이의/보류) 또는 'DRIVER'(기사/차주 금액부족)
+    dispute_reason: Optional[str] = None
+    dispute_amount: Optional[int] = None
+
+
+@router.post(
+    "/settlements/tickets/status",
+    summary="[정산 프로세스] 덤프비 정산 단계 상태 일괄/개별 업데이트 및 분쟁 처리"
+)
+async def update_settlement_status(
+    req: SettlementStatusUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    덤프비 정산 흐름을 진행합니다:
+    1. 'SETTLEMENT_APPROVED' (현장관리자 검토 -> 정산 승인)
+    2. 'SETTLEMENT_PAID' (현장관리자 승인 -> 송금 완료)
+    3. 'SETTLEMENT_CONFIRMED' (기사/수령처 최종 확인 -> 정산 완료 또는 현장관리자 확정)
+    4. 'SETTLEMENT_DISPUTED' (현장담당자 감액/보류 이의제기 또는 기사 수령금액 불일치 이의제기)
+    """
+    valid_statuses = [
+        "SETTLEMENT_APPROVED", 
+        "SETTLEMENT_PAID", 
+        "SETTLEMENT_CONFIRMED", 
+        "SETTLEMENT_DISPUTED"
+    ]
+    if req.target_status not in valid_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"유효하지 않은 정산 상태입니다. 가능한 상태: {valid_statuses}"
+        )
+
+    if not req.ticket_ids:
+        return {"success": True, "updated_count": 0}
+
+    # 해당 티켓들 조회
+    query = select(DispatchTicket).where(DispatchTicket.id.in_(req.ticket_ids))
+    res = await db.execute(query)
+    tickets = res.scalars().all()
+
+    now = datetime.now()
+    updated_count = 0
+    for t in tickets:
+        t.status = req.target_status
+        if req.target_status == "SETTLEMENT_DISPUTED":
+            t.dispute_type = req.dispute_type or "SITE"
+            t.dispute_reason = req.dispute_reason or ("현장담당자 검토 보류/이의제기" if req.dispute_type == "SITE" else "금액 불일치 이의제기")
+            if req.dispute_amount is not None:
+                t.dispute_amount = req.dispute_amount
+            t.disputed_at = now
+        elif req.target_status in ["SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]:
+            # 분쟁 해결 후 승인/재송금 또는 완료 시
+            pass
+        updated_count += 1
+
+    await db.commit()
+    return {"success": True, "updated_count": updated_count, "target_status": req.target_status}
+
+
+class SoilSettlementStatusUpdateRequest(BaseModel):
+    job_post_ids: List[int]
+    target_status: str  # 'SETTLEMENT_REVIEW', 'SETTLEMENT_PAID', 'SETTLEMENT_CONFIRMED', 'SETTLEMENT_DISPUTED'
+    dispute_type: Optional[str] = "SITE"  # 'SITE' 또는 'DROPOFF'
+    dispute_reason: Optional[str] = None
+    dispute_amount: Optional[int] = None
+
+
+@router.get(
+    "/settlements/site-soil-expenses",
+    summary="[현장관리자용] 현장별 흙값(토사비) 실 DB 정산 대장 및 통계 조회"
+)
+async def get_site_soil_expenses(
+    site_id: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    현장관리자(또는 플랫폼 관리자)가 본인 소속 공사현장의 덤프 모집 오더(JobPost)와
+    매칭된 사토장(DropOffRequest / DropOff) 내역을 기반으로
+    실제 발생한 흙값(토사비) 정산 내역과 통계를 작업일자 순으로 조회합니다.
+    """
+    # 1. 대상 현장 목록 확인 (관리자면 전체, 현장관리자면 본인이 등록/소속된 현장)
+    site_query = select(ConstructionSite)
+    if not current_user.is_admin:
+        site_query = site_query.where(ConstructionSite.user_id == current_user.id)
+
+    if site_id:
+        site_query = site_query.where(ConstructionSite.id == site_id)
+
+    sites_res = await db.execute(site_query)
+    sites = sites_res.scalars().all()
+    site_ids = [s.id for s in sites]
+
+    if not site_ids:
+        return {
+            "summary": {
+                "totalExpense": 0,
+                "totalIncome": 0,
+                "netBalance": 0,
+                "totalCount": 0
+            },
+            "soilExpenses": []
+        }
+
+    from sqlalchemy.orm import selectinload
+
+    # 2. 해당 현장들의 JobPost 조회 (작업일자 최신순 정렬)
+    job_query = (
+        select(JobPost)
+        .where(JobPost.site_id.in_(site_ids))
+        .options(
+            selectinload(JobPost.site),
+            selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+            selectinload(JobPost.matched_drop_off)
+        )
+        .order_by(JobPost.work_date.desc(), JobPost.id.desc())
+    )
+    jobs_res = await db.execute(job_query)
+    jobs = jobs_res.scalars().all()
+
+    # 3. 데이터 가공 및 필터링
+    soil_items = []
+    total_expense = 0
+    total_income = 0
+
+    # material_type 한글 매핑 딕셔너리
+    material_type_map = {
+        "GOOD_SOIL": "양질토사",
+        "SOIL": "일반토사",
+        "ROCK": "발파암/암버럭",
+        "MUD_SOIL": "뻘흙/점토",
+        "SAND": "모래/골재",
+        "MIXED_SOIL": "혼합토사"
+    }
+
+    from datetime import timezone, timedelta
+    kst_tz = timezone(timedelta(hours=9))
+
+    for j in jobs:
+        # KST 타임존 보정 (UTC -> KST)
+        if j.work_date:
+            dt = j.work_date if j.work_date.tzinfo else j.work_date.replace(tzinfo=timezone.utc)
+            work_date_str = dt.astimezone(kst_tz).strftime("%Y-%m-%d")
+        elif j.created_at:
+            dt = j.created_at if j.created_at.tzinfo else j.created_at.replace(tzinfo=timezone.utc)
+            work_date_str = dt.astimezone(kst_tz).strftime("%Y-%m-%d")
+        else:
+            work_date_str = ""
+
+        # 날짜 범위 필터
+        if start_date and work_date_str and work_date_str < start_date:
+            continue
+        if end_date and work_date_str and work_date_str > end_date:
+            continue
+
+        site_obj = j.site
+        site_name_val = (site_obj.site_name or site_obj.company_name) if site_obj else "현장"
+
+        # 하차 사토장명
+        dropoff_name = j.drop_off_name or "사토장 미지정"
+
+        # payer_type 판별: JobPost 우선, 없으면 DropOffRequest 참조
+        raw_payer = j.payer_type
+        if not raw_payer and j.drop_off_request:
+            raw_payer = j.drop_off_request.payer_type
+
+        # 표준 payerType: 'SITE_PAYS', 'SITE_RECEIVES', 'FREE'
+        if raw_payer in ["SITE_PAYS", "CONSTRUCTION_SITE_PAYS"]:
+            payer_type = "SITE_PAYS"
+        elif raw_payer in ["SITE_RECEIVES", "DROPOFF_PAYS"]:
+            payer_type = "SITE_RECEIVES"
+        elif raw_payer == "FREE":
+            payer_type = "FREE"
+        else:
+            payer_type = "SITE_PAYS"  # 기본 사토처리비 지출
+
+        # 단가 및 수량
+        unit_price = j.offered_unit_price or 0
+        if unit_price == 0 and j.drop_off_request:
+            unit_price = j.drop_off_request.unit_price or 0
+
+        truck_count = j.required_trucks or 0
+        total_amount = unit_price * truck_count if payer_type != "FREE" else 0
+
+        if payer_type == "SITE_PAYS":
+            total_expense += total_amount
+        elif payer_type == "SITE_RECEIVES":
+            total_income += total_amount
+
+        # 토사 종류 표시명
+        soil_type_raw = j.material_type or (j.drop_off_request.material_type if j.drop_off_request else "") or "일반토사"
+        soil_type_name = material_type_map.get(soil_type_raw, soil_type_raw)
+
+        # 흙값 정산 상태 매핑
+        if j.status == "COMPLETED":
+            status_desc = "정산 마감"
+        elif j.status == "SETTLEMENT_CONFIRMED":
+            status_desc = "수령 확인"
+        elif j.status == "SETTLEMENT_PAID":
+            status_desc = "송금 완료"
+        elif j.status == "SETTLEMENT_DISPUTED":
+            status_desc = "이의제기"
+        elif j.status in ["CLOSED", "MATCHED"]:
+            status_desc = "정산 검토"
+        elif j.status == "OPEN":
+            status_desc = "운행/모집중"
+        else:
+            status_desc = "정산 대기"
+
+        disputed_at_str = ""
+        if j.disputed_at:
+            d_dt = j.disputed_at if j.disputed_at.tzinfo else j.disputed_at.replace(tzinfo=timezone.utc)
+            disputed_at_str = d_dt.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M")
+
+        soil_items.append({
+            "id": j.id,
+            "jobPostId": f"JOB-#{j.id:04d}",
+            "workDate": work_date_str,
+            "siteId": j.site_id,
+            "siteName": site_name_val,
+            "dropoffName": dropoff_name,
+            "soilType": soil_type_name,
+            "payerType": payer_type,
+            "unitPrice": unit_price,
+            "truckCount": truck_count,
+            "totalAmount": total_amount,
+            "rawStatus": j.status,
+            "status": status_desc,
+            "disputeType": j.dispute_type,
+            "disputeReason": j.dispute_reason,
+            "disputeAmount": j.dispute_amount,
+            "disputedAt": disputed_at_str,
+        })
+
+    return {
+        "summary": {
+            "totalExpense": total_expense,
+            "totalIncome": total_income,
+            "netBalance": total_income - total_expense,
+            "totalCount": len(soil_items)
+        },
+        "soilExpenses": soil_items
+    }
+
+
+@router.get(
+    "/settlements/dropoff-soil-settlements",
+    summary="[하차지관리자용] 하차지별 흙값(사토비/토사매입) 실 DB 정산 대장 및 통계 조회"
+)
+async def get_dropoff_soil_settlements(
+    drop_off_id: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    하차지관리자(또는 플랫폼 관리자)가 본인 운영 사토장(DropOff)과
+    연동된 배차 오더(JobPost) 내역을 기반으로
+    실제 발생한 흙값 정산 대장(수수료 수입 SITE_PAYS vs 토사매입 지출 SITE_RECEIVES)을 조회합니다.
+    """
+    from sqlalchemy.orm import selectinload
+
+    # 1. 대상 하차지 목록 확인
+    drop_query = select(DropOff)
+    if not current_user.is_admin:
+        drop_query = drop_query.where(DropOff.owner_id == current_user.id)
+
+    if drop_off_id:
+        drop_query = drop_query.where(DropOff.id == drop_off_id)
+
+    drop_res = await db.execute(drop_query)
+    drops = drop_res.scalars().all()
+    drop_ids = [d.id for d in drops]
+
+    if not drop_ids:
+        return {
+            "summary": {
+                "totalIncome": 0,
+                "totalExpense": 0,
+                "netBalance": 0,
+                "totalCount": 0
+            },
+            "soilSettlements": []
+        }
+
+    # 2. 하차지 요청(DropOffRequest) ID 목록 조회
+    d_req_query = select(DropOffRequest.id).where(DropOffRequest.drop_off_id.in_(drop_ids))
+    d_req_res = await db.execute(d_req_query)
+    d_req_ids = [r[0] for r in d_req_res.fetchall()]
+
+    # 3. 해당 하차지에 연결된 JobPost 조회 (drop_off_request_id 또는 matched_drop_off_id)
+    job_query = (
+        select(JobPost)
+        .where(
+            or_(
+                JobPost.drop_off_request_id.in_(d_req_ids) if d_req_ids else False,
+                JobPost.matched_drop_off_id.in_(drop_ids)
+            )
+        )
+        .options(
+            selectinload(JobPost.site),
+            selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+            selectinload(JobPost.matched_drop_off)
+        )
+        .order_by(JobPost.work_date.desc(), JobPost.id.desc())
+    )
+    jobs_res = await db.execute(job_query)
+    jobs = jobs_res.scalars().all()
+
+    # 4. 데이터 가공
+    material_type_map = {
+        "GOOD_SOIL": "양질토사",
+        "SOIL": "일반토사",
+        "ROCK": "발파암/암버럭",
+        "MUD_SOIL": "뻘흙/점토",
+        "SAND": "모래/골재",
+        "MIXED_SOIL": "혼합토사"
+    }
+
+    from datetime import timezone, timedelta
+    kst_tz = timezone(timedelta(hours=9))
+
+    settlement_items = []
+    total_income = 0
+    total_expense = 0
+
+    for j in jobs:
+        # KST 타임존 변환
+        if j.work_date:
+            dt = j.work_date if j.work_date.tzinfo else j.work_date.replace(tzinfo=timezone.utc)
+            work_date_str = dt.astimezone(kst_tz).strftime("%Y-%m-%d")
+        elif j.created_at:
+            dt = j.created_at if j.created_at.tzinfo else j.created_at.replace(tzinfo=timezone.utc)
+            work_date_str = dt.astimezone(kst_tz).strftime("%Y-%m-%d")
+        else:
+            work_date_str = ""
+
+        if start_date and work_date_str and work_date_str < start_date:
+            continue
+        if end_date and work_date_str and work_date_str > end_date:
+            continue
+
+        site_obj = j.site
+        site_name_val = (site_obj.site_name or site_obj.company_name) if site_obj else "현장"
+        dropoff_name = j.drop_off_name or "사토장 미지정"
+
+        # drop_off_id 파악
+        matched_d_id = None
+        if j.drop_off_request and j.drop_off_request.drop_off_id:
+            matched_d_id = j.drop_off_request.drop_off_id
+        elif j.matched_drop_off_id:
+            matched_d_id = j.matched_drop_off_id
+
+        # payer_type 판별
+        raw_payer = j.payer_type
+        if not raw_payer and j.drop_off_request:
+            raw_payer = j.drop_off_request.payer_type
+
+        if raw_payer in ["SITE_PAYS", "CONSTRUCTION_SITE_PAYS"]:
+            payer_type = "SITE_PAYS"
+        elif raw_payer in ["SITE_RECEIVES", "DROPOFF_PAYS"]:
+            payer_type = "SITE_RECEIVES"
+        elif raw_payer == "FREE":
+            payer_type = "FREE"
+        else:
+            payer_type = "SITE_PAYS"
+
+        unit_price = j.offered_unit_price or 0
+        if unit_price == 0 and j.drop_off_request:
+            unit_price = j.drop_off_request.unit_price or 0
+
+        truck_count = j.required_trucks or 0
+        total_amount = unit_price * truck_count if payer_type != "FREE" else 0
+
+        # 하차지 관점: SITE_PAYS는 하차지의 수입, SITE_RECEIVES는 하차지의 지출
+        if payer_type == "SITE_PAYS":
+            total_income += total_amount
+        elif payer_type == "SITE_RECEIVES":
+            total_expense += total_amount
+
+        soil_type_raw = j.material_type or (j.drop_off_request.material_type if j.drop_off_request else "") or "일반토사"
+        soil_type_name = material_type_map.get(soil_type_raw, soil_type_raw)
+
+        if j.status == "COMPLETED":
+            status_desc = "정산 마감"
+        elif j.status == "SETTLEMENT_CONFIRMED":
+            status_desc = "수령 확인"
+        elif j.status == "SETTLEMENT_PAID":
+            status_desc = "송금 완료"
+        elif j.status == "SETTLEMENT_DISPUTED":
+            status_desc = "이의제기"
+        elif j.status in ["CLOSED", "MATCHED"]:
+            status_desc = "정산 검토"
+        elif j.status == "OPEN":
+            status_desc = "운행/모집중"
+        else:
+            status_desc = "정산 대기"
+
+        disputed_at_str = ""
+        if j.disputed_at:
+            d_dt = j.disputed_at if j.disputed_at.tzinfo else j.disputed_at.replace(tzinfo=timezone.utc)
+            disputed_at_str = d_dt.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M")
+
+        settlement_items.append({
+            "id": j.id,
+            "jobPostId": f"JOB-#{j.id:04d}",
+            "workDate": work_date_str,
+            "dropOffId": matched_d_id,
+            "siteId": j.site_id,
+            "siteName": site_name_val,
+            "dropoffName": dropoff_name,
+            "soilType": soil_type_name,
+            "payerType": payer_type,
+            "unitPrice": unit_price,
+            "truckCount": truck_count,
+            "totalAmount": total_amount,
+            "rawStatus": j.status,
+            "status": status_desc,
+            "disputeType": j.dispute_type,
+            "disputeReason": j.dispute_reason,
+            "disputeAmount": j.dispute_amount,
+            "disputedAt": disputed_at_str,
+        })
+
+    return {
+        "summary": {
+            "totalIncome": total_income,
+            "totalExpense": total_expense,
+            "netBalance": total_income - total_expense,
+            "totalCount": len(settlement_items)
+        },
+        "soilSettlements": settlement_items
+    }
+
+
+@router.post(
+    "/settlements/site-soil-expenses/status",
+    summary="[공통/현장/하차지] 흙값 정산 상태 업데이트 및 이의제기 처리"
+)
+async def update_soil_settlement_status(
+    req: SoilSettlementStatusUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    흙값 정산 상태를 업데이트합니다:
+    - 'SETTLEMENT_PAID': 송금 완료 (지급 주체가 송금 완료 처리)
+    - 'SETTLEMENT_CONFIRMED': 수령 확인 (수취 주체가 입금 확인)
+    - 'COMPLETED': 정산 최종 마감
+    - 'SETTLEMENT_DISPUTED': 이의제기 / 정산 보류
+    - 'CLOSED': 이의제기 보류 해제 및 정산 재검토
+    """
+    if not req.job_post_ids:
+        return {"success": True, "updated_count": 0}
+
+    query = select(JobPost).where(JobPost.id.in_(req.job_post_ids))
+    res = await db.execute(query)
+    jobs = res.scalars().all()
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    for j in jobs:
+        if req.target_status == "SETTLEMENT_DISPUTED":
+            j.status = "SETTLEMENT_DISPUTED"
+            j.dispute_type = req.dispute_type or "SITE"
+            j.dispute_reason = req.dispute_reason or "흙값 정산 금액/내역 불일치 이의제기"
+            j.dispute_amount = req.dispute_amount
+            j.disputed_at = now
+        elif req.target_status == "CLOSED":  # 보류 해제 후 재검토
+            j.status = "CLOSED"
+        elif req.target_status == "SETTLEMENT_CONFIRMED":
+            j.status = "SETTLEMENT_CONFIRMED"
+        elif req.target_status == "SETTLEMENT_PAID":
+            j.status = "SETTLEMENT_PAID"
+        elif req.target_status == "COMPLETED":
+            j.status = "COMPLETED"
+        else:
+            j.status = req.target_status
+
+    await db.commit()
+    return {"success": True, "updated_count": len(jobs), "target_status": req.target_status}
+
+
+
 
 

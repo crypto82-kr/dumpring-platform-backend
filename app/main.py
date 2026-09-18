@@ -31,6 +31,15 @@ app = FastAPI(
     description="덤프 트럭 중계 및 실시간 택시미터기 플랫폼 '덤프링' 백엔드 API",
 )
 
+# CORS 설정 (반드시 모든 라우터 및 미들웨어 최상단에 배치)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("덤프링 플랫폼 백엔드 구동 시동 및 테이블 생성...")
@@ -317,18 +326,6 @@ os.makedirs(os.path.join(static_dir, "uploads", "proofs"), exist_ok=True)
 os.makedirs(os.path.join(uploads_dir, "documents"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
-
-
-
-# CORS 설정
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 실무에서는 환경변수나 설정을 통해 제어 권장
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():

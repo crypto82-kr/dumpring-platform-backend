@@ -81,6 +81,33 @@ export default function SiteDispatchRequestManagement({
   const [dispatchFormMemo, setDispatchFormMemo] = useState<string>("");
   const [dropoffSearchQuery, setDropoffSearchQuery] = useState<string>("");
 
+  // DB 요금 정책 연동 상태
+  const [pricingPolicy, setPricingPolicy] = useState<any>(null);
+
+  // DB 요금 정책 로드
+  useEffect(() => {
+    const fetchPolicy = async () => {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/common-codes/pricing-policy`);
+        if (res.ok) {
+          const data = await res.json();
+          setPricingPolicy(data);
+        }
+      } catch (err) {
+        console.error("배차 요청 화면: 요금 정책 로드 실패", err);
+      }
+    };
+    fetchPolicy();
+  }, []);
+
+  // 선택된 톤수에 해당하는 DB 기본운임 계산 헬퍼
+  const getSelectedBaseFare = (tonCode: string) => {
+    if (!pricingPolicy?.tonnage_tariffs) return 180000;
+    const item = pricingPolicy.tonnage_tariffs.find((t: any) => t.code === tonCode);
+    return item ? item.base_tariff : 180000;
+  };
+
+
   // Rejection Modal States
   const [isRejectModalOpen, setIsRejectModalOpen] = useState<boolean>(false);
   const [rejectingJobId, setRejectingJobId] = useState<number | null>(null);
@@ -90,7 +117,27 @@ export default function SiteDispatchRequestManagement({
   const [jobTickets, setJobTickets] = useState<any[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState<boolean>(false);
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   const filteredRequests = dispatchRequestList.filter((req) => {
+    // 1. 상태 기준: 이미 최종 완료되었거나 마감/취소된 과거 건은 운행 이력에서 확인
+    const isCompletedStatus =
+      req.rawStatus === "COMPLETED" ||
+      req.rawStatus === "CLOSED" ||
+      req.rawStatus === "CANCELLED" ||
+      req.status === "운행완료" ||
+      req.status === "마감" ||
+      req.status === "취소됨" ||
+      req.status === "매칭반려";
+
+    if (isCompletedStatus) return false;
+
+    // 2. 날짜 기준: 종료일/시작일이 현재일 이전(어제 이전)으로 완전히 지난 건은 제외 (현재일 진행 중이거나 미래 선등록 정보만 표시)
+    const targetDate = req.endDate || req.startDate;
+    if (targetDate && targetDate < todayStr) {
+      return false;
+    }
+
     if (!dispatchRequestSearchQuery || !dispatchRequestSearchQuery.trim()) return true;
     const q = dispatchRequestSearchQuery.trim().toLowerCase();
     const siteNameStr = (req.siteName || "현장명 없음").toLowerCase();
@@ -654,7 +701,14 @@ export default function SiteDispatchRequestManagement({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-slate-700 font-bold block">요청 차량 톤수 <span className="text-rose-500">*</span></label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-slate-700 font-bold block">요청 차량 톤수 <span className="text-rose-500">*</span></label>
+                    {dispatchFormTonTypes[0] && (
+                      <span className="text-[10.5px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md font-mono">
+                        기본운임: {getSelectedBaseFare(dispatchFormTonTypes[0]).toLocaleString()}원
+                      </span>
+                    )}
+                  </div>
                   <select
                     value={dispatchFormTonTypes[0] || ""}
                     onChange={(e) => setDispatchFormTonTypes(e.target.value ? [e.target.value] : [])}
@@ -666,14 +720,14 @@ export default function SiteDispatchRequestManagement({
                       .filter((codeItem: any) => codeItem.group_code === "TRUCK_TYPE")
                       .map((codeItem: any) => (
                         <option key={codeItem.code} value={codeItem.code}>
-                          {codeItem.code_name}
+                          {codeItem.code_name} (기본운임 {getSelectedBaseFare(codeItem.code).toLocaleString()}원)
                         </option>
                       ))}
                     {dbCommonCodes.filter((codeItem: any) => codeItem.group_code === "TRUCK_TYPE").length === 0 && (
                       <>
-                        <option value="T_15">15톤</option>
-                        <option value="T_25">25톤</option>
-                        <option value="T_27">27톤</option>
+                        <option value="T_15">15톤 (기본운임 {getSelectedBaseFare("T_15").toLocaleString()}원)</option>
+                        <option value="T_25">25톤 (기본운임 {getSelectedBaseFare("T_25").toLocaleString()}원)</option>
+                        <option value="T_27">27톤 (기본운임 {getSelectedBaseFare("T_27").toLocaleString()}원)</option>
                       </>
                     )}
                   </select>

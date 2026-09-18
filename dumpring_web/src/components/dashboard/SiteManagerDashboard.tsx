@@ -1002,7 +1002,27 @@ export function SiteManagerDashboard({
       }
     };
 
+    const todayStr = new Date().toISOString().split("T")[0];
+
     const filteredRequests = dispatchRequestList.filter(req => {
+      // 1. 이미 완료되었거나 마감/취소된 과거 건은 운행 이력에서 확인
+      const isCompletedStatus =
+        req.rawStatus === "COMPLETED" ||
+        req.rawStatus === "CLOSED" ||
+        req.rawStatus === "CANCELLED" ||
+        req.status === "운행완료" ||
+        req.status === "마감" ||
+        req.status === "취소됨" ||
+        req.status === "매칭반려";
+
+      if (isCompletedStatus) return false;
+
+      // 2. 날짜 기준: 종료일/시작일이 현재일 이전(어제 이전)으로 완전히 지난 건 제외
+      const targetDate = req.endDate || req.startDate;
+      if (targetDate && targetDate < todayStr) {
+        return false;
+      }
+
       if (!dispatchRequestSearchQuery || !dispatchRequestSearchQuery.trim()) return true;
       const q = dispatchRequestSearchQuery.trim().toLowerCase();
       const siteNameStr = (req.siteName || "현장명 없음").toLowerCase();

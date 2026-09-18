@@ -477,6 +477,12 @@ class JobPost(Base):
     estimated_time = Column(Integer, nullable=True)       # 예상 소요 시간 (분)
     rejection_reason = Column(String, nullable=True)      # 반려 사유
     
+    # 흙값 정산 분쟁 / 이의제기 관리 필드
+    dispute_type = Column(String, nullable=True)          # 'SITE'(상차 현장) 또는 'DROPOFF'(하차 사토장)
+    dispute_reason = Column(String, nullable=True)        # 이의제기 사유 (단가 상이, 수량 불일치, 토질 불량 등)
+    dispute_amount = Column(Integer, nullable=True)       # 이의 신청/인정 금액
+    disputed_at = Column(DateTime(timezone=True), nullable=True)  # 이의제기 접수 일시
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -570,6 +576,12 @@ class DispatchTicket(Base):
     driving_started_at = Column(DateTime(timezone=True), nullable=True)
     arrived_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # 정산 분쟁 / 이의제기 관리 필드
+    dispute_type = Column(String, nullable=True)    # 이의제기 주체: 'SITE'(현장담당자 감액/보류) 또는 'DRIVER'(기사/차주 금액부족)
+    dispute_reason = Column(String, nullable=True)  # 기사/현장 제기 사유 (회전수 상이, 현장대기료 누락 등)
+    dispute_amount = Column(Integer, nullable=True)  # 인정 금액 또는 실제 수령 금액
+    disputed_at = Column(DateTime(timezone=True), nullable=True)  # 분쟁 신청 일시
 
     # Relationships
     job_post = relationship("JobPost")

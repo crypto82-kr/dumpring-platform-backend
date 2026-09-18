@@ -29,15 +29,30 @@ export default function DropoffDispatchManagement({
   // 1. 하차지 관리자의 내 운영 하차지 리스트
   const myDropoffs = registeredDropoffList;
 
-  // 2. 매칭이 완료되어 반입(배차) 진행 중이거나 완료된 배차건 필터링
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // 2. 매칭이 완료되어 반입(배차) 진행 중이거나 미래 예정된 배차건 필터링 (과거 지난 정보 제외)
   const activeMatchedDispatches = dispatchRequestList.filter((req) => {
-    // 하차지가 연동되어 매칭완료/배차완료/운행완료/OPEN/COMPLETED 상태인 오더 모두 포함
-    const isMatched =
-      req.rawStatus === "OPEN" ||
+    // 이미 완료/마감/취소된 과거 건은 제외
+    const isCompletedStatus =
       req.rawStatus === "COMPLETED" ||
       req.rawStatus === "CLOSED" ||
-      req.status === "매칭완료" ||
+      req.rawStatus === "CANCELLED" ||
       req.status === "운행완료" ||
+      req.status === "마감" ||
+      req.status === "취소됨";
+    if (isCompletedStatus) return false;
+
+    // 작업일/종료일이 오늘보다 이전인 지난 건 제외
+    const targetDate = req.endDate || req.startDate;
+    if (targetDate && targetDate < todayStr) {
+      return false;
+    }
+
+    // 하차지가 연동되어 배차 진행 중(OPEN, 승인대기 등) 오더 포함
+    const isMatched =
+      req.rawStatus === "OPEN" ||
+      req.status === "매칭완료" ||
       Boolean(req.dropoffName);
     if (!isMatched) return false;
 
