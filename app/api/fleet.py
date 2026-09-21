@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_
 from typing import List
 from pydantic import BaseModel
 
@@ -710,3 +711,219 @@ async def kick_driver(
 
     await db.commit()
     return {"message": "기사 소속 해제가 완료되었습니다."}
+
+
+# ==========================================================
+# 차주 전용 월별 배차 스케줄러 캘린더 API
+# ==========================================================
+@router.get(
+    "/schedule/monthly",
+    summary="차주 소속 기사들의 월별 배차 스케줄 캘린더 데이터 조회"
+)
+async def get_owner_monthly_schedule(
+    year_month: str,  # 형식: 'YYYY-MM' (예: '2026-09')
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    from app.models import DispatchTicket, ConstructionSite, DropOff, DropOffRequest, JobPost
+    from sqlalchemy.orm import aliased, selectinload
+    from datetime import datetime
+    import calendar
+
+    # 1. 차주 소유 차량 및 소속 기사 목록 조회
+    car_query = select(Car).where(Car.owner_id == current_owner.id)
+    cars = (await db.execute(car_query)).scalars().all()
+    car_ids = [c.id for c in cars]
+    cars_by_id = {c.id: c for c in cars}
+
+    driver_query = select(Driver).where(
+        (Driver.owner_id == current_owner.id) |
+        ((Driver.current_car_id.in_(car_ids)) if car_ids else (Driver.id == -1))
+    )
+    drivers = (await db.execute(driver_query)).scalars().all()
+    # Driver 테이블의 user_id (DispatchTicket.driver_id는 users.id를 참조)
+    driver_user_ids = [d.user_id for d in drivers if d.user_id]
+    driver_by_user_id = {d.user_id: d for d in drivers if d.user_id}
+
+    # 기사 이름 및 전화번호 매핑 (User 테이블)
+    user_query = select(User).where(User.id.in_(driver_user_ids)) if driver_user_ids else None
+    user_map = {}
+    if user_query is not None:
+        user_res = await db.execute(user_query)
+        for u in user_res.scalars().all():
+            user_map[u.id] = (u.name, u.phone_number)
+
+    # 공통코드 (토사종류 MATERIAL_TYPE, 배차상태 DISPATCH_STATUS) 매핑 딕셔너리
+    common_codes_query = select(CommonCode).where(
+        CommonCode.group_code.in_(["MATERIAL_TYPE", "DISPATCH_STATUS"]),
+        CommonCode.is_active == True
+    )
+    cc_res = await db.execute(common_codes_query)
+    cc_records = cc_res.scalars().all()
+    
+    # 기본 fallback 매핑
+    material_map = {
+        "GOOD_SOIL": "양질토",
+        "MUD_SOIL": "뻘흙",
+        "ROCK": "암버럭",
+        "MIXED": "혼합토",
+        "SAND": "모래",
+        "CLAY": "점토",
+        "GRAVEL": "자갈"
+    }
+    status_map = {
+        "ACCEPTED": "배차 수락",
+        "ARRIVED_LOADING": "상차지 도착",
+        "LOADING_APPROVED": "상차 승인완료",
+        "DRIVING": "하차지 이동 중",
+        "ARRIVED": "하차지 도착",
+        "WAITING_ABSENT_APPROVAL": "지주부재 승인대기",
+        "APPROVED": "반입 승인완료",
+        "COMPLETED": "운행 완료",
+        "REJECTED": "반입 반려",
+        "CANCELLED": "배차 취소",
+        "SETTLEMENT_REQUESTED": "정산 요청",
+        "SETTLEMENT_APPROVED": "정산 승인",
+        "SETTLEMENT_PAID": "지급 완료",
+        "SETTLEMENT_CONFIRMED": "정산 확정"
+    }
+    for c in cc_records:
+        if c.group_code == "MATERIAL_TYPE":
+            material_map[c.code] = c.code_name
+        elif c.group_code == "DISPATCH_STATUS":
+            status_map[c.code] = c.code_name
+
+    try:
+        parts = year_month.split("-")
+        year = int(parts[0])
+        month = int(parts[1])
+        _, last_day = calendar.monthrange(year, month)
+        start_date_str = f"{year:04d}-{month:02d}-01"
+        end_date_str = f"{year:04d}-{month:02d}-{last_day:02d}"
+        start_dt = datetime.strptime(start_date_str + " 00:00:00", "%Y-%m-%d %H:%M:%S")
+        end_dt = datetime.strptime(end_date_str + " 23:59:59", "%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"잘못된 년월 형식입니다 (예: 2026-09): {str(e)}"
+        )
+
+    # 2. 해당 월의 티켓 조회 (차주 소속 기사들이 운행한 티켓 또는 차주 차량으로 운행한 티켓)
+    tickets = []
+    condition = []
+    if driver_user_ids:
+        condition.append(DispatchTicket.driver_id.in_(driver_user_ids))
+    if car_ids:
+        condition.append(DispatchTicket.car_id.in_(car_ids))
+
+    if condition:
+        ticket_query = (
+            select(DispatchTicket)
+            .where(
+                or_(*condition),
+                DispatchTicket.accepted_at >= start_dt,
+                DispatchTicket.accepted_at <= end_dt
+            )
+            .options(
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+                selectinload(DispatchTicket.driver),
+                selectinload(DispatchTicket.car),
+            )
+            .order_by(DispatchTicket.accepted_at.asc())
+        )
+
+        ticket_res = await db.execute(ticket_query)
+        tickets = ticket_res.scalars().all()
+
+    # 3. 날짜별(YYYY-MM-DD) 그룹화
+    schedule_by_date = {}
+    for d in range(1, last_day + 1):
+        d_str = f"{year:04d}-{month:02d}-{d:02d}"
+        schedule_by_date[d_str] = {
+            "date": d_str,
+            "day": d,
+            "total_count": 0,
+            "completed_count": 0,
+            "in_progress_count": 0,
+            "cancelled_count": 0,
+            "drivers": []
+        }
+
+    for t in tickets:
+        ticket_date = t.accepted_at or t.driving_started_at
+        d_str = ticket_date.strftime("%Y-%m-%d") if ticket_date else ""
+        if d_str in schedule_by_date:
+            driver_info = user_map.get(t.driver_id)
+            driver_name = driver_info[0] if driver_info else (t.driver.name if t.driver else f"기사 #{t.driver_id}")
+            
+            car_obj = t.car or (cars_by_id.get(t.car_id) if t.car_id else None)
+            car_number = car_obj.car_number if car_obj else "차량미배정"
+            tonnage = car_obj.tonnage if car_obj else 25.0
+
+            # 현장명 및 하차지명 가져오기
+            job = t.job_post
+            site_name = job.site.site_name if (job and job.site) else (job.site_name if job else "상차지 미지정")
+            dropoff_name = ""
+            if job:
+                if job.drop_off_request and job.drop_off_request.drop_off:
+                    dropoff_name = job.drop_off_request.drop_off.name
+                elif job.matched_drop_off:
+                    dropoff_name = job.matched_drop_off.name
+                else:
+                    dropoff_name = job.drop_off_name or "하차지 미지정"
+
+            is_cancelled = t.status in ["CANCELLED", "REJECTED"]
+            is_completed = t.status in ["APPROVED", "COMPLETED", "SETTLEMENT_REQUESTED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]
+            is_in_progress = t.status in ["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"]
+
+            schedule_by_date[d_str]["total_count"] += 1
+            if is_cancelled:
+                schedule_by_date[d_str]["cancelled_count"] += 1
+            elif is_completed:
+                schedule_by_date[d_str]["completed_count"] += 1
+            elif is_in_progress:
+                schedule_by_date[d_str]["in_progress_count"] += 1
+
+            raw_mat = job.material_type if job else "GOOD_SOIL"
+            material_name = material_map.get(raw_mat, raw_mat)
+            status_name = status_map.get(t.status, t.status)
+
+            schedule_by_date[d_str]["drivers"].append({
+                "ticket_id": t.id,
+                "driver_id": t.driver_id,
+                "driver_name": driver_name,
+                "car_number": car_number,
+                "tonnage": tonnage,
+                "site_name": site_name,
+                "dropoff_name": dropoff_name,
+                "status": t.status,
+                "status_name": status_name,
+                "material_type": raw_mat,
+                "material_type_name": material_name,
+                "fare": t.accumulated_fare or 0,
+                "created_time": ticket_date.strftime("%H:%M") if ticket_date else "",
+            })
+
+    days_list = [schedule_by_date[k] for k in sorted(schedule_by_date.keys())]
+
+    # 월간 요약 정보
+    month_total_trips = sum(d["total_count"] for d in days_list)
+    month_completed_trips = sum(d["completed_count"] for d in days_list)
+    active_drivers_count = len(driver_user_ids)
+    registered_trucks_count = len(cars)
+
+    return {
+        "year_month": year_month,
+        "year": year,
+        "month": month,
+        "summary": {
+            "month_total_trips": month_total_trips,
+            "month_completed_trips": month_completed_trips,
+            "active_drivers_count": active_drivers_count,
+            "registered_trucks_count": registered_trucks_count
+        },
+        "days": days_list
+    }
+

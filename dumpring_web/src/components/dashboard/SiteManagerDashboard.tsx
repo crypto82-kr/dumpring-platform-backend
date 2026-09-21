@@ -207,6 +207,7 @@ export function SiteManagerDashboard({
   // Dispatch Request States (Split Screen UI)
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [isSiteQrModalOpen, setIsSiteQrModalOpen] = useState(false);
   const [dropoffSearchQuery, setDropoffSearchQuery] = useState("");
   const [dispatchFormMemo, setDispatchFormMemo] = useState("");
 

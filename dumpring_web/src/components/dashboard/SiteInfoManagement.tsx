@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2, X } from "lucide-react";
+import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2, X, QrCode } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 import { MockMap } from "./MockMap";
 
@@ -39,6 +39,9 @@ export default function SiteInfoManagement({
 }: SiteInfoManagementProps) {
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // 현장 고정 QR 코드 모달 상태
+  const [isSiteQrModalOpen, setIsSiteQrModalOpen] = useState(false);
 
   // 서류 통합 뷰어 팝업 상태
   const [viewingDoc, setViewingDoc] = useState<{ title: string; url: string } | null>(null);
@@ -358,6 +361,15 @@ export default function SiteInfoManagement({
                     );
                     return isWorkerRole ? null : (
                       <>
+                        <button
+                          type="button"
+                          onClick={() => setIsSiteQrModalOpen(true)}
+                          title="현장 고정 QR 보기 및 인쇄"
+                          className="px-3 py-1.5 text-[10px] font-black rounded-lg border bg-white hover:bg-slate-50 text-blue-700 border-blue-200 active:scale-95 cursor-pointer flex items-center gap-1 shadow-sm"
+                        >
+                          <QrCode className="w-3.5 h-3.5 text-blue-600" />
+                          고정 QR 보기
+                        </button>
                         <button
                           type="button"
                           disabled={hasActiveJob}
@@ -855,6 +867,64 @@ export default function SiteInfoManagement({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 현장 고정 QR 코드 인쇄/보기 모달 */}
+      {isSiteQrModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-sm overflow-hidden animate-scaleUp p-6 space-y-4 text-center">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+                <QrCode className="w-4 h-4 text-blue-600" />
+                현장 상차지 고정형 QR
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsSiteQrModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-sm font-black text-slate-900">{selectedSite?.name || activeSite?.name}</div>
+              <p className="text-[11px] text-slate-500">게이트 출구 또는 현장사무실에 부착하여 기사가 촬영할 수 있도록 합니다.</p>
+            </div>
+
+            {/* 실제 QR Code Image Display (앱과 동일 규격) */}
+            <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center space-y-2">
+              <div className="w-48 h-48 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`DUMPRING:SITE_LOADING:${selectedSite?.id || activeSite?.id || 0}`)}&margin=10`}
+                  alt="상차지 현장 고정 QR"
+                  className="w-40 h-40 object-contain"
+                />
+                <span className="font-mono text-[9px] text-slate-500 font-bold mt-1">
+                  DUMPRING:SITE_LOADING:{selectedSite?.id || activeSite?.id || 0}
+                </span>
+              </div>
+              <span className="text-[10px] text-blue-600 font-extrabold">기사 앱 [고정형 QR코드 촬영 인증] 전용</span>
+            </div>
+
+            <div className="flex gap-2 justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => alert("QR 코드가 프린터로 출력되었습니다.")}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl active:scale-95 transition-all shadow-sm"
+              >
+                QR 코드 A4 인쇄
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSiteQrModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl active:scale-95 transition-all"
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       )}

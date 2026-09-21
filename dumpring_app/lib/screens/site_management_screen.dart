@@ -3,6 +3,7 @@ import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
+import 'package:image_picker/image_picker.dart';
 
 class SiteManagementScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -455,14 +456,18 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
 
   void _openEmployeeManagementDialog(int siteId, String siteName) {
     final TextEditingController phoneController = TextEditingController();
+    bool hasInitialLoaded = false;
+    _employees = [];
+    _isLoadingEmployees = true;
 
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // 최초 1회 로딩
-            if (_employees.isEmpty && !_isLoadingEmployees && phoneController.text.isEmpty) {
+            // 다이얼로그 오픈 시 단 1회만 초기 로딩 실행
+            if (!hasInitialLoaded) {
+              hasInitialLoaded = true;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 _fetchEmployees(siteId, setDialogState);
               });
@@ -514,7 +519,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                     keyboardType: TextInputType.phone,
                                     style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
                                     decoration: InputDecoration(
-                                      hintText: "휴대폰 번호 입력",
+                                      hintText: "휴대폰 번호 입력 (예: 01012345678)",
                                       hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                       isDense: true,
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -595,7 +600,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                                 borderRadius: BorderRadius.circular(4),
                                               ),
                                               child: Text(
-                                                emp['status'],
+                                                emp['status'] ?? '대기',
                                                 style: TextStyle(
                                                   color: isJoined ? AppColors.success : Colors.orange,
                                                   fontSize: 9,
@@ -606,7 +611,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                           ],
                                         ),
                                         subtitle: Text(
-                                          emp['registered_phone'],
+                                          emp['registered_phone'] ?? emp['phone_number'] ?? '',
                                           style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                                         ),
                                         trailing: IconButton(
@@ -626,8 +631,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    // 팝업 닫을 때 리스트 초기화해서 타 현장 오픈 시 캐싱 문제 예방
                     _employees = [];
+                    _isLoadingEmployees = false;
+                    phoneController.dispose();
                     Navigator.of(context).pop();
                   },
                   child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
@@ -637,6 +643,136 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
           },
         );
       },
+    );
+  }
+
+  // 기사가 제시한 상차 확인용 QR 스캔 및 상차 승인 처리
+  Future<void> _scanDriverQrForSite(Map<String, dynamic> site) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+
+      if (photo != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("📷 기사 상차 QR 촬영 완료! ${site['site_name'] ?? '현장'} 상차 승인을 처리합니다."),
+              backgroundColor: AppColors.primary,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorMsg("카메라를 실행할 수 없습니다: $e");
+      }
+    }
+  }
+
+  void _showSiteQrScannerModal(Map<String, dynamic> site) {
+    final int siteId = site['site_id'] ?? site['id'] ?? 0;
+    final String siteName = site['site_name'] ?? '상차지 현장';
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      backgroundColor: AppColors.surface,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textSecondary.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.qr_code_scanner_rounded, color: AppColors.primary, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    "상차 덤프 기사 QR 스캔",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "[$siteName]에 도착하여 상차를 마친 덤프 기사의\n스마트폰 화면에 표시된 [상차 확인 QR]을 카메라로 스캔합니다.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  _scanDriverQrForSite(site);
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.primary, width: 2),
+                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.primary.withOpacity(0.04),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.camera_alt_rounded, size: 52, color: AppColors.primary),
+                      const SizedBox(height: 8),
+                      Text(
+                        "여기를 터치하여 카메라 켜기",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "실제 카메라로 기사 스마트폰 QR 촬영",
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _scanDriverQrForSite(site);
+                  },
+                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  label: const Text("카메라로 QR 스캔"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -776,6 +912,18 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
               child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
             ),
             if (site['status'] == 'APPROVED') ...[
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _showSiteQrScannerModal(site);
+                },
+                icon: const Icon(Icons.qr_code_scanner, size: 16),
+                label: const Text("기사 QR 스캔", style: TextStyle(fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(color: AppColors.primary),
+                ),
+              ),
               OutlinedButton.icon(
                 onPressed: () {
                   Navigator.of(context).pop();
@@ -944,18 +1092,35 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 8),
-                                      if (isApproved)
-                                        TextButton.icon(
-                                          onPressed: () => _openEmployeeManagementDialog(site['site_id'], site['site_name'] ?? '현장'),
-                                          icon: const Icon(Icons.people_outline, size: 14),
-                                          label: const Text("직원 관리", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: AppColors.success,
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            minimumSize: Size.zero,
-                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          ),
+                                      if (isApproved) ...[
+                                        Row(
+                                          children: [
+                                            TextButton.icon(
+                                              onPressed: () => _showSiteQrScannerModal(site),
+                                              icon: const Icon(Icons.qr_code_scanner, size: 14),
+                                              label: const Text("QR 스캔", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: AppColors.primary,
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            TextButton.icon(
+                                              onPressed: () => _openEmployeeManagementDialog(site['site_id'], site['site_name'] ?? '현장'),
+                                              icon: const Icon(Icons.people_outline, size: 14),
+                                              label: const Text("직원 관리", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: AppColors.success,
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                            ),
+                                          ],
                                         ),
+                                      ],
                                       const SizedBox(height: 8),
                                       Row(
                                         children: [

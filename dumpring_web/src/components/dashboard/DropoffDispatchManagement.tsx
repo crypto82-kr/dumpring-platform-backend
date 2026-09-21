@@ -620,11 +620,15 @@ export default function DropoffDispatchManagement({
               <p className="text-[11px] text-slate-500">사토장 게이트 또는 검수소에 부착하여 기사가 촬영할 수 있도록 합니다.</p>
             </div>
 
-            {/* 가상 QR Code Display */}
+            {/* 실제 QR Code Image Display (앱과 동일 규격) */}
             <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-emerald-200 flex flex-col items-center justify-center space-y-2">
-              <div className="w-44 h-44 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                <QrCode className="w-32 h-32 text-slate-900" />
-                <span className="font-mono text-[9px] text-slate-400 font-bold mt-1">DUMP-DROPOFF-{selectedReq?.id}</span>
+              <div className="w-48 h-48 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`DUMPRING:DROPOFF_UNLOADING:${selectedReq?.id || 0}`)}&margin=10`}
+                  alt="하차지 사토장 고정 QR"
+                  className="w-40 h-40 object-contain"
+                />
+                <span className="font-mono text-[9px] text-slate-500 font-bold mt-1">DUMPRING:DROPOFF_UNLOADING:{selectedReq?.id}</span>
               </div>
               <span className="text-[10px] text-emerald-600 font-extrabold">기사 앱 [도착지 고정형 QR 스캔] 전용</span>
             </div>

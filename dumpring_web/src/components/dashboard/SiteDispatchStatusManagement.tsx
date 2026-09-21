@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock, CheckCircle2, QrCode } from "lucide-react";
+import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock, CheckCircle2 } from "lucide-react";
 import { MockMap } from "./MockMap";
 import { getApiBaseUrl } from "@/utils/api";
 
@@ -63,7 +63,6 @@ export default function SiteDispatchStatusManagement({
   const [approvalCoverChecked, setApprovalCoverChecked] = useState<boolean>(true);
   const [approvalMemo, setApprovalMemo] = useState<string>("");
   const [isSubmittingApproval, setIsSubmittingApproval] = useState<boolean>(false);
-  const [isSiteQrModalOpen, setIsSiteQrModalOpen] = useState<boolean>(false);
 
   // DB 요금 및 검수/승인 정책 연동 상태
   const [pricingPolicy, setPricingPolicy] = useState<any>(null);
@@ -345,16 +344,6 @@ export default function SiteDispatchStatusManagement({
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   배차 콜을 신청한 기사의 자재 적재 상태를 확인하고 상차 출발 승인 처리합니다.
                 </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSiteQrModalOpen(true)}
-                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl flex items-center gap-1.5 border border-indigo-200 active:scale-95 transition-all shadow-sm"
-                >
-                  <QrCode className="w-3.5 h-3.5 text-indigo-600" />
-                  현장 상차 고정 QR 보기/인쇄
-                </button>
               </div>
             </div>
 
@@ -719,58 +708,6 @@ export default function SiteDispatchStatusManagement({
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-blue-500/10 disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isSubmittingApproval ? "승인 처리 중..." : "상차 확인 및 출발 승인"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 현장 고정 QR 코드 인쇄/보기 모달 */}
-      {isSiteQrModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-sm overflow-hidden animate-scaleUp p-6 space-y-4 text-center">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
-                <QrCode className="w-4 h-4 text-blue-600" />
-                현장 상차지 고정형 QR
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsSiteQrModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-sm font-black text-slate-900">{selectedReq?.siteName}</div>
-              <p className="text-[11px] text-slate-500">게이트 출구 또는 현장사무실에 부착하여 기사가 촬영할 수 있도록 합니다.</p>
-            </div>
-
-            {/* 가상 QR Code Display */}
-            <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center space-y-2">
-              <div className="w-44 h-44 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                <QrCode className="w-32 h-32 text-slate-900" />
-                <span className="font-mono text-[9px] text-slate-400 font-bold mt-1">DUMP-SITE-{selectedReq?.siteId}</span>
-              </div>
-              <span className="text-[10px] text-blue-600 font-extrabold">기사 앱 [고정형 QR코드 촬영 인증] 전용</span>
-            </div>
-
-            <div className="flex gap-2 justify-center pt-2">
-              <button
-                type="button"
-                onClick={() => alert("QR 코드가 프린터로 출력되었습니다.")}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl active:scale-95 transition-all shadow-sm"
-              >
-                QR 코드 A4 인쇄
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsSiteQrModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl active:scale-95 transition-all"
-              >
-                닫기
               </button>
             </div>
           </div>

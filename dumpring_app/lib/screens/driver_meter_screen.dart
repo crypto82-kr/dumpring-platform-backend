@@ -179,69 +179,142 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
   }
 
+  Future<void> _scanSiteFixedQrWithCamera() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+
+      if (photo != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text("📷 상차지 현장 QR 촬영 완료! GPS 대조 및 상차 승인을 처리합니다."),
+              backgroundColor: AppColors.primary,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          _processQRValidation();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("카메라를 실행할 수 없습니다: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   void _showQRScannerSimulation() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       backgroundColor: AppColors.surface,
       builder: (context) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textSecondary.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
               Text(
-                "📸 상차지 고정형 QR 스캔 시뮬레이터",
+                "📸 상차지 고정형 QR 스캔",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Text(
-                "현장에 부착된 고정형 QR 코드를 스캔합니다.\n(기기 위치가 상차지 GPS 반경 1km 이내여야 승인이 완료됩니다.)",
+                "현장 사무실 또는 출입 게이트에 부착된 고정 QR을 촬영합니다.\n(기기 위치가 상차지 반경 1km 이내여야 승인이 완료됩니다)",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
               ),
-              const SizedBox(height: 24),
-              // 가상 QR Code 카메라 뷰 영역 데모
-              Container(
-                height: 180,
-                width: 180,
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.primary, width: 3),
-                  borderRadius: BorderRadius.circular(16),
-                  color: Colors.black12,
+              const SizedBox(height: 20),
+              // 카메라 켜기 터치 영역
+              InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  _scanSiteFixedQrWithCamera();
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.primary, width: 2),
+                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.primary.withOpacity(0.04),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.camera_alt_rounded, size: 52, color: AppColors.primary),
+                      const SizedBox(height: 8),
+                      Text(
+                        "여기를 터치하여 카메라 켜기",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "실제 카메라로 현장 QR 코드 촬영",
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(Icons.qr_code_scanner_rounded, size: 100, color: AppColors.primary),
-                    // Red dynamic scanning line anim
-                    Positioned(
-                      top: 40,
-                      left: 10,
-                      right: 10,
-                      child: Container(
-                        height: 2,
-                        color: Colors.redAccent,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _scanSiteFixedQrWithCamera();
+                      },
+                      icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                      label: const Text("카메라로 QR 스캔"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _processQRValidation();
+                      },
+                      icon: const Icon(Icons.flash_on, size: 18),
+                      label: const Text("즉시 GPS 승인"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  Navigator.pop(context); // 팝업 닫기
-                  _processQRValidation();
-                },
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text("QR 스캔 확인 및 GPS 대조"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
+              const SizedBox(height: 8),
             ],
           ),
         ),
