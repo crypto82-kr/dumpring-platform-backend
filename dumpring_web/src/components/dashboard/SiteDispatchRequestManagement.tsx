@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock } from "lucide-react";
+import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock, Calendar } from "lucide-react";
 import { MockMap } from "./MockMap";
 import { MatchStatusCard } from "./MatchStatusCard";
 import { getApiBaseUrl } from "@/utils/api";
@@ -66,6 +66,20 @@ export default function SiteDispatchRequestManagement({
   const [dispatchRequestMode, setDispatchRequestMode] = useState<"create" | "edit">("create");
   const [editingDispatchRequestId, setEditingDispatchRequestId] = useState<number | null>(null);
 
+  // 날짜 검색 필터 상태 (초기값: 오늘 ~ 1주일 뒤)
+  const getInitialFilterDates = () => {
+    const today = new Date();
+    const start = today.toISOString().split("T")[0];
+    const future = new Date();
+    future.setDate(today.getDate() + 7);
+    const end = future.toISOString().split("T")[0];
+    return { start, end };
+  };
+
+  const initialDates = getInitialFilterDates();
+  const [filterStartDate, setFilterStartDate] = useState<string>(initialDates.start);
+  const [filterEndDate, setFilterEndDate] = useState<string>(initialDates.end);
+
   // Modal Form States
   const [dispatchFormSiteId, setDispatchFormSiteId] = useState<number | "">("");
   const [dispatchFormTonTypes, setDispatchFormTonTypes] = useState<string[]>(["T_25"]);
@@ -76,6 +90,7 @@ export default function SiteDispatchRequestManagement({
   const [dispatchFormDropoffMode, setDispatchFormDropoffMode] = useState<string>("none");
   const [dispatchFormDropoffName, setDispatchFormDropoffName] = useState<string>("");
   const [dispatchFormDropoffAddress, setDispatchFormDropoffAddress] = useState<string>("");
+  const [dispatchFormDropoffRequestId, setDispatchFormDropoffRequestId] = useState<number | null>(null);
   const [dispatchFormPayerType, setDispatchFormPayerType] = useState<string>("SITE_PAYS");
   const [dispatchFormOfferedUnitPrice, setDispatchFormOfferedUnitPrice] = useState<number>(45000);
   const [dispatchFormMemo, setDispatchFormMemo] = useState<string>("");
@@ -83,6 +98,11 @@ export default function SiteDispatchRequestManagement({
 
   // DB 요금 정책 연동 상태
   const [pricingPolicy, setPricingPolicy] = useState<any>(null);
+
+  // Rejection Modal States
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState<boolean>(false);
+  const [rejectingJobId, setRejectingJobId] = useState<number | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState<string>("");
 
   // DB 요금 정책 로드
   useEffect(() => {
@@ -107,80 +127,53 @@ export default function SiteDispatchRequestManagement({
     return item ? item.base_tariff : 180000;
   };
 
-
-  // Rejection Modal States
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState<boolean>(false);
-  const [rejectingJobId, setRejectingJobId] = useState<number | null>(null);
-  const [rejectionReasonInput, setRejectionReasonInput] = useState<string>("");
-
-  // DB 연동: 실제 배차 신청 기사 티켓 목록
-  const [jobTickets, setJobTickets] = useState<any[]>([]);
-  const [isLoadingTickets, setIsLoadingTickets] = useState<boolean>(false);
+  // 토사 공통코드명을 가져오는 헬퍼
+  const formatSoilType = (typeCode?: string) => {
+    if (!typeCode) return "토사";
+    const found = dbCommonCodes.find(
+      (c: any) => c.group_code === "MATERIAL_TYPE" && c.code === typeCode
+    );
+    if (found) return found.code_name;
+    switch (typeCode) {
+      case "GOOD_SOIL": return "양질토";
+      case "MUD_SOIL": return "뻘흙";
+      case "ROCK": return "암버럭";
+      case "MIXED": return "혼합";
+      default: return typeCode;
+    }
+  };
 
   const todayStr = new Date().toISOString().split("T")[0];
 
-  const filteredRequests = dispatchRequestList.filter((req) => {
-    // 1. 상태 기준: 이미 최종 완료되었거나 마감/취소된 과거 건은 운행 이력에서 확인
-    const isCompletedStatus =
-      req.rawStatus === "COMPLETED" ||
-      req.rawStatus === "CLOSED" ||
-      req.rawStatus === "CANCELLED" ||
-      req.status === "운행완료" ||
-      req.status === "마감" ||
-      req.status === "취소됨" ||
-      req.status === "매칭반려";
+  const filteredRequests = dispatchRequestList
+    .filter((req) => {
+      // 날짜 검색 필터 (시작일/종료일 기준 기간 검색)
+      const targetDate = req.startDate || req.endDate;
+      if (targetDate) {
+        if (filterStartDate && targetDate < filterStartDate) return false;
+        if (filterEndDate && targetDate > filterEndDate) return false;
+      }
 
-    if (isCompletedStatus) return false;
-
-    // 2. 날짜 기준: 종료일/시작일이 현재일 이전(어제 이전)으로 완전히 지난 건은 제외 (현재일 진행 중이거나 미래 선등록 정보만 표시)
-    const targetDate = req.endDate || req.startDate;
-    if (targetDate && targetDate < todayStr) {
-      return false;
-    }
-
-    if (!dispatchRequestSearchQuery || !dispatchRequestSearchQuery.trim()) return true;
-    const q = dispatchRequestSearchQuery.trim().toLowerCase();
-    const siteNameStr = (req.siteName || "현장명 없음").toLowerCase();
-    const soilTypeStr = (req.soilType || "일반 토사").toLowerCase();
-    const dropoffNameStr = (req.dropoffName || "").toLowerCase();
-    return siteNameStr.includes(q) || soilTypeStr.includes(q) || dropoffNameStr.includes(q);
-  });
+      // 검색어 필터 (현장명, 토사 종류, 하차지명)
+      if (!dispatchRequestSearchQuery || !dispatchRequestSearchQuery.trim()) return true;
+      const q = dispatchRequestSearchQuery.trim().toLowerCase();
+      const siteNameStr = (req.siteName || "현장명 없음").toLowerCase();
+      const soilTypeStr = (req.soilType || "일반 토사").toLowerCase();
+      const dropoffNameStr = (req.dropoffName || "").toLowerCase();
+      return siteNameStr.includes(q) || soilTypeStr.includes(q) || dropoffNameStr.includes(q);
+    })
+    .sort((a, b) => {
+      // 최신 날짜(내림차순) 순으로 정렬 (날짜 같으면 ID 역순)
+      const dateA = a.startDate || a.endDate || "";
+      const dateB = b.startDate || b.endDate || "";
+      if (dateA !== dateB) {
+        return dateB.localeCompare(dateA);
+      }
+      return b.id - a.id;
+    });
 
   const activeSelectedId = selectedRequestId || (filteredRequests.length > 0 ? filteredRequests[0].id : null);
   const selectedReq = dispatchRequestList.find((r) => r.id === activeSelectedId) || null;
-
-  // 선택된 배차 요청이 바뀔 때 실제 DB 티켓 조회
-  useEffect(() => {
-    if (!activeSelectedId) {
-      setJobTickets([]);
-      return;
-    }
-
-    const fetchTickets = async () => {
-      setIsLoadingTickets(true);
-      try {
-        const token = typeof window !== "undefined"
-          ? (sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken") || localStorage.getItem("token"))
-          : null;
-        const res = await fetch(`${getApiBaseUrl()}/api/dispatch/job/${activeSelectedId}/tickets`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setJobTickets(Array.isArray(data) ? data : []);
-        } else {
-          setJobTickets([]);
-        }
-      } catch (err) {
-        console.error("기사 티켓 조회 실패:", err);
-        setJobTickets([]);
-      } finally {
-        setIsLoadingTickets(false);
-      }
-    };
-
-    fetchTickets();
-  }, [activeSelectedId]);
 
   const resetDispatchForm = () => {
     setDispatchFormSiteId(registeredSiteList[0]?.id || "");
@@ -192,6 +185,7 @@ export default function SiteDispatchRequestManagement({
     setDispatchFormDropoffMode("none");
     setDispatchFormDropoffName("");
     setDispatchFormDropoffAddress("");
+    setDispatchFormDropoffRequestId(null);
     setDispatchFormPayerType("SITE_PAYS");
     setDispatchFormOfferedUnitPrice(45000);
     setDispatchFormMemo("");
@@ -208,6 +202,7 @@ export default function SiteDispatchRequestManagement({
     setDispatchFormDropoffMode(req.dropoffMode);
     setDispatchFormDropoffName(req.dropoffName || "");
     setDispatchFormDropoffAddress(req.dropoffAddress || "");
+    setDispatchFormDropoffRequestId(req.dropOffRequestId || null);
     setDispatchFormPayerType(req.payerType || "SITE_PAYS");
     setDispatchFormOfferedUnitPrice(req.offeredUnitPrice || 0);
     setDispatchFormMemo(req.memo && !req.memo.startsWith("[직접매칭") ? req.memo : "");
@@ -261,7 +256,7 @@ export default function SiteDispatchRequestManagement({
       offeredUnitPrice: Number(dispatchFormOfferedUnitPrice),
       payerType: dispatchFormPayerType,
       memo: memoText,
-      ...(dispatchFormDropoffMode === "search" && selectedDropoff?.id && { dropOffRequestId: selectedDropoff.id }),
+      ...(dispatchFormDropoffMode === "search" && dispatchFormDropoffRequestId && { dropOffRequestId: dispatchFormDropoffRequestId }),
     };
 
     let success = false;
@@ -282,7 +277,7 @@ export default function SiteDispatchRequestManagement({
         offeredUnitPrice: formData.offeredUnitPrice,
         payerType: formData.payerType,
         memo: formData.memo,
-        dropOffRequestId: dispatchFormDropoffMode === "search" ? (selectedDropoff?.id || null) : null,
+        dropOffRequestId: dispatchFormDropoffMode === "search" ? dispatchFormDropoffRequestId : null,
       });
       if (success) alert("배차 요청이 수정되었습니다.");
       else alert("배차 요청 수정에 실패했습니다. 다시 시도해 주세요.");
@@ -299,295 +294,387 @@ export default function SiteDispatchRequestManagement({
       {/* Top Title Bar */}
       <div className="flex justify-between items-center border-b border-slate-200 pb-4">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900">배차 현황 관제</h2>
+          <h2 className="text-xl font-extrabold text-slate-900">배차 요청 관리</h2>
           <p className="text-xs text-slate-500 mt-1">
-            하차지 매칭이 완료되어 기사 모집 및 운행 중인 현장 배차 건을 실시간으로 통합 관제합니다.
+            현장에 필요한 덤프 차량 배차 공고를 생성하고 관리합니다.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            resetDispatchForm();
+            setDispatchRequestMode("create");
+            setIsDispatchModalOpen(true);
+          }}
+          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-blue-500/10"
+        >
+          + 신규 배차 요청 등록
+        </button>
       </div>
 
-      {/* Top Controls: Dispatch Order Selection Bar */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex flex-wrap items-center gap-4 w-full">
-          {/* 배차 오더 선택 */}
-          <div className="flex items-center gap-2 min-w-[340px] flex-1">
-            <span className="text-xs font-extrabold text-slate-500 whitespace-nowrap">배차 오더:</span>
-            <select
-              value={activeSelectedId || ""}
-              onChange={(e) => setSelectedRequestId(Number(e.target.value))}
-              className="w-full bg-blue-50/80 border border-blue-200 rounded-xl px-3 py-2 text-xs font-extrabold text-blue-900 focus:outline-none focus:border-blue-600 shadow-sm"
-            >
-              {filteredRequests.map((req) => (
-                <option key={req.id} value={req.id}>
-                  [{req.siteName} ➔ {req.dropoffName || "지정하차지"}] {req.tonTypes.map(t=>t==='T_25'?'25톤':t).join(',')} ({req.truckCount}대)
-                </option>
-              ))}
-              {filteredRequests.length === 0 && <option value="">등록된 배차 정보 없음</option>}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {selectedReq ? (
-        <div className="space-y-6">
-          {/* Upper Main Section (2-Column Split): Upper Left MAP + Upper Right SITE & DROPOFF MATCH DETAILS */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-            {/* Upper Left: Real-time Live GPS Map */}
-            <div className="rounded-2xl bg-white border border-slate-200 shadow-lg p-2 min-h-[380px] flex flex-col">
-              {(() => {
-                const matchedSiteObj = registeredSiteList.find((s) => s.id === selectedReq.siteId || s.name === selectedReq.siteName);
-                const actualSiteAddress = matchedSiteObj?.address || selectedReq.siteName || "현장 주소 미등록";
-
-                if (selectedReq.dropoffName && selectedReq.dropoffAddress) {
-                  return (
-                    <MockMap 
-                      title={`[상차지] ${selectedReq.siteName} ↔ [하차지] ${selectedReq.dropoffName}`} 
-                      address={selectedReq.dropoffAddress} 
-                      pinned={true} 
-                      isRouteMode={true}
-                      siteName={selectedReq.siteName}
-                      siteAddress={actualSiteAddress}
-                      dropoffName={selectedReq.dropoffName}
-                      dropoffAddress={selectedReq.dropoffAddress}
-                      distance={selectedReq.distance}
-                      estimatedTime={selectedReq.estimatedTime}
-                    />
-                  );
-                } else {
-                  return (
-                    <MockMap 
-                      title={`[상차지 현장 위치] ${selectedReq.siteName}`} 
-                      address={actualSiteAddress} 
-                      pinned={true} 
-                      isRouteMode={false}
-                    />
-                  );
-                }
-              })()}
+      {/* 2-Column Split: Left List + Right Detail */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Request List */}
+        <div className="lg:col-span-1 p-4 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-3 min-h-[740px] max-h-[calc(100vh-180px)] overflow-y-auto">
+          <div className="space-y-2">
+            {/* 검색어 입력창 */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={dispatchRequestSearchQuery}
+                onChange={(e) => setDispatchRequestSearchQuery(e.target.value)}
+                placeholder="현장명, 토사 종류 등으로 검색..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+              />
             </div>
 
-            {/* Upper Right: Unified Single Operational Details Card */}
-            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-lg flex flex-col justify-between space-y-4">
-              <div>
-                <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
-                  <div>
-                    <h3 className="font-black text-base text-slate-900">
-                      {selectedReq.siteName} <span className="text-blue-600 font-black">➔</span> {selectedReq.dropoffName || "지정 하차지"}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                      하차지 주소: {selectedReq.dropoffAddress || "하차지 주소 미등록"}
-                    </p>
+            {/* 날짜 기간 검색 바 */}
+            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  <span>검색 기간 (작업일 기준)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date();
+                      const start = today.toISOString().split("T")[0];
+                      const future = new Date();
+                      future.setDate(today.getDate() + 7);
+                      setFilterStartDate(start);
+                      setFilterEndDate(future.toISOString().split("T")[0]);
+                    }}
+                    className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-slate-600 transition-all"
+                  >
+                    1주일
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date();
+                      const start = today.toISOString().split("T")[0];
+                      const future = new Date();
+                      future.setMonth(today.getMonth() + 1);
+                      setFilterStartDate(start);
+                      setFilterEndDate(future.toISOString().split("T")[0]);
+                    }}
+                    className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-slate-600 transition-all"
+                  >
+                    1개월
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterStartDate("");
+                      setFilterEndDate("");
+                    }}
+                    className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-slate-600 transition-all"
+                  >
+                    전체
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={filterStartDate}
+                  onChange={(e) => setFilterStartDate(e.target.value)}
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-700 focus:outline-none focus:border-blue-500"
+                />
+                <span className="text-slate-400 text-xs font-bold">~</span>
+                <input
+                  type="date"
+                  value={filterEndDate}
+                  onChange={(e) => setFilterEndDate(e.target.value)}
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-700 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mt-3 mb-2">
+            배차 요청 목록 ({filteredRequests.length})
+          </h3>
+          <div className="space-y-2">
+            {filteredRequests.map((req) => {
+              const isSelected = activeSelectedId === req.id;
+              return (
+                <div
+                  key={req.id}
+                  onClick={() => setSelectedRequestId(req.id)}
+                  className={`p-4 rounded-xl border text-left cursor-pointer transition-all duration-200 group active:scale-98 ${
+                    isSelected
+                      ? "bg-blue-50/70 border-blue-300 shadow-md"
+                      : "bg-slate-50 border-slate-200 hover:bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <span className={`text-xs font-black leading-tight ${isSelected ? "text-blue-700" : "text-slate-800 group-hover:text-blue-600"}`}>
+                      {req.siteName}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1 justify-end">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                        req.status === "매칭완료" || req.status === "배차완료" || req.rawStatus === "OPEN"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          : req.status === "매칭반려" || req.rawStatus === "CANCELLED"
+                          ? "bg-rose-50 text-rose-600 border-rose-200"
+                          : req.status === "승인대기" || req.rawStatus === "WAITING_APPROVAL"
+                          ? "bg-amber-50 text-amber-600 border-amber-200"
+                          : "bg-blue-50 text-blue-600 border-blue-200"
+                      }`}>
+                        {req.status}
+                      </span>
+                      {req.rawStatus === "OPEN" && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-200">
+                          🚚 기사 모집 중
+                        </span>
+                      )}
+                      {req.rawStatus === "CLOSED" && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-300">
+                          🚚 기사 배차 완료
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="px-3 py-1 text-xs font-black rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
-                    {selectedReq.status || "배차 진행 중"}
-                  </span>
+                  <p className="text-[10px] text-slate-500 mt-2 font-semibold truncate">
+                    토사 종류: {(() => {
+                      switch (req.soilType) {
+                        case "GOOD_SOIL": return "양질토";
+                        case "MUD_SOIL": return "뻘흙";
+                        case "ROCK": return "암버럭";
+                        case "MIXED": return "혼합";
+                        default: return req.soilType;
+                      }
+                    })()}
+                  </p>
+                  <div className="flex justify-between items-center text-[9px] text-slate-400 mt-3 pt-2 border-t border-slate-200/50">
+                    <span>
+                      차종: {req.tonTypes.map((t: string) => {
+                        if (t === "T_15") return "15톤";
+                        if (t === "T_25") return "25톤";
+                        if (t === "T_27") return "27톤";
+                        return t;
+                      }).join(", ")} ({req.truckCount}대)
+                    </span>
+                    <span className="text-slate-500 font-mono">{req.startDate}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {filteredRequests.length === 0 && (
+              <div className="text-center py-12 text-slate-400 font-semibold text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                배차 요청 내역이 없습니다.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Request Detail & Matching Status */}
+        <div className="lg:col-span-2 space-y-6">
+          {selectedReq ? (
+            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-5">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    [{selectedReq.siteName}] 배차 요청 상세 내역
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">요청번호: DREQ-00{selectedReq.id}</p>
+                </div>
+                <div className="flex gap-2">
+                  {(() => {
+                    const isLocked = selectedReq.rawStatus === "OPEN" || selectedReq.rawStatus === "WAITING_APPROVAL";
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          disabled={isLocked}
+                          onClick={() => {
+                            if (isLocked) {
+                              alert("기사 모집 중(매칭 완료)이거나 승인 대기 중인 오더는 직접 수정할 수 없습니다.\n먼저 하단 매칭 상태를 초기화/취소한 후 시도해 주십시오.");
+                              return;
+                            }
+                            startEdit(selectedReq);
+                          }}
+                          title={isLocked ? "기사 모집 중/승인 대기 상태 오더는 수정 불가" : "오더 정보 수정"}
+                          className={`px-3 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
+                            isLocked
+                              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50"
+                              : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 active:scale-95 cursor-pointer"
+                          }`}
+                        >
+                          정보 수정
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isLocked}
+                          onClick={() => {
+                            if (isLocked) {
+                              alert("기사 모집 중(매칭 완료)이거나 승인 대기 중인 오더는 직접 삭제할 수 없습니다.\n먼저 하단 매칭 상태를 초기화/취소한 후 시도해 주십시오.");
+                              return;
+                            }
+                            handleDelete(selectedReq.id);
+                          }}
+                          title={isLocked ? "기사 모집 중/승인 대기 상태 오더는 삭제 불가" : "오더 삭제"}
+                          className={`px-3 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
+                            isLocked
+                              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50"
+                              : "bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200 active:scale-95 cursor-pointer"
+                          }`}
+                        >
+                          삭제
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* 3-Column Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-3">
+                  <div className="border-b border-slate-200/60 pb-2">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 현장명</span>
+                    <div className="text-sm font-bold text-slate-800 mt-0.5 truncate">{selectedReq.siteName}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">차량 톤수</span>
+                      <div className="font-semibold text-slate-700 mt-0.5">
+                        {selectedReq.tonTypes.map((t: string) => {
+                          if (t === "T_15") return "15톤";
+                          if (t === "T_25") return "25톤";
+                          if (t === "T_27") return "27톤";
+                          return t;
+                        }).join(", ")}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">요청 대수</span>
+                      <div className="font-semibold text-slate-700 mt-0.5">{selectedReq.truckCount} 대</div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* 하나의 통합된 배차 작업 스펙 카드 */}
-                <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">차량 톤수 및 요청 대수</span>
-                      <div className="font-black text-slate-900 mt-0.5 text-sm">
-                        {selectedReq.tonTypes.map((t: string) => t === "T_25" ? "25톤" : t === "T_15" ? "15톤" : t).join(", ")} ({selectedReq.truckCount} 대)
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">반출 토사</span>
-                      <div className="font-black text-blue-600 mt-0.5 text-sm">
-                        {selectedReq.soilType === "GOOD_SOIL" ? "양질토" : selectedReq.soilType === "MUD_SOIL" ? "뻘흙" : selectedReq.soilType}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">운반 단가</span>
-                      <div className="font-black text-slate-900 mt-0.5 text-sm">
-                        {selectedReq.offeredUnitPrice ? `${selectedReq.offeredUnitPrice.toLocaleString()} 원` : "0 원"}
-                      </div>
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-3">
+                  <div className="border-b border-slate-200/60 pb-2">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">토사 정보 및 단가</span>
+                    <div className="text-sm font-bold text-slate-800 mt-0.5 truncate">
+                      {(() => {
+                        switch (selectedReq.soilType) {
+                          case "GOOD_SOIL": return "양질토";
+                          case "MUD_SOIL": return "뻘흙";
+                          case "ROCK": return "암버럭";
+                          case "MIXED": return "혼합";
+                          default: return selectedReq.soilType;
+                        }
+                      })()}
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs pt-3 border-t border-slate-200/60">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">작업 희망일</span>
-                      <div className="font-bold text-slate-800 mt-0.5">{selectedReq.startDate}</div>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">제시 단가</span>
+                      <div className="font-semibold text-slate-700 mt-0.5">
+                        {selectedReq.offeredUnitPrice ? `${selectedReq.offeredUnitPrice.toLocaleString()} 원` : "미지정"}
+                      </div>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">지급 주체</span>
-                      <div className="font-bold text-slate-800 mt-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">지급 방식</span>
+                      <div className="font-semibold text-slate-700 mt-0.5">
                         {selectedReq.payerType === "SITE_PAYS" ? "현장 지급" : "하차지 지급"}
                       </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">현장 ↔ 하차지 소요</span>
-                      <div className="font-bold text-emerald-600 mt-0.5">
-                        {selectedReq.distance ? `${selectedReq.distance} km (${selectedReq.estimatedTime || 0}분)` : "거리 연산 대기"}
-                      </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-3">
+                  <div className="border-b border-slate-200/60 pb-2">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">일정 정보</span>
+                    <div className="text-sm font-bold text-slate-800 mt-0.5">{selectedReq.startDate}</div>
+                  </div>
+                  <div className="text-xs">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">특이사항 / 메모</span>
+                    <div className="font-semibold text-slate-700 mt-0.5 truncate">
+                      {selectedReq.memo || "등록된 특이사항 없음"}
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Bottom Full-Width Section: Driver Application & Approval Table (콜 수신 기사 명단) */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="font-extrabold text-sm text-slate-900">
-                  배차 신청 기사 목록 및 진출입 관제
+              {/* 하차지 매칭 상태 카드 */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-blue-600" />
+                  하차지 매칭 상태 및 제안 관리
                 </h4>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  배차 콜을 신청한 기사의 승인 처리 및 게이트 실시간 입/출차 현황을 관제합니다.
-                </p>
+                {selectedReq.dropoffName ? (
+                  <MatchStatusCard
+                    id={selectedReq.id}
+                    title={selectedReq.dropoffName}
+                    subtitle={selectedReq.dropoffAddress || "주소 미등록"}
+                    direction={selectedReq.dropOffRequestId !== null && selectedReq.matchedDropOffId === null ? "site_to_dropoff" : "dropoff_to_site"}
+                    rawStatus={selectedReq.rawStatus || "WAITING_MATCH"}
+                    isMyInitiated={selectedReq.dropOffRequestId !== null && selectedReq.matchedDropOffId === null}
+                    workDate={selectedReq.startDate}
+                    materialType={selectedReq.soilType}
+                    truckCount={selectedReq.truckCount}
+                    unitPrice={selectedReq.offeredUnitPrice}
+                    distance={selectedReq.distance}
+                    estimatedTime={selectedReq.estimatedTime}
+                    rejectionReason={selectedReq.rejectionReason}
+                    onApprove={async () => {
+                      if (confirm(`[${selectedReq.dropoffName}] 하차지 매칭 제안을 승인하고 기사 모집을 시작하시겠습니까?`)) {
+                        const success = handleConfirmMatchJobPost ? await handleConfirmMatchJobPost(selectedReq.id) : false;
+                        if (success) {
+                          alert("매칭이 승인되어 공고가 OPEN 되었습니다!");
+                        } else {
+                          alert("승인 처리에 실패했습니다.");
+                        }
+                      }
+                    }}
+                    onReject={() => {
+                      setRejectingJobId(selectedReq.id);
+                      setIsRejectModalOpen(true);
+                    }}
+                    onReset={async () => {
+                      if (confirm("공고를 매칭 정보가 없는 대기 상태(WAITING_MATCH)로 다시 되돌리시겠습니까?")) {
+                        const success = handleResetMatchJobPost ? await handleResetMatchJobPost(selectedReq.id) : false;
+                        if (success) {
+                          alert("대기 상태로 성공적으로 초기화되었습니다.");
+                          if (fetchDispatchRequests) {
+                            await fetchDispatchRequests();
+                          }
+                        }
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
+                    <span className="text-2xl block">⏳</span>
+                    <h4 className="text-xs font-bold text-slate-700">현재 연계된 하차지 매칭 요청이 없습니다</h4>
+                    <p className="text-[10px] text-slate-500">
+                      하차지 수용 공고에서 매칭을 요청하거나, 하차지 지주가 제안을 보내면 이곳에 매칭 상태 카드가 노출됩니다.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
-
-            {/* Driver Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                    <th className="py-3 px-4">기사명</th>
-                    <th className="py-3 px-4">차량번호</th>
-                    <th className="py-3 px-4">연락처</th>
-                    <th className="py-3 px-4">운행 상태</th>
-                    <th className="py-3 px-4">수락/운행 시각</th>
-                    <th className="py-3 px-4">주행거리 / 요금</th>
-                    <th className="py-3 px-4 text-right">관리</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
-                  {isLoadingTickets ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
-                        배차 신청 기사 목록을 불러오는 중입니다...
-                      </td>
-                    </tr>
-                  ) : jobTickets.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
-                        <div className="flex flex-col items-center justify-center space-y-1">
-                          <Truck className="w-6 h-6 text-slate-300 mb-1" />
-                          <p className="font-bold text-slate-600">아직 배차를 신청한 기사가 없습니다.</p>
-                          <p className="text-[11px] text-slate-400">기사가 공고를 수락하면 실시간으로 목록에 반영됩니다.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    jobTickets.map((ticket: any) => {
-                      const driverName = ticket.driver?.name || "기사 (미연동)";
-                      const driverPhone = ticket.driver?.phone_number || "-";
-                      const carNumber = ticket.car?.car_number || "-";
-                      const carTonnage = ticket.car?.tonnage ? `${ticket.car.tonnage}톤` : "";
-
-                      // 상태 뱃지 매핑
-                      const getStatusBadge = (status: string) => {
-                        switch (status) {
-                          case "ACCEPTED":
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-amber-50 text-amber-600 border border-amber-200">
-                                수락 (상차지 이동)
-                              </span>
-                            );
-                          case "ARRIVED_LOADING":
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-orange-50 text-orange-600 border border-orange-200">
-                                상차지 도착 (적재중)
-                              </span>
-                            );
-                          case "LOADING_APPROVED":
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-blue-50 text-blue-600 border border-blue-200">
-                                상차 승인완료
-                              </span>
-                            );
-                          case "DRIVING":
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-indigo-50 text-indigo-600 border border-indigo-200 animate-pulse">
-                                하차지 운행중
-                              </span>
-                            );
-                          case "ARRIVED":
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-purple-50 text-purple-600 border border-purple-200">
-                                하차지 도착 (확인대기)
-                              </span>
-                            );
-                          case "APPROVED":
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
-                                운행 완료 (정산확정)
-                              </span>
-                            );
-                          case "REJECTED":
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-rose-50 text-rose-600 border border-rose-200">
-                                반려 (회차)
-                              </span>
-                            );
-                          case "CANCELLED":
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-slate-100 text-slate-500 border border-slate-200">
-                                취소됨
-                              </span>
-                            );
-                          default:
-                            return (
-                              <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-slate-100 text-slate-600">
-                                {status}
-                              </span>
-                            );
-                        }
-                      };
-
-                      return (
-                        <tr key={ticket.id} className="hover:bg-slate-50/80 transition-all">
-                          <td className="py-3.5 px-4 font-extrabold text-slate-900">
-                            {driverName}
-                          </td>
-                          <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                            {carNumber} {carTonnage && <span className="text-[10px] font-normal text-slate-500">({carTonnage})</span>}
-                          </td>
-                          <td className="py-3.5 px-4 font-mono text-slate-600">
-                            {driverPhone}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            {getStatusBadge(ticket.status)}
-                          </td>
-                          <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
-                            {ticket.accepted_at ? new Date(ticket.accepted_at).toLocaleTimeString("ko-KR", { hour: '2-digit', minute: '2-digit' }) : "-"}
-                            {ticket.completed_at && ` ~ ${new Date(ticket.completed_at).toLocaleTimeString("ko-KR", { hour: '2-digit', minute: '2-digit' })}`}
-                          </td>
-                          <td className="py-3.5 px-4 font-mono text-[11px] text-slate-700">
-                            {ticket.drive_distance_km ? `${ticket.drive_distance_km.toFixed(1)} km` : "0.0 km"}
-                            {ticket.accumulated_fare ? ` / ${ticket.accumulated_fare.toLocaleString()}원` : ""}
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => alert(`[${driverName}] 차량의 관제 정보를 확인합니다.`)}
-                              className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
-                            >
-                              관제상세
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+          ) : (
+            <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center py-24 shadow-xl space-y-3 flex flex-col items-center justify-center min-h-[380px]">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                📄
+              </div>
+              <h3 className="text-sm font-bold text-slate-800">선택된 배차 요청이 없습니다</h3>
+              <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
+                좌측 목록에서 상세 조회를 원하는 배차 공고를 선택하거나, 우측 상단의 등록 버튼을 눌러 신규 차량 배차를 요청해 주세요.
+              </p>
             </div>
-          </div>
+          )}
         </div>
-      ) : (
-        <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center py-24 shadow-xl space-y-3 flex flex-col items-center justify-center min-h-[380px]">
-          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-            📄
-          </div>
-          <h3 className="text-sm font-bold text-slate-800">선택된 진행 배차가 없습니다</h3>
-        </div>
-      )}
+      </div>
 
       {/* 매칭 반려 사유 입력 레이어 팝업 */}
       {isRejectModalOpen && (
@@ -660,7 +747,7 @@ export default function SiteDispatchRequestManagement({
         </div>
       )}
 
-      {/* CREATE / EDIT MODAL POPUP (흐름 A / B 모드 탭 완비) */}
+      {/* 신규 배차 요청 등록 / 수정 모달 */}
       {isDispatchModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden animate-scaleUp max-h-[90vh] flex flex-col my-auto">
@@ -939,8 +1026,21 @@ export default function SiteDispatchRequestManagement({
                   )}
 
                   {dispatchFormDropoffMode === "search" && (() => {
-                    const availableDropoffs = (dropoffRequestList && dropoffRequestList.length > 0) ? dropoffRequestList : registeredDropoffList;
+                    const availableDropoffs = (dropoffRequestList && dropoffRequestList.length > 0) ? dropoffRequestList : [];
+                    
                     const filteredDropoffs = availableDropoffs.filter((drop: any) => {
+                      const isOpenStatus = drop.status === "OPEN" || drop.status === "수용 중";
+                      if (!isOpenStatus) {
+                        return false;
+                      }
+
+                      if (dispatchFormStartDate) {
+                        const dropDate = drop.startDate || drop.workDate;
+                        if (dropDate && dropDate !== dispatchFormStartDate) {
+                          return false;
+                        }
+                      }
+
                       if (!dropoffSearchQuery.trim()) return true;
                       const q = dropoffSearchQuery.toLowerCase();
                       return (
@@ -950,11 +1050,20 @@ export default function SiteDispatchRequestManagement({
                       );
                     });
 
-                    const selectedObj = availableDropoffs.find((d: any) => d.name === dispatchFormDropoffName);
+                    const selectedObj = availableDropoffs.find((d: any) => 
+                      dispatchFormDropoffRequestId ? d.id === dispatchFormDropoffRequestId : d.name === dispatchFormDropoffName
+                    );
 
                     return (
                       <div className="space-y-2">
-                        <label className="text-xs text-slate-700 font-bold block">등록 하차지 수용 공고 검색 / 선택</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs text-slate-700 font-bold block">등록 하차지 수용 공고 검색 / 선택</label>
+                          {dispatchFormStartDate && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                              작업일({dispatchFormStartDate}) 수용 가능 필터링
+                            </span>
+                          )}
+                        </div>
                         
                         <div className="relative">
                           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
@@ -977,29 +1086,60 @@ export default function SiteDispatchRequestManagement({
                         </div>
 
                         <select
-                          value={selectedObj?.id || ""}
+                          value={dispatchFormDropoffRequestId || ""}
                           onChange={(e) => {
-                            const drop = availableDropoffs.find((d: any) => d.id === Number(e.target.value));
+                            const chosenId = Number(e.target.value);
+                            const drop = availableDropoffs.find((d: any) => d.id === chosenId);
                             if (drop) {
+                              setDispatchFormDropoffRequestId(drop.id);
                               setDispatchFormDropoffName(drop.name);
                               setDispatchFormDropoffAddress(drop.address);
+                            } else {
+                              setDispatchFormDropoffRequestId(null);
+                              setDispatchFormDropoffName("");
+                              setDispatchFormDropoffAddress("");
                             }
                           }}
                           className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium text-xs focus:outline-none focus:border-blue-500"
                           required
                         >
-                          <option value="">수용 공고 하차지를 선택해 주세요</option>
-                          {filteredDropoffs.map((drop: any) => (
-                            <option key={drop.id} value={drop.id}>
-                              {drop.name} ({drop.address}) - {drop.soilType || "토사"} / 잔여수용: {drop.remainingCapacity || drop.totalCapacity || "자유"}
-                            </option>
-                          ))}
+                          <option value="">
+                            {filteredDropoffs.length === 0
+                              ? `선택한 작업일(${dispatchFormStartDate})에 수용 가능한 하차지 공고가 없습니다.`
+                              : `수용 공고 하차지 선택 (수용 가능: ${filteredDropoffs.length}건)`}
+                          </option>
+                          {filteredDropoffs.map((drop: any) => {
+                            const dateStr = drop.startDate ? `[작업일: ${drop.startDate}] ` : "";
+                            const soilName = formatSoilType(drop.soilType);
+                            const target = drop.targetQuantity || 0;
+                            const current = drop.currentQuantity || 0;
+                            const remaining = Math.max(0, target - current);
+                            const capacityStr = target > 0 
+                              ? `잔여: ${remaining.toLocaleString()}대 (목표: ${target.toLocaleString()}대)` 
+                              : `수용: 협의 가능`;
+
+                            return (
+                              <option key={drop.id} value={drop.id}>
+                                {dateStr}{drop.name} ({drop.address}) - 토종: {soilName} / {capacityStr}
+                              </option>
+                            );
+                          })}
                         </select>
 
                         {selectedObj && (
                           <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200 space-y-1">
-                            <span className="text-[11px] font-extrabold text-blue-700 block">✓ 선택된 하차지: {selectedObj.name}</span>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-extrabold text-blue-700 block">✓ 선택된 하차지: {selectedObj.name} (공고번호 #{selectedObj.id})</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                                {formatSoilType(selectedObj.soilType)}
+                              </span>
+                            </div>
                             <p className="text-[10px] text-slate-600 font-medium">{selectedObj.address}</p>
+                            <div className="text-[10px] text-slate-500 flex gap-3 pt-0.5">
+                              <span>목표량: <strong className="text-slate-700">{(selectedObj.targetQuantity || 0).toLocaleString()}대</strong></span>
+                              <span>현재반입: <strong className="text-slate-700">{(selectedObj.currentQuantity || 0).toLocaleString()}대</strong></span>
+                              <span>잔여수용: <strong className="text-blue-600 font-bold">{Math.max(0, (selectedObj.targetQuantity || 0) - (selectedObj.currentQuantity || 0)).toLocaleString()}대</strong></span>
+                            </div>
                           </div>
                         )}
                       </div>

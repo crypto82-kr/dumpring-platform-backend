@@ -56,6 +56,10 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
   const [eveningDistanceFare, setEveningDistanceFare] = useState<number>(1300);
   const [eveningTimeFare, setEveningTimeFare] = useState<number>(250);
 
+  // 5. 상·하차 승인 및 자재 검수 모드 (현장/하차지가 기사 QR 촬영 vs 기사가 현장/하차지 고정 QR 촬영)
+  const [approvalMode, setApprovalMode] = useState<"MANAGER_SCANS_DRIVER" | "DRIVER_SCANS_SITE">("MANAGER_SCANS_DRIVER");
+  const [dropoffInspectionMode, setDropoffInspectionMode] = useState<"MANAGER_SCANS_DRIVER" | "DRIVER_SCANS_SITE">("MANAGER_SCANS_DRIVER");
+
   // 모의 계산용 선택된 톤수
   const [simSelectedTonnageCode, setSimSelectedTonnageCode] = useState<string>("");
 
@@ -88,6 +92,9 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
         setEveningPeakEnd(data.evening_peak_end || "20:00");
         setEveningDistanceFare(data.evening_distance_unit_fare ?? 1300);
         setEveningTimeFare(data.evening_time_unit_fare ?? 250);
+
+        setApprovalMode(data.approval_mode || "MANAGER_SCANS_DRIVER");
+        setDropoffInspectionMode(data.dropoff_inspection_mode || "MANAGER_SCANS_DRIVER");
       }
     } catch (err) {
       console.error("요금 정책 로드 실패:", err);
@@ -172,16 +179,20 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
           evening_peak_start: eveningPeakStart,
           evening_peak_end: eveningPeakEnd,
           evening_distance_unit_fare: eveningDistanceFare,
-          evening_time_unit_fare: eveningTimeFare
+          evening_time_unit_fare: eveningTimeFare,
+          approval_mode: approvalMode,
+          dropoff_inspection_mode: dropoffInspectionMode,
         })
       });
 
       if (res.ok) {
-        setSuccessMessage("수수료, 운임 및 출퇴근 피크타임 정책이 DB에 성공적으로 저장되었습니다!");
-        setTimeout(() => setSuccessMessage(null), 4000);
+        const msg = "수수료, 운임 및 자재 검수/승인 정책이 성공적으로 수정 및 DB에 저장되었습니다.";
+        setSuccessMessage(msg);
+        alert("✅ 정책 수정 완료!\n\n수수료, 운임 및 자재 검수/승인 정책이 성공적으로 저장 및 즉시 반영되었습니다.");
+        setTimeout(() => setSuccessMessage(null), 5000);
       } else {
-        const err = await res.json();
-        alert(`저장 실패: ${err.detail || "오류가 발생했습니다."}`);
+        const err = await res.json().catch(() => ({}));
+        alert(`❌ 저장 실패: ${err.detail || "오류가 발생했습니다."}`);
       }
     } catch (e) {
       console.error("저장 통신 오류:", e);
@@ -238,11 +249,29 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
         </div>
       </div>
 
-      {/* 성공 알림 토스트 배너 */}
+      {/* 최상단 고정 플로팅 토스트 알림 (스크롤 위치와 무관하게 화면 상단 중앙에 즉시 노출) */}
       {successMessage && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-bold animate-fadeIn">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{successMessage}</span>
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-4 bg-slate-900/95 text-white rounded-2xl shadow-2xl border border-emerald-500/50 backdrop-blur-md animate-bounce-short">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-xs font-black text-emerald-400">정책 저장 완료</p>
+            <p className="text-xs font-semibold text-slate-200 mt-0.5">{successMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 성공 알림 인라인 배너 */}
+      {successMessage && (
+        <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between gap-3 text-emerald-900 text-xs font-extrabold shadow-sm animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+          <span className="text-[11px] font-bold text-emerald-600 bg-emerald-100/80 px-2.5 py-1 rounded-md">
+            실시간 적용됨
+          </span>
         </div>
       )}
 
@@ -656,6 +685,137 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
                     onChange={(e) => setOverPlanTimeFare(Number(e.target.value))}
                     className="w-20 px-2 py-0.5 border border-slate-200 rounded text-right font-bold text-blue-600 focus:outline-none"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* 4. 상·하차 자재 검수 및 승인 방식 설정 (신규) */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-4">
+              <div className="border-b border-slate-200 pb-2">
+                <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <Navigation className="w-4 h-4 text-indigo-600" />
+                  4. 상차 및 하차 자재 검수/승인 방식 정책 (APPROVAL_MODE)
+                </h4>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  현장(상차지) 출발 및 사토장(하차지) 도착 시 자재 확인과 승인을 진행할 주체 및 방식을 결정합니다.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 상차지 승인 방식 */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-extrabold text-slate-800 block">
+                    [상차지] 출발 전 자재 적재 승인 방식
+                  </span>
+                  <div className="space-y-2">
+                    <label
+                      onClick={() => setApprovalMode("MANAGER_SCANS_DRIVER")}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        approvalMode === "MANAGER_SCANS_DRIVER"
+                          ? "bg-blue-50/70 border-blue-500 ring-1 ring-blue-500"
+                          : "bg-white hover:bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="approvalMode"
+                        checked={approvalMode === "MANAGER_SCANS_DRIVER"}
+                        onChange={() => setApprovalMode("MANAGER_SCANS_DRIVER")}
+                        className="mt-0.5 h-3.5 w-3.5 text-blue-600 border-slate-300"
+                      />
+                      <div>
+                        <div className="text-xs font-extrabold text-slate-900">
+                          📱 현장 관리자가 기사 QR 촬영 (추천)
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                          기사가 띄운 상차 티켓 QR을 현장 관리자(앱)가 촬영하여 자재 확인 후 승인 (PC 웹 수동승인 병행 지원)
+                        </p>
+                      </div>
+                    </label>
+
+                    <label
+                      onClick={() => setApprovalMode("DRIVER_SCANS_SITE")}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        approvalMode === "DRIVER_SCANS_SITE"
+                          ? "bg-blue-50/70 border-blue-500 ring-1 ring-blue-500"
+                          : "bg-white hover:bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="approvalMode"
+                        checked={approvalMode === "DRIVER_SCANS_SITE"}
+                        onChange={() => setApprovalMode("DRIVER_SCANS_SITE")}
+                        className="mt-0.5 h-3.5 w-3.5 text-blue-600 border-slate-300"
+                      />
+                      <div>
+                        <div className="text-xs font-extrabold text-slate-900">
+                          📷 기사가 현장 고정 QR 촬영
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                          현장 게이트나 사무실에 인쇄 부착된 현장 QR 코드를 기사가 촬영하여 위치 대조 후 자동 상차 승인
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 하차지 검수 방식 */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-extrabold text-slate-800 block">
+                    [하차지] 사토장 도착 자재 검수 방식
+                  </span>
+                  <div className="space-y-2">
+                    <label
+                      onClick={() => setDropoffInspectionMode("MANAGER_SCANS_DRIVER")}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        dropoffInspectionMode === "MANAGER_SCANS_DRIVER"
+                          ? "bg-indigo-50/70 border-indigo-500 ring-1 ring-indigo-500"
+                          : "bg-white hover:bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="dropoffInspectionMode"
+                        checked={dropoffInspectionMode === "MANAGER_SCANS_DRIVER"}
+                        onChange={() => setDropoffInspectionMode("MANAGER_SCANS_DRIVER")}
+                        className="mt-0.5 h-3.5 w-3.5 text-indigo-600 border-slate-300"
+                      />
+                      <div>
+                        <div className="text-xs font-extrabold text-slate-900">
+                          📱 하차지 지주가 기사 QR 촬영 (추천)
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                          도착한 기사의 QR을 하차지 관리자가 스캔하여 들고온 흙/토질을 눈으로 대조 후 반입 승인/회차 (PC 웹 수동검수 지원)
+                        </p>
+                      </div>
+                    </label>
+
+                    <label
+                      onClick={() => setDropoffInspectionMode("DRIVER_SCANS_SITE")}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        dropoffInspectionMode === "DRIVER_SCANS_SITE"
+                          ? "bg-indigo-50/70 border-indigo-500 ring-1 ring-indigo-500"
+                          : "bg-white hover:bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="dropoffInspectionMode"
+                        checked={dropoffInspectionMode === "DRIVER_SCANS_SITE"}
+                        onChange={() => setDropoffInspectionMode("DRIVER_SCANS_SITE")}
+                        className="mt-0.5 h-3.5 w-3.5 text-indigo-600 border-slate-300"
+                      />
+                      <div>
+                        <div className="text-xs font-extrabold text-slate-900">
+                          📷 기사가 사토장 고정 QR 촬영
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                          사토장 입구에 부착된 고정 QR을 기사가 촬영하여 도착 체크인 및 검수 승인 처리
+                        </p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>

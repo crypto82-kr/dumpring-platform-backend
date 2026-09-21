@@ -69,11 +69,15 @@ class DispatchTicketResponse(BaseModel):
         from_attributes = True
 
 class ApproveLoadingRequest(BaseModel):
-    approval_type: str = Field(..., description="'QR' 또는 'OFFICE'")
+    approval_type: str = Field("OFFICE", description="'QR_SITE', 'QR_DRIVER', 'OFFICE', 'QR'")
+    loaded_soil_type: Optional[str] = Field(None, description="상차 확인된 토사 종류")
+    approval_memo: Optional[str] = Field(None, description="상차 확인 메모")
 
 class InspectionRequest(BaseModel):
     decision: str = Field(..., description="APPROVED 또는 REJECTED")
     soil_type: Optional[str] = Field(None, description="지주가 육안 판정한 토사 종류 (선택사항)")
+    rejection_reason: Optional[str] = Field(None, description="반입 반려(회차) 사유")
+    inspection_type: Optional[str] = Field("OFFICE", description="'QR_SITE', 'QR_DRIVER', 'OFFICE'")
 
 class ArriveRequest(BaseModel):
     drive_distance_km: Optional[float] = Field(None, description="실제 주행 거리 (km)")

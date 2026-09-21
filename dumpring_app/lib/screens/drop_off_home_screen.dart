@@ -450,6 +450,187 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     );
   }
 
+  // 하차지(사토장) 고정형 QR 코드 보기 다이얼로그 (A4 인쇄/부착용)
+  void _showDropoffFixedQrDialog(Map<String, dynamic> drop) {
+    final int dropId = drop['id'] ?? 0;
+    final String dropName = drop['name'] ?? '하차지 사토장';
+    final String qrPayload = "DUMPRING:DROPOFF_UNLOADING:$dropId";
+    final String qrImageUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${Uri.encodeComponent(qrPayload)}&margin=10";
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Theme.of(context).cardColor,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.qr_code_2_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("하차지 고정형 QR 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(dropName, style: TextStyle(fontSize: 12, color: Colors.grey), overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+                ),
+                child: const Text(
+                  "📌 [기사가 하차지 QR을 촬영하는 모드]일 때 사용됩니다.\n사토장 출입 게이트나 사무실에 인쇄 부착해 두시면, 도착한 기사가 앱으로 촬영하여 반입을 인증합니다.",
+                  style: TextStyle(fontSize: 11, height: 1.4),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4)),
+                  ],
+                ),
+                child: Image.network(
+                  qrImageUrl,
+                  width: 180,
+                  height: 180,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "하차지 고유 ID: #$dropId | $dropName",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text("확인 완료"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showQrScannerModal() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.qr_code_scanner_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    "도착 덤프 기사 QR 코드 스캔",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.primary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "도착한 덤프트럭 기사의 스마트폰 화면에 표시된\n[반입 도착 QR 코드]를 카메라로 스캔합니다.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                height: 160,
+                width: 160,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
+                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.black12,
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(Icons.crop_free_rounded, size: 100, color: Theme.of(context).colorScheme.primary.withOpacity(0.8)),
+                    Icon(Icons.local_shipping_outlined, size: 40, color: Theme.of(context).colorScheme.primary),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (_arrivedTickets.isNotEmpty) ...[
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // 대기열 최상위 차량 즉시 검수 팝업 열기
+                    _processIncomingTruck(_arrivedTickets.first);
+                  },
+                  icon: const Icon(Icons.document_scanner_outlined),
+                  label: Text("가장 최근 도착 차량(#${_arrivedTickets.first['id']}) 스캔 확인"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    "현재 게이트에 도착 대기 중인 차량이 없습니다.",
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _processIncomingTruck(dynamic ticket) {
     showDialog(
       context: context,
@@ -1125,6 +1306,17 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () => _showDropoffFixedQrDialog(drop),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Theme.of(context).colorScheme.primary,
+                                      side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    icon: const Icon(Icons.qr_code_2, size: 16),
+                                    label: const Text("고정 QR 보기", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ),
+                                  const SizedBox(width: 8),
                                   ElevatedButton.icon(
                                     onPressed: () => _openCreateDropOffRequestDialog(drop['id']),
                                     style: ElevatedButton.styleFrom(
@@ -1641,7 +1833,46 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text("🚚 실시간 게이트 반입 대기열", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)))),
-            Text("대기 ${filteredArrivedTickets.length}대", style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      if (_myDropOffs.isNotEmpty) {
+                        final targetDrop = _selectedDropOffId != null
+                            ? _myDropOffs.firstWhere((d) => d['id'] == _selectedDropOffId, orElse: () => _myDropOffs.first)
+                            : _myDropOffs.first;
+                        _showDropoffFixedQrDialog(targetDrop);
+                      } else {
+                        _showError("등록된 하차지가 없습니다. 하차지 설정에서 먼저 등록해 주세요.");
+                      }
+                    },
+                    icon: const Icon(Icons.qr_code_2, size: 14),
+                    label: const Text("고정 QR 보기", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    onPressed: _showQrScannerModal,
+                    icon: const Icon(Icons.qr_code_scanner, size: 14),
+                    label: const Text("기사 QR 스캔", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text("대기 ${filteredArrivedTickets.length}대", style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+                ],
+              ),
           ],
         ),
         const SizedBox(height: 12),

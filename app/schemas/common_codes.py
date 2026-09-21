@@ -51,6 +51,8 @@ class PricingPolicyResponse(BaseModel):
     evening_peak_end: str
     evening_distance_unit_fare: int
     evening_time_unit_fare: int
+    approval_mode: str = "MANAGER_SCANS_DRIVER"
+    dropoff_inspection_mode: str = "MANAGER_SCANS_DRIVER"
 
 class MeterPricingPolicyUpdate(BaseModel):
     tonnage_tariffs: Optional[list[TonnageTariffItem]] = None
@@ -69,4 +71,6 @@ class MeterPricingPolicyUpdate(BaseModel):
     evening_peak_end: Optional[str] = "20:00"
     evening_distance_unit_fare: Optional[int] = 1300
     evening_time_unit_fare: Optional[int] = 250
+    approval_mode: Optional[str] = "MANAGER_SCANS_DRIVER"
+    dropoff_inspection_mode: Optional[str] = "MANAGER_SCANS_DRIVER"
 

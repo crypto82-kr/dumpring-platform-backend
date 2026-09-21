@@ -13,6 +13,7 @@ import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboar
 import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
 import SiteDispatchRequestManagement from "@/components/dashboard/SiteDispatchRequestManagement";
+import SiteDispatchStatusManagement from "@/components/dashboard/SiteDispatchStatusManagement";
 import SiteHistoryManagement from "@/components/dashboard/SiteHistoryManagement";
 import SiteDumpExpensesManagement from "@/components/dashboard/SiteDumpExpensesManagement";
 import SiteSoilExpensesManagement from "@/components/dashboard/SiteSoilExpensesManagement";
@@ -1617,7 +1618,7 @@ export default function Home() {
       {(user.role === "site_manager" || user.role === "site_worker") && (
         activePath === "/site/org-hierarchy" ? (
           <SiteWorkerManagement registeredSiteList={registeredSiteList} />
-        ) : activePath === "/site/dispatch" ? (
+        ) : activePath === "/site/dispatch-request" ? (
           <SiteDispatchRequestManagement
             registeredSiteList={registeredSiteList}
             dispatchRequestList={dispatchRequestList}
@@ -1631,6 +1632,16 @@ export default function Home() {
             handleConfirmMatchJobPost={handleConfirmMatchJobPost}
             handleRejectMatchJobPost={handleRejectMatchJobPost}
             handleResetMatchJobPost={handleResetMatchJobPost}
+          />
+        ) : activePath === "/site/dispatch" ? (
+          <SiteDispatchStatusManagement
+            registeredSiteList={registeredSiteList}
+            dispatchRequestList={dispatchRequestList}
+            dropoffRequestList={dropoffRequestList}
+            registeredDropoffList={registeredDropoffList}
+            dbCommonCodes={dbCommonCodes}
+            fetchDispatchRequests={fetchDispatchRequests}
+            handleRejectMatchJobPost={handleRejectMatchJobPost}
           />
         ) : activePath === "/site/history" ? (
           <SiteHistoryManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} dbCommonCodes={dbCommonCodes} />

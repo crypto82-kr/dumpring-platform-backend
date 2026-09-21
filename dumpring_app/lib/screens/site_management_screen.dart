@@ -640,6 +640,107 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     );
   }
 
+  // 상차지 고정형 QR 코드 보기 다이얼로그 (A4 인쇄/부착용)
+  void _showSiteFixedQrDialog(Map<String, dynamic> site) {
+    final int siteId = site['site_id'] ?? site['id'] ?? 0;
+    final String siteName = site['site_name'] ?? '상차지 현장';
+    final String qrPayload = "DUMPRING:SITE_LOADING:$siteId";
+    final String qrImageUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${Uri.encodeComponent(qrPayload)}&margin=10";
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: AppColors.surface,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.qr_code_2_rounded, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("상차지 고정형 QR 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(siteName, style: TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: const Text(
+                  "📌 [기사가 현장 QR을 촬영하는 모드]일 때 사용됩니다.\n출입 게이트 또는 현장 사무실에 인쇄 부착해 두시면, 상차를 마친 기사가 앱으로 촬영하여 승인합니다.",
+                  style: TextStyle(fontSize: 11, height: 1.4),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4)),
+                  ],
+                ),
+                child: Image.network(
+                  qrImageUrl,
+                  width: 180,
+                  height: 180,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "현장 고유 ID: #$siteId | $siteName",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.check),
+                  label: const Text("확인 완료"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // 상세 보기 다이얼로그
   void _showSiteDetails(Map<String, dynamic> site) {
     showDialog(
@@ -674,7 +775,19 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
               onPressed: () => Navigator.of(context).pop(),
               child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
             ),
-            if (site['status'] == 'APPROVED')
+            if (site['status'] == 'APPROVED') ...[
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _showSiteFixedQrDialog(site);
+                },
+                icon: const Icon(Icons.qr_code_2, size: 16),
+                label: const Text("고정 QR 보기", style: TextStyle(fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(color: AppColors.primary),
+                ),
+              ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop();
@@ -683,6 +796,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
                 child: const Text("수정하기", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
+            ],
           ],
         );
       },

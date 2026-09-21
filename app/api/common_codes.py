@@ -180,6 +180,8 @@ async def get_pricing_policy(
         evening_peak_end=policy_dict.get("EVENING_PEAK_END", "20:00"),
         evening_distance_unit_fare=int(policy_dict.get("EVENING_DISTANCE_UNIT_FARE", "1300")),
         evening_time_unit_fare=int(policy_dict.get("EVENING_TIME_UNIT_FARE", "250")),
+        approval_mode=policy_dict.get("APPROVAL_MODE", "MANAGER_SCANS_DRIVER"),
+        dropoff_inspection_mode=policy_dict.get("DROPOFF_INSPECTION_MODE", "MANAGER_SCANS_DRIVER"),
     )
 
 @router.put(
@@ -241,7 +243,7 @@ async def update_pricing_policy(
             )
             db.add(new_comm)
 
-    # 3. 미터기 및 피크타임 정책 매핑
+    # 3. 미터기 및 피크타임, 승인 모드 정책 매핑
     policy_mappings = {
         "CALCULATION_METHOD": data.calculation_method,
         "CONTINUOUS_DISTANCE_UNIT_FARE": str(data.continuous_distance_unit_fare),
@@ -257,6 +259,8 @@ async def update_pricing_policy(
         "EVENING_PEAK_END": data.evening_peak_end or "20:00",
         "EVENING_DISTANCE_UNIT_FARE": str(data.evening_distance_unit_fare or 1300),
         "EVENING_TIME_UNIT_FARE": str(data.evening_time_unit_fare or 250),
+        "APPROVAL_MODE": data.approval_mode or "MANAGER_SCANS_DRIVER",
+        "DROPOFF_INSPECTION_MODE": data.dropoff_inspection_mode or "MANAGER_SCANS_DRIVER",
     }
 
     for key, val in policy_mappings.items():

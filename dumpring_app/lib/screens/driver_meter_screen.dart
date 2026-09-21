@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../sdui/driver_overlay_meter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import '../shared/widgets/dr_ticket_qr_widget.dart';
 
 class DriverMeterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -76,6 +77,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   String? _dropOffAddress;
 
   bool _isSiteLoadingApproved = false;
+  String _approvalMode = "MANAGER_SCANS_DRIVER";
+  String _dropoffInspectionMode = "MANAGER_SCANS_DRIVER";
 
   Future<void> _launchTMap({required String destinationName, required double? lat, required double? lng}) async {
     debugPrint("티맵 호출 목적지: $destinationName, 위도(Y): $lat, 경도(X): $lng");
@@ -242,6 +245,38 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showDriverLoadingQrModal() {
+    showDialog(
+      context: context,
+      builder: (context) => DrTicketQrWidget(
+        ticketId: widget.ticketId,
+        title: "상차 확인용 기사 QR",
+        subtitle: "현장 관리자(반장)에게 이 QR을 보여주세요.\n관리자가 스마트폰으로 촬영하거나 웹에서 자재를 확인 후 출발 승인합니다.",
+        carNumber: widget.user['car_number'] ?? widget.user['vehicle_number'] ?? "덤프트럭",
+        driverName: widget.user['name'] ?? "담당 기사",
+        siteName: _siteName ?? "상차지 현장",
+        dropOffName: _dropOffName ?? "하차지 현장",
+        qrType: "LOADING",
+      ),
+    );
+  }
+
+  void _showDriverDropOffQrModal() {
+    showDialog(
+      context: context,
+      builder: (context) => DrTicketQrWidget(
+        ticketId: widget.ticketId,
+        title: "반입 도착 확인용 기사 QR",
+        subtitle: "사토장 하차지 담당자에게 이 QR을 보여주세요.\n지주/담당자가 토사를 검수하고 반입 승인/회차 판정을 내립니다.",
+        carNumber: widget.user['car_number'] ?? widget.user['vehicle_number'] ?? "덤프트럭",
+        driverName: widget.user['name'] ?? "담당 기사",
+        siteName: _siteName ?? "상차지 현장",
+        dropOffName: _dropOffName ?? "하차지 현장",
+        qrType: "DROPOFF",
       ),
     );
   }
@@ -516,6 +551,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       _continuousTimeFare = policy['continuous_time_unit_fare'] ?? 150;
       _overPlanDistanceFare = policy['over_plan_distance_unit_fare'] ?? 1500;
       _overPlanTimeFare = policy['over_plan_time_unit_fare'] ?? 200;
+      _approvalMode = policy['approval_mode'] ?? 'MANAGER_SCANS_DRIVER';
+      _dropoffInspectionMode = policy['dropoff_inspection_mode'] ?? 'MANAGER_SCANS_DRIVER';
     }
 
     if (ticket['job_post'] != null) {
@@ -1404,29 +1441,52 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                     Icon(Icons.lock_outline, color: AppColors.warning, size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      "미터기 주행 잠금 상태",
+                      _approvalMode == "MANAGER_SCANS_DRIVER" 
+                          ? "현장 승인 대기 (기사 QR 제시 모드)" 
+                          : "현장 고정형 QR 스캔 모드",
                       style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.warning, fontSize: 13),
                     )
                   ],
                 ),
                 const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _showQRScannerSimulation,
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
-                  label: const Text("고정형 QR코드 촬영 인증"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.textPrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
+                if (_approvalMode == "MANAGER_SCANS_DRIVER") ...[
+                  ElevatedButton.icon(
+                    onPressed: _showDriverLoadingQrModal,
+                    icon: const Icon(Icons.qr_code_2_rounded),
+                    label: const Text("내 상차 확인 QR 코드 띄우기"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.textPrimary,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "현장 담당자가 위 QR을 스마트폰으로 스캔하거나,\n웹 대시보드에서 자재 확인 후 출발을 승인합니다.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                ] else ...[
+                  ElevatedButton.icon(
+                    onPressed: _showQRScannerSimulation,
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    label: const Text("현장 고정형 QR코드 촬영 인증"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.textPrimary,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: _remoteOfficeApproval,
                   icon: const Icon(Icons.desktop_windows_outlined),
-                  label: const Text("현장 사무소 원격 승인 요청 (모사)"),
+                  label: const Text("현장 사무소 원격 승인 요청 (테스트/비상)"),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.warning,
                     side: BorderSide(color: AppColors.warning),
@@ -1720,22 +1780,49 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         ),
         SizedBox(height: 28),
         if (!_isLandownerAbsent) ...[
+          if (_dropoffInspectionMode == "MANAGER_SCANS_DRIVER") ...[
+            ElevatedButton.icon(
+              onPressed: _showDriverDropOffQrModal,
+              icon: const Icon(Icons.qr_code_2_rounded),
+              label: const Text("내 도착 반입 QR 코드 띄우기"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "사토장 담당자에게 위 QR을 보여주세요.\n담당자가 토사를 검수하고 스마트폰 또는 웹에서 반입을 승인합니다.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+          ],
           ElevatedButton(
             onPressed: _landownerApproved,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textPrimary,
+              backgroundColor: _dropoffInspectionMode == "MANAGER_SCANS_DRIVER" ? AppColors.surface : AppColors.primary,
+              foregroundColor: _dropoffInspectionMode == "MANAGER_SCANS_DRIVER" ? AppColors.textPrimary : AppColors.textPrimary,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: _dropoffInspectionMode == "MANAGER_SCANS_DRIVER" ? AppColors.divider : Colors.transparent),
+              ),
               elevation: 0,
             ),
-            child: Text("지주 강제 수동 통과 모사", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(
+              _dropoffInspectionMode == "MANAGER_SCANS_DRIVER" ? "지주 수동 통과 모사 (테스트용)" : "지주 승인 완료 확인",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _takeLandownerAbsentPhoto,
-            icon: Icon(Icons.camera_alt_outlined),
-            label: Text("지주 부재 시 사진 업로드 증빙"),
+            icon: const Icon(Icons.camera_alt_outlined),
+            label: const Text("지주 부재 시 사진 업로드 증빙"),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.warning,
               side: BorderSide(color: AppColors.warning),

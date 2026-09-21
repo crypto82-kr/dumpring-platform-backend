@@ -695,16 +695,31 @@ async def approve_loading(
 ):
     ticket = await fetch_loaded_ticket(ticket_id, db)
 
-    if not ticket or ticket.driver_id != current_user.id:
+    if not ticket:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 운행 티켓을 찾을 수 없습니다."
         )
 
-    if ticket.status != "ARRIVED_LOADING":
+    # 권한 검증: 해당 티켓의 기사이거나, 상차 현장 관계자(소장/작업자/공고작성자), 또는 관리자
+    is_driver = ticket.driver_id == current_user.id
+    is_site_person = (
+        current_user.is_site_manager or 
+        current_user.is_site_worker or 
+        (ticket.job_post and ticket.job_post.author_id == current_user.id)
+    )
+    is_admin = current_user.is_admin
+
+    if not (is_driver or is_site_person or is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="상차 승인 권한이 없습니다. (기사 또는 현장 관리자 권한 필요)"
+        )
+
+    if ticket.status not in ["ARRIVED_LOADING", "ACCEPTED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="상차 승인을 처리할 수 없는 상태입니다."
+            detail="상차 승인을 처리할 수 없는 상태입니다. (상차지 도착 또는 수락 상태여야 합니다)"
         )
 
     await validate_dispatch_status("LOADING_APPROVED", db)

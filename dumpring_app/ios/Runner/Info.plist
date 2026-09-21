@@ -66,5 +66,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>자재 적재 상태 확인, 반입 증빙 사진 촬영 및 현장 QR 코드 스캔을 위해 카메라 권한이 필요합니다.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>현장 자재 확인 사진 및 정산 증빙 서류 업로드를 위해 사진 보관함 접근 권한이 필요합니다.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>덤프트럭 실시간 운행 경로 측정(미터기), 상차지/하차지 지오펜스 진입 감지 및 내비게이션 연동을 위해 위치 권한이 필요합니다.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>덤프트럭 백그라운드 운행 중 실시간 이동 거리 및 요금 계산을 위해 항상 위치 정보가 필요합니다.</string>
 </dict>
 </plist>
