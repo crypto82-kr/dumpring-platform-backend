@@ -27,17 +27,11 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
-.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /build/
 /coverage/
-
-# Flutter Generated Native Plugins & Registrants
-**/generated_plugin_registrant.*
-**/generated_plugins.*
-**/GeneratedPluginRegistrant.*
 
 # Symbolication related
 app.*.symbols
