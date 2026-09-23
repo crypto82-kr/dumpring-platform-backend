@@ -89,13 +89,12 @@ export default function SiteDispatchStatusManagement({
   const todayStr = new Date().toISOString().split("T")[0];
 
   const filteredRequests = dispatchRequestList.filter((req) => {
-    // 1. 상태 기준: 이미 최종 완료되었거나 마감/취소된 과거 건은 운행 이력에서 확인
+    // 1. 상태 기준: 최종 운행 종료(COMPLETED) 및 취소/반려(CANCELLED)된 건만 제외하고,
+    // 기사 배차 완료(CLOSED) 및 모집 완료(OPEN) 건은 반드시 관제 대상에 포함
     const isCompletedStatus =
       req.rawStatus === "COMPLETED" ||
-      req.rawStatus === "CLOSED" ||
       req.rawStatus === "CANCELLED" ||
       req.status === "운행완료" ||
-      req.status === "마감" ||
       req.status === "취소됨" ||
       req.status === "매칭반려";
 

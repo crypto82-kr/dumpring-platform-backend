@@ -242,12 +242,12 @@ export default function DropoffSoilSettlementManagement({
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
-          <span className="text-[11px] font-bold text-slate-400 block uppercase">사토 수수료 수입액 (SITE_PAYS)</span>
+          <span className="text-[11px] font-bold text-slate-400 block uppercase">사토 수수료 수입액</span>
           <div className="text-2xl font-black text-emerald-600">₩ {totalIncome.toLocaleString()}</div>
           <p className="text-[10px] text-slate-500 font-semibold">현장으로부터 수령할 흙값 총액</p>
         </div>
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
-          <span className="text-[11px] font-bold text-slate-400 block uppercase">토사 매입 지출액 (SITE_RECEIVES)</span>
+          <span className="text-[11px] font-bold text-slate-400 block uppercase">토사 매입 지출액</span>
           <div className="text-2xl font-black text-rose-600">₩ {totalExpense.toLocaleString()}</div>
           <p className="text-[10px] text-slate-500 font-semibold">현장에 지급해야 할 흙값 총액</p>
         </div>

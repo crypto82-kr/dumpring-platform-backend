@@ -1385,8 +1385,19 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  OutlinedButton.icon(
-                                    onPressed: () => _showDropoffFixedQrDialog(drop),
+                                   OutlinedButton.icon(
+                                     onPressed: _showQrScannerModal,
+                                     style: OutlinedButton.styleFrom(
+                                       foregroundColor: Theme.of(context).colorScheme.primary,
+                                       side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                     ),
+                                     icon: const Icon(Icons.qr_code_scanner, size: 16),
+                                     label: const Text("기사 QR 스캔", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                   ),
+                                   const SizedBox(width: 8),
+                                   OutlinedButton.icon(
+                                     onPressed: () => _showDropoffFixedQrDialog(drop),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Theme.of(context).colorScheme.primary,
                                       side: BorderSide(color: Theme.of(context).colorScheme.primary),

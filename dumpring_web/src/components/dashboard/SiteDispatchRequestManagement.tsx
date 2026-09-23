@@ -92,7 +92,7 @@ export default function SiteDispatchRequestManagement({
   const [dispatchFormDropoffAddress, setDispatchFormDropoffAddress] = useState<string>("");
   const [dispatchFormDropoffRequestId, setDispatchFormDropoffRequestId] = useState<number | null>(null);
   const [dispatchFormPayerType, setDispatchFormPayerType] = useState<string>("SITE_PAYS");
-  const [dispatchFormOfferedUnitPrice, setDispatchFormOfferedUnitPrice] = useState<number>(45000);
+  const [dispatchFormOfferedUnitPrice, setDispatchFormOfferedUnitPrice] = useState<number>(0); // 현장-하차지 간 흙값/사토비 거래 단가 (원)
   const [dispatchFormMemo, setDispatchFormMemo] = useState<string>("");
   const [dropoffSearchQuery, setDropoffSearchQuery] = useState<string>("");
 
@@ -122,9 +122,16 @@ export default function SiteDispatchRequestManagement({
 
   // 선택된 톤수에 해당하는 DB 기본운임 계산 헬퍼
   const getSelectedBaseFare = (tonCode: string) => {
-    if (!pricingPolicy?.tonnage_tariffs) return 180000;
+    if (!pricingPolicy?.tonnage_tariffs) {
+      if (tonCode === "T_15") return 180000;
+      if (tonCode === "T_27") return 250000;
+      return 230000; // T_25
+    }
     const item = pricingPolicy.tonnage_tariffs.find((t: any) => t.code === tonCode);
-    return item ? item.base_tariff : 180000;
+    if (item) return item.base_tariff;
+    if (tonCode === "T_15") return 180000;
+    if (tonCode === "T_27") return 250000;
+    return 230000;
   };
 
   // 토사 공통코드명을 가져오는 헬퍼
@@ -187,7 +194,7 @@ export default function SiteDispatchRequestManagement({
     setDispatchFormDropoffAddress("");
     setDispatchFormDropoffRequestId(null);
     setDispatchFormPayerType("SITE_PAYS");
-    setDispatchFormOfferedUnitPrice(45000);
+    setDispatchFormOfferedUnitPrice(0);
     setDispatchFormMemo("");
     setEditingDispatchRequestId(null);
   };
@@ -576,15 +583,21 @@ export default function SiteDispatchRequestManagement({
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">제시 단가</span>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">흙값 거래단가</span>
                       <div className="font-semibold text-slate-700 mt-0.5">
-                        {selectedReq.offeredUnitPrice ? `${selectedReq.offeredUnitPrice.toLocaleString()} 원` : "미지정"}
+                        {selectedReq.offeredUnitPrice ? `${selectedReq.offeredUnitPrice.toLocaleString()} 원` : "0 원 (무상)"}
                       </div>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">지급 방식</span>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">흙값 정산방식</span>
                       <div className="font-semibold text-slate-700 mt-0.5">
-                        {selectedReq.payerType === "SITE_PAYS" ? "현장 지급" : "하차지 지급"}
+                        {selectedReq.payerType === "SITE_PAYS" 
+                          ? "현장 지급" 
+                          : selectedReq.payerType === "DROP_OFF_PAYS"
+                          ? "하차지 지급"
+                          : selectedReq.payerType === "FREE"
+                          ? "무상"
+                          : (selectedReq.payerType || "현장 지급")}
                       </div>
                     </div>
                   </div>
@@ -798,7 +811,10 @@ export default function SiteDispatchRequestManagement({
                   </div>
                   <select
                     value={dispatchFormTonTypes[0] || ""}
-                    onChange={(e) => setDispatchFormTonTypes(e.target.value ? [e.target.value] : [])}
+                    onChange={(e) => {
+                      const newTon = e.target.value;
+                      setDispatchFormTonTypes(newTon ? [newTon] : []);
+                    }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-semibold focus:outline-none focus:border-blue-500"
                     required
                   >
@@ -895,23 +911,26 @@ export default function SiteDispatchRequestManagement({
                       ))}
                     {dbCommonCodes.filter((codeItem: any) => codeItem.group_code === "PAYER_TYPE").length === 0 && (
                       <>
-                        <option value="SITE_PAYS">현장 지급 (SITE_PAYS)</option>
-                        <option value="DROP_OFF_PAYS">하차지 지급 (DROP_OFF_PAYS)</option>
-                        <option value="FREE">무상 (FREE)</option>
+                        <option value="SITE_PAYS">현장 지급</option>
+                        <option value="DROP_OFF_PAYS">하차지 지급</option>
+                        <option value="FREE">무상</option>
                       </>
                     )}
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-slate-700 font-bold block">제시 단가 (원) <span className="text-rose-500">*</span></label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-slate-700 font-bold block">흙값(사토비) 거래 단가 (원) <span className="text-rose-500">*</span></label>
+                    <span className="text-[11px] text-slate-500 font-medium">1대당 정산 단가 (무상 시 0원)</span>
+                  </div>
                   <input
                     type="number"
                     min={0}
                     value={dispatchFormOfferedUnitPrice === 0 ? "" : dispatchFormOfferedUnitPrice}
                     onChange={(e) => setDispatchFormOfferedUnitPrice(e.target.value === "" ? 0 : Number(e.target.value))}
                     onFocus={(e) => e.target.select()}
-                    placeholder="예: 45000"
+                    placeholder="예: 45000 (무상일 경우 0)"
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-blue-500"
                     required
                   />
@@ -1094,6 +1113,13 @@ export default function SiteDispatchRequestManagement({
                               setDispatchFormDropoffRequestId(drop.id);
                               setDispatchFormDropoffName(drop.name);
                               setDispatchFormDropoffAddress(drop.address);
+                              // 하차지 공고에 등록된 흙값 단가 및 지급방식이 있으면 기본값으로 채워주되, 사용자가 직접 수정 가능
+                              if (drop.unitPrice !== undefined) {
+                                setDispatchFormOfferedUnitPrice(Number(drop.unitPrice) || 0);
+                              }
+                              if (drop.payerType) {
+                                setDispatchFormPayerType(drop.payerType);
+                              }
                             } else {
                               setDispatchFormDropoffRequestId(null);
                               setDispatchFormDropoffName("");
@@ -1139,6 +1165,7 @@ export default function SiteDispatchRequestManagement({
                               <span>목표량: <strong className="text-slate-700">{(selectedObj.targetQuantity || 0).toLocaleString()}대</strong></span>
                               <span>현재반입: <strong className="text-slate-700">{(selectedObj.currentQuantity || 0).toLocaleString()}대</strong></span>
                               <span>잔여수용: <strong className="text-blue-600 font-bold">{Math.max(0, (selectedObj.targetQuantity || 0) - (selectedObj.currentQuantity || 0)).toLocaleString()}대</strong></span>
+                              <span>하차지 흙값단가: <strong className="text-indigo-600 font-bold">{(selectedObj.unitPrice || 0).toLocaleString()}원</strong></span>
                             </div>
                           </div>
                         )}

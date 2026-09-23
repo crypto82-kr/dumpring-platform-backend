@@ -117,13 +117,11 @@ export default function DropoffDispatchManagement({
 
   // 2. 매칭이 완료되어 반입(배차) 진행 중이거나 미래 예정된 배차건 필터링 (과거 지난 정보 제외)
   const activeMatchedDispatches = dispatchRequestList.filter((req) => {
-    // 이미 완료/마감/취소된 과거 건은 제외
+    // 최종 운행 종료(COMPLETED) 및 취소(CANCELLED)된 건만 제외하고, 기사 배차 완료(CLOSED) 건은 포함
     const isCompletedStatus =
       req.rawStatus === "COMPLETED" ||
-      req.rawStatus === "CLOSED" ||
       req.rawStatus === "CANCELLED" ||
       req.status === "운행완료" ||
-      req.status === "마감" ||
       req.status === "취소됨";
     if (isCompletedStatus) return false;
 

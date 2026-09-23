@@ -425,6 +425,7 @@ export default function Home() {
           estimatedTime: job.estimated_time,
           dropOffRequestId: job.drop_off_request_id,
           matchedDropOffId: job.matched_drop_off_id,
+          payerType: job.payer_type || "SITE_PAYS",
           authorId: job.author_id,
           rejectionReason: job.rejection_reason || ""
         }));
@@ -1022,6 +1023,11 @@ export default function Home() {
           drop_off_request_id: formData.dropOffRequestId,
           work_date: formData.workDate,
           required_trucks: formData.requiredTrucks,
+          offered_unit_price: formData.offeredUnitPrice,
+          payer_type: formData.payerType,
+          truck_type: formData.truckType,
+          material_type: formData.materialType,
+          memo: formData.memo,
         };
       }
 

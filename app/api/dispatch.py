@@ -250,12 +250,8 @@ async def get_open_dispatch_jobs(
     result = await db.execute(query)
     jobs = result.scalars().all()
     
-    # 응답 객체 데이터 보완 (단가 및 거리/시간 연산)
+    # 응답 객체 데이터 보완 (거리/시간 연산)
     for j in jobs:
-        # 단가 세팅 (상차지 제시 단가가 없으면 매치된 하차지 공고 단가 사용)
-        if j.offered_unit_price is None and j.drop_off_request:
-            j.offered_unit_price = j.drop_off_request.unit_price
-
         # DB에 기저장된 값 우선 사용, 없을 시 실시간 연산
         if j.distance is None or j.estimated_time is None:
             if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
@@ -428,9 +424,6 @@ async def get_active_tickets(
     for ticket in tickets:
         if ticket.job_post:
             j = ticket.job_post
-            if j.offered_unit_price is None and j.drop_off_request:
-                j.offered_unit_price = j.drop_off_request.unit_price
-
             if j.distance is None or j.estimated_time is None:
                 if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
                     import math
@@ -489,9 +482,6 @@ async def get_active_ticket(
 
     if ticket and ticket.job_post:
         j = ticket.job_post
-        if j.offered_unit_price is None and j.drop_off_request:
-            j.offered_unit_price = j.drop_off_request.unit_price
-
         if j.distance is None or j.estimated_time is None:
             if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
                 import math
@@ -1107,9 +1097,6 @@ async def get_tickets_history(
     for ticket in tickets:
         if ticket.job_post:
             j = ticket.job_post
-            if j.offered_unit_price is None and j.drop_off_request:
-                j.offered_unit_price = j.drop_off_request.unit_price
-
             if j.distance is None or j.estimated_time is None:
                 if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
                     import math
@@ -1146,9 +1133,6 @@ async def get_dispatch_ticket(
 
     if ticket.job_post:
         j = ticket.job_post
-        if j.offered_unit_price is None and j.drop_off_request:
-            j.offered_unit_price = j.drop_off_request.unit_price
-
         if j.distance is None or j.estimated_time is None:
             if j.site and j.matched_drop_off and j.site.latitude and j.site.longitude and j.matched_drop_off.latitude and j.matched_drop_off.longitude:
                 import math

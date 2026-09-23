@@ -1338,8 +1338,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    jobPost['offered_unit_price'] != null ? "${_formatter(jobPost['offered_unit_price'])}원" : "단가 미정",
-                    style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold),
+                    (() {
+                      final String truckType = jobPost['truck_type'] ?? 'T_25';
+                      int baseFare = 230000;
+                      if (truckType == 'T_15') baseFare = 180000;
+                      if (truckType == 'T_27') baseFare = 250000;
+                      return "기본운임 ${_formatter(baseFare)}원";
+                    })(),
+                    style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -1570,8 +1576,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                 Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
                 SizedBox(width: 4),
                 Text(
-                  job['offered_unit_price'] != null ? "${_formatter(job['offered_unit_price'])}원" : "단가 미정",
-                  style: TextStyle(color: AppColors.warning, fontSize: 12, fontWeight: FontWeight.bold),
+                  (() {
+                    final String truckType = job['truck_type'] ?? 'T_25';
+                    int baseFare = 230000;
+                    if (truckType == 'T_15') baseFare = 180000;
+                    if (truckType == 'T_27') baseFare = 250000;
+                    return "기본운임 ${_formatter(baseFare)}원";
+                  })(),
+                  style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
             ),

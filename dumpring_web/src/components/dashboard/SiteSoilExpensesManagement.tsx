@@ -216,7 +216,7 @@ export default function SiteSoilExpensesManagement({
         <div>
           <h2 className="text-xl font-extrabold text-slate-900">현장 흙값 정산 관리</h2>
           <p className="text-xs text-slate-500 mt-1">
-            실제 현장 덤프 모집 오더(DB)를 바탕으로 사토 처리비 지출(SITE_PAYS) 및 토사 판매 수입(SITE_RECEIVES) 흙값 거래 내역을 관리합니다.
+            실제 현장 덤프 모집 오더(DB)를 바탕으로 사토 처리비 지출 및 토사 판매 수입 흙값 거래 내역을 관리합니다.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -242,12 +242,12 @@ export default function SiteSoilExpensesManagement({
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
-          <span className="text-[11px] font-bold text-slate-400 block uppercase">사토 처리비 지출액 (SITE_PAYS)</span>
+          <span className="text-[11px] font-bold text-slate-400 block uppercase">사토 처리비 지출액</span>
           <div className="text-2xl font-black text-rose-600">₩ {totalExpense.toLocaleString()}</div>
           <p className="text-[10px] text-slate-500 font-semibold">현장 지급 흙값 총액</p>
         </div>
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
-          <span className="text-[11px] font-bold text-slate-400 block uppercase">토사 판매 수입액 (SITE_RECEIVES)</span>
+          <span className="text-[11px] font-bold text-slate-400 block uppercase">토사 판매 수입액</span>
           <div className="text-2xl font-black text-emerald-600">₩ {totalIncome.toLocaleString()}</div>
           <p className="text-[10px] text-slate-500 font-semibold">현장 수취 흙값 총액</p>
         </div>

@@ -1602,6 +1602,9 @@ async def approve_member(
         )
         
     # 역할에 따라 승인 처리
+    user.is_approved = True
+    user.reject_reason = None
+
     if user.is_driver:
         d_query = select(Driver).where(Driver.user_id == user_id)
         d_res = await db.execute(d_query)
@@ -1610,10 +1613,6 @@ async def approve_member(
             driver.is_approved = True
             driver.reject_reason = None
             
-    if user.is_owner or user.is_site_manager or user.is_drop_off:
-        user.is_approved = True
-        user.reject_reason = None
-        
     await db.commit()
     return {"message": "회원 가입 서류 심사가 성공적으로 최종 승인 완료되었습니다."}
 
@@ -1640,6 +1639,9 @@ async def reject_member(
         )
         
     # 역할에 따라 반려 처리
+    user.is_approved = False
+    user.reject_reason = reject_reason
+
     if user.is_driver:
         d_query = select(Driver).where(Driver.user_id == user_id)
         d_res = await db.execute(d_query)
@@ -1648,10 +1650,6 @@ async def reject_member(
             driver.is_approved = False
             driver.reject_reason = reject_reason
             
-    if user.is_owner or user.is_site_manager or user.is_drop_off:
-        user.is_approved = False
-        user.reject_reason = reject_reason
-        
     await db.commit()
     return {"message": "회원 가입 신청이 성공적으로 반려되었습니다."}
 

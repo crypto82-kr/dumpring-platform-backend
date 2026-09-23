@@ -56,6 +56,11 @@ class JobPostCreate(BaseModel):
     work_date: datetime = Field(..., description="작업 희망 날짜 및 시간")
     required_trucks: int = Field(..., description="필요한 덤프 대수")
     is_direct_match: Optional[bool] = Field(False, description="초대코드 직접 매칭 여부")
+    offered_unit_price: Optional[int] = Field(None, description="흙값 거래 단가 (원)")
+    payer_type: Optional[str] = Field(None, description="비용 지급 주체 (SITE_PAYS, DROP_OFF_PAYS, FREE)")
+    truck_type: Optional[str] = Field(None, description="차량 규격 (T_15, T_25, T_27)")
+    material_type: Optional[str] = Field(None, description="토사 종류")
+    memo: Optional[str] = Field(None, description="메모")
 
 
 # 흐름 B: 상차지가 하차지 없이 먼저 모집 공고 등록 (신규)

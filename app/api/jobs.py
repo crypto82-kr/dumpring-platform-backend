@@ -461,6 +461,12 @@ async def create_job_post(
         if dropoff_request.current_quantity >= dropoff_request.target_quantity:
             dropoff_request.status = "CLOSED"
 
+    # 사용자가 입력한 흙값 단가가 있으면 우선 저장, 없으면 하차지 공고의 단가 저장
+    saved_price = data.offered_unit_price if data.offered_unit_price is not None else dropoff_request.unit_price
+    saved_payer = data.payer_type if data.payer_type else dropoff_request.payer_type
+    saved_truck = data.truck_type if data.truck_type else dropoff_request.truck_type
+    saved_material = data.material_type if data.material_type else dropoff_request.material_type
+
     new_job = JobPost(
         site_id=data.site_id,
         drop_off_request_id=data.drop_off_request_id,
@@ -469,7 +475,12 @@ async def create_job_post(
         required_trucks=data.required_trucks,
         status=initial_status,
         distance=distance,
-        estimated_time=est_time
+        estimated_time=est_time,
+        offered_unit_price=saved_price,
+        payer_type=saved_payer,
+        truck_type=saved_truck,
+        material_type=saved_material,
+        memo=data.memo
     )
     db.add(new_job)
     await db.commit()
