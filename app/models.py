@@ -76,7 +76,7 @@ class ConstructionSite(Base):
 
     # Relationships
     creator = relationship("User", back_populates="construction_sites")
-    employees = relationship("SiteEmployee", back_populates="site", cascade="all, delete-orphan")
+    employees = relationship("SiteEmployee", back_populates="site")
     orders = relationship("Order", back_populates="site")
     site_mappings = relationship("SiteUserMapping", back_populates="site", cascade="all, delete-orphan")
 

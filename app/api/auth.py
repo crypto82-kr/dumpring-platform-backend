@@ -9,6 +9,7 @@ from jose import jwt, JWTError
 from typing import List, Optional
 import logging
 import uuid
+import re
 
 from app.core.db import get_db
 from app.models import User, Driver, SiteProfile, DropOffProfile, SiteEmployee, ConstructionSite, SiteUserMapping, SiteUserStatus
@@ -715,8 +716,42 @@ async def login(
             detail="휴대폰 번호 또는 비밀번호가 올바르지 않습니다.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # 3. 현장담당자(is_site_worker) 소속 현장 존재 여부 검증
+    # 현장담당자는 반드시 소속된 공사현장(승인된 매핑 또는 직원 등록)이 1개 이상 존재해야만 대시보드 로그인 가능
+    if user.is_site_worker and not user.is_site_manager and not user.is_admin:
+        # A. 승인된 현장 매핑 조회
+        map_query = select(SiteUserMapping).where(
+            SiteUserMapping.user_id == user.id,
+            SiteUserMapping.status == SiteUserStatus.APPROVED
+        )
+        map_res = await db.execute(map_query)
+        has_approved_mapping = map_res.scalars().first() is not None
+
+        # B. 소속 현장 직원(SiteEmployee) 연동 조회
+        raw_p = user.phone_number or ""
+        digits_p = re.sub(r"\D", "", raw_p)
+        fmt_p = f"{digits_p[:3]}-{digits_p[3:7]}-{digits_p[7:]}" if len(digits_p) == 11 else raw_p
+
+        emp_query = select(SiteEmployee).where(
+            (SiteEmployee.site_id.isnot(None)) & (
+                (SiteEmployee.user_id == user.id) |
+                (SiteEmployee.registered_phone == raw_p) |
+                (SiteEmployee.registered_phone == fmt_p) |
+                (SiteEmployee.registered_phone == digits_p)
+            )
+        )
+        emp_res = await db.execute(emp_query)
+        has_employee_site = emp_res.scalars().first() is not None
+
+        if not has_approved_mapping and not has_employee_site:
+            logger.warning(f"현장담당자 로그인 거부: 소속 현장 없음 (User ID {user.id}, {user.name})")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="현재 소속된 공사현장이 없습니다. 현장 총괄관리자(소장님)의 현장담당자 등록 및 승인을 먼저 받아주세요."
+            )
     
-    # 3. JWT 발급
+    # 4. JWT 발급
     access_token = create_access_token(subject=user.id)
     logger.info(f"로그인 성공: User ID {user.id} ({user.name}) - JWT 액세스 토큰 발행 완료")
     

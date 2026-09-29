@@ -330,7 +330,7 @@ export default function Home() {
     }
   };
 
-  const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => {
+  const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }): Promise<{ success: boolean; message?: string }> => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites/${id}`, {
@@ -351,12 +351,15 @@ export default function Home() {
       });
       if (res.ok) {
         await fetchRegisteredSites();
-        return true;
+        return { success: true };
       }
-      return false;
-    } catch (e) {
+      const errBody = await res.json().catch(() => ({}));
+      const msg = errBody.detail || "현장 정보 수정에 실패했습니다.";
+      console.error("Failed to update site in DB:", res.status, msg);
+      return { success: false, message: msg };
+    } catch (e: any) {
       console.error("Failed to update site in DB:", e);
-      return false;
+      return { success: false, message: e.message || "서버 통신 중 오류가 발생했습니다." };
     }
   };
 
@@ -371,12 +374,14 @@ export default function Home() {
       });
       if (res.ok) {
         await fetchRegisteredSites();
-        return true;
+        return { success: true };
+      } else {
+        const errData = await res.json().catch(() => null);
+        return { success: false, message: errData?.detail || "현장 삭제에 실패했습니다." };
       }
-      return false;
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to delete site from DB:", e);
-      return false;
+      return { success: false, message: e?.message || "서버 통신 중 오류가 발생했습니다." };
     }
   };
 

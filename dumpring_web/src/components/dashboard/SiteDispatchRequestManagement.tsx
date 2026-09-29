@@ -493,7 +493,16 @@ export default function SiteDispatchRequestManagement({
                 </div>
                 <div className="flex gap-2">
                   {(() => {
-                    const isLocked = selectedReq.rawStatus === "OPEN" || selectedReq.rawStatus === "WAITING_APPROVAL";
+                    // 하차지와 매칭 진행 중이거나(WAITING_APPROVAL), 기사 모집 중(OPEN), 기사 배차 완료(CLOSED), 운행 완료(COMPLETED) 상태인 오더는 수정/삭제 불가
+                    const isLocked = selectedReq.rawStatus === "OPEN" 
+                      || selectedReq.rawStatus === "WAITING_APPROVAL" 
+                      || selectedReq.rawStatus === "CLOSED" 
+                      || selectedReq.rawStatus === "COMPLETED";
+                    
+                    const lockMessage = selectedReq.rawStatus === "CLOSED" || selectedReq.rawStatus === "COMPLETED"
+                      ? "기사 배차가 완료되었거나 이미 진행된 오더는 수정/삭제할 수 없습니다."
+                      : "기사 모집 중(매칭 완료)이거나 승인 대기 중인 오더는 직접 수정할 수 없습니다.\n먼저 하단 매칭 상태를 초기화/취소한 후 시도해 주십시오.";
+
                     return (
                       <>
                         <button
@@ -501,12 +510,12 @@ export default function SiteDispatchRequestManagement({
                           disabled={isLocked}
                           onClick={() => {
                             if (isLocked) {
-                              alert("기사 모집 중(매칭 완료)이거나 승인 대기 중인 오더는 직접 수정할 수 없습니다.\n먼저 하단 매칭 상태를 초기화/취소한 후 시도해 주십시오.");
+                              alert(lockMessage);
                               return;
                             }
                             startEdit(selectedReq);
                           }}
-                          title={isLocked ? "기사 모집 중/승인 대기 상태 오더는 수정 불가" : "오더 정보 수정"}
+                          title={isLocked ? (selectedReq.rawStatus === "CLOSED" || selectedReq.rawStatus === "COMPLETED" ? "기사 배차 완료/마감 상태 오더는 수정 불가" : "기사 모집 중/승인 대기 상태 오더는 수정 불가") : "오더 정보 수정"}
                           className={`px-3 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
                             isLocked
                               ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50"
@@ -520,12 +529,12 @@ export default function SiteDispatchRequestManagement({
                           disabled={isLocked}
                           onClick={() => {
                             if (isLocked) {
-                              alert("기사 모집 중(매칭 완료)이거나 승인 대기 중인 오더는 직접 삭제할 수 없습니다.\n먼저 하단 매칭 상태를 초기화/취소한 후 시도해 주십시오.");
+                              alert(lockMessage);
                               return;
                             }
                             handleDelete(selectedReq.id);
                           }}
-                          title={isLocked ? "기사 모집 중/승인 대기 상태 오더는 삭제 불가" : "오더 삭제"}
+                          title={isLocked ? (selectedReq.rawStatus === "CLOSED" || selectedReq.rawStatus === "COMPLETED" ? "기사 배차 완료/마감 상태 오더는 삭제 불가" : "기사 모집 중/승인 대기 상태 오더는 삭제 불가") : "오더 삭제"}
                           className={`px-3 py-1.5 text-[10px] font-black rounded-lg border transition-all ${
                             isLocked
                               ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50"

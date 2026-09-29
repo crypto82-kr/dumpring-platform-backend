@@ -1212,6 +1212,13 @@ async def update_job_post(
             detail="본인이 등록한 공고만 수정할 수 있습니다."
         )
 
+    # 기사 배차 완료(CLOSED), 운행 완료(COMPLETED), 기사 모집 중(OPEN) 상태인 경우 수정 차단
+    if job.status in ["CLOSED", "COMPLETED", "OPEN"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 기사 배차가 완료되었거나 모집/운행이 진행 중인 오더는 직접 수정할 수 없습니다."
+        )
+
     # 데이터 업데이트
     update_data = data.dict(exclude_unset=True)
     

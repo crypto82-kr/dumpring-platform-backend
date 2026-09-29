@@ -832,6 +832,31 @@ async def delete_site(
     if not site:
         raise HTTPException(status_code=404, detail="해당 현장을 찾을 수 없습니다.")
 
+    # 1. 배차 요청 오더(JobPost) 또는 운행 이력 확인
+    from app.models import JobPost, Order
+    job_q = select(JobPost).where(JobPost.site_id == site_id)
+    job_res = await db.execute(job_q)
+    if job_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="과거 배차 및 운행 정산 이력이 존재하는 현장은 삭제할 수 없습니다."
+        )
+
+    order_q = select(Order).where(Order.site_id == site_id)
+    order_res = await db.execute(order_q)
+    if order_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="과거 배차 및 운행 정산 이력이 존재하는 현장은 삭제할 수 없습니다."
+        )
+
+    # 2. 소속 직원(SiteEmployee)의 site_id를 안전하게 해제(SET NULL)하여 직원 계정/정보 보존
+    from app.models import SiteEmployee
+    emp_update_q = select(SiteEmployee).where(SiteEmployee.site_id == site_id)
+    emp_update_res = await db.execute(emp_update_q)
+    for emp in emp_update_res.scalars().all():
+        emp.site_id = None
+
     await db.delete(site)
     await db.commit()
     return {"message": "현장이 성공적으로 삭제되었습니다."}

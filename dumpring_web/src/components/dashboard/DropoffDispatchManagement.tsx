@@ -113,9 +113,16 @@ export default function DropoffDispatchManagement({
   // 1. 하차지 관리자의 내 운영 하차지 리스트
   const myDropoffs = registeredDropoffList;
 
+  // 최초 진입 시 운영 하차지가 존재하면 첫 번째 하차지 ID로 기본 선택
+  const effectiveDropoffId = selectedDropoffFilter
+    ? Number(selectedDropoffFilter)
+    : (myDropoffs.length > 0 ? myDropoffs[0].id : null);
+
+  const selectedDropoffObj = myDropoffs.find((d) => d.id === effectiveDropoffId) || (myDropoffs.length > 0 ? myDropoffs[0] : null);
+
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // 2. 매칭이 완료되어 반입(배차) 진행 중이거나 미래 예정된 배차건 필터링 (과거 지난 정보 제외)
+  // 2. 매칭이 완료되어 반입(배차) 진행 중이거나 미래 예정된 배차건 필터링 (과거 지난 정보 제외 및 현재 선택된 하차지 필터링)
   const activeMatchedDispatches = dispatchRequestList.filter((req) => {
     // 최종 운행 종료(COMPLETED) 및 취소(CANCELLED)된 건만 제외하고, 기사 배차 완료(CLOSED) 건은 포함
     const isCompletedStatus =
@@ -138,13 +145,22 @@ export default function DropoffDispatchManagement({
       Boolean(req.dropoffName);
     if (!isMatched) return false;
 
-    if (!selectedDropoffFilter) return true;
-    const filterLower = selectedDropoffFilter.toLowerCase();
-    const dropName = (req.dropoffName || "").toLowerCase();
-    return dropName.includes(filterLower);
+    // 운영 하차지가 있을 경우, 선택된 하차지에 속한 오더만 필터링 (matchedDropOffId 또는 하차지명 일치)
+    if (selectedDropoffObj) {
+      const matchById = req.matchedDropOffId && req.matchedDropOffId === selectedDropoffObj.id;
+      const matchByName = req.dropoffName && (
+        req.dropoffName.toLowerCase() === (selectedDropoffObj.name || "").toLowerCase() ||
+        req.dropoffName.toLowerCase() === (selectedDropoffObj.locationName || "").toLowerCase()
+      );
+      return Boolean(matchById || matchByName);
+    }
+
+    return true;
   });
 
-  const activeSelectedId = selectedOrderRequestId || (activeMatchedDispatches.length > 0 ? activeMatchedDispatches[0].id : null);
+  const activeSelectedId = (selectedOrderRequestId && activeMatchedDispatches.some(r => r.id === selectedOrderRequestId))
+    ? selectedOrderRequestId
+    : (activeMatchedDispatches.length > 0 ? activeMatchedDispatches[0].id : null);
   const selectedReq = dispatchRequestList.find((r) => r.id === activeSelectedId) || null;
 
   // 3. 선택된 오더에 배정된 실제 기사 티켓 DB 조회
@@ -224,12 +240,15 @@ export default function DropoffDispatchManagement({
           <div className="flex items-center gap-2 min-w-[220px]">
             <span className="text-xs font-extrabold text-slate-500 whitespace-nowrap">운영 하차지:</span>
             <select
-              value={selectedDropoffFilter || (myDropoffs[0]?.name || "")}
-              onChange={(e) => setSelectedDropoffFilter(e.target.value)}
+              value={effectiveDropoffId ? String(effectiveDropoffId) : ""}
+              onChange={(e) => {
+                setSelectedDropoffFilter(e.target.value);
+                setSelectedOrderRequestId(null);
+              }}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm"
             >
               {myDropoffs.map((drop) => (
-                <option key={drop.id} value={drop.name || drop.locationName}>
+                <option key={drop.id} value={drop.id}>
                   {drop.name || drop.locationName} ({drop.address || "운영중"})
                 </option>
               ))}
@@ -619,22 +638,67 @@ export default function DropoffDispatchManagement({
             </div>
 
             {/* 실제 QR Code Image Display (앱과 동일 규격) */}
-            <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-emerald-200 flex flex-col items-center justify-center space-y-2">
-              <div className="w-48 h-48 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+            <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-emerald-200 flex flex-col items-center justify-center">
+              <div className="w-48 h-48 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`DUMPRING:DROPOFF_UNLOADING:${selectedReq?.id || 0}`)}&margin=10`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`dumpring://dropoff/unloading?id=${selectedReq?.id || 0}`)}&margin=10`}
                   alt="하차지 사토장 고정 QR"
                   className="w-40 h-40 object-contain"
                 />
-                <span className="font-mono text-[9px] text-slate-500 font-bold mt-1">DUMPRING:DROPOFF_UNLOADING:{selectedReq?.id}</span>
               </div>
-              <span className="text-[10px] text-emerald-600 font-extrabold">기사 앱 [도착지 고정형 QR 스캔] 전용</span>
             </div>
 
             <div className="flex gap-2 justify-center pt-2">
               <button
                 type="button"
-                onClick={() => alert("하차지 QR 코드가 프린터로 출력되었습니다.")}
+                onClick={() => {
+                  const dropName = selectedReq?.dropoffName || "사토장(하차지)";
+                  const dropAddress = selectedReq?.dropoffAddress || "";
+                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`dumpring://dropoff/unloading?id=${selectedReq?.id || 0}`)}&margin=10`;
+                  const printWin = window.open("", "_blank", "width=800,height=900");
+                  if (printWin) {
+                    printWin.document.write(`
+                      <!DOCTYPE html>
+                      <html>
+                      <head>
+                        <title>덤프링 하차지 고정형 QR 인쇄 - ${dropName}</title>
+                        <style>
+                          @page { size: A4 portrait; margin: 20mm; }
+                          body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; text-align: center; padding: 20px; color: #111; }
+                          .header { font-size: 28px; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; color: #0f172a; }
+                          .badge { display: inline-block; background-color: #ecfdf5; color: #047857; font-size: 14px; font-weight: 800; padding: 6px 16px; border-radius: 9999px; border: 1.5px solid #a7f3d0; margin-bottom: 24px; }
+                          .qr-box { border: 3px solid #0f172a; border-radius: 24px; padding: 32px; display: inline-block; background: #fff; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+                          .qr-img { width: 320px; height: 320px; display: block; margin: 0 auto; }
+                          .info-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; color: #1e293b; }
+                          .info-addr { font-size: 15px; color: #64748b; font-weight: 500; margin-bottom: 24px; }
+                          .desc-box { background-color: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 16px; padding: 18px 24px; max-width: 520px; margin: 0 auto; font-size: 13px; color: #475569; line-height: 1.6; }
+                          .desc-box strong { color: #0f172a; }
+                          @media print {
+                            body { padding: 0; }
+                            .no-print { display: none; }
+                          }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="header">덤프링(DumpRing) 반입 인증 QR</div>
+                        <div class="badge">사토장 계량대 및 출입로 부착용 (A4 규격)</div>
+                        <br/>
+                        <div class="qr-box">
+                          <img class="qr-img" src="${qrUrl}" alt="하차지 고정 QR" onload="window.print();" />
+                        </div>
+                        <div class="info-title">${dropName}</div>
+                        <div class="info-addr">${dropAddress}</div>
+                        <div class="desc-box">
+                          <strong>[기사 반입 인증 안내]</strong><br/>
+                          덤프링 기사 앱의 <strong>[도착지 고정형 QR 스캔]</strong>을 켜서 위 QR 코드를 촬영하십시오.<br/>
+                          위치 GPS 대조를 거쳐 자동으로 반입 도착 승인 대기 상태로 전환됩니다.
+                        </div>
+                      </body>
+                      </html>
+                    `);
+                    printWin.document.close();
+                  }
+                }}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl active:scale-95 transition-all shadow-sm"
               >
                 QR 코드 A4 인쇄

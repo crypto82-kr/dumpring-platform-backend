@@ -56,8 +56,8 @@ interface SiteManagerDashboardProps {
   taxInvoiceApproved: boolean;
   setTaxInvoiceApproved: (val: boolean) => void;
   handleCreateSite: (site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => Promise<boolean>;
-  handleUpdateSite: (id: number, site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => Promise<boolean>;
-  handleDeleteSite: (id: number) => Promise<boolean>;
+  handleUpdateSite: (id: number, site: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => Promise<any>;
+  handleDeleteSite: (id: number) => Promise<any>;
   handleCreateDispatch: (formData: {
     siteId: number;
     materialType: string;
@@ -471,10 +471,12 @@ export function SiteManagerDashboard({
                                 return;
                               }
                               if (confirm(`[${selectedSite.name}] 현장을 정말 삭제 처리하시겠습니까?`)) {
-                                const ok = await handleDeleteSite(selectedSite.id);
-                                if (ok) {
+                                const res: any = await handleDeleteSite(selectedSite.id);
+                                if (res === true || res?.success) {
                                   alert("현장이 삭제되었습니다.");
                                   setEditingSiteId(null);
+                                } else {
+                                  alert(res?.message || "현장 삭제에 실패했습니다.");
                                 }
                               }
                             }}

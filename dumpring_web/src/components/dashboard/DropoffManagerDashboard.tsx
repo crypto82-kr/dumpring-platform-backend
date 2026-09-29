@@ -927,8 +927,6 @@ export function DropoffManagerDashboard({
         const success = handleUpdateDropoffRequestStatus ? await handleUpdateDropoffRequestStatus(id, targetStatus) : false;
         if (success) {
           alert("상태가 성공적으로 변경되었습니다.");
-        } else {
-          alert("상태 변경 처리에 실패했습니다.");
         }
       }
     };
