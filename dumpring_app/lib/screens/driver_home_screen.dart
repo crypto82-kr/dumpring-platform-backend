@@ -95,8 +95,48 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     }
   }
 
+  // DB 요금 및 톤수별 운임 정책 상태
+  Map<String, dynamic>? _pricingPolicy;
+
+  Future<void> _fetchPricingPolicy() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/common-codes/pricing-policy"),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _pricingPolicy = data;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("요금 정책 로드 실패: $e");
+    }
+  }
+
+  int _getBaseFareForTruck(String? truckType) {
+    if (_pricingPolicy != null && _pricingPolicy!['tonnage_tariffs'] is List) {
+      final tariffs = _pricingPolicy!['tonnage_tariffs'] as List;
+      final targetCode = truckType ?? 'T_25';
+      final item = tariffs.firstWhere(
+        (t) => t['code'] == targetCode,
+        orElse: () => null,
+      );
+      if (item != null && item['base_tariff'] != null) {
+        return (item['base_tariff'] as num).toInt();
+      }
+    }
+    // 폴백 기본값
+    if (truckType == 'T_15') return 180000;
+    if (truckType == 'T_27') return 250000;
+    return 230000;
+  }
+
   Future<void> _initAndLoadJobs() async {
     await _loadFavoritesFilterState();
+    await _fetchPricingPolicy();
     _loadOpenJobs(isRefresh: true);
   }
 
@@ -1338,13 +1378,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    (() {
-                      final String truckType = jobPost['truck_type'] ?? 'T_25';
-                      int baseFare = 230000;
-                      if (truckType == 'T_15') baseFare = 180000;
-                      if (truckType == 'T_27') baseFare = 250000;
-                      return "기본운임 ${_formatter(baseFare)}원";
-                    })(),
+                    "기본운임 ${_formatter(_getBaseFareForTruck(jobPost['truck_type']))}원",
                     style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -1576,13 +1610,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                 Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
                 SizedBox(width: 4),
                 Text(
-                  (() {
-                    final String truckType = job['truck_type'] ?? 'T_25';
-                    int baseFare = 230000;
-                    if (truckType == 'T_15') baseFare = 180000;
-                    if (truckType == 'T_27') baseFare = 250000;
-                    return "기본운임 ${_formatter(baseFare)}원";
-                  })(),
+                  "기본운임 ${_formatter(_getBaseFareForTruck(job['truck_type']))}원",
                   style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],

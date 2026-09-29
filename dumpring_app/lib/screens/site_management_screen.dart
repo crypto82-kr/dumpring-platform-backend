@@ -780,7 +780,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   void _showSiteFixedQrDialog(Map<String, dynamic> site) {
     final int siteId = site['site_id'] ?? site['id'] ?? 0;
     final String siteName = site['site_name'] ?? '상차지 현장';
-    final String qrPayload = "DUMPRING:SITE_LOADING:$siteId";
+    final String qrPayload = "dumpring://site/loading?id=$siteId";
     final String qrImageUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${Uri.encodeComponent(qrPayload)}&margin=10";
 
     showDialog(
@@ -850,11 +850,6 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                   fit: BoxFit.contain,
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                "현장 고유 ID: #$siteId | $siteName",
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -915,7 +910,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
               OutlinedButton.icon(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  _showSiteQrScannerModal(site);
+                  _scanDriverQrForSite(site);
                 },
                 icon: const Icon(Icons.qr_code_scanner, size: 16),
                 label: const Text("기사 QR 스캔", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1096,7 +1091,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                         Row(
                                           children: [
                                             TextButton.icon(
-                                              onPressed: () => _showSiteQrScannerModal(site),
+                                              onPressed: () => _scanDriverQrForSite(site),
                                               icon: const Icon(Icons.qr_code_scanner, size: 14),
                                               label: const Text("QR 스캔", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                               style: TextButton.styleFrom(

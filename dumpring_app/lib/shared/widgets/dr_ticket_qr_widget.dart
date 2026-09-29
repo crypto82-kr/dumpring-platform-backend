@@ -24,7 +24,7 @@ class DrTicketQrWidget extends StatelessWidget {
   });
 
   String get _qrPayload {
-    return "DUMPRING:TICKET:$ticketId:TYPE:$qrType";
+    return "dumpring://ticket/$ticketId?type=$qrType";
   }
 
   String get _qrImageUrl {

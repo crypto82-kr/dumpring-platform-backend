@@ -35,6 +35,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
   Map<String, dynamic>? _ticket;
   bool _hasOtherDrivingTicket = false;
   WebViewController? _webViewController;
+  Map<String, dynamic>? _pricingPolicy;
 
   @override
   void initState() {
@@ -50,11 +51,47 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
 
     _ticket = widget.ticket;
     _hasOtherDrivingTicket = widget.hasDrivingTicket;
+    _fetchPricingPolicy();
     if (_ticket != null) {
       _checkDrivingInProgress();
       _reloadTicketStatus();
     }
     _initMapController();
+  }
+
+  Future<void> _fetchPricingPolicy() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/common-codes/pricing-policy"),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _pricingPolicy = data;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("요금 정책 로드 실패: $e");
+    }
+  }
+
+  int _getBaseFareForTruck(String? truckType) {
+    if (_pricingPolicy != null && _pricingPolicy!['tonnage_tariffs'] is List) {
+      final tariffs = _pricingPolicy!['tonnage_tariffs'] as List;
+      final targetCode = truckType ?? 'T_25';
+      final item = tariffs.firstWhere(
+        (t) => t['code'] == targetCode,
+        orElse: () => null,
+      );
+      if (item != null && item['base_tariff'] != null) {
+        return (item['base_tariff'] as num).toInt();
+      }
+    }
+    if (truckType == 'T_15') return 180000;
+    if (truckType == 'T_27') return 250000;
+    return 230000;
   }
 
   void _initMapController() {
@@ -489,7 +526,9 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
     // 실제 공고 데이터(activeJob)에서 필요한 세부 정보 추출
     final double distance = (activeJob['distance'] ?? 0.0).toDouble(); 
     final int estimatedTimeMinutes = activeJob['estimated_time'] ?? 0;
-    final int unitPrice = activeJob['offered_unit_price'] ?? 0; // 기본 단가 설정
+    final int unitPrice = (activeJob['offered_unit_price'] != null && activeJob['offered_unit_price'] > 0)
+        ? activeJob['offered_unit_price']
+        : _getBaseFareForTruck(activeJob['truck_type']); // DB 운임 관리 기본 단가 연동
     final int platformFee = (unitPrice * 0.03).round(); // 수수료 3%
     final int netEarning = unitPrice - platformFee;
 

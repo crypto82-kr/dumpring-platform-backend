@@ -455,7 +455,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   void _showDropoffFixedQrDialog(Map<String, dynamic> drop) {
     final int dropId = drop['id'] ?? 0;
     final String dropName = drop['name'] ?? '하차지 사토장';
-    final String qrPayload = "DUMPRING:DROPOFF_UNLOADING:$dropId";
+    final String qrPayload = "dumpring://dropoff/unloading?id=$dropId";
     final String qrImageUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${Uri.encodeComponent(qrPayload)}&margin=10";
 
     showDialog(
@@ -524,11 +524,6 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   height: 180,
                   fit: BoxFit.contain,
                 ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "하차지 고유 ID: #$dropId | $dropName",
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -1386,7 +1381,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                    OutlinedButton.icon(
-                                     onPressed: _showQrScannerModal,
+                                     onPressed: _scanDriverQrWithCamera,
                                      style: OutlinedButton.styleFrom(
                                        foregroundColor: Theme.of(context).colorScheme.primary,
                                        side: BorderSide(color: Theme.of(context).colorScheme.primary),
