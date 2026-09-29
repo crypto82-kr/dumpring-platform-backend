@@ -879,67 +879,110 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           title: Row(
             children: [
-              const Icon(Icons.info_outline, color: AppColors.success),
-              const SizedBox(width: 8),
-              Expanded(child: Text(site['site_name'] ?? '현장 상세 정보', style: AppTextStyles.h3, overflow: TextOverflow.ellipsis)),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.business_rounded, color: AppColors.success, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  site['site_name'] ?? '현장 상세 정보',
+                  style: AppTextStyles.h3.copyWith(fontSize: 16),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailItem("현장명", site['site_name']),
-              _buildDetailItem("건설사명", site['company_name']),
-              _buildDetailItem("사업자등록번호", site['business_number']),
-              _buildDetailItem("초대코드 (현장 키)", site['site_key'], isHighlight: true),
-              _buildDetailItem("현장 주소", site['site_address'] ?? '주소 미등록'),
-              _buildDetailItem("GPS 좌표", site['latitude'] != null ? "${site['latitude']}, ${site['longitude']}" : '좌표 미등록'),
-              _buildDetailItem("지오펜싱 반경", "${site['geofencing_radius'] ?? 200.0}m"),
-              _buildDetailItem("승인 상태", site['status'] == 'APPROVED' ? '승인완료' : '승인대기'),
-            ],
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.55,
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailItem("현장명", site['site_name']),
+                  _buildDetailItem("건설사명", site['company_name']),
+                  _buildDetailItem("사업자등록번호", site['business_number']),
+                  _buildDetailItem("초대코드 (현장 키)", site['site_key'], isHighlight: true),
+                  _buildDetailItem("현장 주소", site['site_address'] ?? '주소 미등록'),
+                  _buildDetailItem("GPS 좌표", site['latitude'] != null ? "${site['latitude']}, ${site['longitude']}" : '좌표 미등록'),
+                  _buildDetailItem("지오펜싱 반경", "${site['geofencing_radius'] ?? 200.0}m"),
+                  _buildDetailItem("승인 상태", site['status'] == 'APPROVED' ? '승인완료' : '승인대기'),
+                ],
+              ),
+            ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 6,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  child: Text("닫기", style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 13)),
+                ),
+                if (site['status'] == 'APPROVED') ...[
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _scanDriverQrForSite(site);
+                    },
+                    icon: const Icon(Icons.qr_code_scanner, size: 14),
+                    label: const Text("기사 QR", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary.withAlpha(150)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _showSiteFixedQrDialog(site);
+                    },
+                    icon: const Icon(Icons.qr_code_2, size: 14),
+                    label: const Text("고정 QR", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary.withAlpha(150)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _openSiteDialog(existingSite: site);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text("수정", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                ],
+              ],
             ),
-            if (site['status'] == 'APPROVED') ...[
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _scanDriverQrForSite(site);
-                },
-                icon: const Icon(Icons.qr_code_scanner, size: 16),
-                label: const Text("기사 QR 스캔", style: TextStyle(fontWeight: FontWeight.bold)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: BorderSide(color: AppColors.primary),
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _showSiteFixedQrDialog(site);
-                },
-                icon: const Icon(Icons.qr_code_2, size: 16),
-                label: const Text("고정 QR 보기", style: TextStyle(fontWeight: FontWeight.bold)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: BorderSide(color: AppColors.primary),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _openSiteDialog(existingSite: site);
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                child: const Text("수정하기", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
           ],
         );
       },

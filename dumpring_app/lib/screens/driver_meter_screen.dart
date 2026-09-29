@@ -180,6 +180,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   }
 
   Future<void> _scanSiteFixedQrWithCamera() async {
+    final bool isDropOffPhase = (_driveStep >= 3);
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? photo = await picker.pickImage(
@@ -189,14 +190,25 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
 
       if (photo != null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text("📷 상차지 현장 QR 촬영 완료! GPS 대조 및 상차 승인을 처리합니다."),
-              backgroundColor: AppColors.primary,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-          _processQRValidation();
+          if (!isDropOffPhase) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text("📷 상차지 현장 QR 촬영 완료! GPS 대조 및 상차 승인을 처리합니다."),
+                backgroundColor: AppColors.primary,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            _processQRValidation();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("📷 사토장 고정 QR 촬영 완료! 지주 반입 승인을 처리합니다."),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            _landownerApproved();
+          }
         }
       }
     } catch (e) {
