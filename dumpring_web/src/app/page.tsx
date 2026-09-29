@@ -9,6 +9,7 @@ import { PlatformAdminUnifiedApproval } from "@/components/dashboard/platform_ad
 import { PlatformAdminOverviewDashboard } from "@/components/dashboard/platform_admin/PlatformAdminOverviewDashboard";
 import { PlatformAdminUserManagement } from "@/components/dashboard/platform_admin/PlatformAdminUserManagement";
 import { PlatformAdminFeeManagement } from "@/components/dashboard/platform_admin/PlatformAdminFeeManagement";
+import { PlatformAdminDispatchControl } from "@/components/dashboard/platform_admin/PlatformAdminDispatchControl";
 import { SiteManagerDashboard } from "@/components/dashboard/SiteManagerDashboard";
 import SiteWorkerManagement from "@/components/dashboard/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/dashboard/SiteInfoManagement";
@@ -1491,6 +1492,8 @@ export default function Home() {
           <PlatformAdminUserManagement setActivePath={setActivePath} />
         ) : activePath === "/admin/fees" ? (
           <PlatformAdminFeeManagement setActivePath={setActivePath} />
+        ) : activePath === "/admin/dispatch-monitor" ? (
+          <PlatformAdminDispatchControl setActivePath={setActivePath} />
         ) : (
           <PlatformAdminDashboard
             activePath={activePath}
