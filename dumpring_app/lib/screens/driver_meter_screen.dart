@@ -10,6 +10,7 @@ import '../sdui/driver_overlay_meter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import '../shared/widgets/dr_ticket_qr_widget.dart';
+import '../shared/widgets/dr_qr_scanner_dialog.dart';
 
 class DriverMeterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -182,18 +183,20 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   Future<void> _scanSiteFixedQrWithCamera() async {
     final bool isDropOffPhase = (_driveStep >= 3);
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? photo = await picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
+      final String? scannedPayload = await DrQrScannerDialog.scan(
+        context,
+        title: isDropOffPhase ? "사토장 고정 QR 스캔" : "상차지 현장 고정 QR 스캔",
+        description: isDropOffPhase
+            ? "사토장 게이트 또는 사무소에 부착된 고정 QR 코드를\n중앙 사각 프레임에 맞춰 비춰주세요."
+            : "상차 현장 게이트 또는 사무소에 부착된 고정 QR 코드를\n중앙 사각 프레임에 맞춰 비춰주세요.",
       );
 
-      if (photo != null) {
+      if (scannedPayload != null && scannedPayload.isNotEmpty) {
         if (mounted) {
           if (!isDropOffPhase) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text("📷 상차지 현장 QR 촬영 완료! GPS 대조 및 상차 승인을 처리합니다."),
+                content: Text("✅ 상차지 QR 인식 성공! ($scannedPayload)\nGPS 대조 및 상차 승인을 처리합니다."),
                 backgroundColor: AppColors.primary,
                 duration: const Duration(seconds: 2),
               ),
@@ -201,10 +204,10 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
             _processQRValidation();
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("📷 사토장 고정 QR 촬영 완료! 지주 반입 승인을 처리합니다."),
+              SnackBar(
+                content: Text("✅ 사토장 QR 인식 성공! ($scannedPayload)\n지주 반입 승인을 확정합니다."),
                 backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
+                duration: const Duration(seconds: 2),
               ),
             );
             _landownerApproved();
@@ -214,7 +217,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("카메라를 실행할 수 없습니다: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("QR 스캐너 실행 중 오류: $e"), backgroundColor: Colors.red),
         );
       }
     }

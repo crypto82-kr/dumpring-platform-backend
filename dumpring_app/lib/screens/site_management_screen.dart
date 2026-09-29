@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 import 'package:image_picker/image_picker.dart';
+import '../shared/widgets/dr_qr_scanner_dialog.dart';
 
 class SiteManagementScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -649,26 +650,62 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   // 기사가 제시한 상차 확인용 QR 스캔 및 상차 승인 처리
   Future<void> _scanDriverQrForSite(Map<String, dynamic> site) async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? photo = await picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
+      final String? scannedPayload = await DrQrScannerDialog.scan(
+        context,
+        title: "상차 덤프 기사 QR 스캔",
+        description: "[${site['site_name'] ?? '현장'}]에 도착하여 상차를 마친 기사의\n스마트폰 화면 [상차 확인 QR]을 스캔합니다.",
       );
 
-      if (photo != null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("📷 기사 상차 QR 촬영 완료! ${site['site_name'] ?? '현장'} 상차 승인을 처리합니다."),
-              backgroundColor: AppColors.primary,
-              duration: const Duration(seconds: 2),
-            ),
+      if (scannedPayload != null && scannedPayload.isNotEmpty) {
+        // dumpring://ticket/{ticket_id}?type=LOADING 형식 파싱
+        int? ticketId;
+        try {
+          final uri = Uri.parse(scannedPayload);
+          if (uri.pathSegments.isNotEmpty) {
+            ticketId = int.tryParse(uri.pathSegments.last);
+          }
+        } catch (_) {}
+
+        if (ticketId != null) {
+          // 백엔드 상차 승인 API 호출
+          final approveRes = await http.post(
+            Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId/approve-loading"),
+            headers: {
+              "Authorization": "Bearer ${widget.token}",
+              "Content-Type": "application/json",
+            },
+            body: jsonEncode({"approval_type": "QR"}),
           );
+
+          if (mounted) {
+            if (approveRes.statusCode == 200) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("🎉 기사 티켓(#$ticketId) 상차 승인이 완료되었습니다!"),
+                  backgroundColor: AppColors.success,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            } else {
+              final decoded = jsonDecode(utf8.decode(approveRes.bodyBytes));
+              _showErrorMsg(decoded["detail"] ?? "상차 승인에 실패했습니다.");
+            }
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("✅ 기사 QR 인식 성공! ($scannedPayload)"),
+                backgroundColor: AppColors.primary,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
         }
       }
     } catch (e) {
       if (mounted) {
-        _showErrorMsg("카메라를 실행할 수 없습니다: $e");
+        _showErrorMsg("QR 스캔 중 오류 발생: $e");
       }
     }
   }

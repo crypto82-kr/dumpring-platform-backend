@@ -6,6 +6,7 @@ import 'dart:async';
 import 'common_drawer.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 import 'package:image_picker/image_picker.dart';
+import '../shared/widgets/dr_qr_scanner_dialog.dart';
 
 class DropOffHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -548,20 +549,41 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
   Future<void> _scanDriverQrWithCamera() async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? photo = await picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
+      final String? scannedPayload = await DrQrScannerDialog.scan(
+        context,
+        title: "도착 덤프 기사 QR 코드 스캔",
+        description: "도착한 덤프트럭 기사의 스마트폰 화면에 표시된\n[반입 도착 QR 코드]를 중앙 프레임에 비춰주세요.",
       );
 
-      if (photo != null) {
-        // 카메라 촬영 완료 후 반입 대기열의 최신 차량 매칭 및 검수 모달 자동 연계
+      if (scannedPayload != null && scannedPayload.isNotEmpty) {
+        // dumpring://ticket/{ticket_id}?type=DROPOFF 파싱
+        int? scannedTicketId;
+        try {
+          final uri = Uri.parse(scannedPayload);
+          if (uri.pathSegments.isNotEmpty) {
+            scannedTicketId = int.tryParse(uri.pathSegments.last);
+          }
+        } catch (_) {}
+
         if (mounted) {
-          if (_arrivedTickets.isNotEmpty) {
-            final targetTicket = _arrivedTickets.first;
+          // 1. 스캔된 ticketId와 일치하는 티켓 탐색
+          dynamic targetTicket;
+          if (scannedTicketId != null) {
+            targetTicket = _arrivedTickets.firstWhere(
+              (t) => t['id'] == scannedTicketId,
+              orElse: () => null,
+            );
+          }
+
+          // 2. 일치 티켓이 없으면 최신 도착 티켓으로 fallback 매칭
+          if (targetTicket == null && _arrivedTickets.isNotEmpty) {
+            targetTicket = _arrivedTickets.first;
+          }
+
+          if (targetTicket != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("📷 QR 촬영 완료! #${targetTicket['id']} (${targetTicket['car']?['car_number'] ?? '차량'}) 검수를 진행합니다."),
+                content: Text("✅ QR 인식 성공! #${targetTicket['id']} (${targetTicket['car']?['car_number'] ?? '차량'}) 검수를 진행합니다."),
                 backgroundColor: const Color(0xFF004D5A),
                 duration: const Duration(seconds: 2),
               ),
@@ -569,8 +591,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             _processIncomingTruck(targetTicket);
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("📷 QR 촬영 완료: 현재 게이트에 도착 승인 대기 중인 차량이 없습니다."),
+              SnackBar(
+                content: Text("✅ QR 인식 ($scannedPayload): 현재 대기열에 승인 대기 중인 차량이 없습니다."),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -579,7 +601,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showError("카메라를 실행할 수 없습니다: $e");
+        _showError("QR 스캔 중 오류 발생: $e");
       }
     }
   }
