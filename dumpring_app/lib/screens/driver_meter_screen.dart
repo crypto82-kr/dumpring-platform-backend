@@ -78,6 +78,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   String? _dropOffAddress;
 
   bool _isSiteLoadingApproved = false;
+  String? _loadingRejectionReason; // 현장담당자가 전달한 상차 보류 사유
   String _approvalMode = "MANAGER_SCANS_DRIVER";
   String _dropoffInspectionMode = "MANAGER_SCANS_DRIVER";
 
@@ -205,12 +206,16 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("✅ 사토장 QR 인식 성공! ($scannedPayload)\n지주 반입 승인을 확정합니다."),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
+                content: Text("✅ 사토장 도착 QR 인증 완료! ($scannedPayload)\n하차지 담당자의 자재(토질) 검수 승인을 기다립니다."),
+                backgroundColor: AppColors.primary,
+                duration: const Duration(seconds: 3),
               ),
             );
-            _landownerApproved();
+            // 사토장 QR 스캔 완료: 하차지 도착 상태 유지 및 지주 승인 실시간 감지 타이머 가동
+            _statusPollTimer?.cancel();
+            _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+              _pollTicketStatus();
+            });
           }
         }
       }
@@ -569,6 +574,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       _dropOffAddress = jp['drop_off_address'] as String?;
     }
 
+    _loadingRejectionReason = ticket['loading_rejection_reason'];
+
     if (status == "ACCEPTED") {
       _driveStep = 1;
       _isSiteLoadingApproved = false;
@@ -577,10 +584,14 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       _driveStep = 2;
       _isSiteLoadingApproved = false;
       _currentFare = _baseTariff;
+      // 상차 승인 또는 보류 사유 실시간 수신을 위한 폴링 타이머 가동
+      _startStatusPollTimer();
     } else if (status == "LOADING_APPROVED") {
       _driveStep = 2;
       _isSiteLoadingApproved = true;
+      _loadingRejectionReason = null;
       _currentFare = _baseTariff;
+      _statusPollTimer?.cancel();
     } else {
       if (status == "DRIVING") {
         _driveStep = 3;
@@ -632,12 +643,56 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       if (status == "DRIVING") {
         _resumeMeterTimer();
       } else if (status == "ARRIVED" || status == "WAITING_ABSENT_APPROVAL") {
-        _statusPollTimer?.cancel();
-        _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-          _pollTicketStatus();
-        });
+        _startStatusPollTimer();
       }
     }
+  }
+
+  void _startStatusPollTimer() {
+    _statusPollTimer?.cancel();
+    _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      _pollTicketStatus();
+    });
+  }
+
+  Future<void> _pollTicketStatus() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
+        final newStatus = ticket['status'];
+        final newReason = ticket['loading_rejection_reason'];
+
+        if (newStatus == "LOADING_APPROVED" && !_isSiteLoadingApproved) {
+          setState(() {
+            _isSiteLoadingApproved = true;
+            _loadingRejectionReason = null;
+          });
+          _statusPollTimer?.cancel();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("🎉 상차 승인이 완료되었습니다! 운행을 시작하세요."),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else if (newReason != _loadingRejectionReason) {
+          setState(() {
+            _loadingRejectionReason = newReason;
+          });
+        } else if (newStatus == "APPROVED" && _driveStep == 4) {
+          setState(() {
+            _driveStep = 5;
+          });
+          _statusPollTimer?.cancel();
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadInitialTicketState() async {
@@ -1424,6 +1479,60 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         ),
         const SizedBox(height: 24),
         if (!_isSiteLoadingApproved) ...[
+          // 상차 보류 사유 발생 시 기사에게 표출되는 경고 및 공통 안내 카드
+          if (_loadingRejectionReason != null && _loadingRejectionReason!.isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.danger.withAlpha(20),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.danger, width: 1.5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 22),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "상차 승인 보류 (재작업 필요)",
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.danger),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBackground,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text(
+                          "사유: ",
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+                        ),
+                        Expanded(
+                          child: Text(
+                            _loadingRejectionReason!,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.danger),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "📌 현장 안내에 따라 작업 후 다시 QR 승인을 받아주세요.",
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+          ],
           // 승인 진행 카드 영역
           Container(
             padding: const EdgeInsets.all(20),
@@ -1824,7 +1933,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
               elevation: 0,
             ),
             child: const Text(
-              "지주 승인 완료 확인 (테스트/비상)",
+              "⚙️ [테스트용] 지주 승인 강제 통과 (개발 테스트 전용)",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),

@@ -556,17 +556,29 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       );
 
       if (scannedPayload != null && scannedPayload.isNotEmpty) {
-        // dumpring://ticket/{ticket_id}?type=DROPOFF 파싱
+        // dumpring://ticket/{ticket_id}?type=DROPOFF 또는 dumpring://ticket?id={ticket_id} 등 파싱
         int? scannedTicketId;
         try {
           final uri = Uri.parse(scannedPayload);
-          if (uri.pathSegments.isNotEmpty) {
-            scannedTicketId = int.tryParse(uri.pathSegments.last);
+          if (uri.queryParameters.containsKey('id')) {
+            scannedTicketId = int.tryParse(uri.queryParameters['id']!);
+          } else if (uri.pathSegments.isNotEmpty) {
+            final lastSeg = uri.pathSegments.last;
+            scannedTicketId = int.tryParse(lastSeg);
+          }
+          if (scannedTicketId == null) {
+            // 정규식으로 티켓 숫자 추출
+            final match = RegExp(r'ticket[s]?/(\d+)').firstMatch(scannedPayload) ??
+                RegExp(r'id=(\d+)').firstMatch(scannedPayload) ??
+                RegExp(r'(\d+)').firstMatch(scannedPayload);
+            if (match != null) {
+              scannedTicketId = int.tryParse(match.group(1)!);
+            }
           }
         } catch (_) {}
 
         if (mounted) {
-          // 1. 스캔된 ticketId와 일치하는 티켓 탐색
+          // 1. 스캔된 ticketId와 일치하는 티켓을 먼저 로컬 대기열에서 탐색
           dynamic targetTicket;
           if (scannedTicketId != null) {
             targetTicket = _arrivedTickets.firstWhere(
@@ -575,7 +587,24 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             );
           }
 
-          // 2. 일치 티켓이 없으면 최신 도착 티켓으로 fallback 매칭
+          // 2. 로컬 대기열에 아직 없으면 서버에 즉시 단건 티켓 정보 조회 요청
+          if (targetTicket == null && scannedTicketId != null) {
+            try {
+              final fetchRes = await http.get(
+                Uri.parse("$_baseUrl/api/dispatch/tickets/$scannedTicketId"),
+                headers: {
+                  "Authorization": "Bearer ${widget.token}",
+                },
+              );
+              if (fetchRes.statusCode == 200) {
+                targetTicket = jsonDecode(utf8.decode(fetchRes.bodyBytes));
+              }
+            } catch (err) {
+              debugPrint("단건 티켓 조회 실패: $err");
+            }
+          }
+
+          // 3. 그래도 없으면 최신 도착 티켓으로 fallback 매칭
           if (targetTicket == null && _arrivedTickets.isNotEmpty) {
             targetTicket = _arrivedTickets.first;
           }
@@ -583,7 +612,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           if (targetTicket != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("✅ QR 인식 성공! #${targetTicket['id']} (${targetTicket['car']?['car_number'] ?? '차량'}) 검수를 진행합니다."),
+                content: Text("✅ QR 인식 성공! #${targetTicket['id']} (${targetTicket['car']?['car_number'] ?? '덤프트럭'}) 검수를 진행합니다."),
                 backgroundColor: const Color(0xFF004D5A),
                 duration: const Duration(seconds: 2),
               ),
@@ -592,8 +621,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("✅ QR 인식 ($scannedPayload): 현재 대기열에 승인 대기 중인 차량이 없습니다."),
+                content: Text("⚠️ QR 인식 (#$scannedTicketId): 도착 대기열에 해당 차량이 없거나 아직 도착 전송이 되지 않았습니다."),
                 backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 4),
               ),
             );
           }
@@ -731,121 +761,233 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: EdgeInsets.zero,
-        content: Container(
-          width: 320,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF004D5A),
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.local_shipping, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Text(
-                      "티켓 ID: #${ticket['id']}",
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text("차량 번호: ${ticket['car'] != null ? ticket['car']['car_number'] : '알 수 없음'}", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black))),
-                    const SizedBox(height: 6),
-                    Text("주행 기사 ID: ${ticket['driver_id']}", style: TextStyle(fontSize: 13, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)))),
-                    const SizedBox(height: 6),
-                    Text("주행 거리: ${ticket['drive_distance_km']} km", style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                    Text("누적 요금: ${ticket['accumulated_fare']} 원", style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                    if (ticket['proof_photo'] != null) ...[
-                      const SizedBox(height: 16),
-                      const Text("📸 현장 증빙 사진", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange)),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          "$_baseUrl${ticket['proof_photo']}",
-                          height: 160,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              height: 160,
-                              color: Colors.grey[200],
-                              child: const Center(child: CircularProgressIndicator(color: Colors.orange)),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 160,
-                              color: Colors.grey[300],
-                              child: const Center(child: Icon(Icons.broken_image, color: Colors.red, size: 40)),
-                            );
-                          },
+      builder: (ctx) {
+        final screenWidth = MediaQuery.of(ctx).size.width;
+        final screenHeight = MediaQuery.of(ctx).size.height;
+        final dialogWidth = screenWidth > 380 ? 350.0 : (screenWidth * 0.92);
+
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          backgroundColor: Theme.of(ctx).cardColor,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: dialogWidth,
+              maxHeight: screenHeight * 0.85,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. 헤더 (고정)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF004D5A),
+                    borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.local_shipping, color: Colors.white, size: 22),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "반입 자재 및 차량 검수 #${ticket['id']}",
+                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    const Text("실제 반입 상태를 검증하고 판정해 주세요.", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
+                  ),
                 ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _submitInspection(ticket['id'], "REJECTED", "MUD_SOIL");
-                      },
-                      child: Container(
-                        height: 56,
-                        alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFFF5F5),
-                          borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20)),
-                          border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+
+                // 2. 내용 스크롤 영역
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 기사 및 차량 정보
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF1E222F) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF2A2E3D) : const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  const Text("차량 번호", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      ticket['car'] != null ? ticket['car']['car_number'] : '알 수 없음',
+                                      textAlign: TextAlign.end,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(ctx).brightness == Brightness.dark ? Colors.white : Colors.black,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  const Text("운행 기사", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      "${ticket['driver']?['name'] ?? ticket['driver_id'] ?? '기사'}",
+                                      textAlign: TextAlign.end,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                        child: const Text("반입 거부(회차)", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)),
-                      ),
+                        const SizedBox(height: 10),
+
+                        // 배차 적재 품목 (영문 없이 순수 한글명 단독 표시)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.amber.withOpacity(0.5)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.layers_outlined, color: Colors.amber, size: 24),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text("반입 검수 대상 품목", style: TextStyle(fontSize: 11, color: Colors.brown[700], fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _translateMaterial(ticket['job_post']?['material_type'] ?? ticket['soil_type']),
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.brown),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // 거리 및 요금
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("주행 거리: ${ticket['drive_distance_km']} km", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text("정산 운임: ${_formatter(ticket['accumulated_fare'])} 원", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+                          ],
+                        ),
+
+                        if (ticket['proof_photo'] != null) ...[
+                          const SizedBox(height: 12),
+                          const Text("📸 현장 증빙 사진", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              "$_baseUrl${ticket['proof_photo']}",
+                              height: 140,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  height: 140,
+                                  color: Colors.grey[200],
+                                  child: const Center(child: CircularProgressIndicator(color: Colors.orange)),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 140,
+                                  color: Colors.grey[300],
+                                  child: const Center(child: Icon(Icons.broken_image, color: Colors.red, size: 36)),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        const Text(
+                          "* 실제 하차 자재를 육안 검증한 후 반입 승인 또는 회차 판정을 내려주세요.",
+                          style: TextStyle(fontSize: 11, color: Colors.grey, height: 1.3),
+                        ),
+                      ],
                     ),
                   ),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _submitInspection(ticket['id'], "APPROVED", "GOOD_SOIL");
-                      },
-                      child: Container(
-                        height: 56,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE6F4EA),
-                          borderRadius: const BorderRadius.only(bottomRight: Radius.circular(20)),
-                        ),
-                        child: Text("반입 승인", style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold, fontSize: 14)),
-                      ),
-                    ),
+                ),
+
+                // 3. 하단 액션 버튼 바
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF2A2E3D) : const Color(0xFFE2E8F0))),
                   ),
-                ],
-              )
-            ],
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            _submitInspection(ticket['id'], "REJECTED", "MUD_SOIL");
+                          },
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFFF5F5),
+                              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20)),
+                            ),
+                            child: const Text("반입 거부 (회차)", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                      Container(width: 1, height: 48, color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF2A2E3D) : const Color(0xFFE2E8F0)),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            _submitInspection(ticket['id'], "APPROVED", "GOOD_SOIL");
+                          },
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE6F4EA),
+                              borderRadius: BorderRadius.only(bottomRight: Radius.circular(20)),
+                            ),
+                            child: Text("반입 승인", style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold, fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -2131,8 +2273,12 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       case "GOOD_SOIL": return "양질토";
       case "MUD_SOIL": return "뻘흙";
       case "ROCK": return "암버럭";
-      case "MIXED": return "혼합 토사";
-      default: return type ?? "일반토사";
+      case "MIXED": return "혼합토";
+      case "NORMAL_SOIL": return "일반토";
+      case "SAND": return "모래";
+      case "CLAY": return "점토";
+      case "GRAVEL": return "자갈";
+      default: return (type != null && type.isNotEmpty) ? type : "일반토사";
     }
   }
 

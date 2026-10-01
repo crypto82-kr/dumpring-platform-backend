@@ -566,6 +566,7 @@ class DispatchTicket(Base):
     # 상태값: 'ACCEPTED'(수락/상차지이동), 'ARRIVED_LOADING'(상차지도착/대기), 'LOADING_APPROVED'(상차승인완료), 'DRIVING'(운행중/미터기온), 'ARRIVED'(도착), 'APPROVED'(승인완료), 'REJECTED'(반려/회차), 'CANCELLED'(취소), 'WAITING_ABSENT_APPROVAL'(지주부재 승인대기)
     status = Column(String, default="ACCEPTED", nullable=False)
     loading_approval_type = Column(String, nullable=True)  # 상차 승인 방식 ('QR' 또는 'OFFICE')
+    loading_rejection_reason = Column(String, nullable=True)  # 상차 보류/재작업 사유
     proof_photo = Column(String, nullable=True)  # 지주 부재 시 실시간 현장 증빙 사진 URL
 
     accumulated_fare = Column(Integer, default=0, nullable=False)

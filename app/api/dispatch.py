@@ -15,7 +15,7 @@ from app.api.auth import get_current_user
 from app.schemas.dispatch import (
     FavoriteRegionCreate, FavoriteRegionResponse,
     DispatchTicketResponse, InspectionRequest, ArriveRequest,
-    ApproveLoadingRequest
+    ApproveLoadingRequest, RejectLoadingRequest
 )
 from app.schemas.jobs import JobPostResponse
 
@@ -715,6 +715,48 @@ async def approve_loading(
     await validate_dispatch_status("LOADING_APPROVED", db)
     ticket.status = "LOADING_APPROVED"
     ticket.loading_approval_type = req.approval_type
+    ticket.loading_rejection_reason = None  # 이전 보류 사유 초기화
+    await db.commit()
+    await db.refresh(ticket)
+    return await attach_pricing_policy(ticket, db)
+
+
+@router.post(
+    "/tickets/{ticket_id}/reject-loading",
+    response_model=DispatchTicketResponse,
+    summary="[현장관리자용] 상차 보류 및 재작업 지시 (사유 전달)"
+)
+async def reject_loading(
+    ticket_id: int,
+    req: RejectLoadingRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ticket = await fetch_loaded_ticket(ticket_id, db)
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운행 티켓을 찾을 수 없습니다."
+        )
+
+    # 권한 검증: 상차 현장 관계자(소장/작업자/공고작성자), 또는 관리자
+    is_site_person = (
+        current_user.is_site_manager or 
+        current_user.is_site_worker or 
+        (ticket.job_post and ticket.job_post.author_id == current_user.id)
+    )
+    is_admin = current_user.is_admin
+
+    if not (is_site_person or is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="상차 보류 처리 권한이 없습니다. (현장 관리자 권한 필요)"
+        )
+
+    # 상태는 ARRIVED_LOADING(상차지 대기)을 유지하되 사유를 기록하여 기사 화면에 알림 표출
+    ticket.loading_rejection_reason = req.reason
+    ticket.loading_approval_type = None
     await db.commit()
     await db.refresh(ticket)
     return await attach_pricing_policy(ticket, db)

@@ -29,6 +29,7 @@ import { OwnerTruckManagement } from "@/components/dashboard/owner/OwnerTruckMan
 import { OwnerDriverManagement } from "@/components/dashboard/owner/OwnerDriverManagement";
 import { OwnerSettlementManagement } from "@/components/dashboard/owner/OwnerSettlementManagement";
 import { OwnerNoticeManagement } from "@/components/dashboard/owner/OwnerNoticeManagement";
+import { OwnerOperationStatistics } from "@/components/dashboard/owner/OwnerOperationStatistics";
 import { DeveloperDashboard } from "@/components/dashboard/DeveloperDashboard";
 
 import { getApiBaseUrl } from "@/utils/api";
@@ -1799,6 +1800,8 @@ export default function Home() {
             ownerBroadcastSuccess={ownerBroadcastSuccess}
             setOwnerBroadcastSuccess={setOwnerBroadcastSuccess}
           />
+        ) : activePath === "/owner/statistics" ? (
+          <OwnerOperationStatistics setActivePath={setActivePath} />
         ) : activePath === "/owner" || activePath === "" ? (
           <OwnerOverviewDashboard setActivePath={setActivePath} />
         ) : (

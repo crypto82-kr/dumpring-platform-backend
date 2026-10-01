@@ -657,40 +657,48 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       );
 
       if (scannedPayload != null && scannedPayload.isNotEmpty) {
-        // dumpring://ticket/{ticket_id}?type=LOADING 형식 파싱
+        // dumpring://ticket/{ticket_id}?type=LOADING 또는 쿼리스트링 파싱
         int? ticketId;
         try {
           final uri = Uri.parse(scannedPayload);
-          if (uri.pathSegments.isNotEmpty) {
+          if (uri.queryParameters.containsKey('id')) {
+            ticketId = int.tryParse(uri.queryParameters['id']!);
+          } else if (uri.pathSegments.isNotEmpty) {
             ticketId = int.tryParse(uri.pathSegments.last);
+          }
+          if (ticketId == null) {
+            final match = RegExp(r'ticket[s]?/(\d+)').firstMatch(scannedPayload) ??
+                RegExp(r'id=(\d+)').firstMatch(scannedPayload) ??
+                RegExp(r'(\d+)').firstMatch(scannedPayload);
+            if (match != null) {
+              ticketId = int.tryParse(match.group(1)!);
+            }
           }
         } catch (_) {}
 
         if (ticketId != null) {
-          // 백엔드 상차 승인 API 호출
-          final approveRes = await http.post(
-            Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId/approve-loading"),
-            headers: {
-              "Authorization": "Bearer ${widget.token}",
-              "Content-Type": "application/json",
-            },
-            body: jsonEncode({"approval_type": "QR"}),
-          );
+          // 백엔드에서 해당 티켓의 상세 정보(기사명, 차량번호, 목적지, 배차 품목) 조회
+          try {
+            final ticketRes = await http.get(
+              Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId"),
+              headers: {
+                "Authorization": "Bearer ${widget.token}",
+              },
+            );
 
-          if (mounted) {
-            if (approveRes.statusCode == 200) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text("🎉 기사 티켓(#$ticketId) 상차 승인이 완료되었습니다!"),
-                  backgroundColor: AppColors.success,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            } else {
-              final decoded = jsonDecode(utf8.decode(approveRes.bodyBytes));
-              _showErrorMsg(decoded["detail"] ?? "상차 승인에 실패했습니다.");
+            if (ticketRes.statusCode == 200) {
+              final ticketData = jsonDecode(utf8.decode(ticketRes.bodyBytes));
+              if (mounted) {
+                _showLoadingInspectionDialog(site, ticketData);
+              }
+              return;
             }
+          } catch (err) {
+            debugPrint("티켓 상세 조회 에러: $err");
           }
+
+          // 상세 조회가 안 될 경우 즉시 승인 요청 fallback
+          await _executeApproveLoading(ticketId);
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -706,6 +714,571 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     } catch (e) {
       if (mounted) {
         _showErrorMsg("QR 스캔 중 오류 발생: $e");
+      }
+    }
+  }
+
+  // 한글 품목명(공통코드명) 매핑 함수
+  String _translateSoilName(String? code) {
+    switch (code) {
+      case "GOOD_SOIL":
+        return "양질토";
+      case "MUD_SOIL":
+        return "뻘흙";
+      case "ROCK":
+        return "암버럭";
+      case "MIXED":
+        return "혼합토";
+      case "SAND":
+        return "모래";
+      case "CLAY":
+        return "점토";
+      case "GRAVEL":
+        return "자갈";
+      case "NORMAL_SOIL":
+        return "일반토";
+      default:
+        return code ?? "일반토사";
+    }
+  }
+
+  // 상차 현장 검수 및 승인 다이얼로그
+  void _showLoadingInspectionDialog(Map<String, dynamic> site, Map<String, dynamic> ticket) {
+    final int ticketId = ticket['id'] ?? 0;
+    final driver = ticket['driver'] ?? {};
+    final car = ticket['car'] ?? {};
+    final job = ticket['job_post'] ?? {};
+
+    final String driverName = driver['name'] ?? "기사";
+    final String driverPhone = driver['phone_number'] ?? "";
+    final String carNumber = car['car_number'] ?? "차량미배정";
+    final dynamic tonnageVal = car['tonnage'] ?? 25.5;
+    final String tonnageStr = "$tonnageVal톤";
+
+    // 하차지 목적지명
+    String dropoffName = "하차지 미지정";
+    if (job['drop_off_request'] != null && job['drop_off_request']['drop_off'] != null) {
+      dropoffName = job['drop_off_request']['drop_off']['name'] ?? "사토장";
+    } else if (job['matched_drop_off'] != null) {
+      dropoffName = job['matched_drop_off']['name'] ?? "사토장";
+    } else if (job['drop_off_name'] != null) {
+      dropoffName = job['drop_off_name'];
+    }
+
+    // 오직 한글명만 깔끔하게 노출
+    final String rawMaterial = job['material_type'] ?? "GOOD_SOIL";
+    final String materialKoreanName = _translateSoilName(rawMaterial);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final screenWidth = MediaQuery.of(ctx).size.width;
+        final screenHeight = MediaQuery.of(ctx).size.height;
+        final dialogWidth = screenWidth > 380 ? 350.0 : (screenWidth * 0.92);
+
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          backgroundColor: AppColors.surface,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: dialogWidth,
+              maxHeight: screenHeight * 0.85,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. 헤더 (고정)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.fact_check_outlined, color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "상차 자재 및 목적지 검수",
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              "티켓 #${ticketId > 0 ? ticketId : '-'}",
+                              style: TextStyle(color: Colors.white.withAlpha(200), fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 2. 내용 스크롤 영역 (작은 화면에서도 오버플로 절대 방지)
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 기사 및 차량 정보 (말줄임 없이 온전한 확인 가능)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardBackground,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 60,
+                                    child: Text("운행 기사", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      "$driverName${driverPhone.isNotEmpty ? ' ($driverPhone)' : ''}",
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 60,
+                                    child: Text("배차 차량", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      "$carNumber ($tonnageStr)",
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // 목적지(하차지) (줄바꿈 허용으로 전체 주소/사토장명 확인)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardBackground,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.pin_drop_rounded, size: 16, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text("지정 하차지 (도착 사토장)", style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      dropoffName,
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // 배차 지정 적재 품목 (영문 없이 오직 한글명만 깔끔하게 노출)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withAlpha(25),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.amber.withAlpha(120)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.layers_outlined, color: Colors.amber, size: 26),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      "배차 지정 적재 품목",
+                                      style: TextStyle(fontSize: 11, color: Colors.brown, fontWeight: FontWeight.w600),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      materialKoreanName,
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.brown,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "* 실제 적재 자재가 [$materialKoreanName]과 일치하는지 확인 후 승인해 주세요.",
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 3. 하단 액션 버튼 바 (고정)
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: AppColors.divider)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            _showLoadingRejectionReasonDialog(ticketId, carNumber: carNumber, driverName: driverName);
+                          },
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppColors.danger.withAlpha(20),
+                              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20)),
+                            ),
+                            child: Text(
+                              "상차 보류",
+                              style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(width: 1, height: 48, color: AppColors.divider),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            Navigator.of(ctx).pop();
+                            await _executeApproveLoading(ticketId, carNumber: carNumber, driverName: driverName, materialName: materialKoreanName);
+                          },
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withAlpha(30),
+                              borderRadius: const BorderRadius.only(bottomRight: Radius.circular(20)),
+                            ),
+                            child: Text(
+                              "자재 일치 / 승인",
+                              style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // 상차 보류 사유 선택 다이얼로그 (4대 퀵 칩 + 기타 직접입력)
+  void _showLoadingRejectionReasonDialog(int ticketId, {String? carNumber, String? driverName}) {
+    final List<String> presetReasons = [
+      "적재 품목 불일치",
+      "기준 과적 / 정량 초과",
+      "적재함 덮개 미체결",
+      "배차 차량 / 기사 불일치",
+    ];
+
+    String? selectedReason;
+    final otherTextController = TextEditingController();
+    bool isOtherSelected = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (reasonCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+              title: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    "상차 보류 사유 선택",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 320,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        "차량: ${carNumber ?? '-'} (${driverName ?? '기사'})\n기사 스마트폰에 즉시 전달될 사유를 선택해 주세요.",
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // 1. 4대 퀵 프리셋 사유 버튼
+                      ...presetReasons.map((reason) {
+                        final isSelected = !isOtherSelected && selectedReason == reason;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: InkWell(
+                            onTap: () {
+                              setModalState(() {
+                                isOtherSelected = false;
+                                selectedReason = reason;
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+                              decoration: BoxDecoration(
+                                color: isSelected ? AppColors.danger.withAlpha(25) : AppColors.cardBackground,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected ? AppColors.danger : AppColors.divider,
+                                  width: isSelected ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                                    size: 16,
+                                    color: isSelected ? AppColors.danger : AppColors.textTertiary,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    reason,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                      color: isSelected ? AppColors.danger : AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+
+                      // 2. 기타 (직접 입력)
+                      InkWell(
+                        onTap: () {
+                          setModalState(() {
+                            isOtherSelected = true;
+                            selectedReason = null;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: isOtherSelected ? AppColors.danger.withAlpha(25) : AppColors.cardBackground,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isOtherSelected ? AppColors.danger : AppColors.divider,
+                              width: isOtherSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isOtherSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                                size: 16,
+                                color: isOtherSelected ? AppColors.danger : AppColors.textTertiary,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                "기타 (직접 입력)",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: isOtherSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isOtherSelected ? AppColors.danger : AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // 기타 선택 시 나타나는 한 줄 텍스트 입력창
+                      if (isOtherSelected) ...[
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: otherTextController,
+                          autofocus: true,
+                          style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                          decoration: InputDecoration(
+                            hintText: "사유를 간략히 입력하세요 (예: 타이어 수리 필요)",
+                            hintStyle: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                            filled: true,
+                            fillColor: AppColors.cardBackground,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: AppColors.divider),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: AppColors.danger),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(reasonCtx).pop(),
+                  child: Text("취소", style: TextStyle(color: AppColors.textTertiary)),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    String finalReason = "";
+                    if (isOtherSelected) {
+                      finalReason = otherTextController.text.trim();
+                      if (finalReason.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("기타 사유를 입력해 주세요.")),
+                        );
+                        return;
+                      }
+                    } else if (selectedReason != null) {
+                      finalReason = selectedReason!;
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("보류 사유를 선택해 주세요.")),
+                      );
+                      return;
+                    }
+
+                    Navigator.of(reasonCtx).pop();
+                    await _executeRejectLoading(ticketId, finalReason, carNumber: carNumber);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.danger,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  ),
+                  child: const Text("보류 전송", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 실제 상차 보류 API 호출 실행
+  Future<void> _executeRejectLoading(int ticketId, String reason, {String? carNumber}) async {
+    try {
+      final rejectRes = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId/reject-loading"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({"reason": reason}),
+      );
+
+      if (mounted) {
+        if (rejectRes.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("⛔ 기사(${carNumber ?? ''})에게 상차 보류 사유가 전송되었습니다: [$reason]"),
+              backgroundColor: AppColors.danger,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        } else {
+          final err = jsonDecode(utf8.decode(rejectRes.bodyBytes));
+          _showErrorMsg(err['detail'] ?? "상차 보류 처리 실패");
+        }
+      }
+    } catch (e) {
+      if (mounted) _showErrorMsg("서버 통신 실패: $e");
+    }
+  }
+
+  // 실제 상차 승인 API 호출 실행
+  Future<void> _executeApproveLoading(int ticketId, {String? carNumber, String? driverName, String? materialName}) async {
+    try {
+      final approveRes = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId/approve-loading"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({"approval_type": "QR"}),
+      );
+
+      if (mounted) {
+        if (approveRes.statusCode == 200) {
+          final infoText = (driverName != null && carNumber != null && materialName != null)
+              ? "🎉 [$driverName / $carNumber] $materialName 상차 승인 완료!"
+              : "🎉 기사 티켓(#$ticketId) 상차 승인이 완료되었습니다!";
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(infoText),
+              backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          final decoded = jsonDecode(utf8.decode(approveRes.bodyBytes));
+          _showErrorMsg(decoded["detail"] ?? "상차 승인에 실패했습니다.");
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorMsg("상차 승인 통신 오류: $e");
       }
     }
   }

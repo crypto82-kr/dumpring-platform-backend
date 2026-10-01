@@ -51,6 +51,7 @@ class DispatchTicketResponse(BaseModel):
     car_id: int
     status: str
     loading_approval_type: Optional[str] = None
+    loading_rejection_reason: Optional[str] = None
     proof_photo: Optional[str] = None
     accumulated_fare: int
     drive_distance_km: float
@@ -72,6 +73,9 @@ class ApproveLoadingRequest(BaseModel):
     approval_type: str = Field("OFFICE", description="'QR_SITE', 'QR_DRIVER', 'OFFICE', 'QR'")
     loaded_soil_type: Optional[str] = Field(None, description="상차 확인된 토사 종류")
     approval_memo: Optional[str] = Field(None, description="상차 확인 메모")
+
+class RejectLoadingRequest(BaseModel):
+    reason: str = Field(..., description="상차 보류/반려 사유 (품목 불일치, 과적 등)")
 
 class InspectionRequest(BaseModel):
     decision: str = Field(..., description="APPROVED 또는 REJECTED")

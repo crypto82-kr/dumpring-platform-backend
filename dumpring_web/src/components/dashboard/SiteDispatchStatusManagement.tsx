@@ -642,11 +642,11 @@ export default function SiteDispatchStatusManagement({
                   onChange={(e) => setApprovalSoilType(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
                 >
-                  <option value="GOOD_SOIL">양질토 (양질사토/토사)</option>
-                  <option value="NORMAL_SOIL">일반토 (보통 흙/사토)</option>
-                  <option value="MUD_SOIL">뻘흙 (점토/슬러지성 토사)</option>
-                  <option value="ROCK">암버럭 (발파암/쇄석/돌)</option>
-                  <option value="MIXED">혼합토 (토사+자갈 혼합)</option>
+                  <option value="GOOD_SOIL">양질토</option>
+                  <option value="NORMAL_SOIL">일반토</option>
+                  <option value="MUD_SOIL">뻘흙</option>
+                  <option value="ROCK">암버럭</option>
+                  <option value="MIXED">혼합토</option>
                 </select>
               </div>
 

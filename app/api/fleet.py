@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 from app.core.db import get_db
@@ -903,6 +903,8 @@ async def get_owner_monthly_schedule(
                 "material_type": raw_mat,
                 "material_type_name": material_name,
                 "fare": t.accumulated_fare or 0,
+                "drive_distance_km": t.drive_distance_km or 0.0,
+                "proof_photo": t.proof_photo,
                 "created_time": ticket_date.strftime("%H:%M") if ticket_date else "",
             })
 
@@ -926,4 +928,181 @@ async def get_owner_monthly_schedule(
         },
         "days": days_list
     }
+
+
+# ==========================================================
+# 차주 전용 운행통계 교차분석 API (상차지/하차지 중심 및 기간 필터)
+# ==========================================================
+@router.get(
+    "/statistics/operation",
+    summary="차주 덤프트럭 운행 데이터 통계 및 교차 필터링 조회"
+)
+async def get_owner_operation_statistics(
+    start_date: Optional[str] = None,  # YYYY-MM-DD
+    end_date: Optional[str] = None,    # YYYY-MM-DD
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    from app.models import DispatchTicket, ConstructionSite, DropOff, DropOffRequest, JobPost
+    from sqlalchemy.orm import selectinload
+    from datetime import datetime, timedelta
+
+    # 1. 차주 소유 차량 및 소속 기사 목록 조회
+    car_query = select(Car).where(Car.owner_id == current_owner.id)
+    cars = (await db.execute(car_query)).scalars().all()
+    car_ids = [c.id for c in cars]
+    cars_by_id = {c.id: c for c in cars}
+
+    driver_query = select(Driver).where(
+        (Driver.owner_id == current_owner.id) |
+        ((Driver.current_car_id.in_(car_ids)) if car_ids else (Driver.id == -1))
+    )
+    drivers = (await db.execute(driver_query)).scalars().all()
+    driver_user_ids = [d.user_id for d in drivers if d.user_id]
+
+    user_query = select(User).where(User.id.in_(driver_user_ids)) if driver_user_ids else None
+    user_map = {}
+    if user_query is not None:
+        user_res = await db.execute(user_query)
+        for u in user_res.scalars().all():
+            user_map[u.id] = (u.name, u.phone_number)
+
+    # 공통코드 매핑
+    common_codes_query = select(CommonCode).where(
+        CommonCode.group_code.in_(["MATERIAL_TYPE", "DISPATCH_STATUS"]),
+        CommonCode.is_active == True
+    )
+    cc_res = await db.execute(common_codes_query)
+    cc_records = cc_res.scalars().all()
+    material_map = {
+        "GOOD_SOIL": "양질토",
+        "MUD_SOIL": "뻘흙",
+        "ROCK": "암버럭",
+        "MIXED": "혼합토",
+        "SAND": "모래",
+        "CLAY": "점토",
+        "GRAVEL": "자갈"
+    }
+    status_map = {
+        "ACCEPTED": "배차 수락",
+        "ARRIVED_LOADING": "상차지 도착",
+        "LOADING_APPROVED": "상차 승인완료",
+        "DRIVING": "하차지 이동 중",
+        "ARRIVED": "하차지 도착",
+        "WAITING_ABSENT_APPROVAL": "지주부재 승인대기",
+        "APPROVED": "반입 승인완료",
+        "COMPLETED": "운행 완료",
+        "REJECTED": "반입 반려",
+        "CANCELLED": "배차 취소",
+        "SETTLEMENT_REQUESTED": "정산 요청",
+        "SETTLEMENT_APPROVED": "정산 승인",
+        "SETTLEMENT_PAID": "지급 완료",
+        "SETTLEMENT_CONFIRMED": "정산 확정"
+    }
+    for c in cc_records:
+        if c.group_code == "MATERIAL_TYPE":
+            material_map[c.code] = c.code_name
+        elif c.group_code == "DISPATCH_STATUS":
+            status_map[c.code] = c.code_name
+
+    # 날짜 범위 기본값 설정 (없으면 최근 30일)
+    now = datetime.now()
+    if not end_date:
+        end_dt = now.replace(hour=23, minute=59, second=59)
+    else:
+        end_dt = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
+
+    if not start_date:
+        start_dt = (end_dt - timedelta(days=30)).replace(hour=0, minute=0, second=0)
+    else:
+        start_dt = datetime.strptime(f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S")
+
+    condition = []
+    if driver_user_ids:
+        condition.append(DispatchTicket.driver_id.in_(driver_user_ids))
+    if car_ids:
+        condition.append(DispatchTicket.car_id.in_(car_ids))
+
+    records = []
+    if condition:
+        ticket_query = (
+            select(DispatchTicket)
+            .where(
+                or_(*condition),
+                DispatchTicket.accepted_at >= start_dt,
+                DispatchTicket.accepted_at <= end_dt
+            )
+            .options(
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+                selectinload(DispatchTicket.driver),
+                selectinload(DispatchTicket.car),
+            )
+            .order_by(DispatchTicket.accepted_at.desc())
+        )
+        ticket_res = await db.execute(ticket_query)
+        tickets = ticket_res.scalars().all()
+
+        for t in tickets:
+            ticket_date = t.accepted_at or t.driving_started_at or now
+            driver_info = user_map.get(t.driver_id)
+            driver_name = driver_info[0] if driver_info else (t.driver.name if t.driver else f"기사 #{t.driver_id}")
+
+            car_obj = t.car or (cars_by_id.get(t.car_id) if t.car_id else None)
+            car_number = car_obj.car_number if car_obj else "차량미배정"
+            tonnage = car_obj.tonnage if car_obj else 25.0
+
+            job = t.job_post
+            site_name = job.site.site_name if (job and job.site) else (job.site_name if job else "상차지 미지정")
+            site_id = job.site_id if job else 0
+
+            dropoff_name = ""
+            dropoff_id = 0
+            if job:
+                if job.drop_off_request and job.drop_off_request.drop_off:
+                    dropoff_name = job.drop_off_request.drop_off.name
+                    dropoff_id = job.drop_off_request.drop_off.id
+                elif job.matched_drop_off:
+                    dropoff_name = job.matched_drop_off.name
+                    dropoff_id = job.matched_drop_off.id
+                else:
+                    dropoff_name = job.drop_off_name or "하차지 미지정"
+                    dropoff_id = 0
+
+            raw_mat = job.material_type if job else "GOOD_SOIL"
+            material_name = material_map.get(raw_mat, raw_mat)
+            status_name = status_map.get(t.status, t.status)
+
+            records.append({
+                "ticket_id": t.id,
+                "date": ticket_date.strftime("%Y-%m-%d"),
+                "time": ticket_date.strftime("%H:%M"),
+                "driver_id": t.driver_id,
+                "driver_name": driver_name,
+                "car_id": t.car_id,
+                "car_number": car_number,
+                "tonnage": float(tonnage),
+                "site_id": site_id,
+                "site_name": site_name,
+                "dropoff_id": dropoff_id,
+                "dropoff_name": dropoff_name,
+                "material_type": raw_mat,
+                "material_name": material_name,
+                "status": t.status,
+                "status_name": status_name,
+                "fare": int(t.accumulated_fare or 0),
+                "distance_km": float(t.drive_distance_km or 0.0),
+                "trips": 1,
+                "weight_ton": float(tonnage),
+                "proof_photo": t.proof_photo,
+            })
+
+    return {
+        "start_date": start_dt.strftime("%Y-%m-%d"),
+        "end_date": end_dt.strftime("%Y-%m-%d"),
+        "total_records": len(records),
+        "records": records
+    }
+
 

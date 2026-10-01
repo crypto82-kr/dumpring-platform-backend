@@ -633,7 +633,7 @@ export default function DropoffDispatchManagement({
             </div>
 
             <div className="space-y-1">
-              <div className="text-sm font-black text-slate-900">{selectedReq?.dropoffName || "사토장"}</div>
+              <div className="text-sm font-black text-slate-900">{selectedDropoffObj?.name || selectedReq?.dropoffName || "사토장"}</div>
               <p className="text-[11px] text-slate-500">사토장 게이트 또는 검수소에 부착하여 기사가 촬영할 수 있도록 합니다.</p>
             </div>
 
@@ -641,7 +641,7 @@ export default function DropoffDispatchManagement({
             <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-emerald-200 flex flex-col items-center justify-center">
               <div className="w-48 h-48 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`dumpring://dropoff/unloading?id=${selectedReq?.id || 0}`)}&margin=10`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`dumpring://dropoff/unloading?id=${selectedDropoffObj?.id || effectiveDropoffId || selectedReq?.id || 1}`)}&margin=10`}
                   alt="하차지 사토장 고정 QR"
                   className="w-40 h-40 object-contain"
                 />
@@ -652,9 +652,10 @@ export default function DropoffDispatchManagement({
               <button
                 type="button"
                 onClick={() => {
-                  const dropName = selectedReq?.dropoffName || "사토장(하차지)";
-                  const dropAddress = selectedReq?.dropoffAddress || "";
-                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`dumpring://dropoff/unloading?id=${selectedReq?.id || 0}`)}&margin=10`;
+                  const dropName = selectedDropoffObj?.name || selectedReq?.dropoffName || "사토장(하차지)";
+                  const dropAddress = selectedDropoffObj?.address || selectedReq?.dropoffAddress || "";
+                  const targetDropId = selectedDropoffObj?.id || effectiveDropoffId || selectedReq?.id || 1;
+                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`dumpring://dropoff/unloading?id=${targetDropId}`)}&margin=10`;
                   const printWin = window.open("", "_blank", "width=800,height=900");
                   if (printWin) {
                     printWin.document.write(`
