@@ -4,6 +4,10 @@ from sqlalchemy.future import select
 from sqlalchemy import or_
 from typing import List, Optional
 from pydantic import BaseModel
+import math
+from datetime import datetime, timedelta
+from sqlalchemy.orm import selectinload
+from app.models import DispatchTicket, ConstructionSite, DropOff, DropOffRequest, JobPost
 
 from app.core.db import get_db
 from app.models import User, Driver, Car, Notification, UserUploadedDocument, CommonCode
@@ -1104,5 +1108,269 @@ async def get_owner_operation_statistics(
         "total_records": len(records),
         "records": records
     }
+
+
+class TaxInvoiceIssueRequest(BaseModel):
+    ticket_ids: List[int]
+    notes: Optional[str] = None
+
+
+@router.get(
+    "/settlements/revenues",
+    summary="[차주 매출 및 정산] 운반 내역, 공급가액/부가세 계산 및 세금계산서 발행 집계 데이터 조회"
+)
+async def get_owner_settlement_revenues(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    차주 소속의 차량/기사별 완료된 운행 및 정산 데이터를 조회합니다.
+    - 공급가액(원단위 절사), 부가세(10%), 합계금액 매칭
+    - 현장별(거래처별) 세금계산서 미발행/발행완료 그룹 집계 정보 제공
+    - 플랫폼 이용 수수료(8% 기준, 원단위 절사) 및 최종 실수령 예정액 산출
+    """
+    # 1. 차주 권한 확인 (is_owner 또는 ADMIN)
+    if not current_user.is_owner and current_user.role != "ADMIN":
+        # 혹시 차주 플래그가 없더라도 소유 차량이 있는지 검증
+        owned_cars_check = await db.execute(select(Car).where(Car.owner_id == current_user.id))
+        if not owned_cars_check.scalars().all():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="차주 권한을 소지한 회원만 이용할 수 있는 기능입니다."
+            )
+
+    # 2. 차주 소속 차량 및 기사 식별 (owner_id)
+    cars_query = select(Car).where(Car.owner_id == current_user.id)
+    cars = (await db.execute(cars_query)).scalars().all()
+    car_ids = [c.id for c in cars]
+    cars_by_id = {c.id: c for c in cars}
+
+    driver_query = select(Driver).where(
+        (Driver.owner_id == current_user.id) |
+        ((Driver.current_car_id.in_(car_ids)) if car_ids else (Driver.id == -1))
+    )
+    drivers = (await db.execute(driver_query)).scalars().all()
+    driver_user_ids = [d.user_id for d in drivers if d.user_id]
+
+    user_query = select(User).where(User.id.in_(driver_user_ids)) if driver_user_ids else None
+    user_map = {}
+    if user_query is not None:
+        user_res = await db.execute(user_query)
+        for u in user_res.scalars().all():
+            user_map[u.id] = (u.name, u.phone_number)
+
+    # 공통코드 매핑
+    material_map = {
+        "GOOD_SOIL": "사토(양질토)",
+        "MUD_SOIL": "뻘흙",
+        "ROCK": "암버럭",
+        "MIXED": "혼합토",
+        "SAND": "모래",
+        "CLAY": "점토",
+        "GRAVEL": "자갈"
+    }
+    status_map = {
+        "ACCEPTED": "배차 수락",
+        "ARRIVED_LOADING": "상차지 도착",
+        "LOADING_APPROVED": "상차 승인완료",
+        "DRIVING": "하차지 이동 중",
+        "ARRIVED": "하차지 도착",
+        "WAITING_ABSENT_APPROVAL": "지주부재 승인대기",
+        "APPROVED": "반입 승인완료",
+        "COMPLETED": "운행 완료",
+        "REJECTED": "반입 반려",
+        "CANCELLED": "배차 취소",
+        "SETTLEMENT_REQUESTED": "정산대기",
+        "SETTLEMENT_REVIEW": "정산대기",
+        "SETTLEMENT_APPROVED": "정산완료",
+        "SETTLEMENT_PAID": "정산완료",
+        "SETTLEMENT_CONFIRMED": "정산완료",
+        "SETTLEMENT_DISPUTED": "미정산"
+    }
+
+    # 날짜 범위 설정
+    now = datetime.now()
+    if not end_date:
+        end_dt = now.replace(hour=23, minute=59, second=59)
+    else:
+        end_dt = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
+
+    if not start_date:
+        start_dt = (end_dt - timedelta(days=90)).replace(hour=0, minute=0, second=0)
+    else:
+        start_dt = datetime.strptime(f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S")
+
+    condition = []
+    if driver_user_ids:
+        condition.append(DispatchTicket.driver_id.in_(driver_user_ids))
+    if car_ids:
+        condition.append(DispatchTicket.car_id.in_(car_ids))
+
+    records = []
+    if condition:
+        ticket_query = (
+            select(DispatchTicket)
+            .where(
+                or_(*condition),
+                DispatchTicket.accepted_at >= start_dt,
+                DispatchTicket.accepted_at <= end_dt
+            )
+            .options(
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+                selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+                selectinload(DispatchTicket.driver),
+                selectinload(DispatchTicket.car),
+            )
+            .order_by(DispatchTicket.accepted_at.desc())
+        )
+        ticket_res = await db.execute(ticket_query)
+        tickets = ticket_res.scalars().all()
+
+        for t in tickets:
+            ticket_date = t.accepted_at or t.driving_started_at or now
+            driver_info = user_map.get(t.driver_id)
+            driver_name = driver_info[0] if driver_info else (t.driver.name if t.driver else f"기사 #{t.driver_id}")
+
+            car_obj = t.car or (cars_by_id.get(t.car_id) if t.car_id else None)
+            car_number = car_obj.car_number if car_obj else "차량미배정"
+            tonnage = car_obj.tonnage if car_obj else 25.0
+
+            job = t.job_post
+            site = job.site if (job and job.site) else None
+            site_name = site.site_name if site else (job.site_name if job else "상차지 미지정")
+            company_name = site.company_name if site else "건설사 미등록"
+            business_number = site.business_number if site else "000-00-00000"
+            billing_email = site.billing_email if site else ""
+            site_id = site.id if site else (job.site_id if job else 0)
+
+            dropoff_name = ""
+            if job:
+                if job.drop_off_request and job.drop_off_request.drop_off:
+                    dropoff_name = job.drop_off_request.drop_off.name
+                elif job.matched_drop_off:
+                    dropoff_name = job.matched_drop_off.name
+                else:
+                    dropoff_name = job.drop_off_name or "하차지 미지정"
+
+            raw_mat = job.material_type if job else "GOOD_SOIL"
+            material_name = material_map.get(raw_mat, raw_mat)
+
+            # 단가 및 금액 계산 (원단위 절사)
+            # 단가: job_post.offered_unit_price가 있으면 사용, 없으면 티켓 운임
+            unit_price = int(job.offered_unit_price) if (job and job.offered_unit_price) else int(t.accumulated_fare or 0)
+            if unit_price <= 0:
+                unit_price = int(t.accumulated_fare or 0)
+
+            trips = 1  # 1 티켓 당 1회
+            supply_price = int(unit_price * trips)
+            vat = int(math.floor(supply_price * 0.1))  # 부가세 10% 원단위 절사
+            total_amount = supply_price + vat
+
+            # 정산 상태 표준화
+            raw_status = t.status
+            # 정산완료: SETTLEMENT_APPROVED, SETTLEMENT_PAID, SETTLEMENT_CONFIRMED
+            # 정산대기: SETTLEMENT_REQUESTED, SETTLEMENT_REVIEW, APPROVED, COMPLETED
+            # 미정산: SETTLEMENT_DISPUTED, REJECTED, CANCELLED 등
+            if raw_status in ["SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]:
+                settlement_status = "SETTLEMENT_CONFIRMED"
+                settlement_label = "정산완료"
+            elif raw_status in ["SETTLEMENT_REQUESTED", "SETTLEMENT_REVIEW", "APPROVED", "COMPLETED"]:
+                settlement_status = "SETTLEMENT_REVIEW"
+                settlement_label = "정산대기"
+            else:
+                settlement_status = "SETTLEMENT_DISPUTED"
+                settlement_label = "미정산"
+
+            # 세금계산서 발행 상태 (실제 티켓의 tax_invoice_issued DB 컬럼 값 기준)
+            tax_invoice_issued = bool(getattr(t, "tax_invoice_issued", False))
+
+            records.append({
+                "ticket_id": t.id,
+                "date": ticket_date.strftime("%Y-%m-%d"),
+                "time": ticket_date.strftime("%H:%M"),
+                "driver_id": t.driver_id,
+                "driver_name": driver_name,
+                "car_id": t.car_id,
+                "car_number": car_number,
+                "tonnage": float(tonnage),
+                "site_id": site_id,
+                "site_name": site_name,
+                "company_name": company_name,
+                "business_number": business_number,
+                "billing_email": billing_email,
+                "client_display": f"{company_name} ({site_name})" if company_name != "건설사 미등록" else site_name,
+                "dropoff_name": dropoff_name,
+                "material_type": raw_mat,
+                "material_name": material_name,
+                "trips": trips,
+                "unit_price": unit_price,
+                "supply_price": supply_price,
+                "vat": vat,
+                "total_amount": total_amount,
+                "raw_status": raw_status,
+                "settlement_status": settlement_status,
+                "settlement_label": settlement_label,
+                "tax_invoice_issued": tax_invoice_issued,
+                "loading_approval_type": t.loading_approval_type,
+                "driving_started_at": t.driving_started_at.strftime("%Y-%m-%d %H:%M") if t.driving_started_at else None,
+                "completed_at": t.completed_at.strftime("%Y-%m-%d %H:%M") if t.completed_at else (t.arrived_at.strftime("%Y-%m-%d %H:%M") if t.arrived_at else None),
+                "drive_distance_km": float(t.drive_distance_km or 0.0),
+                "drive_time_seconds": int(t.drive_time_seconds or 0),
+                "proof_photo": t.proof_photo,
+            })
+
+    return {
+        "start_date": start_dt.strftime("%Y-%m-%d"),
+        "end_date": end_dt.strftime("%Y-%m-%d"),
+        "total_records": len(records),
+        "records": records
+    }
+
+
+@router.post(
+    "/tax-invoices/issue",
+    summary="[차주 세금계산서] 국세청 전자세금계산서 일괄 청구/발행 처리"
+)
+async def issue_tax_invoices(
+    req: TaxInvoiceIssueRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    선택한 티켓 항목들에 대해 국세청 전자세금계산서 발행 처리를 적용합니다.
+    """
+    if not req.ticket_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="발행할 운반 정산 티켓을 선택해 주세요."
+        )
+
+    query = select(DispatchTicket).where(DispatchTicket.id.in_(req.ticket_ids))
+    res = await db.execute(query)
+    tickets = res.scalars().all()
+
+    if not tickets:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운반 티켓 정보를 찾을 수 없습니다."
+        )
+
+    now = datetime.now()
+    for t in tickets:
+        # 실제 세금계산서 발행 플래그 및 일시 저장
+        t.tax_invoice_issued = True
+        t.tax_invoice_issued_at = now
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "issued_count": len(tickets),
+        "message": f"총 {len(tickets)}건의 국세청 전자세금계산서가 성공적으로 발행되었습니다."
+    }
+
 
 

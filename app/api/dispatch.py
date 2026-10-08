@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from app.core.db import get_db
 from app.models import (
     User, JobPost, DropOff, DropOffRequest, ConstructionSite, 
-    DriverFavoriteRegion, DispatchTicket, Driver, Car, CommonCode
+    DriverFavoriteRegion, DispatchTicket, Driver, Car, CommonCode,
+    SiteEmployee
 )
 from app.api.auth import get_current_user
 from app.schemas.dispatch import (
@@ -1306,6 +1307,28 @@ async def get_job_tickets(
         site = await db.get(ConstructionSite, job.site_id)
         if site and site.user_id == current_user.id:
             is_authorized = True
+        elif site and (current_user.is_site_manager or current_user.is_site_worker):
+            # 현장 소속 직원(SiteEmployee) 매핑 확인 (user_id 또는 전화번호)
+            import re
+            raw_phone = current_user.phone_number or ""
+            digits = re.sub(r"\D", "", raw_phone)
+            formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
+
+            emp_query = select(SiteEmployee).where(
+                SiteEmployee.site_id == job.site_id,
+                (
+                    (SiteEmployee.user_id == current_user.id) |
+                    (SiteEmployee.registered_phone == raw_phone) |
+                    (SiteEmployee.registered_phone == formatted_phone) |
+                    (SiteEmployee.registered_phone == digits)
+                )
+            )
+            emp_res = await db.execute(emp_query)
+            if emp_res.scalar_one_or_none():
+                is_authorized = True
+            elif current_user.is_site_manager:
+                # 현장관리자 계정은 현장 오더 조회 허용
+                is_authorized = True
 
     if not is_authorized and job.matched_drop_off_id:
         dropoff = await db.get(DropOff, job.matched_drop_off_id)

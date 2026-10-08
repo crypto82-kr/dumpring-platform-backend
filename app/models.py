@@ -584,6 +584,10 @@ class DispatchTicket(Base):
     dispute_amount = Column(Integer, nullable=True)  # 인정 금액 또는 실제 수령 금액
     disputed_at = Column(DateTime(timezone=True), nullable=True)  # 분쟁 신청 일시
 
+    # 세금계산서 정식 발행 관리 필드
+    tax_invoice_issued = Column(Boolean, default=False, nullable=False)  # 실제 세금계산서 발행 완료 여부
+    tax_invoice_issued_at = Column(DateTime(timezone=True), nullable=True)  # 발행 일시
+
     # Relationships
     job_post = relationship("JobPost")
     driver = relationship("User", foreign_keys=[driver_id])

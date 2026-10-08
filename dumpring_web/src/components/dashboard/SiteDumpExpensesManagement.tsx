@@ -64,6 +64,12 @@ export default function SiteDumpExpensesManagement({
         ? (sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken") || localStorage.getItem("token"))
         : null;
 
+      if (!token) {
+        alert("로그인 세션이 만료되었습니다. 다시 로그인해주세요.");
+        setIsProcessing(false);
+        return;
+      }
+
       const res = await fetch(`${baseUrl}/api/dispatch/settlements/tickets/status`, {
         method: "POST",
         headers: {
@@ -139,7 +145,7 @@ export default function SiteDumpExpensesManagement({
   const [companyExpenses, setCompanyExpenses] = useState<any[]>([]);
 
   // 백엔드 실제 DB 덤프비 정산 데이터 로드
-  const fetchSettlementData = useCallback(async () => {
+  const fetchSettlementData = useCallback(async (signal?: AbortSignal) => {
     try {
       const baseUrl = getApiBaseUrl();
       const token = typeof window !== "undefined"
@@ -148,6 +154,10 @@ export default function SiteDumpExpensesManagement({
 
       if (!token) {
         setIsLoading(false);
+        setSummaryData({ totalAmount: 0, driverCount: 0, companyCount: 0, completedTrips: 0, pendingSettlementTrips: 0 });
+        setSiteSummaries([]);
+        setDriverExpenses([]);
+        setCompanyExpenses([]);
         return;
       }
 
@@ -162,14 +172,15 @@ export default function SiteDumpExpensesManagement({
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        signal,
       });
 
       if (res.ok) {
         const data = await res.json();
-        setSummaryData(data.summary || {});
-        setSiteSummaries(data.siteSummaries || []);
-        setDriverExpenses(data.driverExpenses || []);
-        setCompanyExpenses(data.companyExpenses || []);
+        setSummaryData(data.summary || { totalAmount: 0, driverCount: 0, companyCount: 0, completedTrips: 0, pendingSettlementTrips: 0 });
+        setSiteSummaries(Array.isArray(data.siteSummaries) ? data.siteSummaries : []);
+        setDriverExpenses(Array.isArray(data.driverExpenses) ? data.driverExpenses : []);
+        setCompanyExpenses(Array.isArray(data.companyExpenses) ? data.companyExpenses : []);
       } else {
         console.warn("덤프비 정산 API 응답 상태:", res.status);
         setSummaryData({ totalAmount: 0, driverCount: 0, companyCount: 0, completedTrips: 0, pendingSettlementTrips: 0 });
@@ -177,18 +188,25 @@ export default function SiteDumpExpensesManagement({
         setDriverExpenses([]);
         setCompanyExpenses([]);
       }
-    } catch (e) {
-      console.warn("덤프비 정산 조회 알림:", e);
-      setSiteSummaries([]);
-      setDriverExpenses([]);
-      setCompanyExpenses([]);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        console.warn("덤프비 정산 조회 건너뜀 (서버 응답 없음 또는 인증 만료):", e?.message || e);
+        setSummaryData({ totalAmount: 0, driverCount: 0, companyCount: 0, completedTrips: 0, pendingSettlementTrips: 0 });
+        setSiteSummaries([]);
+        setDriverExpenses([]);
+        setCompanyExpenses([]);
+      }
     } finally {
       setIsLoading(false);
     }
   }, [selectedSiteId, startDateFilter, endDateFilter]);
 
   useEffect(() => {
-    fetchSettlementData();
+    const controller = new AbortController();
+    fetchSettlementData(controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, [fetchSettlementData]);
 
   // 검색어 필터링
@@ -225,7 +243,7 @@ export default function SiteDumpExpensesManagement({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={fetchSettlementData}
+            onClick={() => fetchSettlementData()}
             disabled={isLoading}
             className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all active:scale-95"
             title="새로고침"

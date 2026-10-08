@@ -356,9 +356,17 @@ export default function SiteHistoryManagement({
                           setIsLoadingTickets(true);
                           try {
                             const baseUrl = getApiBaseUrl();
-                            const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+                            const token = typeof window !== "undefined"
+                              ? (sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken") || localStorage.getItem("token"))
+                              : null;
+
+                            if (!token) {
+                              setInvoiceTickets([]);
+                              return;
+                            }
+
                             const res = await fetch(`${baseUrl}/api/dispatch/job/${item.id}/tickets`, {
-                              headers: token ? { Authorization: `Bearer ${token}` } : {},
+                              headers: { Authorization: `Bearer ${token}` },
                             });
                             if (res.ok) {
                               const tickets = await res.json();
@@ -366,8 +374,8 @@ export default function SiteHistoryManagement({
                             } else {
                               setInvoiceTickets([]);
                             }
-                          } catch (e) {
-                            console.error("송장 기사 티켓 조회 실패:", e);
+                          } catch (e: any) {
+                            console.warn("송장 기사 티켓 조회 알림:", e?.message || e);
                             setInvoiceTickets([]);
                           } finally {
                             setIsLoadingTickets(false);

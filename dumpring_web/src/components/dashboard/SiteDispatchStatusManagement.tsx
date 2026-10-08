@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock, CheckCircle2 } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock, CheckCircle2, RotateCcw } from "lucide-react";
 import { MockMap } from "./MockMap";
 import { getApiBaseUrl } from "@/utils/api";
 
@@ -68,18 +68,26 @@ export default function SiteDispatchStatusManagement({
   const [pricingPolicy, setPricingPolicy] = useState<any>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchPolicy = async () => {
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/common-codes/pricing-policy`);
+        const res = await fetch(`${getApiBaseUrl()}/api/common-codes/pricing-policy`, {
+          signal: controller.signal,
+        });
         if (res.ok) {
           const data = await res.json();
           setPricingPolicy(data);
         }
-      } catch (err) {
-        console.error("현장 배차 현황: 정책 로드 실패", err);
+      } catch (err: any) {
+        if (err?.name !== "AbortError") {
+          console.warn("현장 배차 현황: 정책 로드 건너뜀", err?.message || err);
+        }
       }
     };
     fetchPolicy();
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   // DB 연동: 실제 배차 신청 기사 티켓 목록
@@ -88,61 +96,130 @@ export default function SiteDispatchStatusManagement({
 
   const todayStr = new Date().toISOString().split("T")[0];
 
-  const filteredRequests = dispatchRequestList.filter((req) => {
-    // 1. 상태 기준: 최종 운행 종료(COMPLETED) 및 취소/반려(CANCELLED)된 건만 제외하고,
-    // 기사 배차 완료(CLOSED) 및 모집 완료(OPEN) 건은 반드시 관제 대상에 포함
-    const isCompletedStatus =
-      req.rawStatus === "COMPLETED" ||
-      req.rawStatus === "CANCELLED" ||
-      req.status === "운행완료" ||
-      req.status === "취소됨" ||
-      req.status === "매칭반려";
+  const filteredRequests = dispatchRequestList
+    .filter((req) => {
+      // 1. 상태 기준: 최종 운행 종료(COMPLETED) 및 취소/반려(CANCELLED)된 건만 제외하고,
+      // 기사 배차 완료(CLOSED) 및 모집 완료(OPEN) 건은 반드시 관제 대상에 포함
+      const isCompletedStatus =
+        req.rawStatus === "COMPLETED" ||
+        req.rawStatus === "CANCELLED" ||
+        req.status === "운행완료" ||
+        req.status === "취소됨" ||
+        req.status === "매칭반려";
 
-    if (isCompletedStatus) return false;
+      if (isCompletedStatus) return false;
 
-    // 2. 날짜 기준: 종료일/시작일이 현재일 이전(어제 이전)으로 완전히 지난 건은 제외
-    const targetDate = req.endDate || req.startDate;
-    if (targetDate && targetDate < todayStr) {
-      return false;
-    }
-    return true;
-  });
+      // 2. 하차지 매칭 여부: 하차지가 확정되지 않은 매칭대기(WAITING_MATCH) 상태 오더는 
+      // 기사 모집/배차 관제 대상이 아니므로 배차 현황 관제에서는 제외
+      if (req.rawStatus === "WAITING_MATCH" && !req.dropoffName && !req.matchedDropOffId && !req.dropOffRequestId) {
+        return false;
+      }
+
+      // 3. 날짜 기준: 종료일/시작일이 현재일 이전(어제 이전)으로 완전히 지난 건은 제외
+      const targetDate = req.endDate || req.startDate;
+      if (targetDate && targetDate < todayStr) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      // 기사 배차/운행 중인 오더(CLOSED, OPEN 등)를 매칭대기보다 우선 정렬하고, 최신순 배치
+      const statusWeight = (s?: string) => {
+        if (s === "CLOSED" || s === "마감") return 3;
+        if (s === "OPEN" || s === "매칭완료") return 2;
+        return 1;
+      };
+      const diff = statusWeight(b.rawStatus || b.status) - statusWeight(a.rawStatus || a.status);
+      if (diff !== 0) return diff;
+      return b.id - a.id;
+    });
 
   const activeSelectedId = selectedRequestId || (filteredRequests.length > 0 ? filteredRequests[0].id : null);
   const selectedReq = dispatchRequestList.find((r) => r.id === activeSelectedId) || null;
 
-  // 선택된 배차 요청이 바뀔 때 실제 DB 기사 티켓 조회
-  useEffect(() => {
-    if (!activeSelectedId) {
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
+  const [isManualRefreshing, setIsManualRefreshing] = useState<boolean>(false);
+
+  // 티켓 조회 함수 (재사용 가능하도록 분리)
+  const fetchTickets = useCallback(async (jobId: number, showLoading = true) => {
+    if (!jobId || isNaN(jobId) || jobId <= 0) {
       setJobTickets([]);
       return;
     }
+    if (showLoading) setIsLoadingTickets(true);
+    try {
+      const token = typeof window !== "undefined"
+        ? (sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken") || localStorage.getItem("token"))
+        : null;
 
-    const fetchTickets = async () => {
-      setIsLoadingTickets(true);
-      try {
-        const token = typeof window !== "undefined"
-          ? (sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken") || localStorage.getItem("token"))
-          : null;
-        const res = await fetch(`${getApiBaseUrl()}/api/dispatch/job/${activeSelectedId}/tickets`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setJobTickets(Array.isArray(data) ? data : []);
-        } else {
-          setJobTickets([]);
-        }
-      } catch (err) {
-        console.error("기사 티켓 조회 실패:", err);
+      if (!token) {
         setJobTickets([]);
-      } finally {
-        setIsLoadingTickets(false);
+        return;
       }
-    };
 
-    fetchTickets();
-  }, [activeSelectedId]);
+      const res = await fetch(`${getApiBaseUrl()}/api/dispatch/job/${jobId}/tickets`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setJobTickets(Array.isArray(data) ? data : []);
+      } else {
+        setJobTickets([]);
+      }
+      setLastRefreshedAt(new Date());
+    } catch (err: any) {
+      if (err?.name !== "AbortError") {
+        console.warn("기사 티켓 조회 건너뜀 (서버 응답 없음 또는 권한 필요):", err?.message || err);
+        setJobTickets([]);
+      }
+    } finally {
+      if (showLoading) setIsLoadingTickets(false);
+    }
+  }, []);
+
+  // 1. 선택된 배차 오더 변경 시 즉시 티켓 조회
+  useEffect(() => {
+    const validJobId = Number(activeSelectedId);
+    if (validJobId) {
+      fetchTickets(validJobId, true);
+    } else {
+      setJobTickets([]);
+    }
+  }, [activeSelectedId, fetchTickets]);
+
+  // 2. 30초 주기 실시간 자동 갱신 (배차 오더 목록 + 선택된 오더의 기사 티켓 상태)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // 배차 오더 목록 백그라운드 갱신
+      if (fetchDispatchRequests) {
+        fetchDispatchRequests().catch(() => {});
+      }
+      // 현재 선택된 오더의 기사 티켓 백그라운드 갱신 (스피너 없이 부드럽게 갱신)
+      const validJobId = Number(activeSelectedId);
+      if (validJobId) {
+        fetchTickets(validJobId, false);
+      }
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, [activeSelectedId, fetchDispatchRequests, fetchTickets]);
+
+  // 수동 즉시 새로고침 버튼 핸들러
+  const handleManualRefresh = async () => {
+    setIsManualRefreshing(true);
+    try {
+      if (fetchDispatchRequests) {
+        await fetchDispatchRequests().catch(() => {});
+      }
+      const validJobId = Number(activeSelectedId);
+      if (validJobId) {
+        await fetchTickets(validJobId, true);
+      }
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
 
   // 상차 승인 API 호출 핸들러
   const handleApproveTicket = async () => {
@@ -177,14 +254,9 @@ export default function SiteDispatchStatusManagement({
         setApprovalModalTicket(null);
         setApprovalMemo("");
         // 티켓 목록 새로고침
-        if (activeSelectedId) {
-          const tRes = await fetch(`${baseUrl}/api/dispatch/job/${activeSelectedId}/tickets`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          if (tRes.ok) {
-            const data = await tRes.json();
-            setJobTickets(Array.isArray(data) ? data : []);
-          }
+        const validJobId = Number(activeSelectedId);
+        if (validJobId) {
+          fetchTickets(validJobId, false);
         }
       } else {
         const err = await res.json();
@@ -201,12 +273,27 @@ export default function SiteDispatchStatusManagement({
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Top Title Bar */}
-      <div className="flex justify-between items-center border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900">배차 현황 관제</h2>
           <p className="text-xs text-slate-500 mt-1">
             하차지 매칭이 완료되어 기사 모집 및 운행 중인 현장 배차 건을 실시간으로 통합 관제합니다.
           </p>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="text-[11px] font-medium text-slate-400">
+            30초 자동 갱신 중 ({lastRefreshedAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })})
+          </span>
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={isManualRefreshing || isLoadingTickets}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+            title="배차 현황 및 기사 상태 즉시 새로고침"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 text-slate-600 ${isManualRefreshing ? "animate-spin" : ""}`} />
+            <span>새로고침</span>
+          </button>
         </div>
       </div>
 
@@ -221,11 +308,14 @@ export default function SiteDispatchStatusManagement({
               onChange={(e) => setSelectedRequestId(Number(e.target.value))}
               className="w-full bg-blue-50/80 border border-blue-200 rounded-xl px-3 py-2 text-xs font-extrabold text-blue-900 focus:outline-none focus:border-blue-600 shadow-sm"
             >
-              {filteredRequests.map((req) => (
-                <option key={req.id} value={req.id}>
-                  [{req.siteName} ➔ {req.dropoffName || "지정하차지"}] {req.tonTypes.map(t=>t==='T_25'?'25톤':t).join(',')} ({req.truckCount}대)
-                </option>
-              ))}
+              {filteredRequests.map((req) => {
+                const dateLabel = req.startDate ? `[${req.startDate}] ` : "";
+                return (
+                  <option key={req.id} value={req.id}>
+                    {dateLabel}[{req.siteName} ➔ {req.dropoffName || "지정하차지"}] {req.tonTypes.map(t=>t==='T_25'?'25톤':t==='T_15'?'15톤':t).join(',')} ({req.truckCount}대)
+                  </option>
+                );
+              })}
               {filteredRequests.length === 0 && <option value="">등록된 배차 정보 없음</option>}
             </select>
           </div>
