@@ -55,6 +55,10 @@ export interface SettlementRecord {
   settlement_status: "SETTLEMENT_CONFIRMED" | "SETTLEMENT_REVIEW" | "SETTLEMENT_DISPUTED";
   settlement_label: "정산완료" | "정산대기" | "미정산";
   tax_invoice_issued: boolean;
+  tax_invoice_issued_at?: string | null;
+  tax_invoice_confirmed_by_driver?: boolean;
+  tax_invoice_confirmed_at?: string | null;
+  tax_invoice_nts_code?: string | null;
   loading_approval_type?: string | null;  // 'QR' | 'OFFICE' (상차 승인 방식)
   driving_started_at?: string | null;     // 상차 승인 일시
   completed_at?: string | null;           // 하차 반입 승인 일시
@@ -405,6 +409,52 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
       }
       return next;
     });
+  };
+
+  // 차주 금액 확인 및 마감 승인 (발행대기 락 해제)
+  const handleConfirmByDriver = async (ticketIds: number[]) => {
+    if (ticketIds.length === 0) {
+      alert("금액 확인 및 마감 승인할 운반 건을 선택해 주세요.");
+      return;
+    }
+
+    if (!confirm(`선택한 ${ticketIds.length}건에 대해 배차 건수 및 운반 정산 금액을 최종 확인하고 마감 승인하시겠습니까?\n\n(마감 승인 시 현장관리자 세금계산서 업무에서 [발행대기] 상태로 전환되어 전자세금계산서 위수탁 발행이 가능해집니다.)`)) {
+      return;
+    }
+
+    try {
+      const token = typeof window !== "undefined"
+        ? (sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken") || localStorage.getItem("token"))
+        : null;
+
+      if (!token) {
+        alert("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+        return;
+      }
+
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/fleet/tax-invoices/driver-confirm`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ticket_ids: ticketIds
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "마감 승인 처리 중 오류가 발생했습니다.");
+      }
+
+      const resData = await res.json();
+      alert(resData.message || "성공적으로 마감 승인되었습니다.");
+      await fetchSettlementData();
+    } catch (err: any) {
+      alert(`마감 승인 실패: ${err.message}`);
+    }
   };
 
   // 세금계산서 일괄 발행 처리
@@ -938,18 +988,34 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
             </div>
 
             {invoiceSubTab === "UNISSUED" && (
-              <button
-                onClick={handleIssueTaxInvoices}
-                disabled={invoiceSelectedTicketIds.size === 0}
-                className={`px-6 py-2.5 rounded-xl text-sm font-black shadow-lg flex items-center gap-2 transition-all ${
-                  invoiceSelectedTicketIds.size > 0
-                    ? "bg-blue-600 hover:bg-blue-700 text-white scale-100 hover:scale-[1.02]"
-                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                선택 항목 국세청 세금계산서 일괄 발행 ({invoiceSelectedTicketIds.size}건)
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleConfirmByDriver(Array.from(invoiceSelectedTicketIds))}
+                  disabled={invoiceSelectedTicketIds.size === 0}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black shadow flex items-center gap-1.5 transition-all ${
+                    invoiceSelectedTicketIds.size > 0
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white scale-100 hover:scale-[1.02]"
+                      : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  선택 항목 금액확인 및 마감 승인 ({invoiceSelectedTicketIds.size}건)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleIssueTaxInvoices}
+                  disabled={invoiceSelectedTicketIds.size === 0}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-black shadow flex items-center gap-1.5 transition-all ${
+                    invoiceSelectedTicketIds.size > 0
+                      ? "bg-blue-600 hover:bg-blue-700 text-white scale-100 hover:scale-[1.02]"
+                      : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  국세청 세금계산서 일괄 발행 ({invoiceSelectedTicketIds.size}건)
+                </button>
+              </div>
             )}
           </div>
 
@@ -1192,6 +1258,60 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                       <span>합계 청구금액</span>
                       <span className="text-blue-700">₩{selectedInvoiceTicket.total_amount.toLocaleString()}</span>
                     </div>
+                  </div>
+
+                  {/* 국세청 전자세금계산서 승인번호 배너 (발행 완료 시) */}
+                  {selectedInvoiceTicket.tax_invoice_nts_code && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="w-4 h-4 text-blue-600 shrink-0" />
+                        <div>
+                          <span className="text-[10px] text-blue-600 font-extrabold block">국세청 전자세금계산서 승인번호</span>
+                          <span className="font-mono font-black text-slate-900">{selectedInvoiceTicket.tax_invoice_nts_code}</span>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold">
+                        국세청 전송완료
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 차주 마감 승인 및 발행대기 상태 액션 바 */}
+                  <div className="p-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800">
+                        위수탁 세금계산서 발행 대사 상태
+                      </span>
+                      {selectedInvoiceTicket.tax_invoice_issued ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-black border border-emerald-300">
+                          위수탁 발행완료
+                        </span>
+                      ) : selectedInvoiceTicket.tax_invoice_confirmed_by_driver ? (
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-black border border-blue-300">
+                          차주 승인완료 (현장 발행대기 중)
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-black border border-amber-300">
+                          마감대기 (차주 금액 미승인)
+                        </span>
+                      )}
+                    </div>
+
+                    {!selectedInvoiceTicket.tax_invoice_issued && !selectedInvoiceTicket.tax_invoice_confirmed_by_driver && (
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmByDriver([selectedInvoiceTicket.ticket_id])}
+                          className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black shadow flex items-center justify-center gap-1.5 transition-all"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          이 전표 금액 확인 및 마감 승인 (발행대기 전환)
+                        </button>
+                        <p className="text-[10px] text-slate-500 text-center mt-1">
+                          ※ 승인 시 현장관리자 세금계산서 업무에서 즉시 [발행대기]로 풀려 위수탁 일괄 발행이 가능해집니다.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* 위변조 방지 인증 뱃지 */}

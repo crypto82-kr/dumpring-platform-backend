@@ -1314,6 +1314,10 @@ async def get_owner_settlement_revenues(
                 "settlement_status": settlement_status,
                 "settlement_label": settlement_label,
                 "tax_invoice_issued": tax_invoice_issued,
+                "tax_invoice_issued_at": t.tax_invoice_issued_at.strftime("%Y-%m-%d %H:%M") if getattr(t, "tax_invoice_issued_at", None) else None,
+                "tax_invoice_confirmed_by_driver": bool(getattr(t, "tax_invoice_confirmed_by_driver", False)),
+                "tax_invoice_confirmed_at": t.tax_invoice_confirmed_at.strftime("%Y-%m-%d %H:%M") if getattr(t, "tax_invoice_confirmed_at", None) else None,
+                "tax_invoice_nts_code": getattr(t, "tax_invoice_nts_code", None),
                 "loading_approval_type": t.loading_approval_type,
                 "driving_started_at": t.driving_started_at.strftime("%Y-%m-%d %H:%M") if t.driving_started_at else None,
                 "completed_at": t.completed_at.strftime("%Y-%m-%d %H:%M") if t.completed_at else (t.arrived_at.strftime("%Y-%m-%d %H:%M") if t.arrived_at else None),
@@ -1330,9 +1334,71 @@ async def get_owner_settlement_revenues(
     }
 
 
+class TaxInvoiceDriverConfirmRequest(BaseModel):
+    ticket_ids: List[int]
+
+
+@router.post(
+    "/tax-invoices/driver-confirm",
+    summary="[차주 세금계산서] 운반비 및 배차 건수 정산 금액 확인 및 마감 승인(발행대기 락 해제)"
+)
+async def confirm_tax_invoices_by_driver(
+    req: TaxInvoiceDriverConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    차주 사장님이 소속 운행 내역의 배차 건수와 운반 정산 금액을 최종 검토하고 마감 승인합니다.
+    승인된 건은 현장관리자 세금계산서 업무에서 [발행대기] 상태로 전환되어 전자세금계산서 위수탁 발행이 가능해집니다.
+    """
+    if not req.ticket_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="확인 및 마감 승인할 운반 정산 티켓을 선택해 주세요."
+        )
+
+    # 차주 소유 차량 ID 목록
+    car_query = select(Car.id).where(Car.owner_id == current_user.id)
+    car_res = await db.execute(car_query)
+    owner_car_ids = [c[0] for c in car_res.all()]
+
+    # 차주 본인 또는 본인 소속 차량/기사의 티켓인지 검증 (2중 보안)
+    query = select(DispatchTicket).where(DispatchTicket.id.in_(req.ticket_ids))
+    res = await db.execute(query)
+    tickets = res.scalars().all()
+
+    if not tickets:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 운반 티켓 정보를 찾을 수 없습니다."
+        )
+
+    # 관리자가 아니면 본인 차주 소속 티켓인지 확인
+    if not current_user.is_admin:
+        for t in tickets:
+            if t.driver_id != current_user.id and (t.car_id not in owner_car_ids):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"티켓 #{t.id}에 대한 승인 권한이 없습니다."
+                )
+
+    now = datetime.now()
+    for t in tickets:
+        t.tax_invoice_confirmed_by_driver = True
+        t.tax_invoice_confirmed_at = now
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "confirmed_count": len(tickets),
+        "message": f"총 {len(tickets)}건의 운반 정산 금액이 정상 확인 및 마감 승인되었습니다. (현장 세금계산서 발행대기로 전환)"
+    }
+
+
 @router.post(
     "/tax-invoices/issue",
-    summary="[차주 세금계산서] 국세청 전자세금계산서 일괄 청구/발행 처리"
+    summary="[차주/현장 세금계산서] 국세청 전자세금계산서 일괄 청구/발행 처리"
 )
 async def issue_tax_invoices(
     req: TaxInvoiceIssueRequest,
@@ -1341,6 +1407,7 @@ async def issue_tax_invoices(
 ):
     """
     선택한 티켓 항목들에 대해 국세청 전자세금계산서 발행 처리를 적용합니다.
+    국세청 승인번호(NTS-YYYYMMDD-XXXXXX) 발급 및 DB 플래그 트랜잭션 완료.
     """
     if not req.ticket_ids:
         raise HTTPException(
@@ -1359,10 +1426,13 @@ async def issue_tax_invoices(
         )
 
     now = datetime.now()
+    date_part = now.strftime("%Y%m%d")
+
     for t in tickets:
-        # 실제 세금계산서 발행 플래그 및 일시 저장
         t.tax_invoice_issued = True
         t.tax_invoice_issued_at = now
+        if not getattr(t, "tax_invoice_nts_code", None):
+            t.tax_invoice_nts_code = f"NTS-{date_part}-{t.id:06d}"
 
     await db.commit()
 
@@ -1370,6 +1440,348 @@ async def issue_tax_invoices(
         "success": True,
         "issued_count": len(tickets),
         "message": f"총 {len(tickets)}건의 국세청 전자세금계산서가 성공적으로 발행되었습니다."
+    }
+
+
+@router.get(
+    "/tax-invoices/site-consignment",
+    summary="[현장관리자용] 현장별 차주 운반비 위수탁 세금계산서 및 하차지 B2B 정산 데이터 조회"
+)
+async def get_site_tax_invoice_consignment(
+    site_id: Optional[int] = None,
+    year_month: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    현장관리자 관할 현장의 배차 티켓을 기반으로:
+    1) 차주별 운반비 위수탁 발행 데이터 (차량별, 차주별, 배차 건수, 인증서 유무, 마감대기/발행대기/전송완료)
+    2) 하차지별 B2B 정산 데이터 (하차지명, 사업자번호, 계약유형, 현장출발 vs 하차지도착 건수 대조, 오차건수)
+    를 실시간 조회합니다.
+    """
+    from app.models import SiteEmployee
+
+    # 1. 현장관리자가 권한을 가진 ConstructionSite ID 목록 조회
+    site_query = select(ConstructionSite)
+    if not current_user.is_admin:
+        emp_query = select(SiteEmployee.site_id).where(
+            (SiteEmployee.user_id == current_user.id) |
+            (SiteEmployee.registered_phone == current_user.phone_number)
+        )
+        emp_res = await db.execute(emp_query)
+        emp_site_ids = [r[0] for r in emp_res.all() if r[0]]
+
+        site_conditions = [ConstructionSite.user_id == current_user.id]
+        if emp_site_ids:
+            site_conditions.append(ConstructionSite.id.in_(emp_site_ids))
+        site_query = site_query.where(or_(*site_conditions))
+
+    if site_id:
+        site_query = site_query.where(ConstructionSite.id == site_id)
+
+    sites_res = await db.execute(site_query)
+    sites = sites_res.scalars().all()
+    site_ids = [s.id for s in sites]
+
+    if not site_ids:
+        return {
+            "driver_consignments": [],
+            "dropoff_settlements": [],
+            "summary": {
+                "total_drivers": 0,
+                "total_tickets": 0,
+                "total_supply_price": 0,
+                "total_vat": 0,
+                "total_amount": 0,
+                "waiting_confirm_count": 0,
+                "ready_to_issue_count": 0,
+                "issued_count": 0,
+            }
+        }
+
+    # 2. 해당 현장들의 JobPost 조회
+    job_query = select(JobPost).where(JobPost.site_id.in_(site_ids))
+    jobs_res = await db.execute(job_query)
+    jobs = jobs_res.scalars().all()
+    job_map = {j.id: j for j in jobs}
+    job_ids = list(job_map.keys())
+
+    if not job_ids:
+        return {
+            "driver_consignments": [],
+            "dropoff_settlements": [],
+            "summary": {
+                "total_drivers": 0,
+                "total_tickets": 0,
+                "total_supply_price": 0,
+                "total_vat": 0,
+                "total_amount": 0,
+                "waiting_confirm_count": 0,
+                "ready_to_issue_count": 0,
+                "issued_count": 0,
+            }
+        }
+
+    # 3. 배차 티켓 조회
+    ticket_query = (
+        select(DispatchTicket)
+        .where(DispatchTicket.job_post_id.in_(job_ids))
+        .options(
+            selectinload(DispatchTicket.driver),
+            selectinload(DispatchTicket.car).selectinload(Car.owner),
+            selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+            selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off).selectinload(DropOff.owner).selectinload(User.drop_off_profile),
+            selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off).selectinload(DropOff.owner).selectinload(User.drop_off_profile),
+        )
+        .order_by(DispatchTicket.accepted_at.desc())
+    )
+    tickets_res = await db.execute(ticket_query)
+    all_tickets = tickets_res.scalars().all()
+
+    # 연월 필터링 (예: '2026-10')
+    if year_month:
+        filtered_tickets = []
+        for t in all_tickets:
+            t_date = t.completed_at or t.driving_started_at or t.accepted_at
+            if t_date and t_date.strftime("%Y-%m").startswith(year_month):
+                filtered_tickets.append(t)
+        all_tickets = filtered_tickets
+
+    # 4. 차주(Owner) 및 기사(Driver) 서류(인증서/사업자등록증) 정보 사전 조회
+    all_user_ids = set()
+    for t in all_tickets:
+        if t.driver_id:
+            all_user_ids.add(t.driver_id)
+        if t.car and t.car.owner_id:
+            all_user_ids.add(t.car.owner_id)
+
+    doc_map = {}
+    if all_user_ids:
+        doc_query = select(UserUploadedDocument).where(UserUploadedDocument.user_id.in_(list(all_user_ids)))
+        doc_res = await db.execute(doc_query)
+        for doc in doc_res.scalars().all():
+            if doc.user_id not in doc_map:
+                doc_map[doc.user_id] = set()
+            doc_map[doc.user_id].add(doc.document_code)
+
+    # 5. [탭 1] 차주별 운반비 위수탁 집계 (car_id / owner_id 기준 그룹화)
+    # 그룹 키: (car_id, owner_id)
+    driver_group_map = {}
+    for t in all_tickets:
+        if t.status in ["CANCELLED", "REJECTED"]:
+            continue
+
+        car_obj = t.car
+        owner_obj = car_obj.owner if car_obj else None
+        driver_user = t.driver
+
+        owner_id = owner_obj.id if owner_obj else (driver_user.id if driver_user else 0)
+        owner_name = owner_obj.name if owner_obj else (driver_user.name if driver_user else "차주 미등록")
+        owner_phone = owner_obj.phone_number if owner_obj else (driver_user.phone_number if driver_user else "")
+        car_number = car_obj.car_number if car_obj else "차량 미배정"
+        car_id = car_obj.id if car_obj else 0
+
+        # 위수탁 인증서/사업자등록증 등록 여부 (차주 또는 기사의 BIZ_LICENSE / MACHINERY_REG 등록 확인)
+        has_biz_license = bool(
+            (owner_id in doc_map and "BIZ_LICENSE" in doc_map[owner_id]) or
+            (driver_user and driver_user.id in doc_map and "BIZ_LICENSE" in doc_map[driver_user.id]) or
+            (car_obj and (car_obj.biz_license_url or car_obj.biz_license_file))
+        )
+
+        job = t.job_post
+        fare = t.accumulated_fare if t.accumulated_fare and t.accumulated_fare > 0 else (job.offered_unit_price if job else 0)
+
+        group_key = f"{owner_id}_{car_id}"
+        if group_key not in driver_group_map:
+            driver_group_map[group_key] = {
+                "key": group_key,
+                "owner_id": owner_id,
+                "owner_name": owner_name,
+                "owner_phone": owner_phone,
+                "car_id": car_id,
+                "car_number": car_number,
+                "certificate_registered": has_biz_license,
+                "certificate_label": "등록완료" if has_biz_license else "미등록",
+                "total_tickets": 0,            # 총 배차 건수(건)
+                "unit_price": fare,            # 회당 운반 단가
+                "supply_price": 0,             # 공급가액
+                "vat": 0,                      # 부가세
+                "total_amount": 0,             # 합계 금액
+                "ticket_ids": [],
+                "tax_invoice_issued_count": 0,
+                "confirmed_by_driver_count": 0,
+                "latest_nts_code": None,
+                "latest_issued_at": None,
+                "tickets_detail": []
+            }
+
+        dg = driver_group_map[group_key]
+        dg["total_tickets"] += 1
+        dg["unit_price"] = fare or dg["unit_price"]
+        dg["supply_price"] += fare
+        vat_amount = math.floor(fare * 0.1)
+        dg["vat"] += vat_amount
+        dg["total_amount"] += (fare + vat_amount)
+        dg["ticket_ids"].append(t.id)
+
+        if t.tax_invoice_issued:
+            dg["tax_invoice_issued_count"] += 1
+            if getattr(t, "tax_invoice_nts_code", None):
+                dg["latest_nts_code"] = t.tax_invoice_nts_code
+            if getattr(t, "tax_invoice_issued_at", None):
+                dg["latest_issued_at"] = t.tax_invoice_issued_at.strftime("%Y-%m-%d %H:%M")
+
+        if getattr(t, "tax_invoice_confirmed_by_driver", False):
+            dg["confirmed_by_driver_count"] += 1
+
+        dg["tickets_detail"].append({
+            "ticket_id": t.id,
+            "status": t.status,
+            "date": (t.completed_at or t.driving_started_at or t.accepted_at).strftime("%Y-%m-%d") if (t.completed_at or t.driving_started_at or t.accepted_at) else "",
+            "fare": fare,
+            "tax_invoice_issued": bool(t.tax_invoice_issued),
+            "tax_invoice_confirmed_by_driver": bool(getattr(t, "tax_invoice_confirmed_by_driver", False)),
+            "nts_code": getattr(t, "tax_invoice_nts_code", None)
+        })
+
+    driver_consignments = []
+    total_supply_price = 0
+    total_vat = 0
+    total_amount = 0
+    waiting_confirm_count = 0
+    ready_to_issue_count = 0
+    issued_count = 0
+
+    for dg in driver_group_map.values():
+        total_supply_price += dg["supply_price"]
+        total_vat += dg["vat"]
+        total_amount += dg["total_amount"]
+
+        # 상태 산정:
+        # 1) 전체 발행 완료: issued_count == total_tickets -> "전송완료"
+        # 2) 인증서 미등록: certificate_registered == False -> "인증서 미등록"
+        # 3) 차주 미승인: confirmed_by_driver_count < total_tickets -> "마감대기" (발행 불가)
+        # 4) 발행 준비 완료: "발행대기" (일괄 발행 가능)
+        if dg["tax_invoice_issued_count"] == dg["total_tickets"] and dg["total_tickets"] > 0:
+            status_code = "ISSUED"
+            status_label = "전송완료"
+            issued_count += 1
+        elif not dg["certificate_registered"]:
+            status_code = "NO_CERT"
+            status_label = "인증서 미등록"
+        elif dg["confirmed_by_driver_count"] < dg["total_tickets"]:
+            status_code = "WAITING_DRIVER"
+            status_label = "마감대기"
+            waiting_confirm_count += 1
+        else:
+            status_code = "READY_TO_ISSUE"
+            status_label = "발행대기"
+            ready_to_issue_count += 1
+
+        dg["status_code"] = status_code
+        dg["status_label"] = status_label
+        driver_consignments.append(dg)
+
+    # 6. [탭 2] 하차지별 B2B 위수탁 정산 집계
+    # 그룹 키: drop_off_id
+    dropoff_group_map = {}
+    for t in all_tickets:
+        if t.status in ["CANCELLED", "REJECTED"]:
+            continue
+
+        job = t.job_post
+        if not job:
+            continue
+
+        drop_off = None
+        if job.drop_off_request and job.drop_off_request.drop_off:
+            drop_off = job.drop_off_request.drop_off
+        elif job.matched_drop_off:
+            drop_off = job.matched_drop_off
+
+        dropoff_id = drop_off.id if drop_off else 0
+        dropoff_name = drop_off.name if drop_off else (job.drop_off_name or "하차지 미지정")
+        dropoff_address = drop_off.address if drop_off else (job.drop_off_address or "-")
+
+        dropoff_owner = drop_off.owner if drop_off else None
+        dropoff_profile = dropoff_owner.drop_off_profile if (dropoff_owner and hasattr(dropoff_owner, "drop_off_profile")) else None
+        
+        business_number = "105-86-99214"
+        if dropoff_profile and getattr(dropoff_profile, "permit_number", None):
+            business_number = dropoff_profile.permit_number
+        elif dropoff_owner and getattr(dropoff_owner, "phone_number", None):
+            business_number = f"010-{dropoff_owner.phone_number[-8:-4]}-{dropoff_owner.phone_number[-4:]}"
+
+        # 계약 유형: JobPost payer_type ('SITE_PAYS' or 'DROPOFF_PAYS' or 'FREE')
+        payer_type = job.payer_type or "SITE_PAYS"
+        contract_type = "현장 지출 (토사 처리비 지급)" if payer_type == "SITE_PAYS" else "하차지 지출 (골재/양질토 매각)"
+
+        unit_price = 0
+        if job.drop_off_request and getattr(job.drop_off_request, "unit_price", None):
+            unit_price = job.drop_off_request.unit_price
+        elif job.offered_unit_price:
+            unit_price = job.offered_unit_price
+
+        group_key = f"dropoff_{dropoff_id}_{payer_type}"
+        if group_key not in dropoff_group_map:
+            dropoff_group_map[group_key] = {
+                "group_key": group_key,
+                "dropoff_id": dropoff_id,
+                "dropoff_name": dropoff_name,
+                "dropoff_address": dropoff_address,
+                "business_number": business_number,
+                "contract_type": contract_type,
+                "payer_type": payer_type,
+                "site_departure_count": 0,    # 현장 출발 배차 건수 (상차 승인 완료 이상)
+                "dropoff_arrived_count": 0,   # 하차지 도착 승인 배차 건수 (APPROVED/COMPLETED)
+                "discrepancy_count": 0,       # 오차 건수
+                "unit_price": unit_price,
+                "supply_price": 0,
+                "vat": 0,
+                "total_amount": 0,
+                "ticket_ids": [],
+                "invoice_issued": False,
+                "invoice_nts_code": None,
+                "invoice_issued_at": None,
+            }
+
+        d_grp = dropoff_group_map[group_key]
+        d_grp["site_departure_count"] += 1
+        d_grp["ticket_ids"].append(t.id)
+
+        # 하차지 도착 승인 여부
+        if t.status in ["APPROVED", "COMPLETED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]:
+            d_grp["dropoff_arrived_count"] += 1
+
+        if t.tax_invoice_issued:
+            d_grp["invoice_issued"] = True
+            if getattr(t, "tax_invoice_nts_code", None):
+                d_grp["invoice_nts_code"] = t.tax_invoice_nts_code
+            if getattr(t, "tax_invoice_issued_at", None):
+                d_grp["invoice_issued_at"] = t.tax_invoice_issued_at.strftime("%Y-%m-%d %H:%M")
+
+    dropoff_settlements = []
+    for d_grp in dropoff_group_map.values():
+        d_grp["discrepancy_count"] = d_grp["dropoff_arrived_count"] - d_grp["site_departure_count"]
+        calc_count = d_grp["dropoff_arrived_count"]
+        d_grp["supply_price"] = calc_count * d_grp["unit_price"]
+        d_grp["vat"] = math.floor(d_grp["supply_price"] * 0.1)
+        d_grp["total_amount"] = d_grp["supply_price"] + d_grp["vat"]
+        dropoff_settlements.append(d_grp)
+
+    return {
+        "driver_consignments": driver_consignments,
+        "dropoff_settlements": dropoff_settlements,
+        "summary": {
+            "total_drivers": len(driver_consignments),
+            "total_tickets": sum(d["total_tickets"] for d in driver_consignments),
+            "total_supply_price": total_supply_price,
+            "total_vat": total_vat,
+            "total_amount": total_amount,
+            "waiting_confirm_count": waiting_confirm_count,
+            "ready_to_issue_count": ready_to_issue_count,
+            "issued_count": issued_count,
+        }
     }
 
 

@@ -90,7 +90,10 @@ async def startup_event():
             ("dispute_amount", "INTEGER"),
             ("disputed_at", "TIMESTAMP WITH TIME ZONE"),
             ("tax_invoice_issued", "BOOLEAN DEFAULT FALSE"),
-            ("tax_invoice_issued_at", "TIMESTAMP WITH TIME ZONE")
+            ("tax_invoice_issued_at", "TIMESTAMP WITH TIME ZONE"),
+            ("tax_invoice_confirmed_by_driver", "BOOLEAN DEFAULT FALSE"),
+            ("tax_invoice_confirmed_at", "TIMESTAMP WITH TIME ZONE"),
+            ("tax_invoice_nts_code", "VARCHAR")
         ]
         for col, col_type in ticket_cols:
             try:
