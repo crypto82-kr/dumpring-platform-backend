@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 
-// 1. 차주별 운반비 위수탁 발행 레코드 인터페이스
+// 1. 차주별 운반비 정산 및 세금계산서 발행 레코드 인터페이스
 export interface DriverConsignmentItem {
   key: string;
   owner_id: number;
@@ -88,7 +88,7 @@ interface SiteTaxInvoiceManagementProps {
 export default function SiteTaxInvoiceManagement({
   registeredSiteList = [],
 }: SiteTaxInvoiceManagementProps) {
-  // 상단 대메뉴 탭: "DRIVERS"(차주별 운반비 위수탁 발행) vs "DROPOFFS"(하차지별 B2B 위수탁 정산)
+  // 상단 대메뉴 탭: "DRIVERS"(차주별 운반비 세금계산서 발행) vs "DROPOFFS"(하차지별 B2B 정산 관리)
   const [activeMainTab, setActiveMainTab] = useState<"DRIVERS" | "DROPOFFS">("DRIVERS");
 
   // 현장 선택 (기본값: 첫 번째 현장 또는 전체)
@@ -231,7 +231,7 @@ export default function SiteTaxInvoiceManagement({
     if (!item) return;
 
     if (!item.certificate_registered) {
-      alert("해당 차주는 위수탁 인증서(사업자등록증)가 미등록 상태이므로 세금계산서를 발행할 수 없습니다.");
+      alert("해당 차주는 전자세금계산서용 사업자등록증이 미등록 상태이므로 세금계산서를 발행할 수 없습니다.");
       return;
     }
     if (item.status_code === "WAITING_DRIVER") {
@@ -254,11 +254,11 @@ export default function SiteTaxInvoiceManagement({
     });
   };
 
-  // [⚡ 선택 항목 위수탁 일괄 발행] 실행 핸들러
+  // [⚡ 선택 항목 전자세금계산서 일괄 발행] 실행 핸들러
   const handleBulkIssueTaxInvoices = async () => {
     const selectedList = driverList.filter((d) => selectedDriverKeys.has(d.key));
     if (selectedList.length === 0) {
-      alert("위수탁 세금계산서를 발행할 차주 항목을 선택해 주세요.\n(발행대기 및 인증서 등록완료 건만 선택 가능)");
+      alert("전자세금계산서를 발행할 차주 항목을 선택해 주세요.\n(발행대기 및 사업자등록증 등록 완료 건만 선택 가능)");
       return;
     }
 
@@ -271,7 +271,7 @@ export default function SiteTaxInvoiceManagement({
 
     const invalidCert = selectedList.filter((d) => !d.certificate_registered);
     if (invalidCert.length > 0) {
-      alert(`인증서 미등록 건이 포함되어 있어 발행할 수 없습니다.\n차량: ${invalidCert.map((d) => d.car_number).join(", ")}`);
+      alert(`사업자등록증 미등록 건이 포함되어 있어 발행할 수 없습니다.\n차량: ${invalidCert.map((d) => d.car_number).join(", ")}`);
       return;
     }
 
@@ -279,11 +279,11 @@ export default function SiteTaxInvoiceManagement({
     const totalAmountSum = selectedList.reduce((acc, d) => acc + d.total_amount, 0);
 
     const confirmMsg =
-      `[위수탁 전자세금계산서 일괄 발행 확인]\n\n` +
+      `[국세청 전자세금계산서 일괄 발행 확인]\n\n` +
       `· 선택 차주 수: ${selectedList.length}명\n` +
       `· 총 배차 건수: ${allTicketIds.length}건\n` +
       `· 합계 공급금액(VAT포함): ₩${totalAmountSum.toLocaleString()}원\n\n` +
-      `국세청(홈택스) 전자세금계산서 연계 승인번호를 부여하고 정식 위수탁 발행(매입)을 완료하시겠습니까?`;
+      `국세청(홈택스) 전자세금계산서 승인번호를 부여하고 정식 전자세금계산서 일괄 발행을 완료하시겠습니까?`;
 
     if (!confirm(confirmMsg)) {
       return;
@@ -307,17 +307,17 @@ export default function SiteTaxInvoiceManagement({
         },
         body: JSON.stringify({
           ticket_ids: allTicketIds,
-          notes: "현장관리자 위수탁 전자세금계산서 일괄 정식 발행",
+          notes: "현장관리자 전자세금계산서 일괄 정식 발행",
         }),
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "세금계산서 발행 처리 실패");
+        throw new Error(errData.detail || "전자세금계산서 발행 처리 실패");
       }
 
       const resData = await res.json();
-      alert(`성공적으로 위수탁 전자세금계산서가 발행되었습니다!\n${resData.message}`);
+      alert(`성공적으로 전자세금계산서가 발행되었습니다!\n${resData.message}`);
       setSelectedDriverKeys(new Set());
       await fetchTaxInvoiceData();
     } catch (err: any) {
@@ -327,7 +327,7 @@ export default function SiteTaxInvoiceManagement({
     }
   };
 
-  // 하차지 B2B 발행 핸들러 (현장지출 매입 vs 하차지지출 매출)
+  // 하차지 B2B 세금계산서 발행 핸들러 (현장지출 매입 vs 하차지지출 매출)
   const handleIssueDropoffInvoice = async (item: DropoffSettlementItem) => {
     if (item.ticket_ids.length === 0) {
       alert("발행 가능한 배차 건수가 없습니다.");
@@ -335,8 +335,8 @@ export default function SiteTaxInvoiceManagement({
     }
 
     const isSiteExpense = item.payer_type === "SITE_PAYS";
-    const actionTitle = isSiteExpense ? "위수탁 매입 승인(발행)" : "위수탁 매출 계산서 발행";
-    const invoiceType = isSiteExpense ? "매입세금계산서" : "매출세금계산서";
+    const actionTitle = isSiteExpense ? "매입세금계산서 승인(발행)" : "매출세금계산서 발행";
+    const invoiceType = isSiteExpense ? "매입 전자세금계산서" : "매출 전자세금계산서";
 
     const msg =
       `[하차지 B2B ${actionTitle}]\n\n` +
@@ -373,11 +373,11 @@ export default function SiteTaxInvoiceManagement({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "하차지 세금계산서 발행 실패");
+        throw new Error(errData.detail || "하차지 전자세금계산서 발행 실패");
       }
 
       const resData = await res.json();
-      alert(`[하차지 B2B 세금계산서 발행 완료]\n${resData.message}`);
+      alert(`[하차지 B2B 전자세금계산서 발행 완료]\n${resData.message}`);
       await fetchTaxInvoiceData();
     } catch (err: any) {
       alert(`발행 실패: ${err.message}`);
@@ -401,13 +401,13 @@ export default function SiteTaxInvoiceManagement({
         <div>
           <div className="flex items-center gap-2.5">
             <Receipt className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">현장 세금계산서 업무</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">현장 전자세금계산서 업무</h2>
             <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-black rounded-full border border-blue-200">
-              위수탁 정산 표준
+              국세청 연계 표준
             </span>
           </div>
           <p className="text-xs font-semibold text-slate-500 mt-1">
-            국세청 전자세금계산서 법정 양식에 의거하여, 차주별 운반비 위수탁 발행 및 하차지별 B2B 상·하차 물량 정산 대사를 관리합니다.
+            국세청 전자세금계산서 법정 양식에 의거하여, 차주별 운반비 전자세금계산서 발행 및 하차지별 B2B 상·하차 물량 정산 대사를 관리합니다.
           </p>
         </div>
 
@@ -423,7 +423,7 @@ export default function SiteTaxInvoiceManagement({
             }`}
           >
             <Truck className="w-4 h-4" />
-            차주별 운반비 위수탁 발행
+            차주별 운반비 세금계산서
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20">
               {driverList.length}대
             </span>
@@ -438,7 +438,7 @@ export default function SiteTaxInvoiceManagement({
             }`}
           >
             <Building2 className="w-4 h-4" />
-            하차지별 B2B 위수탁 정산
+            하차지별 B2B 정산 관리
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20">
               {dropoffList.length}곳
             </span>
@@ -449,7 +449,7 @@ export default function SiteTaxInvoiceManagement({
       {/* 2. 공통 요약 KPI 카드 대시보드 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border-2 border-slate-300 shadow-sm space-y-1">
-          <span className="text-[11px] font-bold text-slate-500 block">총 위수탁 정산 대상</span>
+          <span className="text-[11px] font-bold text-slate-500 block">총 정산 대상 차주</span>
           <div className="flex items-baseline justify-between">
             <span className="text-xl font-black text-slate-900">{summary.total_drivers}명</span>
             <span className="text-xs font-extrabold text-blue-600">총 {summary.total_tickets} 배차건</span>
@@ -533,7 +533,7 @@ export default function SiteTaxInvoiceManagement({
                   <option value="ALL">전체 상태 보기</option>
                   <option value="READY_TO_ISSUE">⚡ 발행대기 (승인완료)</option>
                   <option value="WAITING_DRIVER">🔒 마감대기 (차주미승인)</option>
-                  <option value="NO_CERT">⚠️ 인증서 미등록</option>
+                  <option value="NO_CERT">⚠️ 사업자등록증 미등록</option>
                   <option value="ISSUED">✓ 국세청 전송완료</option>
                 </select>
               </div>
@@ -576,7 +576,7 @@ export default function SiteTaxInvoiceManagement({
       </div>
 
       {/* ========================================================================= */}
-      {/* [TAB 1] 차주별 운반비 위수탁 발행 (Drivers API Settlement) */}
+      {/* [TAB 1] 차주별 운반비 세금계산서 발행 (Drivers API Settlement) */}
       {/* ========================================================================= */}
       {activeMainTab === "DRIVERS" && (
         <div className="bg-white rounded-2xl border-2 border-slate-300 shadow-sm overflow-hidden space-y-0">
@@ -603,7 +603,7 @@ export default function SiteTaxInvoiceManagement({
                 }`}
               >
                 <Receipt className="w-4 h-4" />
-                ⚡ 선택 항목 위수탁 일괄 발행 ({selectedDriverKeys.size}건)
+                ⚡ 선택 항목 전자세금계산서 일괄 발행 ({selectedDriverKeys.size}건)
               </button>
             </div>
           </div>
@@ -628,7 +628,7 @@ export default function SiteTaxInvoiceManagement({
                   </th>
                   <th className="py-3 px-4">차량번호</th>
                   <th className="py-3 px-4">차주명 / 연락처</th>
-                  <th className="py-3 px-4 text-center">위수탁 인증서</th>
+                  <th className="py-3 px-4 text-center">사업자등록증</th>
                   <th className="py-3 px-4 text-right">총 배차 건수</th>
                   <th className="py-3 px-4 text-right">운반 단가(회당)</th>
                   <th className="py-3 px-4 text-right">공급가액</th>
@@ -643,7 +643,7 @@ export default function SiteTaxInvoiceManagement({
                 {isLoading ? (
                   <tr>
                     <td colSpan={12} className="py-16 text-center text-slate-400 font-bold">
-                      위수탁 세금계산서 실데이터를 불러오는 중입니다...
+                      전자세금계산서 실데이터를 불러오는 중입니다...
                     </td>
                   </tr>
                 ) : filteredDrivers.length === 0 ? (
@@ -694,7 +694,7 @@ export default function SiteTaxInvoiceManagement({
                           <span className="text-[11px] text-slate-500 font-mono">{d.owner_phone || "-"}</span>
                         </td>
 
-                        {/* 위수탁 인증서 등록 여부 */}
+                        {/* 사업자등록증 등록 여부 */}
                         <td className="py-3.5 px-4 text-center">
                           {d.certificate_registered ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -748,7 +748,7 @@ export default function SiteTaxInvoiceManagement({
                             </span>
                           ) : (
                             <span className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-100 text-rose-800 border border-rose-300">
-                              인증서 미등록
+                              등록증 미등록
                             </span>
                           )}
                         </td>
@@ -805,7 +805,7 @@ export default function SiteTaxInvoiceManagement({
       )}
 
       {/* ========================================================================= */}
-      {/* [TAB 2] 하차지별 B2B 위수탁 정산 (Sites B2B API Settlement) */}
+      {/* [TAB 2] 하차지별 B2B 정산 관리 (Sites B2B API Settlement) */}
       {/* ========================================================================= */}
       {activeMainTab === "DROPOFFS" && (
         <div className="bg-white rounded-2xl border-2 border-slate-300 shadow-sm overflow-hidden space-y-0">
@@ -920,7 +920,7 @@ export default function SiteTaxInvoiceManagement({
                               onClick={() => handleIssueDropoffInvoice(item)}
                               className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-black shadow inline-flex transition-all"
                             >
-                              위수탁 매입 승인(발행)
+                              매입세금계산서 승인(발행)
                             </button>
                           ) : (
                             <button
@@ -928,7 +928,7 @@ export default function SiteTaxInvoiceManagement({
                               onClick={() => handleIssueDropoffInvoice(item)}
                               className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow inline-flex transition-all"
                             >
-                              위수탁 매출 계산서 발행
+                              매출세금계산서 발행
                             </button>
                           )}
                         </td>
@@ -952,7 +952,7 @@ export default function SiteTaxInvoiceManagement({
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-blue-600" />
                 <h3 className="font-black text-base text-slate-900">
-                  위수탁 운반 티켓 명세서 ({detailModalDriver.car_number} - {detailModalDriver.owner_name})
+                  전자 운반 정산 명세서 ({detailModalDriver.car_number} - {detailModalDriver.owner_name})
                 </h3>
               </div>
               <button
@@ -972,7 +972,7 @@ export default function SiteTaxInvoiceManagement({
                   <span className="text-base font-black text-blue-700">{detailModalDriver.total_tickets}건</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">인증서 등록 상태</span>
+                  <span className="text-slate-500 block">사업자등록증 상태</span>
                   <span className="text-sm font-black text-slate-900">
                     {detailModalDriver.certificate_label}
                   </span>

@@ -1280,11 +1280,11 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                   <div className="p-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-slate-800">
-                        위수탁 세금계산서 발행 대사 상태
+                        전자세금계산서 발행 및 마감 상태
                       </span>
                       {selectedInvoiceTicket.tax_invoice_issued ? (
                         <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-black border border-emerald-300">
-                          위수탁 발행완료
+                          전자세금계산서 발행완료
                         </span>
                       ) : selectedInvoiceTicket.tax_invoice_confirmed_by_driver ? (
                         <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-black border border-blue-300">
