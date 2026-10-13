@@ -102,6 +102,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "공고 관리", icon: FileText, path: "/dropoff/dispatch-request" },
     { title: "배차 현황", icon: Truck, path: "/dropoff/dispatch" },
     { title: "흙값 정산 관리", icon: DollarSign, path: "/dropoff/soil-settlement" },
+    { title: "세금계산서 업무", icon: Receipt, path: "/dropoff/tax-invoice" },
     { title: "하차지 정보 통계", icon: BarChart3, path: "/dropoff/stats" },
   ],
   owner: [

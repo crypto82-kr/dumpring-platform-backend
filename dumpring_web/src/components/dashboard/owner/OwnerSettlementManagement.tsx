@@ -23,7 +23,8 @@ import {
   Navigation,
   MapPin,
   ChevronRight,
-  X
+  X,
+  AlertTriangle
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 
@@ -52,8 +53,8 @@ export interface SettlementRecord {
   vat: number;               // 부가세 10% (원단위 절사)
   total_amount: number;      // 합계금액 (공급가액 + 부가세)
   raw_status: string;
-  settlement_status: "SETTLEMENT_CONFIRMED" | "SETTLEMENT_REVIEW" | "SETTLEMENT_DISPUTED";
-  settlement_label: "정산완료" | "정산대기" | "미정산";
+  settlement_status: "SETTLEMENT_CONFIRMED" | "SETTLEMENT_PAID" | "SETTLEMENT_REVIEW" | "SETTLEMENT_DISPUTED";
+  settlement_label: "정산완료" | "입금확인 대기" | "정산대기" | "정산 이의" | "미정산";
   tax_invoice_issued: boolean;
   tax_invoice_issued_at?: string | null;
   tax_invoice_confirmed_by_driver?: boolean;
@@ -65,6 +66,10 @@ export interface SettlementRecord {
   drive_distance_km?: number;             // GPS 실주행 거리
   drive_time_seconds?: number;            // 운행 소요 시간(초)
   proof_photo?: string | null;
+  dispute_type?: string | null;
+  dispute_reason?: string | null;
+  dispute_amount?: number | null;
+  disputed_at?: string | null;
 }
 
 // 거래처(현장)별 합산 그룹 인터페이스
@@ -107,10 +112,12 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
   });
   const [endDate, setEndDate] = useState<string>(todayStr);
 
-  // 화면 1: 상태 필터 (전체, 정산대기, 정산완료, 미정산)
+  // 화면 1: 상태 필터 (전체, 입금확인 대기, 정산완료, 정산대기, 정산 이의, 미정산)
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([
+    "입금확인 대기",
     "정산대기",
     "정산완료",
+    "정산 이의",
     "미정산"
   ]);
 
@@ -120,8 +127,16 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
   // 화면 1: 체크박스 일괄 선택 (티켓 ID 목록)
   const [selectedTicketIds, setSelectedTicketIds] = useState<Set<number>>(new Set());
 
+  // 처리 중 로딩 상태
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
   // 행 상세 모달 (Row Click 시 팝업)
   const [detailModalRecord, setDetailModalRecord] = useState<SettlementRecord | null>(null);
+
+  // 차주 정산 이의제기 모달 상태
+  const [disputeModalRecord, setDisputeModalRecord] = useState<SettlementRecord | null>(null);
+  const [disputeInputReason, setDisputeInputReason] = useState<string>("운행 회차 및 대기시간 미포함에 따른 금액 불일치");
+  const [disputeInputAmount, setDisputeInputAmount] = useState<string>("");
 
   // 화면 2: 전자 운행전표 상세 검수 (선택된 항목)
   const [selectedInvoiceTicket, setSelectedInvoiceTicket] = useState<SettlementRecord | null>(null);
@@ -206,7 +221,7 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
   };
 
   // 상태 체크박스 토글
-  const toggleStatusFilter = (status: "정산대기" | "정산완료" | "미정산") => {
+  const toggleStatusFilter = (status: "정산대기" | "입금확인 대기" | "정산완료" | "정산 이의" | "미정산") => {
     setSelectedStatuses(prev =>
       prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
     );
@@ -409,6 +424,71 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
       }
       return next;
     });
+  };
+
+  // 차주 정산 수령 확인 및 이의제기 상태 업데이트
+  const handleUpdateSettlementStatus = async (
+    ticketIds: number[],
+    targetStatus: "SETTLEMENT_CONFIRMED" | "SETTLEMENT_DISPUTED",
+    extraData?: { dispute_reason?: string; dispute_amount?: number }
+  ) => {
+    if (ticketIds.length === 0) {
+      alert("처리할 정산 건을 선택해 주세요.");
+      return;
+    }
+
+    const actionTitle = targetStatus === "SETTLEMENT_CONFIRMED"
+      ? "입금 수령확인 (정산완료 확정)"
+      : "정산 금액 이의제기 (분쟁신청)";
+
+    if (targetStatus === "SETTLEMENT_CONFIRMED") {
+      if (!confirm(`선택한 ${ticketIds.length}건에 대해 현장 송금액 수령을 확인하고 최종 [정산완료] 처리하시겠습니까?`)) {
+        return;
+      }
+    }
+
+    setIsProcessing(true);
+    try {
+      const token = typeof window !== "undefined"
+        ? (sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken") || localStorage.getItem("token"))
+        : null;
+
+      if (!token) {
+        alert("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+        setIsProcessing(false);
+        return;
+      }
+
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/dispatch/settlements/tickets/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ticket_ids: ticketIds,
+          target_status: targetStatus,
+          dispute_type: "DRIVER",
+          dispute_reason: extraData?.dispute_reason,
+          dispute_amount: extraData?.dispute_amount
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `${actionTitle} 처리 중 오류가 발생했습니다.`);
+      }
+
+      alert(`${ticketIds.length}건에 대해 ${actionTitle} 처리가 완료되었습니다.`);
+      setDisputeModalRecord(null);
+      setDetailModalRecord(null);
+      await fetchSettlementData();
+    } catch (err: any) {
+      alert(`${actionTitle} 실패: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // 차주 금액 확인 및 마감 승인 (발행대기 락 해제)
@@ -651,13 +731,15 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                 <input
                   type="checkbox"
                   checked={
+                    selectedStatuses.includes("입금확인 대기") &&
                     selectedStatuses.includes("정산대기") &&
                     selectedStatuses.includes("정산완료") &&
+                    selectedStatuses.includes("정산 이의") &&
                     selectedStatuses.includes("미정산")
                   }
                   onChange={e => {
                     if (e.target.checked) {
-                      setSelectedStatuses(["정산대기", "정산완료", "미정산"]);
+                      setSelectedStatuses(["입금확인 대기", "정산대기", "정산완료", "정산 이의", "미정산"]);
                     } else {
                       setSelectedStatuses([]);
                     }
@@ -665,6 +747,28 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                   className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
                 />
                 전체
+              </label>
+
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-indigo-700 select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedStatuses.includes("입금확인 대기")}
+                  onChange={() => toggleStatusFilter("입금확인 대기")}
+                  className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                />
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span>
+                입금확인 대기
+              </label>
+
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-blue-700 select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedStatuses.includes("정산완료")}
+                  onChange={() => toggleStatusFilter("정산완료")}
+                  className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                />
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
+                정산완료
               </label>
 
               <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-orange-700 select-none">
@@ -678,15 +782,15 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                 정산대기
               </label>
 
-              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-blue-700 select-none">
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-amber-700 select-none">
                 <input
                   type="checkbox"
-                  checked={selectedStatuses.includes("정산완료")}
-                  onChange={() => toggleStatusFilter("정산완료")}
-                  className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                  checked={selectedStatuses.includes("정산 이의")}
+                  onChange={() => toggleStatusFilter("정산 이의")}
+                  className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
                 />
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
-                정산완료
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                정산 이의
               </label>
 
               <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-rose-700 select-none">
@@ -758,6 +862,29 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
             </div>
           </div>
 
+          {/* 선택 항목 일괄 작업 바 (선택된 티켓이 있을 때 노출) */}
+          {selectedTicketIds.size > 0 && (
+            <div className="p-3 bg-blue-50 border-2 border-blue-300 rounded-xl flex items-center justify-between animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-black text-blue-900">
+                  선택된 운반 내역: {selectedTicketIds.size}건
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isProcessing}
+                  onClick={() => handleUpdateSettlementStatus(Array.from(selectedTicketIds), "SETTLEMENT_CONFIRMED")}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black shadow flex items-center gap-1.5 transition-all"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  선택건 일괄 입금확인 (정산완료 확정)
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 메인 데이터 그리드 테이블 */}
           <div className="bg-white rounded-2xl border-2 border-slate-300 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -776,17 +903,18 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                       />
                     </th>
                     <th className="py-3.5 px-3 whitespace-nowrap">운반 일자</th>
-                    <th className="py-3.5 px-3 whitespace-nowrap">거래처 / 현장명</th>
-                    <th className="py-3.5 px-3 whitespace-nowrap">하차지</th>
+                    <th className="py-3.5 px-3 whitespace-nowrap">배정 차량 / 기사</th>
+                    <th className="py-3.5 px-3 whitespace-nowrap">운송 구간 (상차현장 ➔ 하차지)</th>
                     <th className="py-3.5 px-3 whitespace-nowrap">토사/자재 종류</th>
                     <th className="py-3.5 px-3 text-center whitespace-nowrap">운행 횟수</th>
-                    <th className="py-3.5 px-3 text-right whitespace-nowrap">단가 (KRW)</th>
+                    <th className="py-3.5 px-3 text-right whitespace-nowrap">운반 단가 (KRW)</th>
                     <th className="py-3.5 px-3 text-right whitespace-nowrap">공급가액 (KRW)</th>
                     <th className="py-3.5 px-3 text-right whitespace-nowrap">부가세 (10%)</th>
                     <th className="py-3.5 px-3 text-right whitespace-nowrap font-black text-blue-900">
                       합계 금액 (KRW)
                     </th>
                     <th className="py-3.5 px-3 text-center whitespace-nowrap">정산 상태</th>
+                    <th className="py-3.5 px-3 text-center whitespace-nowrap">정산 처리 / 이의</th>
                     <th className="py-3.5 px-3 text-center whitespace-nowrap">전자 전표</th>
                   </tr>
                 </thead>
@@ -854,49 +982,74 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                             </span>
                           </td>
 
-                          <td className="py-3 px-3 max-w-[200px] truncate">
-                            <div className="font-extrabold text-slate-900">
-                              {r.company_name}
+                          {/* 배정 차량 / 기사 */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                              <Truck className="w-3.5 h-3.5 text-blue-600" />
+                              <span>{r.car_number}</span>
+                              <span className="text-[10px] text-slate-500 font-semibold">({r.tonnage}톤)</span>
                             </div>
-                            <div className="text-xs font-semibold text-slate-600 truncate">
+                            <div className="text-xs font-semibold text-slate-600">
+                              {r.driver_name}
+                            </div>
+                          </td>
+
+                          {/* 운송 구간 (상차현장 -> 하차지) */}
+                          <td className="py-3 px-3 max-w-[220px]">
+                            <div className="font-extrabold text-slate-900 truncate" title={`${r.company_name} - ${r.site_name}`}>
                               {r.site_name}
+                              <span className="text-[10px] text-slate-500 font-normal ml-1">({r.company_name})</span>
+                            </div>
+                            <div className="text-xs font-semibold text-emerald-700 truncate flex items-center gap-1 mt-0.5">
+                              <span>➔</span>
+                              <span>{r.dropoff_name || "사토장 미지정"}</span>
                             </div>
                           </td>
 
-                          <td className="py-3 px-3 whitespace-nowrap text-slate-700 font-semibold">
-                            {r.dropoff_name || "사토장 미지정"}
-                          </td>
-
+                          {/* 토사/자재 종류 */}
                           <td className="py-3 px-3 whitespace-nowrap">
                             <span className="px-2 py-0.5 bg-slate-100 border border-slate-300 rounded font-bold text-slate-800">
                               {r.material_name}
                             </span>
                           </td>
 
+                          {/* 운행 횟수 */}
                           <td className="py-3 px-3 text-center font-extrabold text-slate-900 whitespace-nowrap">
                             {r.trips || 1}회
                           </td>
 
+                          {/* 운반 단가 */}
                           <td className="py-3 px-3 text-right font-extrabold text-slate-700 whitespace-nowrap">
                             ₩{r.unit_price.toLocaleString()}
                           </td>
 
+                          {/* 공급가액 */}
                           <td className="py-3 px-3 text-right font-black text-slate-900 whitespace-nowrap">
                             ₩{r.supply_price.toLocaleString()}
                           </td>
 
+                          {/* 부가세 (10%) */}
                           <td className="py-3 px-3 text-right font-bold text-slate-600 whitespace-nowrap">
                             ₩{r.vat.toLocaleString()}
                           </td>
 
+                          {/* 합계 금액 */}
                           <td className="py-3 px-3 text-right font-black text-blue-700 text-sm whitespace-nowrap">
                             ₩{r.total_amount.toLocaleString()}
                           </td>
 
+                          {/* 정산 상태 */}
                           <td className="py-3 px-3 text-center whitespace-nowrap">
                             {r.settlement_label === "정산완료" && (
-                              <span className="px-2.5 py-1 text-xs font-black bg-blue-100 text-blue-700 rounded-md border border-blue-300">
+                              <span className="px-2.5 py-1 text-xs font-black bg-blue-100 text-blue-700 rounded-md border border-blue-300 inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-blue-600" />
                                 정산완료
+                              </span>
+                            )}
+                            {r.settlement_label === "입금확인 대기" && (
+                              <span className="px-2.5 py-1 text-xs font-black bg-indigo-100 text-indigo-700 rounded-md border border-indigo-300 inline-flex items-center gap-1 animate-pulse">
+                                <Clock className="w-3 h-3 text-indigo-600" />
+                                입금확인 대기
                               </span>
                             )}
                             {r.settlement_label === "정산대기" && (
@@ -904,10 +1057,72 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                                 정산대기
                               </span>
                             )}
+                            {r.settlement_label === "정산 이의" && (
+                              <div className="flex flex-col items-center">
+                                <span className="px-2 py-0.5 text-xs font-black bg-amber-100 text-amber-800 rounded-md border border-amber-300 inline-flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  정산 이의
+                                </span>
+                                {r.dispute_reason && (
+                                  <span className="text-[10px] text-amber-700 font-semibold max-w-[120px] truncate mt-0.5" title={r.dispute_reason}>
+                                    사유: {r.dispute_reason}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             {r.settlement_label === "미정산" && (
                               <span className="px-2.5 py-1 text-xs font-black bg-rose-100 text-rose-700 rounded-md border border-rose-300">
                                 미정산
                               </span>
+                            )}
+                          </td>
+
+                          {/* 정산 처리 / 이의 버튼 컬럼 */}
+                          <td className="py-3 px-3 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                            {r.raw_status === "SETTLEMENT_PAID" || r.settlement_label === "입금확인 대기" ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={isProcessing}
+                                  onClick={() => handleUpdateSettlementStatus([r.ticket_id], "SETTLEMENT_CONFIRMED")}
+                                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-black shadow-sm transition-all"
+                                  title="현장 송금 확인 및 정산완료 확정"
+                                >
+                                  수령 확인
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isProcessing}
+                                  onClick={() => {
+                                    setDisputeModalRecord(r);
+                                    setDisputeInputReason("운행 대기시간 또는 회차 운임 미포함에 따른 정산금액 불일치");
+                                    setDisputeInputAmount(String(r.total_amount));
+                                  }}
+                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded text-[11px] font-bold transition-all"
+                                  title="금액 불일치 이의제기 접수"
+                                >
+                                  이의제기
+                                </button>
+                              </div>
+                            ) : r.settlement_label === "정산완료" ? (
+                              <span className="text-[11px] text-emerald-600 font-extrabold flex items-center justify-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                입금확인 종결
+                              </span>
+                            ) : r.settlement_label === "정산 이의" ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDisputeModalRecord(r);
+                                  setDisputeInputReason(r.dispute_reason || "");
+                                  setDisputeInputAmount(String(r.dispute_amount || r.total_amount));
+                                }}
+                                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-[11px] font-bold transition-all"
+                              >
+                                이의내용 보기
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 font-semibold">-</span>
                             )}
                           </td>
 
@@ -989,6 +1204,7 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
 
             {invoiceSubTab === "UNISSUED" && (
               <div className="flex items-center gap-2">
+                {/* 1단계: 차주 금액 확인 및 마감 승인 버튼 */}
                 <button
                   type="button"
                   onClick={() => handleConfirmByDriver(Array.from(invoiceSelectedTicketIds))}
@@ -1000,21 +1216,38 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                   }`}
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  선택 항목 금액확인 및 마감 승인 ({invoiceSelectedTicketIds.size}건)
+                  1단계: 금액확인 및 마감 승인 ({invoiceSelectedTicketIds.size}건)
                 </button>
-                <button
-                  type="button"
-                  onClick={handleIssueTaxInvoices}
-                  disabled={invoiceSelectedTicketIds.size === 0}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-black shadow flex items-center gap-1.5 transition-all ${
-                    invoiceSelectedTicketIds.size > 0
-                      ? "bg-blue-600 hover:bg-blue-700 text-white scale-100 hover:scale-[1.02]"
-                      : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  국세청 세금계산서 일괄 발행 ({invoiceSelectedTicketIds.size}건)
-                </button>
+
+                {/* 2단계: 국세청 세금계산서 일괄 발행 버튼 (마감 승인된 건만 활성화) */}
+                {(() => {
+                  const selectedTickets = unissuedRecords.filter(r => invoiceSelectedTicketIds.has(r.ticket_id));
+                  const allConfirmed = selectedTickets.length > 0 && selectedTickets.every(r => r.tax_invoice_confirmed_by_driver);
+                  const isReady = invoiceSelectedTicketIds.size > 0 && allConfirmed;
+
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!allConfirmed) {
+                          alert("선택된 건 중 아직 [마감 승인]을 완료하지 않은 운반 건이 있습니다.\n먼저 [1단계: 금액확인 및 마감 승인]을 완료해 주세요.");
+                          return;
+                        }
+                        handleIssueTaxInvoices();
+                      }}
+                      disabled={invoiceSelectedTicketIds.size === 0}
+                      className={`px-5 py-2.5 rounded-xl text-xs font-black shadow flex items-center gap-1.5 transition-all ${
+                        isReady
+                          ? "bg-blue-600 hover:bg-blue-700 text-white scale-100 hover:scale-[1.02]"
+                          : "bg-slate-100 text-slate-400 border border-slate-300 cursor-not-allowed"
+                      }`}
+                      title={!allConfirmed ? "먼저 1단계 마감 승인을 완료해야 발행이 가능합니다." : "국세청 전자세금계산서 발행"}
+                    >
+                      <FileText className="w-4 h-4" />
+                      2단계: 세금계산서 일괄 발행 ({invoiceSelectedTicketIds.size}건)
+                    </button>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -1416,6 +1649,63 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                 </table>
               </div>
 
+              {/* 정산 상태 및 액션 배너 */}
+              <div className="p-3.5 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] text-slate-500 block font-bold">현재 정산 상태</span>
+                  <span className="text-sm font-black text-slate-900 flex items-center gap-1.5 mt-0.5">
+                    {detailModalRecord.settlement_label === "정산완료" ? (
+                      <span className="text-blue-600 flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4" /> 정산완료 (입금확인 완료)
+                      </span>
+                    ) : detailModalRecord.settlement_label === "입금확인 대기" ? (
+                      <span className="text-indigo-600 flex items-center gap-1">
+                        <Clock className="w-4 h-4" /> 현장 송금완료 (차주 입금 수령확인 대기)
+                      </span>
+                    ) : detailModalRecord.settlement_label === "정산 이의" ? (
+                      <span className="text-amber-700 flex items-center gap-1">
+                        <AlertTriangle className="w-4 h-4" /> 정산 이의 / 분쟁 접수됨
+                      </span>
+                    ) : (
+                      <span className="text-slate-700">{detailModalRecord.settlement_label}</span>
+                    )}
+                  </span>
+                  {detailModalRecord.dispute_reason && (
+                    <p className="text-[11px] text-amber-700 font-semibold mt-1">
+                      이의 사유: {detailModalRecord.dispute_reason}
+                    </p>
+                  )}
+                </div>
+
+                {(detailModalRecord.raw_status === "SETTLEMENT_PAID" || detailModalRecord.settlement_label === "입금확인 대기") && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={() => handleUpdateSettlementStatus([detailModalRecord.ticket_id], "SETTLEMENT_CONFIRMED")}
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-black text-xs shadow flex items-center gap-1.5 transition-all"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      입금 수령확인 (승인)
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={() => {
+                        const rec = detailModalRecord;
+                        setDetailModalRecord(null);
+                        setDisputeModalRecord(rec);
+                        setDisputeInputReason("운행 대기시간 또는 회차 운임 미포함에 따른 정산금액 불일치");
+                        setDisputeInputAmount(String(rec.total_amount));
+                      }}
+                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg font-bold text-xs transition-all"
+                    >
+                      금액 이의제기
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-[11px] text-blue-900 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                 <span>
@@ -1430,6 +1720,111 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-black text-xs transition-colors"
               >
                 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* [ 모달 2: 차주 정산 금액 이의제기 (분쟁신청) 팝업 모달 ] */}
+      {/* ========================================================================= */}
+      {disputeModalRecord && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border-2 border-slate-400 animate-fadeIn">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-rose-50/70">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+                <h3 className="font-black text-base text-rose-950">
+                  운반비 정산 금액 이의제기 (티켓 #{disputeModalRecord.ticket_id})
+                </h3>
+              </div>
+              <button
+                onClick={() => setDisputeModalRecord(null)}
+                className="p-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs font-bold text-slate-800">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">거래처 / 현장</span>
+                  <span className="font-black text-slate-900">{disputeModalRecord.site_name} ({disputeModalRecord.company_name})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">배정 차량 / 운반일</span>
+                  <span className="font-black text-slate-900">{disputeModalRecord.car_number} ({disputeModalRecord.date})</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-2">
+                  <span className="text-slate-500">전표 청구 합계금액</span>
+                  <span className="text-sm font-black text-blue-700">₩{disputeModalRecord.total_amount.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-extrabold mb-1">
+                  실제 요구 정산 금액 (KRW)
+                </label>
+                <input
+                  type="number"
+                  value={disputeInputAmount}
+                  onChange={e => setDisputeInputAmount(e.target.value)}
+                  placeholder="예: 233735 (차액 포함 실제 지급 요구액)"
+                  className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-extrabold mb-1">
+                  이의제기 사유
+                </label>
+                <textarea
+                  rows={3}
+                  value={disputeInputReason}
+                  onChange={e => setDisputeInputReason(e.target.value)}
+                  placeholder="예: 현장 하차 대기시간 2시간 분 및 편도 회차비가 미포함되어 차액 정산을 요청합니다."
+                  className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  이의제기 등록 시 현장관리자의 정산 대장에 [정산 이의/분쟁]으로 즉시 통보되며, 추가 송금 또는 상호 협의 후 정산이 완료됩니다.
+                </span>
+              </div>
+            </div>
+
+            <div className="px-6 py-3.5 bg-slate-100 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDisputeModalRecord(null)}
+                className="px-4 py-2 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-bold text-xs transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => {
+                  if (!disputeInputReason.trim()) {
+                    alert("이의제기 사유를 입력해 주세요.");
+                    return;
+                  }
+                  handleUpdateSettlementStatus(
+                    [disputeModalRecord.ticket_id],
+                    "SETTLEMENT_DISPUTED",
+                    {
+                      dispute_reason: disputeInputReason,
+                      dispute_amount: Number(disputeInputAmount) || disputeModalRecord.total_amount
+                    }
+                  );
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-black text-xs shadow transition-colors"
+              >
+                이의제기 등록
               </button>
             </div>
           </div>

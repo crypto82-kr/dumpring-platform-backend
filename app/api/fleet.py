@@ -1113,6 +1113,7 @@ async def get_owner_operation_statistics(
 class TaxInvoiceIssueRequest(BaseModel):
     ticket_ids: List[int]
     notes: Optional[str] = None
+    invoice_type: Optional[str] = "DRIVER"  # "DRIVER" (차주 운반비) or "DROPOFF" (하차지 B2B)
 
 
 @router.get(
@@ -1258,28 +1259,37 @@ async def get_owner_settlement_revenues(
             raw_mat = job.material_type if job else "GOOD_SOIL"
             material_name = material_map.get(raw_mat, raw_mat)
 
-            # 단가 및 금액 계산 (원단위 절사)
-            # 단가: job_post.offered_unit_price가 있으면 사용, 없으면 티켓 운임
-            unit_price = int(job.offered_unit_price) if (job and job.offered_unit_price) else int(t.accumulated_fare or 0)
-            if unit_price <= 0:
-                unit_price = int(t.accumulated_fare or 0)
+            # 운송비 단가 및 금액 계산:
+            # t.accumulated_fare가 실제 현장-차주 간 주행 운반비 (미터기 누적 운임 또는 배차 운임)
+            # job.offered_unit_price는 하차지(사토장) 토사 반입단가이므로 차주 운반단가로 쓰면 안 됨!
+            transport_fare = int(t.accumulated_fare or 0)
+            if transport_fare <= 0 and job:
+                transport_fare = int(job.offered_unit_price or 0)
 
             trips = 1  # 1 티켓 당 1회
-            supply_price = int(unit_price * trips)
+            supply_price = transport_fare
             vat = int(math.floor(supply_price * 0.1))  # 부가세 10% 원단위 절사
             total_amount = supply_price + vat
+            unit_price = supply_price  # 회당 운반 단가
 
             # 정산 상태 표준화
             raw_status = t.status
-            # 정산완료: SETTLEMENT_APPROVED, SETTLEMENT_PAID, SETTLEMENT_CONFIRMED
-            # 정산대기: SETTLEMENT_REQUESTED, SETTLEMENT_REVIEW, APPROVED, COMPLETED
-            # 미정산: SETTLEMENT_DISPUTED, REJECTED, CANCELLED 등
-            if raw_status in ["SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]:
+            # 정산완료: SETTLEMENT_CONFIRMED (차주/기사가 최종 입금 확인 완료)
+            # 입금확인 대기: SETTLEMENT_PAID (현장 송금 완료 후 차주 수령확인 대기)
+            # 정산대기: SETTLEMENT_REQUESTED, SETTLEMENT_REVIEW, SETTLEMENT_APPROVED, APPROVED, COMPLETED
+            # 미정산 / 이의제기: SETTLEMENT_DISPUTED, REJECTED, CANCELLED 등
+            if raw_status == "SETTLEMENT_CONFIRMED":
                 settlement_status = "SETTLEMENT_CONFIRMED"
                 settlement_label = "정산완료"
-            elif raw_status in ["SETTLEMENT_REQUESTED", "SETTLEMENT_REVIEW", "APPROVED", "COMPLETED"]:
+            elif raw_status == "SETTLEMENT_PAID":
+                settlement_status = "SETTLEMENT_PAID"
+                settlement_label = "입금확인 대기"
+            elif raw_status in ["SETTLEMENT_APPROVED", "SETTLEMENT_REQUESTED", "SETTLEMENT_REVIEW", "APPROVED", "COMPLETED"]:
                 settlement_status = "SETTLEMENT_REVIEW"
                 settlement_label = "정산대기"
+            elif raw_status == "SETTLEMENT_DISPUTED":
+                settlement_status = "SETTLEMENT_DISPUTED"
+                settlement_label = "정산 이의"
             else:
                 settlement_status = "SETTLEMENT_DISPUTED"
                 settlement_label = "미정산"
@@ -1324,6 +1334,10 @@ async def get_owner_settlement_revenues(
                 "drive_distance_km": float(t.drive_distance_km or 0.0),
                 "drive_time_seconds": int(t.drive_time_seconds or 0),
                 "proof_photo": t.proof_photo,
+                "dispute_type": getattr(t, "dispute_type", None),
+                "dispute_reason": getattr(t, "dispute_reason", None),
+                "dispute_amount": getattr(t, "dispute_amount", None),
+                "disputed_at": t.disputed_at.strftime("%Y-%m-%d %H:%M") if getattr(t, "disputed_at", None) else None,
             })
 
     return {
@@ -1428,18 +1442,27 @@ async def issue_tax_invoices(
     now = datetime.now()
     date_part = now.strftime("%Y%m%d")
 
+    is_dropoff = req.invoice_type == "DROPOFF"
+
     for t in tickets:
-        t.tax_invoice_issued = True
-        t.tax_invoice_issued_at = now
-        if not getattr(t, "tax_invoice_nts_code", None):
-            t.tax_invoice_nts_code = f"NTS-{date_part}-{t.id:06d}"
+        if is_dropoff:
+            t.dropoff_invoice_issued = True
+            t.dropoff_invoice_issued_at = now
+            if not getattr(t, "dropoff_invoice_nts_code", None):
+                t.dropoff_invoice_nts_code = f"NTS-{date_part}-{t.id:06d}-DROP"
+        else:
+            t.tax_invoice_issued = True
+            t.tax_invoice_issued_at = now
+            if not getattr(t, "tax_invoice_nts_code", None):
+                t.tax_invoice_nts_code = f"NTS-{date_part}-{t.id:06d}"
 
     await db.commit()
 
+    target_title = "하차지 B2B" if is_dropoff else "차주 운반비"
     return {
         "success": True,
         "issued_count": len(tickets),
-        "message": f"총 {len(tickets)}건의 국세청 전자세금계산서가 성공적으로 발행되었습니다."
+        "message": f"총 {len(tickets)}건의 {target_title} 국세청 전자세금계산서가 성공적으로 발행되었습니다."
     }
 
 
@@ -1565,10 +1588,10 @@ async def get_site_tax_invoice_consignment(
             doc_map[doc.user_id].add(doc.document_code)
 
     # 5. [탭 1] 차주별 운반비 위수탁 집계 (car_id / owner_id 기준 그룹화)
-    # 그룹 키: (car_id, owner_id)
+    # 정산이 최종 완료(SETTLEMENT_CONFIRMED)된 운송 건만 세금계산서 발행 대상에 포함!
     driver_group_map = {}
     for t in all_tickets:
-        if t.status in ["CANCELLED", "REJECTED"]:
+        if t.status != "SETTLEMENT_CONFIRMED":
             continue
 
         car_obj = t.car
@@ -1747,18 +1770,19 @@ async def get_site_tax_invoice_consignment(
 
         d_grp = dropoff_group_map[group_key]
         d_grp["site_departure_count"] += 1
-        d_grp["ticket_ids"].append(t.id)
-
-        # 하차지 도착 승인 여부
-        if t.status in ["APPROVED", "COMPLETED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]:
+        # 하차지 도착 승인 여부 (APPROVED, COMPLETED 등 반입 승인된 티켓만 정산 티켓으로 인정)
+        is_arrived = t.status in ["APPROVED", "COMPLETED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]
+        if is_arrived:
             d_grp["dropoff_arrived_count"] += 1
+            d_grp["ticket_ids"].append(t.id)
 
-        if t.tax_invoice_issued:
+        # 하차지 B2B 전용 세금계산서 발행 플래그 확인
+        if getattr(t, "dropoff_invoice_issued", False):
             d_grp["invoice_issued"] = True
-            if getattr(t, "tax_invoice_nts_code", None):
-                d_grp["invoice_nts_code"] = t.tax_invoice_nts_code
-            if getattr(t, "tax_invoice_issued_at", None):
-                d_grp["invoice_issued_at"] = t.tax_invoice_issued_at.strftime("%Y-%m-%d %H:%M")
+            if getattr(t, "dropoff_invoice_nts_code", None):
+                d_grp["invoice_nts_code"] = t.dropoff_invoice_nts_code
+            if getattr(t, "dropoff_invoice_issued_at", None):
+                d_grp["invoice_issued_at"] = t.dropoff_invoice_issued_at.strftime("%Y-%m-%d %H:%M")
 
     dropoff_settlements = []
     for d_grp in dropoff_group_map.values():
@@ -1781,6 +1805,255 @@ async def get_site_tax_invoice_consignment(
             "waiting_confirm_count": waiting_confirm_count,
             "ready_to_issue_count": ready_to_issue_count,
             "issued_count": issued_count,
+        }
+    }
+
+
+@router.get(
+    "/tax-invoices/dropoff-summary",
+    summary="[하차지 관리자용] 하차지별 상차지(공사현장) B2B 전자세금계산서 및 반입 물량 정산 대장 조회"
+)
+async def get_dropoff_tax_invoice_summary(
+    dropoff_id: Optional[int] = None,
+    year_month: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    하차지 지주/관리자 관할 하차지의 반입 배차 티켓을 기반으로:
+    1) 상차지(공사현장)별 B2B 전자세금계산서 발행/수취 내역
+    2) 계약 유형(하차지 지출 매입 vs 현장 지출 매출)
+    3) 상차지 출발 배차 건수 vs 하차지 도착 승인 배차 건수 실시간 물량 대사
+    를 집계 반환합니다.
+    """
+    # 1. 하차지 관리자가 소유한 DropOff ID 목록 조회
+    dropoff_query = select(DropOff)
+    if not current_user.is_admin:
+        dropoff_query = dropoff_query.where(DropOff.owner_id == current_user.id)
+
+    if dropoff_id:
+        dropoff_query = dropoff_query.where(DropOff.id == dropoff_id)
+
+    dropoffs_res = await db.execute(dropoff_query)
+    dropoffs = dropoffs_res.scalars().all()
+    dropoff_ids = [d.id for d in dropoffs]
+    dropoff_map = {d.id: d for d in dropoffs}
+
+    if not dropoff_ids:
+        return {
+            "invoices": [],
+            "summary": {
+                "total_dropoffs": 0,
+                "total_sites": 0,
+                "total_tickets": 0,
+                "total_supply_price": 0,
+                "total_vat": 0,
+                "total_amount": 0,
+                "issued_count": 0,
+                "pending_count": 0,
+            }
+        }
+
+    # 2. DropOffRequest ID 목록 조회
+    req_query = select(DropOffRequest.id, DropOffRequest.drop_off_id).where(DropOffRequest.drop_off_id.in_(dropoff_ids))
+    req_res = await db.execute(req_query)
+    req_rows = req_res.all()
+    dropoff_req_ids = [r[0] for r in req_rows]
+
+    # 3. 해당 하차지 연동 JobPost 조회
+    job_conditions = []
+    if dropoff_ids:
+        job_conditions.append(JobPost.matched_drop_off_id.in_(dropoff_ids))
+    if dropoff_req_ids:
+        job_conditions.append(JobPost.drop_off_request_id.in_(dropoff_req_ids))
+
+    job_query = select(JobPost).where(or_(*job_conditions))
+    jobs_res = await db.execute(job_query)
+    jobs = jobs_res.scalars().all()
+    job_map = {j.id: j for j in jobs}
+    job_ids = list(job_map.keys())
+
+    if not job_ids:
+        return {
+            "invoices": [],
+            "summary": {
+                "total_dropoffs": len(dropoffs),
+                "total_sites": 0,
+                "total_tickets": 0,
+                "total_supply_price": 0,
+                "total_vat": 0,
+                "total_amount": 0,
+                "issued_count": 0,
+                "pending_count": 0,
+            }
+        }
+
+    # 4. 배차 티켓 조회
+    ticket_query = (
+        select(DispatchTicket)
+        .where(DispatchTicket.job_post_id.in_(job_ids))
+        .options(
+            selectinload(DispatchTicket.driver),
+            selectinload(DispatchTicket.car),
+            selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
+            selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
+            selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+        )
+        .order_by(DispatchTicket.accepted_at.desc())
+    )
+    tickets_res = await db.execute(ticket_query)
+    all_tickets = tickets_res.scalars().all()
+
+    # 연월 필터
+    if year_month:
+        filtered_tickets = []
+        for t in all_tickets:
+            t_date = t.completed_at or t.driving_started_at or t.accepted_at
+            if t_date and t_date.strftime("%Y-%m").startswith(year_month):
+                filtered_tickets.append(t)
+        all_tickets = filtered_tickets
+
+    # 5. 상차지(Site) + 계약유형 기준 그룹화
+    # 그룹 키: (site_id, dropoff_id, payer_type)
+    group_map = {}
+    for t in all_tickets:
+        if t.status in ["CANCELLED", "REJECTED"]:
+            continue
+
+        job = t.job_post
+        if not job:
+            continue
+
+        site_obj = job.site
+        site_id = site_obj.id if site_obj else job.site_id
+        site_name = (site_obj.site_name or site_obj.company_name) if site_obj else "상차지 미지정"
+        company_name = site_obj.company_name if site_obj else "건설사 미등록"
+        business_number = site_obj.business_number if site_obj else "000-00-0000"
+        billing_email = site_obj.billing_email if site_obj else ""
+
+        # 하차지 확인
+        drop_off = None
+        if job.drop_off_request and job.drop_off_request.drop_off:
+            drop_off = job.drop_off_request.drop_off
+        elif job.matched_drop_off:
+            drop_off = job.matched_drop_off
+
+        dropoff_id_val = drop_off.id if drop_off else 0
+        dropoff_name_val = drop_off.name if drop_off else "하차지 미지정"
+
+        payer_type = job.payer_type or "SITE_PAYS"
+        # 하차지 관점 명칭:
+        # SITE_PAYS: 현장에서 하차지에 토사 처리비 지급 -> 하차지 입장에서는 [매출세금계산서]
+        # DROPOFF_PAYS: 하차지가 현장에서 골재/양질토 구매 -> 하차지 입장에서는 [매입세금계산서]
+        if payer_type == "SITE_PAYS":
+            tax_type = "SALES"
+            tax_type_label = "매출 (현장 토사처리비 수령)"
+            btn_action_label = "매출세금계산서 발행"
+        else:
+            tax_type = "PURCHASE"
+            tax_type_label = "매입 (양질토 매입 대금 지급)"
+            btn_action_label = "매입세금계산서 승인(발행)"
+
+        unit_price = 0
+        if job.drop_off_request and getattr(job.drop_off_request, "unit_price", None):
+            unit_price = job.drop_off_request.unit_price
+        elif job.offered_unit_price:
+            unit_price = job.offered_unit_price
+
+        group_key = f"drop_{dropoff_id_val}_site_{site_id}_{payer_type}"
+        if group_key not in group_map:
+            group_map[group_key] = {
+                "group_key": group_key,
+                "dropoff_id": dropoff_id_val,
+                "dropoff_name": dropoff_name_val,
+                "site_id": site_id,
+                "site_name": site_name,
+                "company_name": company_name,
+                "business_number": business_number,
+                "billing_email": billing_email,
+                "payer_type": payer_type,
+                "tax_type": tax_type,
+                "tax_type_label": tax_type_label,
+                "btn_action_label": btn_action_label,
+                "unit_price": unit_price,
+                "site_departure_count": 0,    # 현장 출발 배차 건수
+                "dropoff_arrived_count": 0,   # 하차지 도착 승인 배차 건수
+                "discrepancy_count": 0,       # 오차 건수
+                "supply_price": 0,
+                "vat": 0,
+                "total_amount": 0,
+                "ticket_ids": [],
+                "invoice_issued": False,
+                "invoice_nts_code": None,
+                "invoice_issued_at": None,
+                "tickets_detail": []
+            }
+
+        grp = group_map[group_key]
+        grp["site_departure_count"] += 1
+        # 도착 승인 완료 여부
+        is_arrived = t.status in ["APPROVED", "COMPLETED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]
+        if is_arrived:
+            grp["dropoff_arrived_count"] += 1
+            grp["ticket_ids"].append(t.id)
+
+        # 하차지 B2B 전용 세금계산서 발행 플래그 확인
+        if getattr(t, "dropoff_invoice_issued", False):
+            grp["invoice_issued"] = True
+            if getattr(t, "dropoff_invoice_nts_code", None):
+                grp["invoice_nts_code"] = t.dropoff_invoice_nts_code
+            if getattr(t, "dropoff_invoice_issued_at", None):
+                grp["invoice_issued_at"] = t.dropoff_invoice_issued_at.strftime("%Y-%m-%d %H:%M")
+
+        grp["tickets_detail"].append({
+            "ticket_id": t.id,
+            "status": t.status,
+            "is_arrived": is_arrived,
+            "date": (t.completed_at or t.driving_started_at or t.accepted_at).strftime("%Y-%m-%d") if (t.completed_at or t.driving_started_at or t.accepted_at) else "",
+            "soil_type": job.soil_type if job and getattr(job, "soil_type", None) else "일반 토사",
+            "unit_price": unit_price,
+            "invoice_issued": bool(getattr(t, "dropoff_invoice_issued", False)),
+            "nts_code": getattr(t, "dropoff_invoice_nts_code", None)
+        })
+
+    invoices = []
+    total_supply_price = 0
+    total_vat = 0
+    total_amount = 0
+    issued_count = 0
+    pending_count = 0
+    distinct_sites = set()
+
+    for grp in group_map.values():
+        grp["discrepancy_count"] = grp["dropoff_arrived_count"] - grp["site_departure_count"]
+        calc_count = grp["dropoff_arrived_count"]
+        grp["supply_price"] = calc_count * grp["unit_price"]
+        grp["vat"] = math.floor(grp["supply_price"] * 0.1)
+        grp["total_amount"] = grp["supply_price"] + grp["vat"]
+
+        total_supply_price += grp["supply_price"]
+        total_vat += grp["vat"]
+        total_amount += grp["total_amount"]
+        distinct_sites.add(grp["site_id"])
+
+        if grp["invoice_issued"]:
+            issued_count += 1
+        else:
+            pending_count += 1
+
+        invoices.append(grp)
+
+    return {
+        "invoices": invoices,
+        "summary": {
+            "total_dropoffs": len(dropoffs),
+            "total_sites": len(distinct_sites),
+            "total_tickets": sum(inv["dropoff_arrived_count"] for inv in invoices),
+            "total_supply_price": total_supply_price,
+            "total_vat": total_vat,
+            "total_amount": total_amount,
+            "issued_count": issued_count,
+            "pending_count": pending_count,
         }
     }
 

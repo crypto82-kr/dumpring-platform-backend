@@ -5,6 +5,7 @@ import { getApiBaseUrl } from "@/utils/api";
 import { MatchStatusCard } from "./MatchStatusCard";
 import DropoffDispatchManagement from "./DropoffDispatchManagement";
 import DropoffSoilSettlementManagement from "./DropoffSoilSettlementManagement";
+import DropoffTaxInvoiceManagement from "./DropoffTaxInvoiceManagement";
 import DropoffStatsManagement from "./DropoffStatsManagement";
 import DropoffAlertsManagement from "./DropoffAlertsManagement";
 
@@ -1865,6 +1866,15 @@ export function DropoffManagerDashboard({
   if (activePath === "/dropoff/soil-settlement") {
     return (
       <DropoffSoilSettlementManagement
+        registeredDropoffList={registeredDropoffList}
+        dbCommonCodes={dbCommonCodes}
+      />
+    );
+  }
+
+  if (activePath === "/dropoff/tax-invoice") {
+    return (
+      <DropoffTaxInvoiceManagement
         registeredDropoffList={registeredDropoffList}
         dbCommonCodes={dbCommonCodes}
       />

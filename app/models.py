@@ -584,12 +584,17 @@ class DispatchTicket(Base):
     dispute_amount = Column(Integer, nullable=True)  # 인정 금액 또는 실제 수령 금액
     disputed_at = Column(DateTime(timezone=True), nullable=True)  # 분쟁 신청 일시
 
-    # 세금계산서 정식 발행 관리 필드
+    # 세금계산서 정식 발행 관리 필드 (차주 운반비)
     tax_invoice_issued = Column(Boolean, default=False, nullable=False)  # 실제 세금계산서 발행 완료 여부
     tax_invoice_issued_at = Column(DateTime(timezone=True), nullable=True)  # 발행 일시
     tax_invoice_confirmed_by_driver = Column(Boolean, default=False, nullable=False)  # 차주가 금액 확인 및 발행 동의 완료 여부 (발행대기 락 해제)
     tax_invoice_confirmed_at = Column(DateTime(timezone=True), nullable=True)  # 차주 확인 일시
     tax_invoice_nts_code = Column(String, nullable=True)  # 국세청 전자세금계산서 승인번호 (예: NTS-20261012-000123)
+
+    # 하차지 B2B 세금계산서 정식 발행 관리 필드 (하차지 사토 반입비 - 차주 세금계산서와 독립 분리)
+    dropoff_invoice_issued = Column(Boolean, default=False, nullable=False)  # 하차지 B2B 세금계산서 발행 완료 여부
+    dropoff_invoice_issued_at = Column(DateTime(timezone=True), nullable=True)  # 발행 일시
+    dropoff_invoice_nts_code = Column(String, nullable=True)  # 국세청 전자세금계산서 승인번호
 
     # Relationships
     job_post = relationship("JobPost")
