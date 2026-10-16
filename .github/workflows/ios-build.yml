@@ -23,14 +23,13 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Precache iOS Artifacts
+        working-directory: dumpring_app
+        run: flutter precache --ios
+
       - name: Install Flutter Dependencies
         working-directory: dumpring_app
         run: flutter pub get
-
-      - name: Install CocoaPods
-        working-directory: dumpring_app/ios
-        run: |
-          pod install --repo-update
 
       - name: Build iOS App (No Code Sign)
         working-directory: dumpring_app
