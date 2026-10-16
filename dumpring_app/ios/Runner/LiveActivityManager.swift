@@ -20,7 +20,7 @@ public class LiveActivityManager: NSObject {
         switch call.method {
         case "isLiveActivitySupported":
             #if canImport(ActivityKit)
-            if #available(iOS 16.1, *) {
+            if #available(iOS 16.2, *) {
                 let areEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
                 result(areEnabled)
             } else {
@@ -58,8 +58,8 @@ public class LiveActivityManager: NSObject {
 
     private func startActivity(args: [String: Any], result: @escaping FlutterResult) {
         #if canImport(ActivityKit)
-        guard #available(iOS 16.1, *) else {
-            result(FlutterError(code: "UNSUPPORTED_VERSION", message: "Live Activities require iOS 16.1+", details: nil))
+        guard #available(iOS 16.2, *) else {
+            result(FlutterError(code: "UNSUPPORTED_VERSION", message: "Live Activities require iOS 16.2+", details: nil))
             return
         }
 
@@ -108,7 +108,7 @@ public class LiveActivityManager: NSObject {
 
     private func updateActivity(args: [String: Any], result: @escaping FlutterResult) {
         #if canImport(ActivityKit)
-        guard #available(iOS 16.1, *) else {
+        guard #available(iOS 16.2, *) else {
             result(false)
             return
         }
@@ -141,7 +141,7 @@ public class LiveActivityManager: NSObject {
 
     private func endActivity(args: [String: Any]? = nil, result: @escaping FlutterResult) {
         #if canImport(ActivityKit)
-        guard #available(iOS 16.1, *) else {
+        guard #available(iOS 16.2, *) else {
             result(false)
             return
         }
