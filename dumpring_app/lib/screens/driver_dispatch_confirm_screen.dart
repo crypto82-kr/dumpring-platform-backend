@@ -560,6 +560,9 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                 ? '27톤 덤프 트럭'
                 : activeJob['truck_type'] ?? '미정';
 
+    final double distance = (activeJob['distance'] as num?)?.toDouble() ?? 15.0;
+    final int estimatedTimeMinutes = (activeJob['estimated_time'] as num?)?.toInt() ?? (distance * 1.8).round();
+
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) {
