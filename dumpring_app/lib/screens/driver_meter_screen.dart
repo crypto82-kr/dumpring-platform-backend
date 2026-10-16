@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import '../shared/widgets/dr_ticket_qr_widget.dart';
 import '../shared/widgets/dr_qr_scanner_dialog.dart';
+import '../services/live_activity_service.dart';
 
 class DriverMeterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -122,11 +123,17 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        final Uri playStoreUri = Uri.parse("market://details?id=com.skt.tmap.ku");
-        if (await canLaunchUrl(playStoreUri)) {
-          await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
+        final bool isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+        if (isIOS) {
+          final Uri appStoreUri = Uri.parse("https://apps.apple.com/kr/app/id431589174");
+          await launchUrl(appStoreUri, mode: LaunchMode.externalApplication);
         } else {
-          await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.skt.tmap.ku"), mode: LaunchMode.externalApplication);
+          final Uri playStoreUri = Uri.parse("market://details?id=com.skt.tmap.ku");
+          if (await canLaunchUrl(playStoreUri)) {
+            await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
+          } else {
+            await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.skt.tmap.ku"), mode: LaunchMode.externalApplication);
+          }
         }
       }
     } catch (e) {
@@ -167,11 +174,17 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        final Uri playStoreUri = Uri.parse("market://details?id=com.locnall.KimGiSa");
-        if (await canLaunchUrl(playStoreUri)) {
-          await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
+        final bool isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+        if (isIOS) {
+          final Uri appStoreUri = Uri.parse("https://apps.apple.com/kr/app/id415904670");
+          await launchUrl(appStoreUri, mode: LaunchMode.externalApplication);
         } else {
-          await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.locnall.KimGiSa"), mode: LaunchMode.externalApplication);
+          final Uri playStoreUri = Uri.parse("market://details?id=com.locnall.KimGiSa");
+          if (await canLaunchUrl(playStoreUri)) {
+            await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
+          } else {
+            await launchUrl(Uri.parse("https://play.google.com/store/apps/details?id=com.locnall.KimGiSa"), mode: LaunchMode.externalApplication);
+          }
         }
       }
     } catch (e) {
@@ -900,6 +913,12 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           distanceKm: _distanceKm,
           elapsedSeconds: _elapsedSeconds,
         );
+        LiveActivityService.updateLiveActivity(
+          currentFare: _currentFare,
+          distanceKm: _distanceKm,
+          elapsedSeconds: _elapsedSeconds,
+          statusText: "운행 중",
+        );
       }
     });
   }
@@ -910,6 +929,12 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     _meterTimer?.cancel();
     _statusPollTimer?.cancel();
     DriverOverlayMeter.closeMeter();
+    LiveActivityService.endLiveActivity(
+      currentFare: _currentFare,
+      distanceKm: _distanceKm,
+      elapsedSeconds: _elapsedSeconds,
+      statusText: "운행 완료",
+    );
     super.dispose();
   }
 
@@ -1033,6 +1058,17 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           _speedKmh = 60;
         });
 
+        // iOS 다이내믹 아일랜드 및 잠금화면 라이브 액티비티 개시
+        LiveActivityService.startLiveActivity(
+          currentFare: _currentFare,
+          distanceKm: _distanceKm,
+          elapsedSeconds: _elapsedSeconds,
+          originName: _siteName ?? "상차지",
+          destinationName: _dropOffName ?? "하차지",
+          vehicleNumber: widget.user['vehicle_number']?.toString() ?? widget.user['truck_no']?.toString() ?? "덤프트럭",
+          statusText: "하차지 이동 중",
+        );
+
         _meterTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
           if (mounted) {
             setState(() {
@@ -1050,6 +1086,12 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
               currentFare: _currentFare,
               distanceKm: _distanceKm,
               elapsedSeconds: _elapsedSeconds,
+            );
+            LiveActivityService.updateLiveActivity(
+              currentFare: _currentFare,
+              distanceKm: _distanceKm,
+              elapsedSeconds: _elapsedSeconds,
+              statusText: "운행 중",
             );
           }
         });
@@ -1304,6 +1346,12 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   void _completeEntireDrive() {
     _clearLocalProgress();
     DriverOverlayMeter.closeMeter();
+    LiveActivityService.endLiveActivity(
+      currentFare: _currentFare,
+      distanceKm: _distanceKm,
+      elapsedSeconds: _elapsedSeconds,
+      statusText: "운행 완료",
+    );
     widget.onDriveCompleted(_currentFare);
     Navigator.of(context).pop({'action': 'complete', 'fare': _currentFare}); 
   }

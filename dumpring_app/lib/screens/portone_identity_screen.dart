@@ -213,8 +213,15 @@ class _PortoneIdentityScreenState extends State<PortoneIdentityScreen> {
                 final Uri uri = Uri.parse(url);
                 if (await canLaunchUrl(uri)) {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
+                } else if (!url.startsWith('intent:')) {
+                  // iOS 등에서 canLaunchUrl 제한 우회 시도
+                  try {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    debugPrint("직접 스킴 실행 시도 실패: $e");
+                  }
                 } else {
-                  // intent: URL 파싱 처리
+                  // intent: URL 파싱 처리 (Android)
                   if (url.startsWith('intent:')) {
                     final schemeMatch = RegExp(r'scheme=([^;]+)').firstMatch(url);
                     final packageMatch = RegExp(r'package=([^;]+)').firstMatch(url);
