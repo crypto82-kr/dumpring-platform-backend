@@ -7,7 +7,7 @@ import WidgetKit
 @main
 struct DumpringWidgetBundle: WidgetBundle {
     var body: some Widget {
-        if #available(iOS 16.1, *) {
+        if #available(iOS 16.2, *) {
             DumpringMeterLiveActivityWidget()
         }
     }

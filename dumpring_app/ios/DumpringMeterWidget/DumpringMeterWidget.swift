@@ -4,7 +4,7 @@ import SwiftUI
 import ActivityKit
 import WidgetKit
 
-@available(iOS 16.1, *)
+@available(iOS 16.2, *)
 public struct DumpringMeterLiveActivityWidget: Widget {
     public init() {}
 
@@ -112,7 +112,7 @@ public struct DumpringMeterLiveActivityWidget: Widget {
 }
 
 // 잠금 화면 및 알림 센터 전용 라이브 액티비티 뷰
-@available(iOS 16.1, *)
+@available(iOS 16.2, *)
 struct DumpringMeterLockScreenView: View {
     let context: ActivityViewContext<DumpringMeterAttributes>
 
