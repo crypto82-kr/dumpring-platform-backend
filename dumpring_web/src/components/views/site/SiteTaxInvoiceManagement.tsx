@@ -23,7 +23,8 @@ import {
   ChevronRight,
   X,
   MapPin,
-  Clock
+  Clock,
+  Printer
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 
@@ -66,9 +67,14 @@ export interface DropoffSettlementItem {
   dropoff_id: number;
   dropoff_name: string;
   dropoff_address: string;
-  business_number: string;
+  business_number?: string | null;
+  permit_number?: string | null;
   contract_type: string;
   payer_type: "SITE_PAYS" | "DROPOFF_PAYS" | string;
+  site_id?: number;
+  site_name?: string;
+  date_range?: string;
+  work_dates?: string[];
   site_departure_count: number; // 현장 출발 배차 건수(건)
   dropoff_arrived_count: number; // 하차지 도착 배차 건수(건)
   discrepancy_count: number; // 오차 건수 (도착 - 출발)
@@ -129,6 +135,9 @@ export default function SiteTaxInvoiceManagement({
 
   // 차주 탭 체크박스 선택 (선택된 driver key 목록)
   const [selectedDriverKeys, setSelectedDriverKeys] = useState<Set<string>>(new Set());
+
+  // [신규] 개인 지주 원천징수 정산명세서 모달 상태
+  const [selectedWithholdingDropoff, setSelectedWithholdingDropoff] = useState<DropoffSettlementItem | null>(null);
 
   // 사이트 목록 관리 (props 동기화 + 자체 보조 조회)
   const [internalSites, setInternalSites] = useState<any[]>(registeredSiteList);
@@ -267,15 +276,16 @@ export default function SiteTaxInvoiceManagement({
     );
   }, [filteredDrivers]);
 
-  // 필터링된 하차지 목록
+  // 필터링된 하차지 목록 (키워드 검색)
   const filteredDropoffs = useMemo(() => {
     return dropoffList.filter((d) => {
       if (searchKeyword.trim()) {
         const kw = searchKeyword.trim().toLowerCase();
         const matchName = d.dropoff_name.toLowerCase().includes(kw);
-        const matchBiz = d.business_number.toLowerCase().includes(kw);
+        const matchSite = (d.site_name || "").toLowerCase().includes(kw);
+        const matchPermit = (d.permit_number || "").toLowerCase().includes(kw);
         const matchAddr = d.dropoff_address.toLowerCase().includes(kw);
-        if (!matchName && !matchBiz && !matchAddr) return false;
+        if (!matchName && !matchSite && !matchPermit && !matchAddr) return false;
       }
       return true;
     });
@@ -505,29 +515,29 @@ export default function SiteTaxInvoiceManagement({
         <div>
           <div className="flex items-center gap-2.5">
             <Receipt className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">현장 전자세금계산서 업무</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">현장 세무증빙관리</h2>
             <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-black rounded-full border border-blue-200">
-              국세청 연계 표준
+              세무·회계 표준
             </span>
           </div>
           <p className="text-xs font-semibold text-slate-500 mt-1">
-            국세청 전자세금계산서 법정 양식에 의거하여, 차주별 운반비 전자세금계산서 발행 및 하차지별 B2B 상·하차 물량 정산 대사를 관리합니다.
+            차주별 운반비 전자세금계산서 발행과 하차지별 정산 내역을 세무 증빙 유형(사업자 세금계산서 vs 개인 원천징수/지출증빙)별로 분리 관리합니다.
           </p>
         </div>
 
         {/* 상단 액션: 대메뉴 탭 전환 바 */}
-        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-300">
+        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-300 shrink-0">
           <button
             type="button"
             onClick={() => setActiveMainTab("DRIVERS")}
-            className={`px-4 py-2 text-xs font-black rounded-lg transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 text-xs font-black rounded-lg transition-all flex items-center gap-2 whitespace-nowrap ${
               activeMainTab === "DRIVERS"
                 ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                 : "text-slate-700 hover:text-slate-900 hover:bg-slate-200"
             }`}
           >
-            <Truck className="w-4 h-4" />
-            차주별 운반비 세금계산서
+            <Truck className="w-4 h-4 shrink-0" />
+            <span>차주별 운반비 세금계산서</span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20">
               {driverList.length}대
             </span>
@@ -535,14 +545,14 @@ export default function SiteTaxInvoiceManagement({
           <button
             type="button"
             onClick={() => setActiveMainTab("DROPOFFS")}
-            className={`px-4 py-2 text-xs font-black rounded-lg transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 text-xs font-black rounded-lg transition-all flex items-center gap-2 whitespace-nowrap ${
               activeMainTab === "DROPOFFS"
                 ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                 : "text-slate-700 hover:text-slate-900 hover:bg-slate-200"
             }`}
           >
-            <Building2 className="w-4 h-4" />
-            하차지별 B2B 정산 관리
+            <Building2 className="w-4 h-4 shrink-0" />
+            <span>하차지별 B2B 정산 관리</span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20">
               {dropoffList.length}곳
             </span>
@@ -627,11 +637,11 @@ export default function SiteTaxInvoiceManagement({
           <div className="bg-white p-4 rounded-xl border-2 border-emerald-300 bg-emerald-50/40 shadow-sm space-y-1">
             <span className="text-[11px] font-extrabold text-emerald-800 block flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              B2B 세금계산서 발행 대기 / 완료
+              반입 실거래 대사 완료
             </span>
             <div className="flex items-baseline justify-between">
-              <span className="text-xl font-black text-emerald-900">{dropoffSummary.pendingIssueCount}건 대기</span>
-              <span className="text-xs font-black text-emerald-700">{dropoffSummary.issuedCount}건 완료</span>
+              <span className="text-xl font-black text-emerald-900">{dropoffSummary.totalSites}곳 완료</span>
+              <span className="text-xs font-black text-emerald-700">명세서 출력 가능</span>
             </div>
           </div>
         </div>
@@ -960,15 +970,15 @@ export default function SiteTaxInvoiceManagement({
       {activeMainTab === "DROPOFFS" && (
         <div className="space-y-4">
           {/* 상단 안내 바 */}
-          <div className="p-4 bg-white rounded-2xl border-2 border-slate-300 shadow-sm flex flex-wrap items-center justify-between gap-2">
+          <div className="bg-white rounded-2xl border-2 border-slate-300 shadow-sm p-4 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Building2 className="w-5 h-5 text-blue-600" />
               <span className="text-sm font-black text-slate-800">
-                하차지(사토장) B2B 실시간 상·하차 물량 대사 현황 ({filteredDropoffs.length}곳)
+                하차지(사토장) B2B 실시간 상·하차 물량 대사 및 거래명세서 관리 ({filteredDropoffs.length}곳)
               </span>
             </div>
             <span className="text-xs font-bold text-slate-500">
-              현장 출발 배차 건수 vs 하차지 반입 승인 건수를 1:1 자동 대사하여 전자세금계산서를 즉시 발행합니다.
+              상차지 출발 건수와 하차지 도착 승인 건수를 1:1 자동 대사하여 거래명세서를 즉시 조회 및 출력합니다.
             </span>
           </div>
 
@@ -994,32 +1004,50 @@ export default function SiteTaxInvoiceManagement({
                     key={item.group_key}
                     className="bg-white rounded-2xl border-2 border-slate-300 hover:border-blue-500 shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between space-y-4"
                   >
-                    {/* 카드 헤더: 상호명, 계약유형 배지, 사업자번호 */}
+                    {/* 카드 헤더: 상호명, 배지들, 사업자번호/인허가번호 */}
                     <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-black text-slate-900 tracking-tight">
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-base font-black text-slate-900 tracking-tight shrink-0">
                             {item.dropoff_name}
                           </span>
+                          {item.site_name && (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1 shrink-0 whitespace-nowrap">
+                              <Building2 className="w-3 h-3 text-blue-500" />
+                              {item.site_name}
+                            </span>
+                          )}
                           {isSiteExpense ? (
-                            <span className="px-2.5 py-0.5 rounded-md text-[11px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-rose-50 text-rose-700 border border-rose-200 shrink-0 whitespace-nowrap">
                               토사 처리비 지출 (매입)
                             </span>
                           ) : (
-                            <span className="px-2.5 py-0.5 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
                               토사/골재 매각 (매출)
                             </span>
                           )}
+                          {item.date_range && (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1 font-mono shrink-0 whitespace-nowrap">
+                              <Calendar className="w-3 h-3 text-slate-500" />
+                              {item.date_range}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1.5 truncate" title={item.dropoff_address}>
+                        <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5 truncate" title={item.dropoff_address}>
                           <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{item.dropoff_address}</span>
+                          <span className="truncate">{item.dropoff_address}</span>
                         </p>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <span className="text-[11px] font-bold text-slate-400 block">사업자번호</span>
-                        <span className="text-xs font-mono font-bold text-slate-700">{item.business_number}</span>
+                      <div className="text-right shrink-0 space-y-1 pl-2">
+                        {item.permit_number && (
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 block whitespace-nowrap">사토 인허가번호</span>
+                            <span className="text-[11px] font-mono font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block whitespace-nowrap">
+                              {item.permit_number}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1079,46 +1107,24 @@ export default function SiteTaxInvoiceManagement({
                       </div>
                     </div>
 
-                    {/* 카드 푸터: 국세청 승인상태 & 액션 버튼 */}
+                    {/* 카드 푸터: 거래명세서 확인 및 인쇄 단일 액션 버튼 */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-3">
                       <div className="text-xs">
-                        {item.invoice_nts_code ? (
-                          <div className="flex items-center gap-1.5 text-blue-700">
-                            <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                            <span className="text-[11px] font-bold">국세청 승인번호:</span>
-                            <span className="font-mono font-black text-xs">{item.invoice_nts_code}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-slate-400">
-                            <Clock className="w-4 h-4 text-slate-400" />
-                            <span className="text-[11px] font-bold">전자세금계산서 미발행 상태</span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 text-blue-700">
+                          <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                          <span className="text-[11px] font-bold">실거래 e-Ticket 반입 대사 완료</span>
+                        </div>
                       </div>
 
                       <div>
-                        {item.invoice_issued ? (
-                          <span className="px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-sm">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            국세청 전송 완료
-                          </span>
-                        ) : isSiteExpense ? (
-                          <div className="flex items-center gap-2">
-                            <span className="px-3.5 py-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-black inline-flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              하차지 세금계산서 발행 대기
-                            </span>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleIssueDropoffInvoice(item)}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-blue-500/20 flex items-center gap-1.5 transition-all"
-                          >
-                            <Receipt className="w-4 h-4" />
-                            매출세금계산서 발행
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWithholdingDropoff(item)}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-blue-500/20 inline-flex items-center gap-1.5 transition-all"
+                        >
+                          <FileText className="w-4 h-4" />
+                          거래명세서 확인 및 인쇄
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1231,6 +1237,166 @@ export default function SiteTaxInvoiceManagement({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* [MODAL] 토사 반입 실거래 검증 명세서 (e-Ticket 기반 객관적 팩트 명세표) */}
+      {/* ========================================================================= */}
+      {selectedWithholdingDropoff && (() => {
+        const item = selectedWithholdingDropoff;
+        const totalGross = item.supply_price || item.total_amount;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border-2 border-slate-400 animate-fadeIn space-y-0 text-slate-800">
+              {/* 모달 상단 헤더 */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <h3 className="font-black text-base text-slate-900">
+                      토사 반입 거래명세서 (e-Ticket 집계표)
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-semibold">
+                      GPS 상·하차 전표 실거래 검증 기반 토사 반입 실적 및 정산 내역입니다.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedWithholdingDropoff(null)}
+                  className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* 모달 본문: 순수 팩트 데이터 테이블 */}
+              <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                {/* 1. 거래 기본 정보 */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                    <span className="text-[11px] font-black text-slate-700 block border-b border-slate-200 pb-1">
+                      공사현장 (상차지)
+                    </span>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-bold">현장명:</span>
+                      <span className="font-extrabold text-slate-900">{item.site_name || "현장"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-bold">정산 대상:</span>
+                      <span className="font-bold text-slate-800">토사 반출/처리</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                    <span className="text-[11px] font-black text-slate-700 block border-b border-slate-200 pb-1">
+                      사토장 (하차지)
+                    </span>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-bold">하차지명:</span>
+                      <span className="font-extrabold text-slate-900">{item.dropoff_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-bold">인허가 번호:</span>
+                      <span className="font-mono font-bold text-blue-700">{item.permit_number || "-"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. 인허가 및 운행 팩트 실적 */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-600">지자체 사토 인허가 번호:</span>
+                    <span className="font-mono font-black text-slate-900 text-sm bg-white px-2.5 py-0.5 rounded border border-slate-300">
+                      {item.permit_number || "-"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-slate-600">
+                    <span>작업 기간:</span>
+                    <span className="font-mono font-bold text-slate-800">{item.date_range || "-"}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span>하차지 주소:</span>
+                    <span className="font-semibold text-slate-800">{item.dropoff_address}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span>상·하차 대사 실적:</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      출발 {item.site_departure_count}건 / 도착 {item.dropoff_arrived_count}건 (오차 0건)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. 확정 정산 금액 */}
+                <div className="border-2 border-slate-300 rounded-xl overflow-hidden">
+                  <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-xs text-slate-800">
+                    정산 명세 내역
+                  </div>
+                  <table className="w-full text-xs text-left">
+                    <tbody className="divide-y divide-slate-200">
+                      <tr>
+                        <td className="py-2.5 px-4 font-bold text-slate-600 bg-slate-50 w-1/2">
+                          반입 건수
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
+                          {item.dropoff_arrived_count}건
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2.5 px-4 font-bold text-slate-600 bg-slate-50">
+                          수용 단가
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
+                          {item.unit_price.toLocaleString()}원
+                        </td>
+                      </tr>
+                      <tr className="bg-slate-50 font-black">
+                        <td className="py-3 px-4 text-slate-900 text-sm">
+                          합계 공급가액
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-base text-blue-700">
+                          ₩{totalGross.toLocaleString()}원
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 하단 한 줄 안내 */}
+                <p className="text-[11px] text-slate-400 text-center font-medium">
+                  ※ 본 문서는 플랫폼 e-Ticket 기반 실거래 검증 명세표이며, 세무 처리는 각 사의 회계 기준에 따릅니다.
+                </p>
+              </div>
+
+              {/* 하단 버튼 바 */}
+              <div className="px-6 py-3.5 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 font-mono">
+                  출력 일자: 2026-10-15
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.print();
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow flex items-center gap-1.5 transition-all"
+                  >
+                    <Printer className="w-4 h-4" />
+                    명세서 인쇄 (A4)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWithholdingDropoff(null)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

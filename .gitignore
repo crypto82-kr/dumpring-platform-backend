@@ -153,3 +153,17 @@ Thumbs.db
 scratch/
 scratch_*.py
 tailadmin-free-tailwind-dashboard-template-main/
+*.db
+check_*.py
+test_*.py
+run_commit.py
+create_site_manager_storyboard.py
+fix_alembic.py
+openapi*.json
+uploads/
+*.docx
+*.pptx
+*.xlsx
+*.hwp
+docs/
+

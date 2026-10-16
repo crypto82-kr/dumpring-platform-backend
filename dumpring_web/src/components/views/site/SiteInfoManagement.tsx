@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2, X, QrCode } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
-import { MockMap } from "./MockMap";
+import { MockMap } from "@/components/views/common/MockMap";
 
 export interface RegisteredSiteItem {
   id: number;
@@ -904,78 +904,106 @@ export default function SiteInfoManagement({
             </div>
 
             {/* 실제 QR Code Image Display (앱과 동일 규격) */}
-            <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center">
-              <div className="w-48 h-48 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`dumpring://site/loading?id=${selectedSite?.id || activeSite?.id || 0}`)}&margin=10`}
-                  alt="상차지 현장 고정 QR"
-                  className="w-40 h-40 object-contain"
-                />
-              </div>
-            </div>
+            {(() => {
+              const rawSiteId = selectedSite?.id || activeSite?.id;
+              const validSiteId = typeof rawSiteId === "number" && rawSiteId > 0 ? rawSiteId : null;
+
+              if (!validSiteId) {
+                return (
+                  <div className="p-6 bg-amber-50 rounded-2xl border-2 border-dashed border-amber-200 flex flex-col items-center justify-center text-center">
+                    <p className="text-xs font-bold text-amber-700">현장 정보가 등록되지 않았거나 식별 번호가 없습니다.</p>
+                    <p className="text-[11px] text-amber-600 mt-1">현장을 먼저 등록 또는 선택해 주세요.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center">
+                  <div className="w-48 h-48 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`dumpring://site/loading?id=${validSiteId}`)}&margin=10`}
+                      alt="상차지 현장 고정 QR"
+                      className="w-40 h-40 object-contain"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="flex gap-2 justify-center pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const siteName = selectedSite?.name || activeSite?.name || "공사현장";
-                  const siteAddress = selectedSite?.address || activeSite?.address || "";
-                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`dumpring://site/loading?id=${selectedSite?.id || activeSite?.id || 0}`)}&margin=10`;
-                  const printWin = window.open("", "_blank", "width=800,height=900");
-                  if (printWin) {
-                    printWin.document.write(`
-                      <!DOCTYPE html>
-                      <html>
-                      <head>
-                        <title>덤프링 현장 고정형 QR 인쇄 - ${siteName}</title>
-                        <style>
-                          @page { size: A4 portrait; margin: 20mm; }
-                          body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; text-align: center; padding: 20px; color: #111; }
-                          .header { font-size: 28px; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; color: #0f172a; }
-                          .badge { display: inline-block; background-color: #eff6ff; color: #1d4ed8; font-size: 14px; font-weight: 800; padding: 6px 16px; border-radius: 9999px; border: 1.5px solid #bfdbfe; margin-bottom: 24px; }
-                          .qr-box { border: 3px solid #0f172a; border-radius: 24px; padding: 32px; display: inline-block; background: #fff; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-                          .qr-img { width: 320px; height: 320px; display: block; margin: 0 auto; }
-                          .info-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; color: #1e293b; }
-                          .info-addr { font-size: 15px; color: #64748b; font-weight: 500; margin-bottom: 24px; }
-                          .desc-box { background-color: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 16px; padding: 18px 24px; max-width: 520px; margin: 0 auto; font-size: 13px; color: #475569; line-height: 1.6; }
-                          .desc-box strong { color: #0f172a; }
-                          @media print {
-                            body { padding: 0; }
-                            .no-print { display: none; }
-                          }
-                        </style>
-                      </head>
-                      <body>
-                        <div class="header">덤프링(DumpRing) 상차 인증 QR</div>
-                        <div class="badge">현장 게이트 및 출입로 부착용 (A4 규격)</div>
-                        <br/>
-                        <div class="qr-box">
-                          <img class="qr-img" src="${qrUrl}" alt="현장 고정 QR" onload="window.print();" />
-                        </div>
-                        <div class="info-title">${siteName}</div>
-                        <div class="info-addr">${siteAddress}</div>
-                        <div class="desc-box">
-                          <strong>[기사 상차 인증 안내]</strong><br/>
-                          덤프링 기사 앱의 <strong>[현장 고정형 QR코드 촬영 인증]</strong>을 켜서 위 QR 코드를 촬영하십시오.<br/>
-                          위치 GPS 대조를 거쳐 자동으로 상차 승인이 완료됩니다.
-                        </div>
-                      </body>
-                      </html>
-                    `);
-                    printWin.document.close();
-                  }
-                }}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl active:scale-95 transition-all shadow-sm flex items-center gap-1.5"
-              >
-                QR 코드 A4 인쇄
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsSiteQrModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl active:scale-95 transition-all"
-              >
-                닫기
-              </button>
+              {(() => {
+                const rawSiteId = selectedSite?.id || activeSite?.id;
+                const validSiteId = typeof rawSiteId === "number" && rawSiteId > 0 ? rawSiteId : null;
+
+                return (
+                  <>
+                    <button
+                      type="button"
+                      disabled={!validSiteId}
+                      onClick={() => {
+                        if (!validSiteId) return;
+
+                        const siteName = selectedSite?.name || activeSite?.name || "공사현장";
+                        const siteAddress = selectedSite?.address || activeSite?.address || "";
+                        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`dumpring://site/loading?id=${validSiteId}`)}&margin=10`;
+                        const printWin = window.open("", "_blank", "width=800,height=900");
+                        if (printWin) {
+                          printWin.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                              <title>덤프링 현장 고정형 QR 인쇄 - ${siteName}</title>
+                              <style>
+                                @page { size: A4 portrait; margin: 20mm; }
+                                body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; text-align: center; padding: 20px; color: #111; }
+                                .header { font-size: 28px; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; color: #0f172a; }
+                                .badge { display: inline-block; background-color: #eff6ff; color: #1d4ed8; font-size: 14px; font-weight: 800; padding: 6px 16px; border-radius: 9999px; border: 1.5px solid #bfdbfe; margin-bottom: 24px; }
+                                .qr-box { border: 3px solid #0f172a; border-radius: 24px; padding: 32px; display: inline-block; background: #fff; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+                                .qr-img { width: 320px; height: 320px; display: block; margin: 0 auto; }
+                                .info-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; color: #1e293b; }
+                                .info-addr { font-size: 15px; color: #64748b; font-weight: 500; margin-bottom: 24px; }
+                                .desc-box { background-color: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 16px; padding: 18px 24px; max-width: 520px; margin: 0 auto; font-size: 13px; color: #475569; line-height: 1.6; }
+                                .desc-box strong { color: #0f172a; }
+                                @media print {
+                                  body { padding: 0; }
+                                  .no-print { display: none; }
+                                }
+                              </style>
+                            </head>
+                            <body>
+                              <div class="header">덤프링(DumpRing) 상차 인증 QR</div>
+                              <div class="badge">현장 게이트 및 출입로 부착용 (A4 규격)</div>
+                              <br/>
+                              <div class="qr-box">
+                                <img class="qr-img" src="${qrUrl}" alt="현장 고정 QR" onload="window.print();" />
+                              </div>
+                              <div class="info-title">${siteName}</div>
+                              <div class="info-addr">${siteAddress}</div>
+                              <div class="desc-box">
+                                <strong>[기사 상차 인증 안내]</strong><br/>
+                                덤프링 기사 앱의 <strong>[현장 고정형 QR코드 촬영 인증]</strong>을 켜서 위 QR 코드를 촬영하십시오.<br/>
+                                위치 GPS 대조를 거쳐 자동으로 상차 승인이 완료됩니다.
+                              </div>
+                            </body>
+                            </html>
+                          `);
+                          printWin.document.close();
+                        }
+                      }}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl active:scale-95 transition-all shadow-sm flex items-center gap-1.5"
+                    >
+                      QR 코드 A4 인쇄
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsSiteQrModalOpen(false)}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl active:scale-95 transition-all"
+                    >
+                      닫기
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

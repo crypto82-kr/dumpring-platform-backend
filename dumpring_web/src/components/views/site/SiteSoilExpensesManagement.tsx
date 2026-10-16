@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Search,
-  MapPin,
+  Building,
   RefreshCw,
   CheckCircle2,
   AlertCircle,
@@ -13,7 +13,7 @@ import {
   Download,
   Filter,
   Truck,
-  Building,
+  MapPin,
   ShieldCheck,
   ChevronRight,
   Info,
@@ -21,23 +21,23 @@ import {
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 
-interface DropoffSoilSettlementManagementProps {
-  registeredDropoffList?: any[];
-  dbCommonCodes?: any[];
+interface SiteSoilExpensesManagementProps {
+  registeredSiteList?: any[];
+  dispatchRequestList?: any[];
 }
 
-export default function DropoffSoilSettlementManagement({
-  registeredDropoffList = [],
-}: DropoffSoilSettlementManagementProps) {
+export default function SiteSoilExpensesManagement({
+  registeredSiteList = [],
+}: SiteSoilExpensesManagementProps) {
   // 메인 상단 탭: "PROCESS"(흙값 정산 처리 워크스페이스 - 메인) vs "HISTORY"(정산 마감 이력 조회 - 순수 이력)
   const [activeMainTab, setActiveMainTab] = useState<"PROCESS" | "HISTORY">("PROCESS");
 
-  // 프로세스 탭 내부 서브 탭: "PENDING"(검토 및 확정 대기) vs "CONFIRMED"(수령/송금 확인 완료 - 마감 대기) vs "DISPUTED"(분쟁 / 정산 보류)
+  // 프로세스 탭 내부 서브 탭: "PENDING"(검토 및 확정 대기) vs "CONFIRMED"(송금/수령 확인 완료 - 마감 대기) vs "DISPUTED"(분쟁 / 정산 보류)
   const [processSubTab, setProcessSubTab] = useState<"PENDING" | "CONFIRMED" | "DISPUTED">("PENDING");
 
   // 검색 및 필터 상태
-  const [selectedDropoffId, setSelectedDropoffId] = useState<number | "">("");
   const [payerTypeFilter, setPayerTypeFilter] = useState<string>("ALL");
+  const [selectedSiteId, setSelectedSiteId] = useState<number | "">("");
   const [startDateFilter, setStartDateFilter] = useState<string>("");
   const [endDateFilter, setEndDateFilter] = useState<string>("");
   const [quickRange, setQuickRange] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL");
@@ -45,7 +45,7 @@ export default function DropoffSoilSettlementManagement({
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [soilSettlementList, setSoilSettlementList] = useState<any[]>([]);
+  const [soilExpensesList, setSoilExpensesList] = useState<any[]>([]);
 
   // 프로세스 워크스페이스 선택된 항목 및 일괄 처리 체크박스
   const [selectedJobItem, setSelectedJobItem] = useState<any | null>(null);
@@ -90,8 +90,8 @@ export default function DropoffSoilSettlementManagement({
     }
   };
 
-  // 백엔드 실제 DB 하차지 흙값 정산 데이터 로드
-  const fetchDropoffSettlementData = useCallback(async (signal?: AbortSignal) => {
+  // 백엔드 실제 DB 흙값 정산 데이터 로드
+  const fetchSoilSettlementData = useCallback(async (signal?: AbortSignal) => {
     try {
       const baseUrl = getApiBaseUrl();
       const token =
@@ -108,11 +108,11 @@ export default function DropoffSoilSettlementManagement({
 
       setIsLoading(true);
       const queryParams = new URLSearchParams();
-      if (selectedDropoffId) queryParams.append("drop_off_id", String(selectedDropoffId));
+      if (selectedSiteId) queryParams.append("site_id", String(selectedSiteId));
       if (startDateFilter) queryParams.append("start_date", startDateFilter);
       if (endDateFilter) queryParams.append("end_date", endDateFilter);
 
-      const url = `${baseUrl}/api/dispatch/settlements/dropoff-soil-settlements${
+      const url = `${baseUrl}/api/dispatch/settlements/site-soil-expenses${
         queryParams.toString() ? `?${queryParams.toString()}` : ""
       }`;
       const res = await fetch(url, {
@@ -124,27 +124,27 @@ export default function DropoffSoilSettlementManagement({
 
       if (res.ok) {
         const data = await res.json();
-        const list = Array.isArray(data.soilSettlements) ? data.soilSettlements : [];
-        setSoilSettlementList(list);
+        const list = Array.isArray(data.soilExpenses) ? data.soilExpenses : [];
+        setSoilExpensesList(list);
       } else {
-        setSoilSettlementList([]);
+        setSoilExpensesList([]);
       }
     } catch (e: any) {
       if (e?.name !== "AbortError") {
-        setSoilSettlementList([]);
+        setSoilExpensesList([]);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDropoffId, startDateFilter, endDateFilter]);
+  }, [selectedSiteId, startDateFilter, endDateFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchDropoffSettlementData(controller.signal);
+    fetchSoilSettlementData(controller.signal);
     return () => {
       controller.abort();
     };
-  }, [fetchDropoffSettlementData]);
+  }, [fetchSoilSettlementData]);
 
   // 상태 업데이트 핸들러
   const handleUpdateStatus = async (
@@ -180,7 +180,7 @@ export default function DropoffSoilSettlementManagement({
         body: JSON.stringify({
           job_post_ids: jobPostIds,
           target_status: targetStatus,
-          dispute_type: extraData?.dispute_type || "DROPOFF",
+          dispute_type: extraData?.dispute_type || "SITE",
           dispute_reason: extraData?.dispute_reason,
           dispute_amount: extraData?.dispute_amount,
         }),
@@ -192,7 +192,7 @@ export default function DropoffSoilSettlementManagement({
         setDisputeInputReason("");
         setDisputeInputAmount("");
         setSelectedBatchJobIds(new Set());
-        await fetchDropoffSettlementData();
+        await fetchSoilSettlementData();
       } else {
         const errData = await res.json().catch(() => ({}));
         alert(errData.detail || "흙값 정산 상태 변경 중 오류가 발생했습니다.");
@@ -207,9 +207,9 @@ export default function DropoffSoilSettlementManagement({
 
   // 필터링 및 작업일자 최신순 정렬
   const filteredData = useMemo(() => {
-    return soilSettlementList
+    return soilExpensesList
       .filter((item) => {
-        if (selectedDropoffId && item.dropOffId !== Number(selectedDropoffId)) return false;
+        if (selectedSiteId && item.siteId !== Number(selectedSiteId)) return false;
         if (payerTypeFilter !== "ALL" && item.payerType !== payerTypeFilter) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
@@ -227,40 +227,40 @@ export default function DropoffSoilSettlementManagement({
         if (dateA !== dateB) return dateB.localeCompare(dateA);
         return b.id - a.id;
       });
-  }, [soilSettlementList, selectedDropoffId, payerTypeFilter, searchQuery]);
+  }, [soilExpensesList, selectedSiteId, payerTypeFilter, searchQuery]);
 
   // 1. [이력용] 마감 완료 건 (최종 COMPLETED 종결건만)
   const historyData = useMemo(() => {
     return filteredData.filter((d) => d.status === "정산 마감");
   }, [filteredData]);
 
-  const historyIncome = useMemo(() => {
+  const historyExpense = useMemo(() => {
     return historyData.filter((d) => d.payerType === "SITE_PAYS").reduce((acc, curr) => acc + curr.totalAmount, 0);
   }, [historyData]);
 
-  const historyExpense = useMemo(() => {
+  const historyIncome = useMemo(() => {
     return historyData.filter((d) => d.payerType === "SITE_RECEIVES").reduce((acc, curr) => acc + curr.totalAmount, 0);
   }, [historyData]);
 
-  // 2-1. [프로세스용] 1단계: 검토 및 확정 대기 건
+  // 2-1. [프로세스용] 1단계: 검토 및 확정 대기 건 (운행 완료 후 송금/수령 처리 전 미정산 건)
   const pendingProcessData = useMemo(() => {
     return filteredData.filter(
-      (d) => ["정산 검토", "운행/모집중"].includes(d.status) || (!["정산 마감", "수령 확인", "송금 완료", "이의제기"].includes(d.status))
+      (d) => d.status === "정산 검토"
     );
   }, [filteredData]);
 
-  // 2-2. [프로세스용] 2단계: 수령 및 송금 확인 완료 건 (마감 대기)
+  // 2-2. [프로세스용] 2단계: 송금 및 수령 확인 완료 건 (상대방 확인 및 최종 마감 확정 대기)
   const confirmedProcessData = useMemo(() => {
     return filteredData.filter((d) => ["수령 확인", "송금 완료"].includes(d.status));
   }, [filteredData]);
 
-  const pendingIncome = useMemo(() => {
+  const pendingExpense = useMemo(() => {
     return [...pendingProcessData, ...confirmedProcessData]
       .filter((d) => d.payerType === "SITE_PAYS")
       .reduce((acc, curr) => acc + curr.totalAmount, 0);
   }, [pendingProcessData, confirmedProcessData]);
 
-  const pendingExpense = useMemo(() => {
+  const pendingIncome = useMemo(() => {
     return [...pendingProcessData, ...confirmedProcessData]
       .filter((d) => d.payerType === "SITE_RECEIVES")
       .reduce((acc, curr) => acc + curr.totalAmount, 0);
@@ -275,12 +275,28 @@ export default function DropoffSoilSettlementManagement({
     return disputedProcessData.reduce((acc, curr) => acc + curr.totalAmount, 0);
   }, [disputedProcessData]);
 
+  // 1단계(PENDING) 내부 동적 탭: 지불할 돈(현장 송금)과 받을 돈(하차지 송금 대기)이 둘 다 있을 때만 노출
+  const [pendingFlowFilter, setPendingFlowFilter] = useState<"ALL" | "PAY" | "RECEIVE">("ALL");
+
   // 현재 프로세스 탭에서 보여줄 데이터 (1단계 대기 vs 2단계 확인완료 vs 3단계 보류)
   const currentProcessList = useMemo(() => {
-    if (processSubTab === "PENDING") return pendingProcessData;
+    if (processSubTab === "PENDING") {
+      if (pendingFlowFilter === "PAY") {
+        return pendingProcessData.filter((d) => d.payerType === "SITE_PAYS");
+      }
+      if (pendingFlowFilter === "RECEIVE") {
+        return pendingProcessData.filter((d) => d.payerType === "SITE_RECEIVES");
+      }
+      return pendingProcessData;
+    }
     if (processSubTab === "CONFIRMED") return confirmedProcessData;
     return disputedProcessData;
-  }, [processSubTab, pendingProcessData, confirmedProcessData, disputedProcessData]);
+  }, [processSubTab, pendingFlowFilter, pendingProcessData, confirmedProcessData, disputedProcessData]);
+
+  // 지불할 오더와 받을 오더의 존재 여부 계산 (둘 다 존재할 때만 탭 노출)
+  const hasPendingPay = useMemo(() => pendingProcessData.some((d) => d.payerType === "SITE_PAYS"), [pendingProcessData]);
+  const hasPendingReceive = useMemo(() => pendingProcessData.some((d) => d.payerType === "SITE_RECEIVES"), [pendingProcessData]);
+  const showDynamicFlowTabs = hasPendingPay && hasPendingReceive;
 
   // 서브 탭 변경 시 선택 항목 동기화
   useEffect(() => {
@@ -306,7 +322,12 @@ export default function DropoffSoilSettlementManagement({
 
   const handleSelectAllBatch = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedBatchJobIds(new Set(currentProcessList.map((d) => d.id)));
+      if (processSubTab === "PENDING") {
+        const payableItems = currentProcessList.filter((d) => d.payerType === "SITE_PAYS");
+        setSelectedBatchJobIds(new Set(payableItems.map((d) => d.id)));
+      } else {
+        setSelectedBatchJobIds(new Set(currentProcessList.map((d) => d.id)));
+      }
     } else {
       setSelectedBatchJobIds(new Set());
     }
@@ -322,8 +343,8 @@ export default function DropoffSoilSettlementManagement({
     const headers = [
       "오더번호",
       "작업일자",
+      "발주현장명",
       "하차사토장명",
-      "반입현장명",
       "토사종류",
       "거래구분",
       "계약단가(원)",
@@ -337,10 +358,10 @@ export default function DropoffSoilSettlementManagement({
     const rows = historyData.map((r) => [
       r.jobPostId || r.id,
       r.workDate,
-      `"${(r.dropoffName || "").replace(/"/g, '""')}"`,
       `"${(r.siteName || "").replace(/"/g, '""')}"`,
+      `"${(r.dropoffName || "").replace(/"/g, '""')}"`,
       `"${(r.soilType || "").replace(/"/g, '""')}"`,
-      r.payerType === "SITE_PAYS" ? "사토수수료(수입)" : r.payerType === "SITE_RECEIVES" ? "토사매입비(지출)" : "무상",
+      r.payerType === "SITE_PAYS" ? "사토비(지출)" : r.payerType === "SITE_RECEIVES" ? "토사판매(수입)" : "무상",
       r.unitPrice,
       r.truckCount,
       Math.floor(r.totalAmount / 1.1),
@@ -354,7 +375,7 @@ export default function DropoffSoilSettlementManagement({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `하차지_흙값정산_마감이력_${startDateFilter || "전체"}_${endDateFilter || "전체"}.csv`);
+    link.setAttribute("download", `현장_흙값정산_마감이력_${startDateFilter || "전체"}_${endDateFilter || "전체"}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -368,15 +389,15 @@ export default function DropoffSoilSettlementManagement({
       <div className="bg-white rounded-2xl p-6 border-2 border-slate-300 shadow-md flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow">
-              <MapPin className="w-6 h-6" />
+            <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow">
+              <Building className="w-6 h-6" />
             </div>
             <div>
               <h1 className="text-xl font-black text-slate-900 tracking-tight">
-                하차지(사토장) 흙값 정산 관리
+                현장 흙값(토사비) 정산 관리
               </h1>
               <p className="text-xs font-semibold text-slate-600 mt-0.5">
-                사토 수수료 수령액 및 토사 매입비 지출을 검토·확정하고, 마감된 이력을 확인합니다.
+                사토처리비 지출 및 토사 매각 수입을 검토·확정하고, 마감된 이력을 확인합니다.
               </p>
             </div>
           </div>
@@ -388,7 +409,7 @@ export default function DropoffSoilSettlementManagement({
             onClick={() => setActiveMainTab("PROCESS")}
             className={`px-5 py-2.5 rounded-lg text-sm font-black transition-all flex items-center gap-2 ${
               activeMainTab === "PROCESS"
-                ? "bg-emerald-600 text-white shadow-md"
+                ? "bg-blue-600 text-white shadow-md"
                 : "text-slate-700 hover:text-slate-900 hover:bg-slate-200"
             }`}
           >
@@ -405,7 +426,7 @@ export default function DropoffSoilSettlementManagement({
             onClick={() => setActiveMainTab("HISTORY")}
             className={`px-5 py-2.5 rounded-lg text-sm font-black transition-all flex items-center gap-2 ${
               activeMainTab === "HISTORY"
-                ? "bg-emerald-600 text-white shadow-md"
+                ? "bg-blue-600 text-white shadow-md"
                 : "text-slate-700 hover:text-slate-900 hover:bg-slate-200"
             }`}
           >
@@ -435,12 +456,12 @@ export default function DropoffSoilSettlementManagement({
           </div>
           <div className="space-y-1.5 pt-1">
             <div className="flex justify-between items-baseline text-xs font-bold">
-              <span className="text-slate-500">실수입액 (사토 수수료 수령):</span>
-              <span className="text-base font-black text-emerald-600">₩ {historyIncome.toLocaleString()}</span>
+              <span className="text-slate-500">실지급액 (사토비 지출):</span>
+              <span className="text-base font-black text-rose-600">₩ {historyExpense.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-baseline text-xs font-bold">
-              <span className="text-slate-500">실지출액 (토사 매입비 송금):</span>
-              <span className="text-base font-black text-rose-600">₩ {historyExpense.toLocaleString()}</span>
+              <span className="text-slate-500">실수입액 (토사판매 수취):</span>
+              <span className="text-base font-black text-emerald-600">₩ {historyIncome.toLocaleString()}</span>
             </div>
           </div>
           <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs font-black">
@@ -465,12 +486,12 @@ export default function DropoffSoilSettlementManagement({
           </div>
           <div className="space-y-1.5 pt-1">
             <div className="flex justify-between items-baseline text-xs font-bold">
-              <span className="text-slate-500">수령 예정액 (수수료 청구):</span>
-              <span className="text-base font-black text-amber-600">₩ {pendingIncome.toLocaleString()}</span>
+              <span className="text-slate-500">지급 예정액 (사토비 청구):</span>
+              <span className="text-base font-black text-rose-600">₩ {pendingExpense.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-baseline text-xs font-bold">
-              <span className="text-slate-500">지급 예정액 (매입비 지급):</span>
-              <span className="text-base font-black text-slate-700">₩ {pendingExpense.toLocaleString()}</span>
+              <span className="text-slate-500">수령 예정액 (토사대금 입금):</span>
+              <span className="text-base font-black text-emerald-600">₩ {pendingIncome.toLocaleString()}</span>
             </div>
           </div>
           <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs font-black">
@@ -499,7 +520,7 @@ export default function DropoffSoilSettlementManagement({
               <span className="text-xl font-black text-rose-600">₩ {disputedTotal.toLocaleString()}</span>
             </div>
             <p className="text-[11px] text-slate-500 pt-1 leading-relaxed">
-              수량/토질/단가 차이로 인해 보류 요청된 건입니다. 협의 완료 후 승인 처리할 수 있습니다.
+              사토 대수 불일치 또는 불량토 판정으로 정산이 보류된 건입니다. 협의 완료 후 승인 처리할 수 있습니다.
             </p>
           </div>
         </div>
@@ -510,18 +531,18 @@ export default function DropoffSoilSettlementManagement({
       {/* ========================================================================= */}
       <div className="bg-white p-5 rounded-2xl border-2 border-slate-300 shadow-sm space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {/* 하차 사토장 선택 */}
+          {/* 현장 선택 */}
           <div>
-            <label className="block text-xs font-black text-slate-700 mb-1">하차 사토장</label>
+            <label className="block text-xs font-black text-slate-700 mb-1">발주 공사 현장</label>
             <select
-              value={selectedDropoffId}
-              onChange={(e) => setSelectedDropoffId(e.target.value ? Number(e.target.value) : "")}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+              value={selectedSiteId}
+              onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : "")}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
             >
-              <option value="">모든 사토장 전체</option>
-              {registeredDropoffList.map((d: any) => (
-                <option key={d.id} value={d.id}>
-                  {d.name || d.dropoff_name || `사토장 #${d.id}`}
+              <option value="">모든 공사 현장 전체</option>
+              {registeredSiteList.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.name || s.site_name || `현장 #${s.id}`}
                 </option>
               ))}
             </select>
@@ -529,20 +550,20 @@ export default function DropoffSoilSettlementManagement({
 
           {/* 거래 구분 필터 */}
           <div>
-            <label className="block text-xs font-black text-slate-700 mb-1">거래 및 정산 구분</label>
+            <label className="block text-xs font-black text-slate-700 mb-1">거래 및 비용 구분</label>
             <select
               value={payerTypeFilter}
               onChange={(e) => setPayerTypeFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
             >
               <option value="ALL">전체 거래 (수입/지출/무상)</option>
-              <option value="SITE_PAYS">현장지급 (하차지 수수료 수취)</option>
-              <option value="SITE_RECEIVES">하차지지급 (하차지 토사 매입 지출)</option>
+              <option value="SITE_PAYS">현장지급 (사토비 지출)</option>
+              <option value="SITE_RECEIVES">하차지지급 (토사판매 수입)</option>
               <option value="FREE">무상 사토</option>
             </select>
           </div>
 
-          {/* 작업 기간 필터 */}
+          {/* 작업 일자 필터 */}
           <div className="md:col-span-2">
             <div className="flex justify-between items-center mb-1">
               <label className="text-xs font-black text-slate-700">작업 일자 범위</label>
@@ -571,7 +592,7 @@ export default function DropoffSoilSettlementManagement({
                   setStartDateFilter(e.target.value);
                   setQuickRange("ALL");
                 }}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
               />
               <span className="text-slate-400 font-bold">~</span>
               <input
@@ -581,7 +602,7 @@ export default function DropoffSoilSettlementManagement({
                   setEndDateFilter(e.target.value);
                   setQuickRange("ALL");
                 }}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
@@ -597,7 +618,7 @@ export default function DropoffSoilSettlementManagement({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="현장명, 사토장명, 토사종류 검색..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
@@ -613,12 +634,12 @@ export default function DropoffSoilSettlementManagement({
               </button>
             )}
             <button
-              onClick={() => fetchDropoffSettlementData()}
+              onClick={() => fetchSoilSettlementData()}
               disabled={isLoading}
               className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl transition-all"
               title="새로고침"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-600" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-blue-600" : ""}`} />
             </button>
           </div>
         </div>
@@ -657,12 +678,12 @@ export default function DropoffSoilSettlementManagement({
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
                   processSubTab === "CONFIRMED"
-                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                2단계: 수령/송금 확인 완료 (마감 대기)
+                2단계: 송금/수령 확인 완료 (마감 대기)
                 <span className="px-1.5 py-0.2 bg-white/20 rounded-full text-[10px]">
                   {confirmedProcessData.length}
                 </span>
@@ -687,29 +708,52 @@ export default function DropoffSoilSettlementManagement({
               </button>
             </div>
 
-            {/* 일괄 처리 버튼: 1단계에서는 수령/송금확인 처리, 2단계에서는 최종 마감 확정 처리 */}
+            {/* 일괄 처리 버튼: 1단계에서는 송금/수령확인 처리, 2단계에서는 최종 마감 확정 처리 */}
             {selectedBatchJobIds.size > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-600">
-                  선택 <strong className="text-emerald-600 font-black">{selectedBatchJobIds.size}</strong>건
+                  선택 <strong className="text-blue-600 font-black">{selectedBatchJobIds.size}</strong>건
                 </span>
-                {processSubTab === "PENDING" && (
-                  <button
-                    type="button"
-                    disabled={isProcessing}
-                    onClick={() =>
-                      handleUpdateStatus(
-                        Array.from(selectedBatchJobIds),
-                        "SETTLEMENT_CONFIRMED",
-                        "선택 오더 일괄 수령/송금 확인"
-                      )
-                    }
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    선택 오더 일괄 수령/송금 확인
-                  </button>
-                )}
+                {processSubTab === "PENDING" && (() => {
+                  const hasPayableItems = Array.from(selectedBatchJobIds).some((id) => {
+                    const item = currentProcessList.find((it) => it.id === id);
+                    return item?.payerType === "SITE_PAYS";
+                  });
+
+                  if (!hasPayableItems) {
+                    return (
+                      <div className="px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-amber-600" />
+                        하차지 송금 대기 중 (선택 오더는 하차지가 먼저 송금해야 수령 확인 가능)
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={() => {
+                        const directPayableIds = Array.from(selectedBatchJobIds).filter((id) => {
+                          const item = currentProcessList.find((it) => it.id === id);
+                          return item?.payerType === "SITE_PAYS";
+                        });
+
+                        if (directPayableIds.length > 0) {
+                          handleUpdateStatus(
+                            directPayableIds,
+                            "SETTLEMENT_PAID",
+                            `공사현장 사토처리비 송금 완료 확인 (${directPayableIds.length}건)`
+                          );
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      선택 오더 일괄 송금 완료 확인 (현장지급건)
+                    </button>
+                  );
+                })()}
                 {processSubTab === "CONFIRMED" && (
                   <button
                     type="button"
@@ -737,7 +781,7 @@ export default function DropoffSoilSettlementManagement({
                       Array.from(selectedBatchJobIds).some((id) =>
                         currentProcessList.find((item) => item.id === id)?.status === "수령 확인"
                       )
-                        ? "bg-emerald-700 hover:bg-emerald-800 text-white"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                         : "bg-slate-200 text-slate-400 cursor-not-allowed"
                     }`}
                   >
@@ -749,6 +793,54 @@ export default function DropoffSoilSettlementManagement({
             )}
           </div>
 
+          {/* 지불할 건과 받을 건이 둘 다 있을 때만 동적으로 노출되는 스마트 서브 탭 */}
+          {processSubTab === "PENDING" && showDynamicFlowTabs && (
+            <div className="bg-slate-100 p-1.5 rounded-xl flex items-center gap-1.5 w-fit border border-slate-300">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingFlowFilter("ALL");
+                  setSelectedBatchJobIds(new Set());
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  pendingFlowFilter === "ALL"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                전체 거래 ({pendingProcessData.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingFlowFilter("PAY");
+                  setSelectedBatchJobIds(new Set());
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                  pendingFlowFilter === "PAY"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-blue-700 hover:bg-blue-50"
+                }`}
+              >
+                💸 내가 보낼 돈 (사토처리비 송금 대상: {pendingProcessData.filter((d) => d.payerType === "SITE_PAYS").length}건)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingFlowFilter("RECEIVE");
+                  setSelectedBatchJobIds(new Set());
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                  pendingFlowFilter === "RECEIVE"
+                    ? "bg-amber-600 text-white shadow-sm"
+                    : "text-amber-800 hover:bg-amber-50"
+                }`}
+              >
+                📥 내가 받을 돈 (하차지 송금 대기: {pendingProcessData.filter((d) => d.payerType === "SITE_RECEIVES").length}건)
+              </button>
+            </div>
+          )}
+
           {/* Split-View 좌우 2분할 레이아웃 */}
           <div className="grid grid-cols-12 gap-6 items-start">
             {/* 좌측: 미처리 오더 목록 (5 cols) */}
@@ -757,12 +849,22 @@ export default function DropoffSoilSettlementManagement({
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={currentProcessList.length > 0 && selectedBatchJobIds.size === currentProcessList.length}
+                    checked={
+                      currentProcessList.length > 0 &&
+                      (processSubTab === "PENDING"
+                        ? selectedBatchJobIds.size > 0 &&
+                          selectedBatchJobIds.size === currentProcessList.filter((d) => d.payerType === "SITE_PAYS").length
+                        : selectedBatchJobIds.size === currentProcessList.length)
+                    }
                     onChange={handleSelectAllBatch}
-                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                   />
                   <span className="text-xs font-black text-slate-800">
-                    전체 선택 ({selectedBatchJobIds.size}/{currentProcessList.length})
+                    전체 선택 ({selectedBatchJobIds.size}/
+                    {processSubTab === "PENDING"
+                      ? `${currentProcessList.filter((d) => d.payerType === "SITE_PAYS").length}건 송금가능`
+                      : `${currentProcessList.length}건`}
+                    )
                   </span>
                 </div>
                 <span className="text-[11px] font-bold text-slate-500">
@@ -786,19 +888,28 @@ export default function DropoffSoilSettlementManagement({
                         onClick={() => setSelectedJobItem(item)}
                         className={`p-4 rounded-xl border-2 transition-all cursor-pointer relative ${
                           isSelected
-                            ? "bg-emerald-50/70 border-emerald-500 shadow-sm"
+                            ? "bg-blue-50/70 border-blue-500 shadow-sm"
                             : "bg-white hover:bg-slate-50 border-slate-200"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onClick={(e) => handleToggleBatchCheck(item.id, e)}
-                              onChange={() => {}}
-                              className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
-                            />
+                            {processSubTab === "PENDING" && item.payerType === "SITE_RECEIVES" ? (
+                              <input
+                                type="checkbox"
+                                disabled
+                                title="하차지가 송금을 완료한 후 수령 확인이 가능합니다."
+                                className="w-4 h-4 text-slate-300 rounded border-slate-200 cursor-not-allowed opacity-40"
+                              />
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onClick={(e) => handleToggleBatchCheck(item.id, e)}
+                                onChange={() => {}}
+                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                              />
+                            )}
                             <span className="text-[11px] font-mono font-black text-slate-600">
                               {item.workDate || "작업일 미정"}
                             </span>
@@ -822,24 +933,24 @@ export default function DropoffSoilSettlementManagement({
                         <div className="mt-2.5">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-black text-slate-900 truncate">
-                              {item.dropoffName}
+                              {item.siteName}
                             </h4>
                             <span
                               className={`text-xs font-black font-mono ${
-                                item.payerType === "SITE_PAYS"
+                                item.payerType === "SITE_RECEIVES"
                                   ? "text-emerald-600"
-                                  : item.payerType === "SITE_RECEIVES"
+                                  : item.payerType === "SITE_PAYS"
                                   ? "text-rose-600"
                                   : "text-slate-600"
                               }`}
                             >
-                              {item.payerType === "SITE_PAYS" ? "+" : item.payerType === "SITE_RECEIVES" ? "-" : ""}
+                              {item.payerType === "SITE_RECEIVES" ? "+" : item.payerType === "SITE_PAYS" ? "-" : ""}
                               ₩ {item.totalAmount.toLocaleString()}
                             </span>
                           </div>
                           <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1.5 mt-1">
-                            <span>반입 현장:</span>
-                            <span className="text-slate-800 font-extrabold">{item.siteName}</span>
+                            <span>하차 사토장:</span>
+                            <span className="text-slate-800 font-extrabold">{item.dropoffName}</span>
                             <span>•</span>
                             <span className="text-blue-600">{item.soilType}</span>
                           </div>
@@ -851,9 +962,9 @@ export default function DropoffSoilSettlementManagement({
                           </span>
                           <span className="font-black text-slate-700">
                             {item.payerType === "SITE_PAYS"
-                              ? "사토 수수료 수령"
+                              ? "사토비 지출"
                               : item.payerType === "SITE_RECEIVES"
-                              ? "토사 매입 지출"
+                              ? "토사판매 수입"
                               : "무상 사토"}
                           </span>
                         </div>
@@ -872,11 +983,11 @@ export default function DropoffSoilSettlementManagement({
                   <div className="flex items-start justify-between border-b border-slate-200 pb-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 text-xs font-black rounded-lg bg-emerald-100 text-emerald-800">
+                        <span className="px-2.5 py-1 text-xs font-black rounded-lg bg-blue-100 text-blue-800">
                           오더 #{selectedJobItem.jobPostId || selectedJobItem.id}
                         </span>
                         <h3 className="text-lg font-black text-slate-900">
-                          {selectedJobItem.dropoffName} 흙값 정산서
+                          {selectedJobItem.siteName} 흙값 정산서
                         </h3>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
@@ -886,26 +997,26 @@ export default function DropoffSoilSettlementManagement({
 
                     <div className="text-right">
                       <span className="text-[11px] font-bold text-slate-400 block">정산 상태</span>
-                      <span className="text-sm font-black text-emerald-600">{selectedJobItem.status}</span>
+                      <span className="text-sm font-black text-blue-600">{selectedJobItem.status}</span>
                     </div>
                   </div>
 
-                  {/* 1. 하차 사토장 및 반입 상차 현장 정보 */}
+                  {/* 1. 발주 현장 및 하차 사토장 정보 */}
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                     <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                      <MapPin className="w-4 h-4 text-emerald-600" />
-                      하차 사토장 및 반입 상차 현장 정보
+                      <MapPin className="w-4 h-4 text-blue-600" />
+                      상차 발주 현장 및 하차 사토장 정보
                     </h4>
                     <div className="grid grid-cols-2 gap-4 text-xs">
                       <div className="p-3 bg-white rounded-lg border border-slate-200">
-                        <span className="text-slate-400 block font-bold text-[10px]">하차지 (사토장)</span>
-                        <span className="font-black text-slate-800 text-sm">{selectedJobItem.dropoffName}</span>
-                        <span className="block text-slate-500 text-[11px] mt-0.5">{selectedJobItem.dropoffAddress || "사토장 위치 정보"}</span>
-                      </div>
-                      <div className="p-3 bg-white rounded-lg border border-slate-200">
-                        <span className="text-slate-400 block font-bold text-[10px]">반입 현장 (상차지)</span>
+                        <span className="text-slate-400 block font-bold text-[10px]">발주 현장 (상차지)</span>
                         <span className="font-black text-slate-800 text-sm">{selectedJobItem.siteName}</span>
                         <span className="block text-slate-500 text-[11px] mt-0.5">{selectedJobItem.siteAddress || "현장 주소지 정보"}</span>
+                      </div>
+                      <div className="p-3 bg-white rounded-lg border border-slate-200">
+                        <span className="text-slate-400 block font-bold text-[10px]">하차 사토장</span>
+                        <span className="font-black text-slate-800 text-sm">{selectedJobItem.dropoffName}</span>
+                        <span className="block text-slate-500 text-[11px] mt-0.5">{selectedJobItem.dropoffAddress || "사토장 위치 정보"}</span>
                       </div>
                     </div>
                   </div>
@@ -914,7 +1025,7 @@ export default function DropoffSoilSettlementManagement({
                   <div className="space-y-3">
                     <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                       <Truck className="w-4 h-4 text-blue-600" />
-                      토사 스펙 및 반입 대수 산출
+                      토사 스펙 및 반출 대수 산출
                     </h4>
                     <div className="border border-slate-200 rounded-xl overflow-hidden">
                       <table className="w-full text-xs">
@@ -923,7 +1034,7 @@ export default function DropoffSoilSettlementManagement({
                             <th className="py-2.5 px-3 text-left">토사 종류</th>
                             <th className="py-2.5 px-3 text-left">거래 구분</th>
                             <th className="py-2.5 px-3 text-right">계약 단가</th>
-                            <th className="py-2.5 px-3 text-right">반입 대수</th>
+                            <th className="py-2.5 px-3 text-right">반출 대수</th>
                             <th className="py-2.5 px-3 text-right">정산 합계액</th>
                           </tr>
                         </thead>
@@ -932,9 +1043,9 @@ export default function DropoffSoilSettlementManagement({
                             <td className="py-3 px-3 font-bold text-blue-600">{selectedJobItem.soilType}</td>
                             <td className="py-3 px-3">
                               {selectedJobItem.payerType === "SITE_PAYS"
-                                ? "현장지급 (수수료 수취)"
+                                ? "현장지급 (사토비 지출)"
                                 : selectedJobItem.payerType === "SITE_RECEIVES"
-                                ? "하차지지급 (매입비 지출)"
+                                ? "하차지지급 (토사판매 수입)"
                                 : "무상 사토"}
                             </td>
                             <td className="py-3 px-3 text-right font-mono">{selectedJobItem.unitPrice.toLocaleString()}원</td>
@@ -949,8 +1060,8 @@ export default function DropoffSoilSettlementManagement({
                   </div>
 
                   {/* 3. 공급가액 및 세액 명세서 */}
-                  <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-200 space-y-2">
-                    <h4 className="text-xs font-black text-emerald-900">정산 금액 회계 명세 (원단위 절사)</h4>
+                  <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-200 space-y-2">
+                    <h4 className="text-xs font-black text-blue-900">정산 금액 회계 명세 (원단위 절사)</h4>
                     <div className="space-y-1.5 text-xs font-bold pt-1">
                       <div className="flex justify-between text-slate-600">
                         <span>공급가액:</span>
@@ -964,9 +1075,9 @@ export default function DropoffSoilSettlementManagement({
                           ₩ {(selectedJobItem.totalAmount - Math.floor(selectedJobItem.totalAmount / 1.1)).toLocaleString()}
                         </span>
                       </div>
-                      <div className="pt-2 border-t border-emerald-200 flex justify-between items-center text-sm font-black text-emerald-950">
+                      <div className="pt-2 border-t border-blue-200 flex justify-between items-center text-sm font-black text-blue-950">
                         <span>총 정산 합계액:</span>
-                        <span className="text-lg text-emerald-700 font-mono">
+                        <span className="text-lg text-blue-700 font-mono">
                           ₩ {selectedJobItem.totalAmount.toLocaleString()}
                         </span>
                       </div>
@@ -998,24 +1109,20 @@ export default function DropoffSoilSettlementManagement({
                   <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
                     {selectedJobItem.status === "정산 검토" && (
                       <>
-                        {selectedJobItem.payerType === "SITE_RECEIVES" ? (
+                        {selectedJobItem.payerType === "SITE_PAYS" ? (
                           <button
                             type="button"
                             disabled={isProcessing}
                             onClick={() => handleUpdateStatus([selectedJobItem.id], "SETTLEMENT_PAID", "송금 완료 확인")}
                             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl transition-all shadow-md active:scale-95"
                           >
-                            송금 완료 확인
+                            송금 완료 확인 (사토처리비 지급)
                           </button>
                         ) : (
-                          <button
-                            type="button"
-                            disabled={isProcessing}
-                            onClick={() => handleUpdateStatus([selectedJobItem.id], "SETTLEMENT_CONFIRMED", "수령 확인")}
-                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md active:scale-95"
-                          >
-                            수령 확인 (정산 확정)
-                          </button>
+                          <div className="px-4 py-2 bg-amber-50 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                            <Clock className="w-4 h-4 text-amber-600" />
+                            하차지 송금 대기 중 (하차지가 송금 완료 후 수령 확인 가능)
+                          </div>
                         )}
 
                         <button
@@ -1032,9 +1139,9 @@ export default function DropoffSoilSettlementManagement({
                       </>
                     )}
 
-                    {/* 송금 완료 상태: 돈을 받는 측(SITE_PAYS: 하차지가 수수료 받는 경우)이면 수령 확인 버튼, 돈을 보낸 측(SITE_RECEIVES: 하차지가 매입비 송금한 경우)이면 대기 안내 */}
+                    {/* 송금 완료 상태: 돈을 받는 측(SITE_RECEIVES)이면 수령 확인 버튼, 돈을 보낸 측(SITE_PAYS)이면 상대방 확인 대기 안내 */}
                     {selectedJobItem.status === "송금 완료" && (
-                      selectedJobItem.payerType === "SITE_PAYS" ? (
+                      selectedJobItem.payerType === "SITE_RECEIVES" ? (
                         <button
                           type="button"
                           disabled={isProcessing}
@@ -1070,7 +1177,7 @@ export default function DropoffSoilSettlementManagement({
                         <button
                           type="button"
                           disabled={isProcessing}
-                          onClick={() => handleUpdateStatus([selectedJobItem.id], "CLOSED", "보류 해제 (재검토)")}
+                          onClick={() => handleUpdateStatus([selectedJobItem.id], "COMPLETED", "보류 해제 (정산 재검토)")}
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl transition-all"
                         >
                           보류 해제 (정산 재검토)
@@ -1120,8 +1227,8 @@ export default function DropoffSoilSettlementManagement({
                 <tr className="bg-slate-100/80 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider">
                   <th className="py-3 px-3 w-12 text-center">No.</th>
                   <th className="py-3 px-3 w-24">작업 일자</th>
+                  <th className="py-3 px-3 min-w-[140px]">발주 현장명</th>
                   <th className="py-3 px-3 min-w-[140px]">하차 사토장명</th>
-                  <th className="py-3 px-3 min-w-[140px]">반입 현장명</th>
                   <th className="py-3 px-3 w-20">토사 종류</th>
                   <th className="py-3 px-3 min-w-[120px] text-center">거래 구분</th>
                   <th className="py-3 px-3 w-28 text-right whitespace-nowrap">단가 / 수량</th>
@@ -1149,18 +1256,18 @@ export default function DropoffSoilSettlementManagement({
                       <td className="py-3.5 px-3 font-mono text-slate-800 font-bold whitespace-nowrap">
                         {row.workDate || "-"}
                       </td>
-                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.dropoffName}</td>
-                      <td className="py-3.5 px-3 text-slate-700 font-medium">{row.siteName}</td>
+                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.siteName}</td>
+                      <td className="py-3.5 px-3 text-slate-700 font-medium">{row.dropoffName}</td>
                       <td className="py-3.5 px-3 font-bold text-blue-600 whitespace-nowrap">{row.soilType}</td>
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         {row.payerType === "SITE_PAYS" && (
-                          <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block">
-                            사토수수료 (수입)
+                          <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-rose-50 text-rose-700 border border-rose-200 inline-block">
+                            사토비 (지출)
                           </span>
                         )}
                         {row.payerType === "SITE_RECEIVES" && (
-                          <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-rose-50 text-rose-700 border border-rose-200 inline-block">
-                            토사매입비 (지출)
+                          <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block">
+                            토사판매 (수입)
                           </span>
                         )}
                         {row.payerType === "FREE" && (
@@ -1174,14 +1281,14 @@ export default function DropoffSoilSettlementManagement({
                       </td>
                       <td
                         className={`py-3.5 px-3 font-mono font-black text-right text-sm whitespace-nowrap ${
-                          row.payerType === "SITE_PAYS"
+                          row.payerType === "SITE_RECEIVES"
                             ? "text-emerald-600"
-                            : row.payerType === "SITE_RECEIVES"
+                            : row.payerType === "SITE_PAYS"
                             ? "text-rose-600"
                             : "text-slate-500"
                         }`}
                       >
-                        {row.payerType === "SITE_PAYS" ? "+" : row.payerType === "SITE_RECEIVES" ? "-" : ""}
+                        {row.payerType === "SITE_RECEIVES" ? "+" : row.payerType === "SITE_PAYS" ? "-" : ""}
                         ₩ {row.totalAmount.toLocaleString()}
                       </td>
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
@@ -1224,12 +1331,12 @@ export default function DropoffSoilSettlementManagement({
             <div className="p-6 space-y-4 text-xs font-semibold text-slate-700">
               <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold">하차 사토장</span>
-                  <span className="font-black text-slate-900 text-sm">{historyDetailModalItem.dropoffName}</span>
+                  <span className="text-[10px] text-slate-400 block font-bold">발주 현장</span>
+                  <span className="font-black text-slate-900 text-sm">{historyDetailModalItem.siteName}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-bold">반입 현장</span>
-                  <span className="font-black text-slate-900 text-sm">{historyDetailModalItem.siteName}</span>
+                  <span className="text-[10px] text-slate-400 block font-bold">하차 사토장</span>
+                  <span className="font-black text-slate-900 text-sm">{historyDetailModalItem.dropoffName}</span>
                 </div>
               </div>
 
@@ -1241,11 +1348,11 @@ export default function DropoffSoilSettlementManagement({
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
                   <span className="text-slate-500">토사 종류 / 거래 구분:</span>
                   <span className="font-bold text-blue-600">
-                    {historyDetailModalItem.soilType} ({historyDetailModalItem.payerType === "SITE_PAYS" ? "사토수수료 수입" : "토사매입비 지출"})
+                    {historyDetailModalItem.soilType} ({historyDetailModalItem.payerType === "SITE_PAYS" ? "사토비 지출" : "토사판매 수입"})
                   </span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-slate-500">계약 단가 및 반입 수량:</span>
+                  <span className="text-slate-500">계약 단가 및 반출 수량:</span>
                   <span className="font-mono font-bold text-slate-800">
                     {historyDetailModalItem.unitPrice.toLocaleString()}원 × {historyDetailModalItem.truckCount}대
                   </span>
@@ -1309,9 +1416,9 @@ export default function DropoffSoilSettlementManagement({
             <div className="p-6 space-y-4 text-xs font-semibold text-slate-700">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                 <div className="flex justify-between text-slate-600">
-                  <span>대상 사토장 / 현장:</span>
+                  <span>대상 현장 / 사토장:</span>
                   <span className="font-bold text-slate-800">
-                    {disputeModalItem.dropoffName} ↔ {disputeModalItem.siteName}
+                    {disputeModalItem.siteName} ↔ {disputeModalItem.dropoffName}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-600">
@@ -1336,7 +1443,7 @@ export default function DropoffSoilSettlementManagement({
                     </div>
                     {disputeModalItem.disputeAmount ? (
                       <div className="text-[11px] font-bold">
-                        이의 조정 요청 금액: ₩ {disputeModalItem.disputeAmount.toLocaleString()}원
+                        이의 조정 요구 금액: ₩ {disputeModalItem.disputeAmount.toLocaleString()}원
                       </div>
                     ) : null}
                     <div className="text-[11px] pt-1">
@@ -1347,13 +1454,13 @@ export default function DropoffSoilSettlementManagement({
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    현장 관리자와 유선 협의 및 실제 수량/토질 사양 확인 후 협의가 완료되면 [보류 해제]를 진행하거나 최종 마감 처리할 수 있습니다.
+                    사토장 관리자와 유선 협의 및 실제 수량/토질 사양 확인 후 협의가 완료되면 [보류 해제]를 진행하거나 최종 마감 처리할 수 있습니다.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] leading-relaxed">
-                    실제 반입 대수 불일치, 토질 불량 판정 회차, 계약 단가 상이 등으로 정산 진행이 불가할 때 이의를 등록하고 <strong>정산을 보류</strong>합니다.
+                    실제 반출 대수 불일치, 토질 불량 판정 회차, 계약 단가 상이 등으로 정산 진행이 불가할 때 이의를 등록하고 <strong>정산을 보류</strong>합니다.
                   </div>
 
                   <div>
@@ -1427,7 +1534,7 @@ export default function DropoffSoilSettlementManagement({
                       "SETTLEMENT_DISPUTED",
                       "이의제기 등록 및 정산 보류",
                       {
-                        dispute_type: "DROPOFF",
+                        dispute_type: "SITE",
                         dispute_reason: disputeInputReason.trim(),
                         dispute_amount: disputeInputAmount ? Number(disputeInputAmount) : undefined,
                       }

@@ -30,6 +30,7 @@ class AppColors {
   // 배경 및 표면
   static Color get background    => _theme.background;   // 배경색
   static Color get surface       => _theme.surface;      // 카드/표면색
+  static Color get cardBackground => _theme.surface;     // 카드 배경색 호환용
   static Color get divider       => _isDark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB); // 보더라인
 }
 

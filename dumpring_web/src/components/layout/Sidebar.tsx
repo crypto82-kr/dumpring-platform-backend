@@ -79,7 +79,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     },
     { title: "덤프비 정산 확인", icon: DollarSign, path: "/site/dump-expenses" },
     { title: "흙값 정산 관리", icon: TrendingUp, path: "/site/soil-expenses" },
-    { title: "세금계산서 업무", icon: Receipt, path: "/site/tax-invoice" },
+    { title: "세무증빙관리", icon: Receipt, path: "/site/tax-invoice" },
     { title: "현장 안전 공지", icon: HardHat, path: "/site/safety" },
   ],
   site_worker: [
@@ -102,7 +102,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "공고 관리", icon: FileText, path: "/dropoff/dispatch-request" },
     { title: "배차 현황", icon: Truck, path: "/dropoff/dispatch" },
     { title: "흙값 정산 관리", icon: DollarSign, path: "/dropoff/soil-settlement" },
-    { title: "세금계산서 업무", icon: Receipt, path: "/dropoff/tax-invoice" },
+    { title: "거래명세서 관리", icon: FileText, path: "/dropoff/tax-invoice" },
     { title: "하차지 정보 통계", icon: BarChart3, path: "/dropoff/stats" },
   ],
   owner: [

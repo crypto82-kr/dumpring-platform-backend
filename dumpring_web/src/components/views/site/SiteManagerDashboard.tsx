@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
-import { MockMap } from "./MockMap";
-import { MatchStatusCard } from "./MatchStatusCard";
+import { MockMap } from "@/components/views/common/MockMap";
+import { MatchStatusCard } from "@/components/views/common/MatchStatusCard";
 
 interface SiteManagerDashboardProps {
   activePath: string;

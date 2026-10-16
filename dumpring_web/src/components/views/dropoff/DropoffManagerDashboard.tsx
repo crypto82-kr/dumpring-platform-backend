@@ -1,8 +1,8 @@
 import React from "react";
 import { AlertCircle, Search } from "lucide-react";
-import { MockMap } from "./MockMap";
+import { MockMap } from "@/components/views/common/MockMap";
 import { getApiBaseUrl } from "@/utils/api";
-import { MatchStatusCard } from "./MatchStatusCard";
+import { MatchStatusCard } from "@/components/views/common/MatchStatusCard";
 import DropoffDispatchManagement from "./DropoffDispatchManagement";
 import DropoffSoilSettlementManagement from "./DropoffSoilSettlementManagement";
 import DropoffTaxInvoiceManagement from "./DropoffTaxInvoiceManagement";

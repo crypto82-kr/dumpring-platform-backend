@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock, CheckCircle2, RotateCcw } from "lucide-react";
-import { MockMap } from "./MockMap";
+import { MockMap } from "@/components/views/common/MockMap";
 import { getApiBaseUrl } from "@/utils/api";
 
 export interface DispatchStatusItem {

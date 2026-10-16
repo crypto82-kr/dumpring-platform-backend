@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { MapPin, Truck, ShieldCheck, AlertCircle, Loader2, Check, RefreshCw, LogOut, Upload, FileText } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
-import { MockMap } from "@/components/dashboard/MockMap";
+import { MockMap } from "@/components/views/common/MockMap";
 
 export default function ApprovalRequestScreen() {
   const { user, logout, updateApprovalStatus } = useAuth();

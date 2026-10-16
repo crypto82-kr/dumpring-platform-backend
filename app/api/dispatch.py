@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import or_, and_, update
+from sqlalchemy import or_, and_, update, func
 from typing import List, Optional
 from datetime import datetime, date, timedelta
 from pydantic import BaseModel
@@ -1105,7 +1105,11 @@ async def inspect_and_confirm(
 
     await db.commit()
     await db.refresh(ticket)
-    return await attach_pricing_policy(ticket, db)
+    try:
+        return await attach_pricing_policy(ticket, db)
+    except Exception as e:
+        logger.warning(f"Inspection attach_pricing_policy fallback: {e}")
+        return ticket
 
 
 
@@ -1766,10 +1770,37 @@ async def get_site_soil_expenses(
 
     from sqlalchemy.orm import selectinload
 
-    # 2. 해당 현장들의 JobPost 조회 (작업일자 최신순 정렬)
+    from sqlalchemy import func
+    from app.models import DispatchTicket
+
+    # 2. 해당 현장들의 JobPost 조회 (반드시 실제 하차지 반입 승인이 완료된 운행 티켓이 있는 건만 조회)
+    # 기사가 배차 수락(ACCEPTED)만 했거나 상차지만 도착하고 실제 운행/반입하지 않은 건은 정산 진입 불가
+    arrived_ticket_statuses = [
+        "APPROVED",
+        "COMPLETED",
+        "SETTLEMENT_REQUESTED",
+        "SETTLEMENT_APPROVED",
+        "SETTLEMENT_PAID",
+        "SETTLEMENT_CONFIRMED"
+    ]
+
     job_query = (
-        select(JobPost)
-        .where(JobPost.site_id.in_(site_ids))
+        select(
+            JobPost,
+            func.count(DispatchTicket.id).filter(DispatchTicket.status.in_(arrived_ticket_statuses)).label("arrived_count")
+        )
+        .outerjoin(DispatchTicket, JobPost.id == DispatchTicket.job_post_id)
+        .where(
+            JobPost.site_id.in_(site_ids),
+            or_(
+                JobPost.drop_off_request_id.isnot(None),
+                JobPost.matched_drop_off_id.isnot(None)
+            )
+        )
+        .group_by(JobPost.id)
+        .having(
+            func.count(DispatchTicket.id).filter(DispatchTicket.status.in_(arrived_ticket_statuses)) > 0
+        )
         .options(
             selectinload(JobPost.site),
             selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
@@ -1778,7 +1809,7 @@ async def get_site_soil_expenses(
         .order_by(JobPost.work_date.desc(), JobPost.id.desc())
     )
     jobs_res = await db.execute(job_query)
-    jobs = jobs_res.scalars().all()
+    jobs_rows = jobs_res.all()
 
     # 3. 데이터 가공 및 필터링
     soil_items = []
@@ -1798,7 +1829,7 @@ async def get_site_soil_expenses(
     from datetime import timezone, timedelta
     kst_tz = timezone(timedelta(hours=9))
 
-    for j in jobs:
+    for j, arrived_count in jobs_rows:
         # KST 타임존 보정 (UTC -> KST)
         if j.work_date:
             dt = j.work_date if j.work_date.tzinfo else j.work_date.replace(tzinfo=timezone.utc)
@@ -1818,8 +1849,19 @@ async def get_site_soil_expenses(
         site_obj = j.site
         site_name_val = (site_obj.site_name or site_obj.company_name) if site_obj else "현장"
 
-        # 하차 사토장명
-        dropoff_name = j.drop_off_name or "사토장 미지정"
+        # 하차 사토장명 (matched_drop_off -> drop_off_request.drop_off -> drop_off_name 순으로 정확히 매핑)
+        resolved_dropoff_name = None
+        if j.matched_drop_off and j.matched_drop_off.name:
+            resolved_dropoff_name = j.matched_drop_off.name
+        elif j.drop_off_request and j.drop_off_request.drop_off and j.drop_off_request.drop_off.name:
+            resolved_dropoff_name = j.drop_off_request.drop_off.name
+        elif j.drop_off_name:
+            resolved_dropoff_name = j.drop_off_name
+
+        if not resolved_dropoff_name:
+            continue
+
+        dropoff_name = resolved_dropoff_name
 
         # payer_type 판별: JobPost 우선, 없으면 DropOffRequest 참조
         raw_payer = j.payer_type
@@ -1829,19 +1871,19 @@ async def get_site_soil_expenses(
         # 표준 payerType: 'SITE_PAYS', 'SITE_RECEIVES', 'FREE'
         if raw_payer in ["SITE_PAYS", "CONSTRUCTION_SITE_PAYS"]:
             payer_type = "SITE_PAYS"
-        elif raw_payer in ["SITE_RECEIVES", "DROPOFF_PAYS"]:
+        elif raw_payer in ["SITE_RECEIVES", "DROPOFF_PAYS", "DROP_OFF_PAYS"]:
             payer_type = "SITE_RECEIVES"
         elif raw_payer == "FREE":
             payer_type = "FREE"
         else:
             payer_type = "SITE_PAYS"  # 기본 사토처리비 지출
 
-        # 단가 및 수량
+        # 단가 및 수량 (실제 반입/운행 완료된 대수 우선)
         unit_price = j.offered_unit_price or 0
         if unit_price == 0 and j.drop_off_request:
             unit_price = j.drop_off_request.unit_price or 0
 
-        truck_count = j.required_trucks or 0
+        truck_count = arrived_count if arrived_count > 0 else (j.required_trucks or 0)
         total_amount = unit_price * truck_count if payer_type != "FREE" else 0
 
         if payer_type == "SITE_PAYS":
@@ -1854,7 +1896,14 @@ async def get_site_soil_expenses(
         soil_type_name = material_type_map.get(soil_type_raw, soil_type_raw)
 
         # 흙값 정산 상태 매핑
-        if j.status == "COMPLETED":
+        # SETTLEMENT_PAID: 송금 완료
+        # 흙값 정산 상태 판정:
+        # - SETTLEMENT_CLOSED: 관리자/담당자가 최종 마감 확정한 건만 "정산 마감"
+        # - SETTLEMENT_CONFIRMED: 수취처 입금 수령 확인 완료 (마감 대기)
+        # - SETTLEMENT_PAID: 지급처 송금 완료 (수령 확인 대기)
+        # - SETTLEMENT_DISPUTED: 이의제기 / 정산 보류
+        # - COMPLETED 또는 운행완료(APPROVED 등) 직후: 아직 정산 처리 전이므로 "정산 검토"
+        if j.status == "SETTLEMENT_CLOSED":
             status_desc = "정산 마감"
         elif j.status == "SETTLEMENT_CONFIRMED":
             status_desc = "수령 확인"
@@ -1862,12 +1911,8 @@ async def get_site_soil_expenses(
             status_desc = "송금 완료"
         elif j.status == "SETTLEMENT_DISPUTED":
             status_desc = "이의제기"
-        elif j.status in ["CLOSED", "MATCHED"]:
-            status_desc = "정산 검토"
-        elif j.status == "OPEN":
-            status_desc = "운행/모집중"
         else:
-            status_desc = "정산 대기"
+            status_desc = "정산 검토"
 
         disputed_at_str = ""
         if j.disputed_at:
@@ -1951,14 +1996,32 @@ async def get_dropoff_soil_settlements(
     d_req_res = await db.execute(d_req_query)
     d_req_ids = [r[0] for r in d_req_res.fetchall()]
 
-    # 3. 해당 하차지에 연결된 JobPost 조회 (drop_off_request_id 또는 matched_drop_off_id)
+    # 3. 해당 하차지에 연결된 JobPost 조회 (반드시 실제 하차지 반입 승인이 완료된 운행 티켓이 있는 건만 조회)
+    # 단순히 모집 마감(CLOSED)이거나 매칭/모집중(OPEN, WAITING_MATCH, MATCHED 등)인 미운행 건은 정산 관리 진입 불가
+    arrived_ticket_statuses = [
+        "APPROVED",
+        "COMPLETED",
+        "SETTLEMENT_REQUESTED",
+        "SETTLEMENT_APPROVED",
+        "SETTLEMENT_PAID",
+        "SETTLEMENT_CONFIRMED"
+    ]
+
     job_query = (
-        select(JobPost)
+        select(
+            JobPost,
+            func.count(DispatchTicket.id).filter(DispatchTicket.status.in_(arrived_ticket_statuses)).label("arrived_count")
+        )
+        .outerjoin(DispatchTicket, JobPost.id == DispatchTicket.job_post_id)
         .where(
             or_(
                 JobPost.drop_off_request_id.in_(d_req_ids) if d_req_ids else False,
                 JobPost.matched_drop_off_id.in_(drop_ids)
             )
+        )
+        .group_by(JobPost.id)
+        .having(
+            func.count(DispatchTicket.id).filter(DispatchTicket.status.in_(arrived_ticket_statuses)) > 0
         )
         .options(
             selectinload(JobPost.site),
@@ -1968,7 +2031,7 @@ async def get_dropoff_soil_settlements(
         .order_by(JobPost.work_date.desc(), JobPost.id.desc())
     )
     jobs_res = await db.execute(job_query)
-    jobs = jobs_res.scalars().all()
+    jobs_rows = jobs_res.all()
 
     # 4. 데이터 가공
     material_type_map = {
@@ -1987,7 +2050,7 @@ async def get_dropoff_soil_settlements(
     total_income = 0
     total_expense = 0
 
-    for j in jobs:
+    for j, arrived_count in jobs_rows:
         # KST 타임존 변환
         if j.work_date:
             dt = j.work_date if j.work_date.tzinfo else j.work_date.replace(tzinfo=timezone.utc)
@@ -2005,14 +2068,23 @@ async def get_dropoff_soil_settlements(
 
         site_obj = j.site
         site_name_val = (site_obj.site_name or site_obj.company_name) if site_obj else "현장"
-        dropoff_name = j.drop_off_name or "사토장 미지정"
 
-        # drop_off_id 파악
+        # drop_off_id 및 dropoff_name 파악
         matched_d_id = None
-        if j.drop_off_request and j.drop_off_request.drop_off_id:
-            matched_d_id = j.drop_off_request.drop_off_id
-        elif j.matched_drop_off_id:
-            matched_d_id = j.matched_drop_off_id
+        resolved_dropoff_name = None
+        if j.matched_drop_off:
+            matched_d_id = j.matched_drop_off.id
+            resolved_dropoff_name = j.matched_drop_off.name
+        elif j.drop_off_request and j.drop_off_request.drop_off:
+            matched_d_id = j.drop_off_request.drop_off.id
+            resolved_dropoff_name = j.drop_off_request.drop_off.name
+        elif j.drop_off_name:
+            resolved_dropoff_name = j.drop_off_name
+
+        if not resolved_dropoff_name:
+            continue
+
+        dropoff_name = resolved_dropoff_name
 
         # payer_type 판별
         raw_payer = j.payer_type
@@ -2021,7 +2093,7 @@ async def get_dropoff_soil_settlements(
 
         if raw_payer in ["SITE_PAYS", "CONSTRUCTION_SITE_PAYS"]:
             payer_type = "SITE_PAYS"
-        elif raw_payer in ["SITE_RECEIVES", "DROPOFF_PAYS"]:
+        elif raw_payer in ["SITE_RECEIVES", "DROPOFF_PAYS", "DROP_OFF_PAYS"]:
             payer_type = "SITE_RECEIVES"
         elif raw_payer == "FREE":
             payer_type = "FREE"
@@ -2032,7 +2104,7 @@ async def get_dropoff_soil_settlements(
         if unit_price == 0 and j.drop_off_request:
             unit_price = j.drop_off_request.unit_price or 0
 
-        truck_count = j.required_trucks or 0
+        truck_count = arrived_count if arrived_count > 0 else (j.required_trucks or 0)
         total_amount = unit_price * truck_count if payer_type != "FREE" else 0
 
         # 하차지 관점: SITE_PAYS는 하차지의 수입, SITE_RECEIVES는 하차지의 지출
@@ -2044,7 +2116,13 @@ async def get_dropoff_soil_settlements(
         soil_type_raw = j.material_type or (j.drop_off_request.material_type if j.drop_off_request else "") or "일반토사"
         soil_type_name = material_type_map.get(soil_type_raw, soil_type_raw)
 
-        if j.status == "COMPLETED":
+        # 흙값 정산 상태 판정:
+        # - SETTLEMENT_CLOSED: 관리자/담당자가 최종 마감 확정한 건만 "정산 마감"
+        # - SETTLEMENT_CONFIRMED: 수취처 입금 수령 확인 완료 (마감 대기)
+        # - SETTLEMENT_PAID: 지급처 송금 완료 (수령 확인 대기)
+        # - SETTLEMENT_DISPUTED: 이의제기 / 정산 보류
+        # - COMPLETED 또는 운행완료(APPROVED 등) 직후: 아직 정산 처리 전이므로 "정산 검토"
+        if j.status == "SETTLEMENT_CLOSED":
             status_desc = "정산 마감"
         elif j.status == "SETTLEMENT_CONFIRMED":
             status_desc = "수령 확인"
@@ -2052,12 +2130,8 @@ async def get_dropoff_soil_settlements(
             status_desc = "송금 완료"
         elif j.status == "SETTLEMENT_DISPUTED":
             status_desc = "이의제기"
-        elif j.status in ["CLOSED", "MATCHED"]:
-            status_desc = "정산 검토"
-        elif j.status == "OPEN":
-            status_desc = "운행/모집중"
         else:
-            status_desc = "정산 대기"
+            status_desc = "정산 검토"
 
         disputed_at_str = ""
         if j.disputed_at:
@@ -2136,8 +2210,8 @@ async def update_soil_settlement_status(
             j.status = "SETTLEMENT_CONFIRMED"
         elif req.target_status == "SETTLEMENT_PAID":
             j.status = "SETTLEMENT_PAID"
-        elif req.target_status == "COMPLETED":
-            j.status = "COMPLETED"
+        elif req.target_status in ["COMPLETED", "SETTLEMENT_CLOSED"]:
+            j.status = "SETTLEMENT_CLOSED"
         else:
             j.status = req.target_status
 

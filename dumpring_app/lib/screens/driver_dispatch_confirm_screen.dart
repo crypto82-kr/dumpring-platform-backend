@@ -523,13 +523,18 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
   Widget build(BuildContext context) {
     final Map<String, dynamic> activeJob = _ticket?['job_post'] ?? widget.job;
 
-    // 실제 공고 데이터(activeJob)에서 필요한 세부 정보 추출
-    final double distance = (activeJob['distance'] ?? 0.0).toDouble(); 
-    final int estimatedTimeMinutes = activeJob['estimated_time'] ?? 0;
+    // 1. 공고 데이터 및 요금 정책 기반 정확한 운임 산출
+    // 하차지 토사 반입단가(4~5만원)가 아닌 톤수별 표준 운임(또는 별도 지정 운송운임) 연동
+    final int baseFare = _getBaseFareForTruck(activeJob['truck_type']);
     final int unitPrice = (activeJob['offered_unit_price'] != null && activeJob['offered_unit_price'] > 0)
         ? activeJob['offered_unit_price']
-        : _getBaseFareForTruck(activeJob['truck_type']); // DB 운임 관리 기본 단가 연동
-    final int platformFee = (unitPrice * 0.03).round(); // 수수료 3%
+        : baseFare;
+
+    // 2. 관리자 설정 플랫폼 중개 수수료율(COMMISSION_POLICY) 동적 반영 (기본값 1.0%)
+    final double commRate = (_pricingPolicy != null && _pricingPolicy!['commission_rate'] != null)
+        ? (_pricingPolicy!['commission_rate'] as num).toDouble()
+        : 1.0;
+    final int platformFee = (unitPrice * (commRate / 100.0)).round();
     final int netEarning = unitPrice - platformFee;
 
     final String materialType = activeJob['material_type'] == 'GOOD_SOIL'
@@ -849,7 +854,7 @@ class _DriverDispatchConfirmScreenState extends State<DriverDispatchConfirmScree
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("플랫폼 수수료 (3%)", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                            Text("플랫폼 수수료 (${commRate.toStringAsFixed(1)}%)", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                             Text("-₩${_formatCurrency(platformFee)}", style: TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.bold)),
                           ],
                         ),

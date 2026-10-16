@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Building2, Truck, CheckCircle2, Clock, MapPin, AlertCircle, BarChart3, ArrowUpRight, TrendingUp } from "lucide-react";
-import { MockMap } from "./MockMap";
+import { MockMap } from "@/components/views/common/MockMap";
 
 interface SiteOverviewDashboardProps {
   registeredSiteList?: any[];

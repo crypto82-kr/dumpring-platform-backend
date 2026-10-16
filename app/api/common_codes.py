@@ -161,7 +161,7 @@ async def get_pricing_policy(
         select(CommonCode).where(CommonCode.group_code == "COMMISSION_POLICY", CommonCode.code == "DEFAULT_RATE")
     )
     comm_obj = res_comm.scalars().first()
-    commission_rate = float(comm_obj.code_name) if comm_obj and comm_obj.code_name else 5.0
+    commission_rate = float(comm_obj.code_name) if comm_obj and comm_obj.code_name else 1.0
 
     return PricingPolicyResponse(
         tonnage_tariffs=tonnage_tariffs,

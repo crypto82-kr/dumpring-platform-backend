@@ -1706,7 +1706,15 @@ async def get_site_tax_invoice_consignment(
         driver_consignments.append(dg)
 
     # 6. [탭 2] 하차지별 B2B 위수탁 정산 집계
-    # 그룹 키: drop_off_id
+    # 반드시 실제 하차지 반입 승인이 완료된 운행 티켓만 집계 (미운행/배차수락만 된 건 배제)
+    arrived_ticket_statuses = [
+        "APPROVED",
+        "COMPLETED",
+        "SETTLEMENT_APPROVED",
+        "SETTLEMENT_PAID",
+        "SETTLEMENT_CONFIRMED"
+    ]
+
     dropoff_group_map = {}
     for t in all_tickets:
         if t.status in ["CANCELLED", "REJECTED"]:
@@ -1714,6 +1722,11 @@ async def get_site_tax_invoice_consignment(
 
         job = t.job_post
         if not job:
+            continue
+
+        # 하차지 도착 승인 여부 (반입 승인된 티켓만 집계 대상)
+        is_arrived = t.status in arrived_ticket_statuses
+        if not is_arrived:
             continue
 
         drop_off = None
@@ -1729,15 +1742,29 @@ async def get_site_tax_invoice_consignment(
         dropoff_owner = drop_off.owner if drop_off else None
         dropoff_profile = dropoff_owner.drop_off_profile if (dropoff_owner and hasattr(dropoff_owner, "drop_off_profile")) else None
         
-        business_number = "105-86-99214"
-        if dropoff_profile and getattr(dropoff_profile, "permit_number", None):
-            business_number = dropoff_profile.permit_number
-        elif dropoff_owner and getattr(dropoff_owner, "phone_number", None):
-            business_number = f"010-{dropoff_owner.phone_number[-8:-4]}-{dropoff_owner.phone_number[-4:]}"
+        # 하차지 인허가 번호 및 사업자번호 구분
+        permit_number = None
+        if drop_off and getattr(drop_off, "permit_number", None):
+            permit_number = drop_off.permit_number
+        elif dropoff_profile and getattr(dropoff_profile, "permit_number", None):
+            permit_number = dropoff_profile.permit_number
 
-        # 계약 유형: JobPost payer_type ('SITE_PAYS' or 'DROPOFF_PAYS' or 'FREE')
-        payer_type = job.payer_type or "SITE_PAYS"
-        contract_type = "현장 지출 (토사 처리비 지급)" if payer_type == "SITE_PAYS" else "하차지 지출 (골재/양질토 매각)"
+        # 사업자등록번호: 사업자번호 포맷(xxx-xx-xxxxx)이 있는 경우만 사용, 없으면 사업자 미등록
+        business_number = None
+        if dropoff_owner and getattr(dropoff_owner, "business_number", None):
+            business_number = dropoff_owner.business_number
+
+        # 계약 유형: JobPost payer_type ('SITE_PAYS' or 'DROPOFF_PAYS' / 'DROP_OFF_PAYS' or 'FREE')
+        raw_payer = job.payer_type or "SITE_PAYS"
+        if raw_payer in ["SITE_RECEIVES", "DROPOFF_PAYS", "DROP_OFF_PAYS"]:
+            payer_type = "DROPOFF_PAYS"
+            contract_type = "하차지 지출 (골재/양질토 매각)"
+        elif raw_payer == "FREE":
+            payer_type = "FREE"
+            contract_type = "무상 사토"
+        else:
+            payer_type = "SITE_PAYS"
+            contract_type = "현장 지출 (토사 처리비 지급)"
 
         unit_price = 0
         if job.drop_off_request and getattr(job.drop_off_request, "unit_price", None):
@@ -1745,17 +1772,33 @@ async def get_site_tax_invoice_consignment(
         elif job.offered_unit_price:
             unit_price = job.offered_unit_price
 
-        group_key = f"dropoff_{dropoff_id}_{payer_type}"
+        # 날짜 추출 (티켓 completed_at, driving_started_at, accepted_at 또는 job.work_date)
+        from datetime import timezone, timedelta
+        kst_tz = timezone(timedelta(hours=9))
+        t_date = t.completed_at or t.driving_started_at or t.accepted_at or job.work_date
+        t_date_str = ""
+        if t_date:
+            dt_val = t_date if t_date.tzinfo else t_date.replace(tzinfo=timezone.utc)
+            t_date_str = dt_val.astimezone(kst_tz).strftime("%Y-%m-%d")
+
+        site_obj = job.site
+        site_id_val = site_obj.id if site_obj else job.site_id
+        site_name_val = (site_obj.site_name or site_obj.company_name) if site_obj else f"현장 #{site_id_val}"
+
+        group_key = f"dropoff_{dropoff_id}_site_{site_id_val}_{payer_type}"
         if group_key not in dropoff_group_map:
             dropoff_group_map[group_key] = {
                 "group_key": group_key,
                 "dropoff_id": dropoff_id,
                 "dropoff_name": dropoff_name,
                 "dropoff_address": dropoff_address,
+                "site_id": site_id_val,
+                "site_name": site_name_val,
                 "business_number": business_number,
+                "permit_number": permit_number,
                 "contract_type": contract_type,
                 "payer_type": payer_type,
-                "site_departure_count": 0,    # 현장 출발 배차 건수 (상차 승인 완료 이상)
+                "site_departure_count": 0,    # 현장 출발 배차 건수 (반입 완료 건 기준)
                 "dropoff_arrived_count": 0,   # 하차지 도착 승인 배차 건수 (APPROVED/COMPLETED)
                 "discrepancy_count": 0,       # 오차 건수
                 "unit_price": unit_price,
@@ -1766,15 +1809,15 @@ async def get_site_tax_invoice_consignment(
                 "invoice_issued": False,
                 "invoice_nts_code": None,
                 "invoice_issued_at": None,
+                "work_dates": set(),
             }
 
         d_grp = dropoff_group_map[group_key]
         d_grp["site_departure_count"] += 1
-        # 하차지 도착 승인 여부 (APPROVED, COMPLETED 등 반입 승인된 티켓만 정산 티켓으로 인정)
-        is_arrived = t.status in ["APPROVED", "COMPLETED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]
-        if is_arrived:
-            d_grp["dropoff_arrived_count"] += 1
-            d_grp["ticket_ids"].append(t.id)
+        d_grp["dropoff_arrived_count"] += 1
+        d_grp["ticket_ids"].append(t.id)
+        if t_date_str:
+            d_grp["work_dates"].add(t_date_str)
 
         # 하차지 B2B 전용 세금계산서 발행 플래그 확인
         if getattr(t, "dropoff_invoice_issued", False):
@@ -1791,6 +1834,17 @@ async def get_site_tax_invoice_consignment(
         d_grp["supply_price"] = calc_count * d_grp["unit_price"]
         d_grp["vat"] = math.floor(d_grp["supply_price"] * 0.1)
         d_grp["total_amount"] = d_grp["supply_price"] + d_grp["vat"]
+        
+        # 날짜 범위 문자열 포맷팅 (예: "2026-10-06" 또는 "2026-10-01 ~ 2026-10-06")
+        sorted_dates = sorted(list(d_grp["work_dates"]))
+        if len(sorted_dates) == 1:
+            d_grp["date_range"] = sorted_dates[0]
+        elif len(sorted_dates) > 1:
+            d_grp["date_range"] = f"{sorted_dates[0]} ~ {sorted_dates[-1]}"
+        else:
+            d_grp["date_range"] = "작업일자 정보 없음"
+        d_grp["work_dates"] = sorted_dates
+
         dropoff_settlements.append(d_grp)
 
     return {
@@ -1947,11 +2001,11 @@ async def get_dropoff_tax_invoice_summary(
         # DROPOFF_PAYS: 하차지가 현장에서 골재/양질토 구매 -> 하차지 입장에서는 [매입세금계산서]
         if payer_type == "SITE_PAYS":
             tax_type = "SALES"
-            tax_type_label = "매출 (현장 토사처리비 수령)"
+            tax_type_label = "매출"
             btn_action_label = "매출세금계산서 발행"
         else:
             tax_type = "PURCHASE"
-            tax_type_label = "매입 (양질토 매입 대금 지급)"
+            tax_type_label = "매입"
             btn_action_label = "매입세금계산서 승인(발행)"
 
         unit_price = 0
@@ -1966,8 +2020,11 @@ async def get_dropoff_tax_invoice_summary(
                 "group_key": group_key,
                 "dropoff_id": dropoff_id_val,
                 "dropoff_name": dropoff_name_val,
+                "dropoff_address": drop_off.address if drop_off else "-",
+                "permit_number": drop_off.permit_number if drop_off else "-",
                 "site_id": site_id,
                 "site_name": site_name,
+                "site_address": getattr(site_obj, "site_address", "-") if site_obj else "-",
                 "company_name": company_name,
                 "business_number": business_number,
                 "billing_email": billing_email,

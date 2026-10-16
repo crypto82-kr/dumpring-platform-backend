@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../shared/app_config.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -68,10 +69,12 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   int _totalOfflineSeconds = 0;
 
   // 상하차지 좌표 및 현장명 저장을 위한 변수
+  int? _siteId;
   double? _siteLat;
   double? _siteLng;
   String? _siteName;
   String? _siteAddress;
+  int? _dropOffId;
   double? _dropOffLat;
   double? _dropOffLng;
   String? _dropOffName;
@@ -81,6 +84,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   String? _loadingRejectionReason; // 현장담당자가 전달한 상차 보류 사유
   String _approvalMode = "MANAGER_SCANS_DRIVER";
   String _dropoffInspectionMode = "MANAGER_SCANS_DRIVER";
+  bool _isTestLocationBypass = kDebugMode; // 디버그/테스트 환경 기본 활성화 (현장 밖에서도 QR 스캔/운행 테스트 가능)
 
   Future<void> _launchTMap({required String destinationName, required double? lat, required double? lng}) async {
     debugPrint("티맵 호출 목적지: $destinationName, 위도(Y): $lat, 경도(X): $lng");
@@ -195,27 +199,85 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       if (scannedPayload != null && scannedPayload.isNotEmpty) {
         if (mounted) {
           if (!isDropOffPhase) {
+            // [상차 단계] 스캔한 QR이 현재 배차된 상차지의 QR인지 검증
+            final bool isSiteMatched = _validateSiteQrPayload(scannedPayload);
+            if (!isSiteMatched) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.cancel_outlined, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text("상차지 불일치 경고", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
+                  content: Text(
+                    "촬영하신 QR 코드는 현재 배차된 상차 현장의 QR이 아닙니다.\n\n"
+                    "• 배차된 상차지: ${_siteName ?? '지정 상차지'}\n\n"
+                    "배차받은 현장의 고정 QR 코드를 확인 후 다시 촬영해 주세요.",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("확인", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+              return;
+            }
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("✅ 상차지 QR 인식 성공! ($scannedPayload)\nGPS 대조 및 상차 승인을 처리합니다."),
+                content: Text("✅ 상차 현장(${_siteName ?? '현장'}) 고정 QR 인식이 확인되었습니다.\n위치 확인 및 상차 승인을 진행합니다."),
                 backgroundColor: AppColors.primary,
                 duration: const Duration(seconds: 2),
               ),
             );
-            _processQRValidation();
+            _processQRValidation(scannedPayload);
           } else {
+            // [하차 단계] 스캔한 QR이 현재 배차된 하차지의 QR인지 검증
+            final bool isDropOffMatched = _validateDropOffQrPayload(scannedPayload);
+            if (!isDropOffMatched) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.cancel_outlined, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text("하차지 불일치 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
+                  content: Text(
+                    "촬영하신 QR 코드는 현재 배차된 하차지(사토장)의 QR이 아닙니다.\n\n"
+                    "• 배차된 사토장: ${_dropOffName ?? '지정 사토장'}\n\n"
+                    "지정된 사토장의 고정 QR 코드를 확인 후 다시 촬영해 주세요.",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("확인", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+              return;
+            }
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("✅ 사토장 도착 QR 인증 완료! ($scannedPayload)\n하차지 담당자의 자재(토질) 검수 승인을 기다립니다."),
+                content: Text("✅ 사토장(${_dropOffName ?? '하차지'}) 도착 QR 인증이 완료되었습니다.\n담당자의 자재(토질) 검수 승인을 기다립니다."),
                 backgroundColor: AppColors.primary,
                 duration: const Duration(seconds: 3),
               ),
             );
-            // 사토장 QR 스캔 완료: 하차지 도착 상태 유지 및 지주 승인 실시간 감지 타이머 가동
+            // 사토장 고정 QR 스캔 정상 인증 시, 즉시 사토장 도착 처리 및 지주 검수/승인 완료 처리
             _statusPollTimer?.cancel();
-            _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-              _pollTicketStatus();
-            });
+            _landownerApproved();
           }
         }
       }
@@ -285,7 +347,37 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
   }
 
-  Future<void> _processQRValidation() async {
+  bool _validateSiteQrPayload(String payload) {
+    try {
+      final uri = Uri.parse(payload);
+      if (uri.scheme == 'dumpring' && uri.host == 'site' && uri.path == '/loading') {
+        final idStr = uri.queryParameters['id'];
+        if (idStr != null && _siteId != null) {
+          final int? scannedSiteId = int.tryParse(idStr);
+          // 스캔된 현장 ID와 현재 티켓의 상차지 ID가 정확히 일치해야 함
+          return scannedSiteId == _siteId;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  bool _validateDropOffQrPayload(String payload) {
+    try {
+      final uri = Uri.parse(payload);
+      if (uri.scheme == 'dumpring' && uri.host == 'dropoff' && uri.path == '/unloading') {
+        final idStr = uri.queryParameters['id'];
+        if (idStr != null && _dropOffId != null) {
+          final int? scannedDropoffId = int.tryParse(idStr);
+          // 스캔된 하차지 ID와 현재 티켓의 하차지 ID가 정확히 일치해야 함
+          return scannedDropoffId == _dropOffId;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<void> _processQRValidation([String? scannedPayload]) async {
     setState(() {
       _isLoadingState = true;
     });
@@ -297,7 +389,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         timeLimit: const Duration(seconds: 5),
       );
 
-      // 2. 상차지 마스터 위경도 좌표 대조
+      // 2. 상차지 마스터 위경도 좌표 대조 (운영 환경에서는 1km 필수 검증, 테스트 모드에서는 우회)
       if (_siteLat != null && _siteLng != null && _siteLat != 0.0 && _siteLng != 0.0) {
         final double distanceInMeters = Geolocator.distanceBetween(
           position.latitude,
@@ -308,33 +400,39 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
 
         if (distanceInMeters > 1000.0) {
           final double distanceInKm = distanceInMeters / 1000.0;
-          if (mounted) {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Row(
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text("QR 인증 실패 (위치 이탈)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          if (!_isTestLocationBypass) {
+            // [운영 모드] 1km 초과 시 철저히 차단
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text("QR 인증 실패 (위치 이탈)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    ],
+                  ),
+                  content: Text(
+                    "현재 위치가 등록된 상차지 좌표 반경 1km 외부입니다.\n"
+                    "실제 상차 현장 내에서 고정형 QR을 촬영해야 승인됩니다.\n\n"
+                    "• 상차지와의 현재 거리: ${distanceInKm.toStringAsFixed(2)} km"
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("확인"),
+                    ),
                   ],
                 ),
-                content: Text(
-                  "현재 위치가 등록된 상차지 좌표 반경 1km 외부입니다.\n"
-                  "실제 상차 현장 내에서 고정형 QR을 촬영해야 승인됩니다.\n\n"
-                  "• 상차지와의 현재 거리: ${distanceInKm.toStringAsFixed(2)} km"
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("확인"),
-                  ),
-                ],
-              ),
-            );
+              );
+            }
+            return;
+          } else {
+            // [테스트/개발 모드] 웹-앱 연동 테스트를 위해 안내 배너만 띄우고 정상 진행
+            debugPrint("🧪 [테스트 모드] 상차지 거리(${distanceInKm.toStringAsFixed(2)}km) 예외 허용 및 서버 QR 승인 진행");
           }
-          return;
         }
       }
 
@@ -367,17 +465,32 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         );
       }
     } catch (e) {
-      // 위치 정보 획득 에러 발생 시 테스트용으로 우회 통과 허용
+      debugPrint("QR 위치 대조 중 위치 획득 실패: $e");
+      // 위치 권한 또는 GPS 획득 실패 시 서버 승인 시도
       final ok = await _sendApproveLoadingToServer("QR");
-      setState(() {
-        _isSiteLoadingApproved = true;
-      });
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool("ticket_progress_${widget.ticketId}_site_loading_approved", true);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("⚠️ 위치 획득 실패 (시뮬레이터 자동 통과 처리, 서버 연동: ${ok ? '성공' : '실패'}): $e")),
-        );
+      if (ok) {
+        setState(() {
+          _isSiteLoadingApproved = true;
+        });
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool("ticket_progress_${widget.ticketId}_site_loading_approved", true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("✅ 상차 승인이 완료되었습니다. 운행을 시작할 수 있습니다."),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("⚠️ 위치 정보를 가져올 수 없고 상차 승인 처리에 실패했습니다: $e"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
@@ -558,16 +671,18 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         }
       }
 
-      // 공고에 정상적인 운송단가(> 90,000원)가 있으면 그것을 채택하고, 그렇지 않거나 누락 시 톤수 표준요금 적용
+      // 공고의 단가(offered_unit_price)가 있으면 그대로 기본 운임으로 채택하고, 없으면 톤수별 표준 운임 적용
       final int rawPrice = jp['offered_unit_price'] ?? 0;
-      _baseTariff = (rawPrice >= 90000) ? rawPrice : defaultFareByTon;
+      _baseTariff = (rawPrice > 0) ? rawPrice : defaultFareByTon;
 
       _plannedDistanceKm = (jp['distance'] as num?)?.toDouble() ?? 10.0;
       _plannedTimeMinutes = jp['estimated_time'] ?? 20;
+      _siteId = jp['site_id'] as int?;
       _siteLat = (jp['site_latitude'] as num?)?.toDouble();
       _siteLng = (jp['site_longitude'] as num?)?.toDouble();
       _siteName = jp['site_name'] as String?;
       _siteAddress = jp['site_address'] as String?;
+      _dropOffId = (jp['drop_off_id'] ?? jp['dropoff_id']) as int?;
       _dropOffLat = (jp['drop_off_latitude'] as num?)?.toDouble();
       _dropOffLng = (jp['drop_off_longitude'] as num?)?.toDouble();
       _dropOffName = jp['drop_off_name'] as String?;
@@ -866,34 +981,38 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
 
         if (distanceInMeters > 1000.0) { // 1km 초과 시 차단
           final double distanceInKm = distanceInMeters / 1000.0;
-          if (mounted) {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text("상차지 이탈 경고", style: TextStyle(fontWeight: FontWeight.bold)),
+          if (!_isTestLocationBypass) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text("상차지 이탈 경고", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: Text(
+                    "상차 현장으로부터 너무 멀리 떨어져 있어 운행을 시작할 수 없습니다.\n"
+                    "공고된 상차지 좌표 부근으로 이동하여 미터기를 켜주세요.\n\n"
+                    "• 상차지와의 거리: ${distanceInKm.toStringAsFixed(2)} km\n"
+                    "• 부정 요금 부과 규정에 따라 운행 시작이 제한됩니다."
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("확인", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
                   ],
                 ),
-                content: Text(
-                  "상차 현장으로부터 너무 멀리 떨어져 있어 운행을 시작할 수 없습니다.\n"
-                  "공고된 상차지 좌표 부근으로 이동하여 미터기를 켜주세요.\n\n"
-                  "• 상차지와의 거리: ${distanceInKm.toStringAsFixed(2)} km\n"
-                  "• 부정 요금 부과 규정에 따라 운행 시작이 제한됩니다."
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("확인", style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            );
+              );
+            }
+            return; // [운영] 주행 시작 차단
+          } else {
+            debugPrint("🧪 [테스트 모드] 상차지 거리(${distanceInKm.toStringAsFixed(2)}km) 예외 허용 및 주행 시작 허용");
           }
-          return; // 주행 시작 차단
         }
       } catch (e) {
         debugPrint("위치 확인 실패로 인한 무시 및 진입 허용: $e");
@@ -997,7 +1116,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
 
         // 3. 지주 실시간 반입 승인을 실시간으로 감지하기 위한 Polling 타이머 가동 (WOW 🚨)
         _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-          _pollTicketStatus();
+          _pollDropoffTicketStatus();
         });
       }
     } catch (e) {
@@ -1005,8 +1124,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
   }
 
-  // 4. 티켓 승인 상태 실시간 폴링 API 연동
-  Future<void> _pollTicketStatus() async {
+  // 4. 티켓 승인 상태 실시간 폴링 API 연동 (하차지 승인/반려 폴링)
+  Future<void> _pollDropoffTicketStatus() async {
     try {
       final response = await http.get(
         Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}"),
@@ -1216,8 +1335,34 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textPrimary,
         elevation: 0.5,
-        title: Text(_getAppBarTitle(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(_getAppBarTitle(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isTestLocationBypass ? Icons.bug_report : Icons.gps_fixed,
+              color: _isTestLocationBypass ? Colors.amberAccent : Colors.white70,
+              size: 22,
+            ),
+            tooltip: _isTestLocationBypass ? "테스트 모드 (GPS 1km 우회 켜짐)" : "운영 모드 (GPS 1km 엄격 검증)",
+            onPressed: () {
+              setState(() {
+                _isTestLocationBypass = !_isTestLocationBypass;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _isTestLocationBypass
+                        ? "🧪 [테스트 모드 활성화] 상차지/하차지 1km GPS 거리 검증이 우회됩니다."
+                        : "🛡️ [운영 모드 활성화] 현장 반경 1km 이내에서만 QR 및 운행이 승인됩니다.",
+                  ),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: _isTestLocationBypass ? Colors.amber.shade900 : Colors.blueGrey,
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -1511,7 +1656,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                     ),
                     child: Row(
                       children: [
-                        const Text(
+                        Text(
                           "사유: ",
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
                         ),

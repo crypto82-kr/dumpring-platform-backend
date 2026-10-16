@@ -56,7 +56,7 @@ class PricingPolicyResponse(BaseModel):
 
 class MeterPricingPolicyUpdate(BaseModel):
     tonnage_tariffs: Optional[list[TonnageTariffItem]] = None
-    commission_rate: Optional[float] = 5.0
+    commission_rate: Optional[float] = 1.0
     calculation_method: str = "CONTINUOUS"
     continuous_distance_unit_fare: int = 1000
     continuous_time_unit_fare: int = 200
