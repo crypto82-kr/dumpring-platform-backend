@@ -470,6 +470,7 @@ async def create_job_post(
     new_job = JobPost(
         site_id=data.site_id,
         drop_off_request_id=data.drop_off_request_id,
+        matched_drop_off_id=dropoff_request.drop_off_id,
         author_id=current_user.id,
         work_date=data.work_date,
         required_trucks=data.required_trucks,
@@ -1273,4 +1274,154 @@ async def update_job_post(
 
     await db.commit()
     return await get_job_with_relations(job.id, db)
+
+
+class AdminProxyMatchRequest(BaseModel):
+    site_id: int
+    drop_off_id: int
+    work_date: str  # YYYY-MM-DD
+    material_type: Optional[str] = "GOOD_SOIL"
+    truck_type: Optional[str] = "T_25"
+    required_trucks: Optional[int] = 10
+    unit_price: Optional[int] = 50000
+    payer_type: Optional[str] = "SITE_PAYS"
+    memo: Optional[str] = "플랫폼 관리자 대행 매칭 등록 건"
+
+
+@router.post(
+    "/admin/match-proxy",
+    response_model=JobPostResponse,
+    summary="[어드민] 관리자 현장-하차지 대행 매칭 및 공고 즉시 개설",
+    description="플랫폼 관리자가 특정 날짜(1일 기준)에 대해 현장과 하차지를 매칭하고 배차 공고(JobPost)를 OPEN 상태로 정식 활성화합니다."
+)
+async def admin_proxy_match(
+    data: AdminProxyMatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="플랫폼 관리자(ADMIN) 권한이 필요합니다."
+        )
+
+    # 1. 현장 확인
+    site_query = select(ConstructionSite).where(ConstructionSite.id == data.site_id)
+    site_res = await db.execute(site_query)
+    site = site_res.scalars().first()
+    if not site:
+        raise HTTPException(status_code=404, detail="해당 공사현장을 찾을 수 없습니다.")
+
+    # 2. 하차지 확인
+    dropoff_query = select(DropOff).where(DropOff.id == data.drop_off_id, DropOff.status != "DELETED")
+    dropoff_res = await db.execute(dropoff_query)
+    dropoff = dropoff_res.scalars().first()
+    if not dropoff:
+        raise HTTPException(status_code=404, detail="해당 하차지를 찾을 수 없거나 삭제되었습니다.")
+
+    # 3. 거리/시간 계산
+    import math
+    from datetime import datetime, date
+    distance = None
+    est_time = None
+    if site.latitude and site.longitude and dropoff.latitude and dropoff.longitude:
+        lat1, lon1 = site.latitude, site.longitude
+        lat2, lon2 = dropoff.latitude, dropoff.longitude
+        R = 6371.0
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = round(R * c, 1)
+        est_time = int(distance * 1.5 + 5)
+
+    try:
+        work_dt = datetime.strptime(data.work_date, "%Y-%m-%d")
+    except ValueError:
+        work_dt = datetime.now()
+
+    # 4. 동일 날짜/현장/하차지 기존 공고 있는지 확인
+    start_of_day = datetime(work_dt.year, work_dt.month, work_dt.day, 0, 0, 0)
+    end_of_day = datetime(work_dt.year, work_dt.month, work_dt.day, 23, 59, 59)
+    exist_job_q = select(JobPost).where(
+        JobPost.site_id == site.id,
+        JobPost.matched_drop_off_id == dropoff.id,
+        JobPost.work_date >= start_of_day,
+        JobPost.work_date <= end_of_day,
+        JobPost.status.in_(["OPEN", "WAITING_APPROVAL", "WAITING_MATCH"])
+    )
+    exist_res = await db.execute(exist_job_q)
+    existing_job = exist_res.scalars().first()
+
+    # 4-1. 해당 하차지의 동일 날짜(1일 기준)/토사 DropOffRequest(수용 공고)가 없으면 하차지 공고 관리에도 잡히도록 1일 수용 공고 생성/매핑
+    dr_q = select(DropOffRequest).where(
+        DropOffRequest.drop_off_id == dropoff.id,
+        DropOffRequest.material_type == (data.material_type or "GOOD_SOIL"),
+        DropOffRequest.start_date <= end_of_day,
+        DropOffRequest.end_date >= start_of_day,
+        DropOffRequest.status != "DELETED"
+    )
+    dr_res = await db.execute(dr_q)
+    dropoff_req = dr_res.scalars().first()
+
+    if not dropoff_req:
+        dropoff_req = DropOffRequest(
+            drop_off_id=dropoff.id,
+            material_type=data.material_type or "GOOD_SOIL",
+            truck_type=data.truck_type or "T_25",
+            target_quantity=data.required_trucks or 10,
+            current_quantity=data.required_trucks or 10,
+            payer_type=data.payer_type or "SITE_PAYS",
+            payment_method="MONTHLY",
+            unit_price=data.unit_price or 50000,
+            has_washing_facility=True,
+            night_work_allowed=False,
+            rain_work_allowed=False,
+            start_date=start_of_day,
+            end_date=end_of_day,
+            status="OPEN"
+        )
+        db.add(dropoff_req)
+        await db.flush()
+
+    if existing_job:
+        existing_job.status = "OPEN"
+        existing_job.matched_drop_off_id = dropoff.id
+        existing_job.drop_off_request_id = dropoff_req.id
+        existing_job.material_type = data.material_type or existing_job.material_type or "GOOD_SOIL"
+        existing_job.truck_type = data.truck_type or existing_job.truck_type or "T_25"
+        existing_job.required_trucks = data.required_trucks or existing_job.required_trucks or 10
+        existing_job.offered_unit_price = data.unit_price or existing_job.offered_unit_price or 50000
+        existing_job.payer_type = data.payer_type or existing_job.payer_type or "SITE_PAYS"
+        existing_job.memo = data.memo or existing_job.memo
+        if distance:
+            existing_job.distance = distance
+            existing_job.estimated_time = est_time
+        await db.commit()
+        return await get_job_with_relations(existing_job.id, db)
+
+    # 5. 정식 매칭 오더(JobPost) 생성 (즉시 기사 모집 가능한 OPEN 상태로 오픈)
+    # site_id가 site.id로 묶여 있으므로 해당 현장의 현장관리자/담당자의 "배차 현황"에 즉시 노출됩니다.
+    new_job = JobPost(
+        site_id=site.id,
+        drop_off_request_id=dropoff_req.id,
+        matched_drop_off_id=dropoff.id,
+        author_id=site.user_id or current_user.id,
+        material_type=data.material_type or "GOOD_SOIL",
+        truck_type=data.truck_type or "T_25",
+        offered_unit_price=data.unit_price or 50000,
+        payer_type=data.payer_type or "SITE_PAYS",
+        work_date=work_dt,
+        required_trucks=data.required_trucks or 10,
+        status="OPEN",  # 관리자 대행 매칭 시 즉시 기사 호출/배차 가능하도록 정식 OPEN
+        memo=data.memo,
+        distance=distance,
+        estimated_time=est_time
+    )
+    db.add(new_job)
+    await db.commit()
+    await db.refresh(new_job)
+
+    return await get_job_with_relations(new_job.id, db)
+
 

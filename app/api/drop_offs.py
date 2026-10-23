@@ -29,10 +29,10 @@ async def create_drop_off(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_drop_off:
+    if not current_user.is_drop_off and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="하차지 지주(DROP_OFF) 권한이 필요합니다."
+            detail="하차지 지주(DROP_OFF) 또는 관리자 권한이 필요합니다."
         )
 
     # 중복 개설 방지 로직 (동일 인허가번호 + 동일명)
@@ -77,6 +77,21 @@ async def create_drop_off(
 
 
 @router.get(
+    "/all",
+    response_model=List[DropOffResponse],
+    summary="[어드민] 전체 하차지 목록 조회",
+    description="플랫폼 관리자가 시스템에 등록된 전체 하차지 목록을 조회합니다."
+)
+async def get_all_drop_offs(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(DropOff).where(DropOff.status != "DELETED").order_by(DropOff.id.desc())
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.get(
     "/me",
     response_model=List[DropOffResponse],
     summary="본인 소유 하차지 목록 조회",
@@ -86,16 +101,19 @@ async def get_my_drop_offs(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_drop_off:
+    if not current_user.is_drop_off and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="하차지 지주(DROP_OFF) 권한이 필요합니다."
+            detail="하차지 지주(DROP_OFF) 또는 관리자 권한이 필요합니다."
         )
 
-    query = select(DropOff).where(
-        DropOff.owner_id == current_user.id,
-        DropOff.status != "DELETED"
-    )
+    if current_user.is_admin:
+        query = select(DropOff).where(DropOff.status != "DELETED").order_by(DropOff.id.desc())
+    else:
+        query = select(DropOff).where(
+            DropOff.owner_id == current_user.id,
+            DropOff.status != "DELETED"
+        )
     result = await db.execute(query)
     return result.scalars().all()
 

@@ -5,7 +5,16 @@ from sqlalchemy import or_
 from typing import List, Optional
 from pydantic import BaseModel
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+KST_TZ = timezone(timedelta(hours=9))
+
+def to_kst_str(dt: Optional[datetime], fmt: str = "%Y-%m-%d") -> str:
+    if not dt:
+        return ""
+    aware_dt = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return aware_dt.astimezone(KST_TZ).strftime(fmt)
+
 from sqlalchemy.orm import selectinload
 from app.models import DispatchTicket, ConstructionSite, DropOff, DropOffRequest, JobPost
 
@@ -857,7 +866,7 @@ async def get_owner_monthly_schedule(
 
     for t in tickets:
         ticket_date = t.accepted_at or t.driving_started_at
-        d_str = ticket_date.strftime("%Y-%m-%d") if ticket_date else ""
+        d_str = to_kst_str(ticket_date)
         if d_str in schedule_by_date:
             driver_info = user_map.get(t.driver_id)
             driver_name = driver_info[0] if driver_info else (t.driver.name if t.driver else f"기사 #{t.driver_id}")
@@ -1080,8 +1089,8 @@ async def get_owner_operation_statistics(
 
             records.append({
                 "ticket_id": t.id,
-                "date": ticket_date.strftime("%Y-%m-%d"),
-                "time": ticket_date.strftime("%H:%M"),
+                "date": to_kst_str(ticket_date, "%Y-%m-%d"),
+                "time": to_kst_str(ticket_date, "%H:%M"),
                 "driver_id": t.driver_id,
                 "driver_name": driver_name,
                 "car_id": t.car_id,
@@ -1299,8 +1308,8 @@ async def get_owner_settlement_revenues(
 
             records.append({
                 "ticket_id": t.id,
-                "date": ticket_date.strftime("%Y-%m-%d"),
-                "time": ticket_date.strftime("%H:%M"),
+                "date": to_kst_str(ticket_date, "%Y-%m-%d"),
+                "time": to_kst_str(ticket_date, "%H:%M"),
                 "driver_id": t.driver_id,
                 "driver_name": driver_name,
                 "car_id": t.car_id,
@@ -1652,7 +1661,7 @@ async def get_site_tax_invoice_consignment(
             if getattr(t, "tax_invoice_nts_code", None):
                 dg["latest_nts_code"] = t.tax_invoice_nts_code
             if getattr(t, "tax_invoice_issued_at", None):
-                dg["latest_issued_at"] = t.tax_invoice_issued_at.strftime("%Y-%m-%d %H:%M")
+                dg["latest_issued_at"] = to_kst_str(t.tax_invoice_issued_at, "%Y-%m-%d %H:%M")
 
         if getattr(t, "tax_invoice_confirmed_by_driver", False):
             dg["confirmed_by_driver_count"] += 1
@@ -1660,7 +1669,7 @@ async def get_site_tax_invoice_consignment(
         dg["tickets_detail"].append({
             "ticket_id": t.id,
             "status": t.status,
-            "date": (t.completed_at or t.driving_started_at or t.accepted_at).strftime("%Y-%m-%d") if (t.completed_at or t.driving_started_at or t.accepted_at) else "",
+            "date": to_kst_str(t.completed_at or t.driving_started_at or t.accepted_at),
             "fare": fare,
             "tax_invoice_issued": bool(t.tax_invoice_issued),
             "tax_invoice_confirmed_by_driver": bool(getattr(t, "tax_invoice_confirmed_by_driver", False)),
@@ -2060,13 +2069,13 @@ async def get_dropoff_tax_invoice_summary(
             if getattr(t, "dropoff_invoice_nts_code", None):
                 grp["invoice_nts_code"] = t.dropoff_invoice_nts_code
             if getattr(t, "dropoff_invoice_issued_at", None):
-                grp["invoice_issued_at"] = t.dropoff_invoice_issued_at.strftime("%Y-%m-%d %H:%M")
+                grp["invoice_issued_at"] = to_kst_str(t.dropoff_invoice_issued_at, "%Y-%m-%d %H:%M")
 
         grp["tickets_detail"].append({
             "ticket_id": t.id,
             "status": t.status,
             "is_arrived": is_arrived,
-            "date": (t.completed_at or t.driving_started_at or t.accepted_at).strftime("%Y-%m-%d") if (t.completed_at or t.driving_started_at or t.accepted_at) else "",
+            "date": to_kst_str(t.completed_at or t.driving_started_at or t.accepted_at),
             "soil_type": job.soil_type if job and getattr(job, "soil_type", None) else "일반 토사",
             "unit_price": unit_price,
             "invoice_issued": bool(getattr(t, "dropoff_invoice_issued", False)),

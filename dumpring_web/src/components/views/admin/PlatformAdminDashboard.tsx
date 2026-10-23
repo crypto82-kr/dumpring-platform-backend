@@ -1971,18 +1971,6 @@ export function PlatformAdminDashboard({
   }
 
   // default/disputes fallback pages
-  if (activePath === "/admin/sites") {
-    // 플랫폼 관리자(Platform Admin)도 동일하게 DB 연동 현장관리를 이용할 수 있도록 /site 대시보드로 즉시 라우팅합니다.
-    setTimeout(() => {
-      setActivePath("/site");
-    }, 50);
-    return (
-      <div className="p-6 text-center py-24">
-        <p className="text-xs text-slate-500">현장 통합 관리 화면으로 리다이렉트 중...</p>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center py-24 animate-fadeIn">

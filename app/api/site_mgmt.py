@@ -5,9 +5,21 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import selectinload
 import uuid
+from datetime import datetime, timezone, timedelta
+
+KST_TZ = timezone(timedelta(hours=9))
+
+def to_kst_str(dt: Optional[datetime], fmt: str = "%Y-%m-%d") -> str:
+    if not dt:
+        return ""
+    aware_dt = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return aware_dt.astimezone(KST_TZ).strftime(fmt)
 
 from app.core.db import get_db
-from app.models import User, ConstructionSite, SiteUserMapping, SiteUserStatus, UnloadingSite
+from app.models import (
+    User, ConstructionSite, SiteUserMapping, SiteUserStatus, UnloadingSite,
+    SiteSafetyNotice, SiteSafetyNoticeRead, DispatchTicket, JobPost
+)
 from app.api.auth import get_current_user
 
 router = APIRouter()
@@ -161,11 +173,11 @@ async def create_site(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 현장관리자(소장)와 현장담당자(담당자) 모두 현장 개설 권한을 갖습니다.
-    if not current_user.is_site_manager and not current_user.is_site_worker:
+    # 현장관리자(소장), 현장담당자(담당자), 플랫폼 관리자 모두 현장 개설 권한을 갖습니다.
+    if not current_user.is_site_manager and not current_user.is_site_worker and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자(소장님) 또는 현장담당자만 신규 현장을 개설할 수 있습니다."
+            detail="현장관리자(소장님), 현장담당자 또는 관리자만 신규 현장을 개설할 수 있습니다."
         )
 
     # 중복 체크
@@ -1173,7 +1185,7 @@ async def list_all_standalone_employees(
                 await db.commit()
 
         status_str = "APPROVED" if is_approved_flag else ("REJECTED" if emp.reject_reason else "PENDING")
-        created_str = emp.created_at.strftime("%Y-%m-%d") if emp.created_at else ""
+        created_str = to_kst_str(emp.created_at)
         result.append(StandaloneEmployeeResponse(
             id=emp.id,
             name=emp.name or "현장담당자",
@@ -1219,7 +1231,7 @@ async def create_standalone_employee(
         if site_obj:
             site_name = site_obj.site_name
 
-    created_str = new_emp.created_at.strftime("%Y-%m-%d") if new_emp.created_at else ""
+    created_str = to_kst_str(new_emp.created_at)
     return StandaloneEmployeeResponse(
         id=new_emp.id,
         name=new_emp.name,
@@ -1272,7 +1284,7 @@ async def update_standalone_employee(
             site_name = site_obj.site_name
 
     status_str = "APPROVED" if emp.is_approved else ("REJECTED" if emp.reject_reason else "PENDING")
-    created_str = emp.created_at.strftime("%Y-%m-%d") if emp.created_at else ""
+    created_str = to_kst_str(emp.created_at)
     return StandaloneEmployeeResponse(
         id=emp.id,
         name=emp.name,
@@ -1331,4 +1343,209 @@ async def approve_standalone_employee(
 
     await db.commit()
     return {"message": f"현장담당자 승인 처리 완료 (승인여부: {approve})"}
+
+
+# ========================================================
+# 4. 실시간 현장 안전 공지 API (Site Safety Notices)
+# ========================================================
+
+class CreateSafetyNoticeRequest(BaseModel):
+    level: str = Field(..., description="공지 중요도 등급 (EMERGENCY, WARNING, NORMAL)")
+    content: str = Field(..., description="공지 내용 (최대 500자)")
+    contact_phone: Optional[str] = Field(None, description="현장 비상 연락처")
+    target_drivers_count: int = Field(0, description="발송 대상 차량 수")
+
+
+@router.post(
+    "/{site_id}/safety-notices",
+    summary="[현장관리자] 현장 실시간 안전 공지 등록 및 발송"
+)
+async def create_site_safety_notice(
+    site_id: int,
+    data: CreateSafetyNoticeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 현장 존재 확인
+    site = await db.get(ConstructionSite, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="존재하지 않는 공사현장입니다.")
+
+    # 공지 등록
+    new_notice = SiteSafetyNotice(
+        site_id=site_id,
+        author_id=current_user.id,
+        level=data.level,
+        content=data.content,
+        contact_phone=data.contact_phone or site.manager_phone,
+        target_drivers_count=data.target_drivers_count,
+        status="ACTIVE"
+    )
+    db.add(new_notice)
+    await db.commit()
+    await db.refresh(new_notice)
+
+    # 작성자 확인 처리 자동 추가
+    return {
+        "id": new_notice.id,
+        "site_id": new_notice.site_id,
+        "level": new_notice.level,
+        "content": new_notice.content,
+        "contact_phone": new_notice.contact_phone,
+        "target_drivers_count": new_notice.target_drivers_count,
+        "confirmed_count": 0,
+        "sent_at": to_kst_str(new_notice.created_at, "%Y-%m-%d %H:%M"),
+        "status": "발송완료"
+    }
+
+
+@router.get(
+    "/{site_id}/safety-notices",
+    summary="[현장관리자] 특정 현장의 안전 공지 발송 이력 조회"
+)
+async def get_site_safety_notices(
+    site_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = select(SiteSafetyNotice).where(
+        SiteSafetyNotice.site_id == site_id,
+        SiteSafetyNotice.status == "ACTIVE"
+    ).order_by(SiteSafetyNotice.created_at.desc())
+
+    res = await db.execute(query)
+    notices = res.scalars().all()
+
+    results = []
+    for n in notices:
+        # 확인한 기사 수 집계
+        read_q = select(SiteSafetyNoticeRead).where(SiteSafetyNoticeRead.notice_id == n.id)
+        read_res = await db.execute(read_q)
+        confirmed_count = len(read_res.scalars().all())
+
+        results.append({
+            "id": n.id,
+            "site_id": n.site_id,
+            "level": n.level,
+            "content": n.content,
+            "contact_phone": n.contact_phone,
+            "target_drivers_count": n.target_drivers_count,
+            "confirmed_count": confirmed_count,
+            "sent_at": to_kst_str(n.created_at, "%Y-%m-%d %H:%M"),
+            "status": "발송완료"
+        })
+
+    return results
+
+
+@router.delete(
+    "/{site_id}/safety-notices/{notice_id}",
+    summary="[현장관리자] 안전 공지 삭제(보관 처리)"
+)
+async def delete_site_safety_notice(
+    site_id: int,
+    notice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    notice = await db.get(SiteSafetyNotice, notice_id)
+    if not notice or notice.site_id != site_id:
+        raise HTTPException(status_code=404, detail="해당 안전 공지를 찾을 수 없습니다.")
+
+    notice.status = "DELETED"
+    await db.commit()
+    return {"message": "공지가 정상적으로 삭제되었습니다."}
+
+
+@router.get(
+    "/driver/active-safety-notice",
+    summary="[기사용] 현재 운행 중인 현장의 최신 안전 공지 실시간 조회"
+)
+async def get_driver_active_safety_notice(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 기사가 현재 수락하여 운행 중인 배차 티켓 조회
+    ticket_query = select(DispatchTicket).where(
+        DispatchTicket.driver_id == current_user.id,
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED"])
+    ).order_by(DispatchTicket.accepted_at.desc())
+
+    ticket_res = await db.execute(ticket_query)
+    ticket = ticket_res.scalars().first()
+
+    if not ticket:
+        return {"has_notice": False, "notice": None}
+
+    # 해당 배차의 현장 ID 확인
+    job = await db.get(JobPost, ticket.job_post_id)
+    if not job or not job.site_id:
+        return {"has_notice": False, "notice": None}
+
+    # 해당 현장의 최신 활성 안전 공지 1건 조회
+    notice_query = select(SiteSafetyNotice).where(
+        SiteSafetyNotice.site_id == job.site_id,
+        SiteSafetyNotice.status == "ACTIVE"
+    ).order_by(SiteSafetyNotice.created_at.desc())
+
+    notice_res = await db.execute(notice_query)
+    latest_notice = notice_res.scalars().first()
+
+    if not latest_notice:
+        return {"has_notice": False, "notice": None}
+
+    # 해당 기사가 이미 확인했는지 여부 체크
+    read_query = select(SiteSafetyNoticeRead).where(
+        SiteSafetyNoticeRead.notice_id == latest_notice.id,
+        SiteSafetyNoticeRead.driver_id == current_user.id
+    )
+    read_res = await db.execute(read_query)
+    is_confirmed = read_res.scalars().first() is not None
+
+    site = await db.get(ConstructionSite, latest_notice.site_id)
+
+    return {
+        "has_notice": True,
+        "notice": {
+            "id": latest_notice.id,
+            "site_id": latest_notice.site_id,
+            "site_name": site.site_name if site else "현장",
+            "level": latest_notice.level,
+            "content": latest_notice.content,
+            "contact_phone": latest_notice.contact_phone,
+            "sent_at": to_kst_str(latest_notice.created_at, "%Y-%m-%d %H:%M"),
+            "is_confirmed": is_confirmed
+        }
+    }
+
+
+@router.post(
+    "/driver/safety-notices/{notice_id}/confirm",
+    summary="[기사용] 안전 공지 확인 완료 처리"
+)
+async def confirm_safety_notice_by_driver(
+    notice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    notice = await db.get(SiteSafetyNotice, notice_id)
+    if not notice:
+        raise HTTPException(status_code=404, detail="존재하지 않는 공지입니다.")
+
+    # 중복 확인 여부 검사
+    read_q = select(SiteSafetyNoticeRead).where(
+        SiteSafetyNoticeRead.notice_id == notice_id,
+        SiteSafetyNoticeRead.driver_id == current_user.id
+    )
+    existing = (await db.execute(read_q)).scalars().first()
+    if not existing:
+        new_read = SiteSafetyNoticeRead(
+            notice_id=notice_id,
+            driver_id=current_user.id
+        )
+        db.add(new_read)
+        await db.commit()
+
+    return {"message": "안전 공지 확인이 정상 완료되었습니다."}
+
 

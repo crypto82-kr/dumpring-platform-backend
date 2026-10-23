@@ -100,7 +100,15 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "하차지 대시보드", icon: LayoutDashboard, path: "/dropoff" },
     { title: "하차지 등록", icon: MapPin, path: "/dropoff/register" },
     { title: "공고 관리", icon: FileText, path: "/dropoff/dispatch-request" },
-    { title: "배차 현황", icon: Truck, path: "/dropoff/dispatch" },
+    {
+      title: "배차 관리",
+      icon: Truck,
+      path: "#dropoff-dispatch",
+      subItems: [
+        { title: "배차 현황", path: "/dropoff/dispatch" },
+        { title: "운행 이력 현황", path: "/dropoff/history" },
+      ]
+    },
     { title: "흙값 정산 관리", icon: DollarSign, path: "/dropoff/soil-settlement" },
     { title: "거래명세서 관리", icon: FileText, path: "/dropoff/tax-invoice" },
     { title: "하차지 정보 통계", icon: BarChart3, path: "/dropoff/stats" },
@@ -117,7 +125,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
 
 export default function Sidebar() {
   const { user, changeRole, logout, activePath, setActivePath } = useAuth();
-  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ "승인 관리": true });
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({ "승인 관리": true, "배차 관리": true });
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 

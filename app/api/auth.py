@@ -1910,4 +1910,22 @@ async def get_all_users_for_admin(
     return result_list
 
 
+class DeviceTokenRequest(BaseModel):
+    device_token: str
+    push_enabled: Optional[bool] = True
 
+
+@router.post(
+    "/register-device-token",
+    summary="스마트폰/브라우저 알림 수신키(Device Token) 등록",
+    description="로그인한 기사/사용자의 기기 고유 수신키를 등록하여 긴급 공지 알림을 수신할 수 있도록 바인딩합니다."
+)
+async def register_device_token(
+    data: DeviceTokenRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    current_user.device_token = data.device_token
+    current_user.push_enabled = data.push_enabled if data.push_enabled is not None else True
+    await db.commit()
+    return {"message": "기기 알림 수신키가 정상적으로 등록되었습니다.", "device_token": data.device_token}

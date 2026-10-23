@@ -8,6 +8,7 @@ import DropoffSoilSettlementManagement from "./DropoffSoilSettlementManagement";
 import DropoffTaxInvoiceManagement from "./DropoffTaxInvoiceManagement";
 import DropoffStatsManagement from "./DropoffStatsManagement";
 import DropoffAlertsManagement from "./DropoffAlertsManagement";
+import DropoffHistoryManagement from "./DropoffHistoryManagement";
 
 interface DropoffManagerDashboardProps {
   user?: any;
@@ -1858,6 +1859,16 @@ export function DropoffManagerDashboard({
         dropoffRequestList={dropoffRequestList}
         dispatchRequestList={dispatchRequestList}
         registeredSiteList={registeredSiteList}
+        dbCommonCodes={dbCommonCodes}
+      />
+    );
+  }
+
+  if (activePath === "/dropoff/history") {
+    return (
+      <DropoffHistoryManagement
+        registeredDropoffList={registeredDropoffList}
+        dispatchRequestList={dispatchRequestList}
         dbCommonCodes={dbCommonCodes}
       />
     );

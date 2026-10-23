@@ -58,6 +58,15 @@ async def startup_event():
             except Exception as e:
                 logger.warning(f"컬럼 동적 추가 무시: {col} -> {e}")
 
+        # users 테이블 device_token 동적 추가
+        user_cols = [("device_token", "VARCHAR"), ("push_enabled", "BOOLEAN DEFAULT TRUE")]
+        for col, col_type in user_cols:
+            try:
+                from sqlalchemy import text
+                await conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type};"))
+            except Exception as e:
+                logger.warning(f"users {col} 동적 추가 무시 -> {e}")
+
         site_cols = ["biz_license_url", "dust_report_url"]
         for col in site_cols:
             try:

@@ -10,6 +10,7 @@ import { PlatformAdminOverviewDashboard } from "@/components/views/admin/Platfor
 import { PlatformAdminUserManagement } from "@/components/views/admin/PlatformAdminUserManagement";
 import { PlatformAdminFeeManagement } from "@/components/views/admin/PlatformAdminFeeManagement";
 import { PlatformAdminDispatchControl } from "@/components/views/admin/PlatformAdminDispatchControl";
+import { PlatformAdminSiteDropoffManagement } from "@/components/views/admin/PlatformAdminSiteDropoffManagement";
 import { SiteManagerDashboard } from "@/components/views/site/SiteManagerDashboard";
 import SiteWorkerManagement from "@/components/views/site/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/views/site/SiteInfoManagement";
@@ -701,6 +702,7 @@ export default function Home() {
       });
       if (res.ok) {
         await fetchOpenDropOffRequests();
+        await fetchDropoffJobs();
         return true;
       }
       const errBody = await res.json().catch(() => ({}));
@@ -1495,6 +1497,8 @@ export default function Home() {
           <PlatformAdminFeeManagement setActivePath={setActivePath} />
         ) : activePath === "/admin/dispatch-monitor" ? (
           <PlatformAdminDispatchControl setActivePath={setActivePath} />
+        ) : activePath === "/admin/sites" ? (
+          <PlatformAdminSiteDropoffManagement setActivePath={setActivePath} />
         ) : (
           <PlatformAdminDashboard
             activePath={activePath}
@@ -1667,7 +1671,7 @@ export default function Home() {
         ) : activePath === "/site/tax-invoice" ? (
           <SiteTaxInvoiceManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} />
         ) : activePath === "/site/safety" ? (
-          <SiteSafetyManagement registeredSiteList={registeredSiteList} />
+          <SiteSafetyManagement registeredSiteList={registeredSiteList} dispatchRequestList={dispatchRequestList} />
         ) : activePath === "/site/request" ? (
           <SiteInfoManagement
             registeredSiteList={registeredSiteList}

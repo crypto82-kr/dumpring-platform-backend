@@ -32,6 +32,10 @@ class User(Base):
     is_approved = Column(Boolean, default=False, nullable=False)
     reject_reason = Column(String, nullable=True)
 
+    # 스마트폰 푸시 알림 수신용 기기 토큰 (FCM/WebPush)
+    device_token = Column(String, nullable=True, index=True)
+    push_enabled = Column(Boolean, default=True, nullable=False)
+
     # 생성 및 수정일시
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -626,4 +630,46 @@ class SduiTheme(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class SiteSafetyNotice(Base):
+    """
+    현장 실시간 안전 공지 테이블
+    - 현장 관리자가 특정 공사현장에 배차/운행 중인 덤프트럭 기사에게 발송하는 긴급/주의/일반 공지
+    """
+    __tablename__ = "site_safety_notices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(Integer, ForeignKey("construction_sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    level = Column(String, default="NORMAL", nullable=False)  # 'EMERGENCY', 'WARNING', 'NORMAL'
+    content = Column(String(500), nullable=False)
+    contact_phone = Column(String, nullable=True)
+    target_drivers_count = Column(Integer, default=0, nullable=False)
+    status = Column(String, default="ACTIVE", nullable=False)  # 'ACTIVE', 'DELETED'
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    site = relationship("ConstructionSite")
+    author = relationship("User", foreign_keys=[author_id])
+    reads = relationship("SiteSafetyNoticeRead", back_populates="notice", cascade="all, delete-orphan")
+
+
+class SiteSafetyNoticeRead(Base):
+    """
+    기사별 현장 안전 공지 확인/수신 로그 테이블
+    - 기사가 모바일에서 공지를 확인 완료했을 때 기록
+    """
+    __tablename__ = "site_safety_notice_reads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    notice_id = Column(Integer, ForeignKey("site_safety_notices.id", ondelete="CASCADE"), nullable=False, index=True)
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    confirmed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    notice = relationship("SiteSafetyNotice", back_populates="reads")
+    driver = relationship("User", foreign_keys=[driver_id])
+
 

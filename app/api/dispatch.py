@@ -1060,15 +1060,40 @@ async def inspect_and_confirm(
     job = job_result.scalars().first()
 
     if current_user.is_drop_off:
-        drop_off_query = select(DropOff).where(DropOff.id == job.matched_drop_off_id)
-        drop_off_result = await db.execute(drop_off_query)
-        dropoff = drop_off_result.scalars().first()
+        # 1) 공고에 matched_drop_off_id가 있으면 확인
+        dropoff = None
+        if job and job.matched_drop_off_id:
+            drop_off_query = select(DropOff).where(DropOff.id == job.matched_drop_off_id)
+            drop_off_result = await db.execute(drop_off_query)
+            dropoff = drop_off_result.scalars().first()
 
-        if not dropoff or dropoff.owner_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="해당 차량이 도착한 하차지 사토장의 소유주가 아닙니다."
-            )
+        # 2) 공고에 drop_off_request_id가 있으면 해당 수용공고의 사토장(DropOff) 확인
+        if not dropoff and job and job.drop_off_request_id:
+            dr_query = select(DropOffRequest).where(DropOffRequest.id == job.drop_off_request_id)
+            dr_res = await db.execute(dr_query)
+            dr_obj = dr_res.scalars().first()
+            if dr_obj and dr_obj.drop_off_id:
+                drop_off_query = select(DropOff).where(DropOff.id == dr_obj.drop_off_id)
+                drop_off_result = await db.execute(drop_off_query)
+                dropoff = drop_off_result.scalars().first()
+
+        # 3) 사토장 소유주(owner_id)가 현재 로그인한 하차지 관리자인지 확인
+        if dropoff:
+            if dropoff.owner_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"해당 차량이 도착한 하차지 사토장('{dropoff.name}')의 소유주가 아닙니다."
+                )
+        else:
+            # 사토장 연동 정보가 없는 예외 케이스의 경우, 현재 지주가 등록한 하차지가 있다면 통과
+            user_dropoffs_query = select(DropOff).where(DropOff.owner_id == current_user.id)
+            user_dropoffs_res = await db.execute(user_dropoffs_query)
+            user_dropoffs = user_dropoffs_res.scalars().all()
+            if not user_dropoffs:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="해당 차량이 도착한 하차지 사토장의 소유주가 아닙니다."
+                )
 
     decision_status = data.decision.upper()
     if decision_status not in ["APPROVED", "REJECTED"]:
@@ -1466,13 +1491,19 @@ async def get_site_dump_expenses(
         if not job:
             continue
 
+        from datetime import timezone, timedelta
+        kst = timezone(timedelta(hours=9))
+
         work_date_str = ""
         if job.work_date:
-            work_date_str = job.work_date.strftime("%Y-%m-%d")
+            dt = job.work_date if job.work_date.tzinfo else job.work_date.replace(tzinfo=timezone.utc)
+            work_date_str = dt.astimezone(kst).strftime("%Y-%m-%d")
         elif t.completed_at:
-            work_date_str = t.completed_at.strftime("%Y-%m-%d")
+            dt = t.completed_at if t.completed_at.tzinfo else t.completed_at.replace(tzinfo=timezone.utc)
+            work_date_str = dt.astimezone(kst).strftime("%Y-%m-%d")
         elif t.accepted_at:
-            work_date_str = t.accepted_at.strftime("%Y-%m-%d")
+            dt = t.accepted_at if t.accepted_at.tzinfo else t.accepted_at.replace(tzinfo=timezone.utc)
+            work_date_str = dt.astimezone(kst).strftime("%Y-%m-%d")
 
         # 날짜 범위 필터
         if start_date and work_date_str and work_date_str < start_date:
@@ -2217,6 +2248,107 @@ async def update_soil_settlement_status(
 
     await db.commit()
     return {"success": True, "updated_count": len(jobs), "target_status": req.target_status}
+
+
+@router.get(
+    "/job-posts",
+    summary="[플랫폼 관리자] 실시간 관제용 전체 배차 공고 및 티켓 현황 조회"
+)
+async def get_dispatch_control_job_posts(
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from sqlalchemy.orm import selectinload
+    query = (
+        select(JobPost)
+        .options(
+            selectinload(JobPost.site),
+            selectinload(JobPost.matched_drop_off),
+            selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off)
+        )
+        .order_by(JobPost.id.desc())
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    jobs = result.scalars().all()
+
+    if not jobs:
+        return []
+
+    job_ids = [j.id for j in jobs]
+
+    # DispatchTicket 별도 조회 및 관계 로드
+    ticket_query = (
+        select(DispatchTicket)
+        .options(
+            selectinload(DispatchTicket.driver),
+            selectinload(DispatchTicket.car)
+        )
+        .where(DispatchTicket.job_post_id.in_(job_ids))
+    )
+    ticket_result = await db.execute(ticket_query)
+    all_tickets = ticket_result.scalars().all()
+
+    # job_post_id별 티켓 그룹화
+    tickets_by_job = {}
+    for t in all_tickets:
+        tickets_by_job.setdefault(t.job_post_id, []).append(t)
+
+    response_list = []
+    for j in jobs:
+        dropoff_obj = j.matched_drop_off or (j.drop_off_request.drop_off if j.drop_off_request else None)
+        job_tickets = tickets_by_job.get(j.id, [])
+        
+        # 활성 운행 중인 티켓 필터링
+        active_tickets = [
+            t for t in job_tickets
+            if t.status in ["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED"]
+        ]
+
+        ticket_items = []
+        for t in job_tickets:
+            ticket_items.append({
+                "id": t.id,
+                "driver_id": t.driver_id,
+                "driver_name": t.driver.name if t.driver else "미등록 기사",
+                "driver_phone": t.driver.phone_number if t.driver else "",
+                "car_number": t.car.car_number if t.car else "",
+                "tonnage": t.car.tonnage if t.car else 25.5,
+                "status": t.status,
+                "accepted_at": t.accepted_at.isoformat() if t.accepted_at else ""
+            })
+
+        response_list.append({
+            "id": j.id,
+            "site_id": j.site_id,
+            "site": {
+                "site_name": j.site.site_name if j.site else f"현장 #{j.site_id}",
+                "company_name": j.site.company_name if j.site else "",
+                "site_address": j.site.site_address if j.site else "",
+                "latitude": j.site.latitude if (j.site and j.site.latitude) else 37.5665,
+                "longitude": j.site.longitude if (j.site and j.site.longitude) else 126.9780
+            } if j.site else None,
+            "matched_drop_off": {
+                "id": dropoff_obj.id,
+                "name": dropoff_obj.name,
+                "address": dropoff_obj.address,
+                "latitude": dropoff_obj.latitude if (dropoff_obj and dropoff_obj.latitude) else 37.4563,
+                "longitude": dropoff_obj.longitude if (dropoff_obj and dropoff_obj.longitude) else 126.7052
+            } if dropoff_obj else None,
+            "material_type": j.material_type,
+            "truck_type": j.truck_type,
+            "required_trucks": j.required_trucks,
+            "matched_trucks_count": len(active_tickets),
+            "tickets": ticket_items,
+            "work_date": j.work_date.isoformat() if j.work_date else "",
+            "created_at": j.created_at.isoformat() if j.created_at else "",
+            "status": j.status,
+            "memo": j.memo
+        })
+
+    return response_list
+
 
 
 
