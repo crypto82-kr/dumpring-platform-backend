@@ -10,10 +10,10 @@ class DriverHistoryScreen extends StatefulWidget {
   final String token;
 
   const DriverHistoryScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
-  }) : super(key: key);
+  });
 
   @override
   State<DriverHistoryScreen> createState() => _DriverHistoryScreenState();

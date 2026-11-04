@@ -78,7 +78,6 @@ class SduiTheme {
 
     return baseTheme.copyWith(
       scaffoldBackgroundColor: background,
-      dialogBackgroundColor: surface,
       cardColor: surface,
       colorScheme: baseScheme.copyWith(
         primary: primary,
@@ -88,7 +87,7 @@ class SduiTheme {
       cardTheme: CardThemeData(
         color: surface,
         elevation: 1,
-        shadowColor: Colors.black.withOpacity(0.04),
+        shadowColor: Colors.black.withValues(alpha: 0.04),
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -156,7 +155,7 @@ class SduiTheme {
         backgroundColor: surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: primary.withOpacity(0.5), width: 1.0),
+          side: BorderSide(color: primary.withValues(alpha: 0.5), width: 1.0),
         ),
         titleTextStyle: TextStyle(
           color: primary,

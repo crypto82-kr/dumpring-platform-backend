@@ -12,11 +12,11 @@ class SduiScreen extends StatefulWidget {
   final String title;
 
   const SduiScreen({
-    Key? key,
+    super.key,
     required this.templateId,
     this.token,
     this.title = "덤프링 스마트 서비스",
-  }) : super(key: key);
+  });
 
   @override
   State<SduiScreen> createState() => _SduiScreenState();

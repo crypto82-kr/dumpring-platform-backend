@@ -13,12 +13,12 @@ class OwnerHomeScreen extends StatefulWidget {
   final int initialTabIndex;
 
   const OwnerHomeScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
     this.isApproved = false,
     this.initialTabIndex = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<OwnerHomeScreen> createState() => _OwnerHomeScreenState();
@@ -430,12 +430,12 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: d['status'] == '승인완료'
-                            ? Theme.of(context).colorScheme.primary.withOpacity(0.15)
+                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
                             : (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB)) : const Color(0xFFE5E7EB)),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: d['status'] == '승인완료'
-                              ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
                               : Colors.transparent,
                         ),
                       ),

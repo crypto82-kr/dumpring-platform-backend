@@ -17,13 +17,13 @@ class MainHomeFrame extends StatefulWidget {
   final bool isApproved;
   final int initialTabIndex;
 
-  MainHomeFrame({
-    Key? key,
+  const MainHomeFrame({
+    super.key,
     required this.user,
     required this.token,
     this.isApproved = false,
     this.initialTabIndex = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<MainHomeFrame> createState() => _MainHomeFrameState();

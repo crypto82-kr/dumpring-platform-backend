@@ -22,13 +22,13 @@ class DriverMeterScreen extends StatefulWidget {
   final Map<String, dynamic>? initialTicket;
 
   const DriverMeterScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
     required this.ticketId,
     required this.onDriveCompleted,
     this.initialTicket,
-  }) : super(key: key);
+  });
 
   @override
   State<DriverMeterScreen> createState() => _DriverMeterScreenState();

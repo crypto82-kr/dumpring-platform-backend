@@ -7,11 +7,11 @@ class SduiRenderer extends StatelessWidget {
   final void Function(BuildContext context, Map<String, dynamic> action)? onAction;
 
   const SduiRenderer({
-    Key? key,
+    super.key,
     required this.component,
     this.controllers,
     this.onAction,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

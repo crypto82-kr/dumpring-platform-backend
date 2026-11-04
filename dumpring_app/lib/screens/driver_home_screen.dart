@@ -18,11 +18,11 @@ class DriverHomeScreen extends StatefulWidget {
   final bool isApproved;
 
   const DriverHomeScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
     this.isApproved = false,
-  }) : super(key: key);
+  });
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -31,7 +31,7 @@ class DriverHomeScreen extends StatefulWidget {
 class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerProviderStateMixin {
   String get _baseUrl => AppConfig.baseUrl;
 
-  bool _isWaitingForDispatch = true;
+  final bool _isWaitingForDispatch = true;
   List<dynamic> _openJobs = [];
   List<dynamic> _favorites = [];
   bool _isLoadingJobs = false;
@@ -202,7 +202,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                       )
                     : ListView.separated(
                         itemCount: _notifications.length,
-                        separatorBuilder: (_, __) => const Divider(),
+                        separatorBuilder: (_, _) => const Divider(),
                         itemBuilder: (context, index) {
                           final notif = _notifications[index];
                           final bool isRead = notif['is_read'] == true;
@@ -220,9 +220,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                               padding: const EdgeInsets.only(top: 4.0),
                               child: Text(
                                 notif['created_at'].toString().contains('T')
-                                    ? notif['created_at'].toString().split('T')[0] +
-                                        ' ' +
-                                        notif['created_at'].toString().split('T')[1].substring(0, 5)
+                                    ? '${notif['created_at'].toString().split('T')[0]} ${notif['created_at'].toString().split('T')[1].substring(0, 5)}'
                                     : notif['created_at'].toString(),
                                 style: const TextStyle(fontSize: 11, color: Colors.grey),
                               ),
@@ -561,7 +559,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   children: [
                     DropdownButtonFormField<String>(
                       decoration: const InputDecoration(labelText: "시/도 선택"),
-                      value: tempSido,
+                      initialValue: tempSido,
                       items: _koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                       onChanged: (val) {
                         setDialogState(() {
@@ -573,7 +571,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       decoration: const InputDecoration(labelText: "시/군/구 선택"),
-                      value: tempSigungu,
+                      initialValue: tempSigungu,
                       items: tempSido == null
                           ? []
                           : [
@@ -1010,7 +1008,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                         labelText: "시/도",
                         labelStyle: TextStyle(fontSize: 12),
                       ),
-                      value: _selectedSido,
+                      initialValue: _selectedSido,
                       items: [
                         const DropdownMenuItem(value: "전체", child: Text("전체", style: TextStyle(fontSize: 12))),
                         ..._koreanRegions.keys.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12))))
@@ -1034,7 +1032,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                         labelText: "시/군/구",
                         labelStyle: TextStyle(fontSize: 12),
                       ),
-                      value: _selectedSigungu,
+                      initialValue: _selectedSigungu,
                       items: _selectedSido == null || _selectedSido == "전체"
                           ? [
                               const DropdownMenuItem(value: "전체", child: Text("전체", style: TextStyle(fontSize: 12))),
@@ -1139,7 +1137,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         ..._activeTickets.map((ticket) => Padding(
           padding: const EdgeInsets.only(bottom: 12.0),
           child: _buildSingleActiveTicketCard(ticket),
-        )).toList(),
+        )),
       ],
     );
   }

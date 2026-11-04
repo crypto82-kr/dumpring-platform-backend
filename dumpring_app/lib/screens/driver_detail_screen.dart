@@ -3,7 +3,6 @@ import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class DriverDetailScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -56,7 +55,7 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
       );
       if (carsResponse.statusCode == 200) {
         _availableCars = jsonDecode(utf8.decode(carsResponse.bodyBytes));
-        
+
         // Find which car this driver is currently assigned to
         if (_driverInfo != null && _driverInfo!['car_number'] != '미배정') {
           for (var car in _availableCars) {
@@ -96,10 +95,7 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
               "Content-Type": "application/json",
               "Authorization": "Bearer ${widget.token}",
             },
-            body: jsonEncode({
-              "car_id": currentCarId,
-              "driver_id": null,
-            }),
+            body: jsonEncode({"car_id": currentCarId, "driver_id": null}),
           );
         }
       } else {
@@ -140,10 +136,18 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("소속 기사 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text("'${_driverInfo?['name'] ?? '대기기사'}' 기사를 정말 소속 해제하시겠습니까?"),
+        title: const Text(
+          "소속 기사 삭제",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          "'${_driverInfo?['name'] ?? '대기기사'}' 기사를 정말 소속 해제하시겠습니까?",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("취소"),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
@@ -186,7 +190,9 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
   void _viewDocumentImage(String url) {
     if (url.isEmpty) return;
     final sanitizedUrl = url.replaceAll(RegExp(r'(?<!:)/+'), '/');
-    final String fullUrl = sanitizedUrl.startsWith("http") ? sanitizedUrl : "$_baseUrl$sanitizedUrl";
+    final String fullUrl = sanitizedUrl.startsWith("http")
+        ? sanitizedUrl
+        : "$_baseUrl$sanitizedUrl";
 
     showDialog(
       context: context,
@@ -199,17 +205,21 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
               child: Image.network(
                 fullUrl,
                 headers: {"Authorization": "Bearer ${widget.token}"},
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   color: Colors.white,
                   padding: const EdgeInsets.all(40),
-                  child: const Text("서류 이미지를 로딩할 수 없거나 PDF 파일입니다.", textAlign: TextAlign.center, style: TextStyle(color: Colors.black54)),
+                  child: const Text(
+                    "서류 이미지를 로딩할 수 없거나 PDF 파일입니다.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.black54),
+                  ),
                 ),
               ),
             ),
             IconButton(
               icon: const Icon(Icons.close, color: Colors.white, size: 30),
               onPressed: () => Navigator.pop(ctx),
-            )
+            ),
           ],
         ),
       ),
@@ -226,10 +236,16 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("기사 상세 정보", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text(
+          "기사 상세 정보",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
         centerTitle: true,
         actions: [
           if (!_isEditMode)
@@ -239,306 +255,454 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
                   _isEditMode = true;
                 });
               },
-              child: const Text("정보변경", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+              child: const Text(
+                "정보변경",
+                style: TextStyle(
+                  color: Color(0xFF004D5A),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : info == null
-              ? const Center(child: Text("기사 정보를 불러올 수 없습니다.", style: TextStyle(color: Colors.grey)))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 기사 승인/대기 상태 정보 카드
-                      Card(
-                        color: AppColors.surface,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: AppColors.divider),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+          ? const Center(
+              child: Text(
+                "기사 정보를 불러올 수 없습니다.",
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 기사 승인/대기 상태 정보 카드
+                  Card(
+                    color: AppColors.surface,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: AppColors.divider),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: AppColors.primary.withOpacity(0.15),
-                                    child: Icon(Icons.person, color: AppColors.primary),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          info['name'] ?? '선등록 대기기사',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          "연락처: ${info['phone_number'] ?? ''}",
-                                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: info['is_approved'] == true
-                                          ? AppColors.primary.withOpacity(0.15)
-                                          : AppColors.danger.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      info['is_approved'] == true ? "승인완료" : "승인대기",
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: info['is_approved'] == true ? AppColors.primary : AppColors.danger,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(height: 32),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text("현재 배정 차량 번호", style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                                  Text(
-                                    info['car_number'] ?? '미배정',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: info['car_number'] == '미배정' ? Colors.grey : AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // 차량 배정 설정 카드
-                      Card(
-                        color: AppColors.surface,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: AppColors.divider),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.directions_car, color: AppColors.primary, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text("운행 차량 배정", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
-                                ],
-                              ),
-                              const Divider(height: 24),
-                              DropdownButtonFormField<int?>(
-                                value: _selectedCarId,
-                                dropdownColor: AppColors.surface,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: AppColors.background,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                              CircleAvatar(
+                                backgroundColor: AppColors.primary.withValues(
+                                  alpha: 0.15,
                                 ),
-                                items: [
-                                  const DropdownMenuItem<int?>(
-                                    value: null,
-                                    child: Text("미배정 (배정 해제)", style: TextStyle(fontSize: 14)),
-                                  ),
-                                  ..._availableCars.where((c) => c['driver_name'] == "미배정" || c['id'] == _selectedCarId).map((c) => DropdownMenuItem<int?>(
-                                    value: c['id'] as int?,
-                                    child: Text("${c['car_number']} (${c['tonnage']}톤)", style: const TextStyle(fontSize: 14)),
-                                  )),
-                                ],
-                                onChanged: _isEditMode
-                                    ? (val) {
-                                        setState(() {
-                                          _selectedCarId = val;
-                                        });
-                                      }
-                                    : null,
+                                child: Icon(
+                                  Icons.person,
+                                  color: AppColors.primary,
+                                ),
                               ),
-                              if (_isEditMode) ...[
-                                const SizedBox(height: 16),
-                                Row(
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        style: OutlinedButton.styleFrom(
-                                          side: BorderSide(color: AppColors.divider),
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                        ),
-                                        onPressed: () {
-                                          setState(() {
-                                            _isEditMode = false;
-                                            _fetchDriverAndCars(); // Reset selection
-                                          });
-                                        },
-                                        child: Text("변경 취소", style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                                    Text(
+                                      info['name'] ?? '선등록 대기기사',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimary,
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.primary,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                        ),
-                                        onPressed: _isSaving
-                                            ? null
-                                            : () async {
-                                                await _assignVehicle();
-                                                setState(() {
-                                                  _isEditMode = false;
-                                                });
-                                              },
-                                        child: _isSaving
-                                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                            : const Text("변경 저장", style: TextStyle(fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      "연락처: ${info['phone_number'] ?? ''}",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.textSecondary,
                                       ),
                                     ),
                                   ],
                                 ),
-                              ],
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: info['is_approved'] == true
+                                      ? AppColors.primary.withValues(
+                                          alpha: 0.15,
+                                        )
+                                      : AppColors.danger.withValues(
+                                          alpha: 0.15,
+                                        ),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  info['is_approved'] == true ? "승인완료" : "승인대기",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: info['is_approved'] == true
+                                        ? AppColors.primary
+                                        : AppColors.danger,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // 기사 제출 필수 서류 카드
-                      Card(
-                        color: AppColors.surface,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: AppColors.divider),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const Divider(height: 32),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.description, color: AppColors.primary, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text("기사 제출 서류 확인", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
-                                ],
+                              Text(
+                                "현재 배정 차량 번호",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
-                              const Divider(height: 24),
-                              if (info['documents'] == null || (info['documents'] as List).isEmpty)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: Center(
-                                    child: Text(
-                                      "기사님이 아직 필수 구비서류를 업로드하지 않았습니다.",
-                                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                              Text(
+                                info['car_number'] ?? '미배정',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: info['car_number'] == '미배정'
+                                      ? Colors.grey
+                                      : AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 차량 배정 설정 카드
+                  Card(
+                    color: AppColors.surface,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: AppColors.divider),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.directions_car,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "운행 차량 배정",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                          DropdownButtonFormField<int?>(
+                            initialValue: _selectedCarId,
+                            dropdownColor: AppColors.surface,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppColors.background,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: AppColors.divider,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: AppColors.divider,
+                                ),
+                              ),
+                            ),
+                            items: [
+                              const DropdownMenuItem<int?>(
+                                value: null,
+                                child: Text(
+                                  "미배정 (배정 해제)",
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                              ),
+                              ..._availableCars
+                                  .where(
+                                    (c) =>
+                                        c['driver_name'] == "미배정" ||
+                                        c['id'] == _selectedCarId,
+                                  )
+                                  .map(
+                                    (c) => DropdownMenuItem<int?>(
+                                      value: c['id'] as int?,
+                                      child: Text(
+                                        "${c['car_number']} (${c['tonnage']}톤)",
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
                                     ),
                                   ),
-                                )
-                              else
-                                ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: (info['documents'] as List).length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                                  itemBuilder: (context, idx) {
-                                    final doc = info['documents'][idx];
-                                    final String url = doc['file_url'] ?? '';
-                                    return Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.background,
+                            ],
+                            onChanged: _isEditMode
+                                ? (val) {
+                                    setState(() {
+                                      _selectedCarId = val;
+                                    });
+                                  }
+                                : null,
+                          ),
+                          if (_isEditMode) ...[
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      side: BorderSide(
+                                        color: AppColors.divider,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.attachment_rounded, color: AppColors.primary),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  doc['code_name'] ?? '제출서류',
-                                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                                                ),
-                                                Text(
-                                                  doc['file_name'] ?? '',
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                                )
-                                              ],
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _isEditMode = false;
+                                        _fetchDriverAndCars(); // Reset selection
+                                      });
+                                    },
+                                    child: Text(
+                                      "변경 취소",
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: _isSaving
+                                        ? null
+                                        : () async {
+                                            await _assignVehicle();
+                                            setState(() {
+                                              _isEditMode = false;
+                                            });
+                                          },
+                                    child: _isSaving
+                                        ? const SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Text(
+                                            "변경 저장",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: AppColors.surface,
-                                              foregroundColor: AppColors.primary,
-                                              side: BorderSide(color: AppColors.primary),
-                                              minimumSize: const Size(60, 32),
-                                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                                            ),
-                                            onPressed: () => _viewDocumentImage(url),
-                                            child: const Text("보기", style: TextStyle(fontSize: 12)),
-                                          )
-                                        ],
-                                      ),
-                                    );
-                                  },
+                                  ),
                                 ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 기사 제출 필수 서류 카드
+                  Card(
+                    color: AppColors.surface,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: AppColors.divider),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.description,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "기사 제출 서류 확인",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
                             ],
                           ),
+                          const Divider(height: 24),
+                          if (info['documents'] == null ||
+                              (info['documents'] as List).isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: Text(
+                                  "기사님이 아직 필수 구비서류를 업로드하지 않았습니다.",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: (info['documents'] as List).length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (context, idx) {
+                                final doc = info['documents'][idx];
+                                final String url = doc['file_url'] ?? '';
+                                return Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.attachment_rounded,
+                                        color: AppColors.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              doc['code_name'] ?? '제출서류',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                            ),
+                                            Text(
+                                              doc['file_name'] ?? '',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.surface,
+                                          foregroundColor: AppColors.primary,
+                                          side: BorderSide(
+                                            color: AppColors.primary,
+                                          ),
+                                          minimumSize: const Size(60, 32),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                          ),
+                                        ),
+                                        onPressed: () =>
+                                            _viewDocumentImage(url),
+                                        child: const Text(
+                                          "보기",
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  if (_isEditMode) ...[
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(
+                          0xFFFEF2F2,
+                        ), // Light red background
+                        foregroundColor: const Color(
+                          0xFFDC2626,
+                        ), // Red text color
+                        elevation: 0, // Remove shadow mud
+                        side: const BorderSide(
+                          color: Color(0xFFFCA5A5),
+                        ), // Red border
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      const SizedBox(height: 30),
-
-                      if (_isEditMode) ...[
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFEF2F2), // Light red background
-                            foregroundColor: const Color(0xFFDC2626), // Red text color
-                            elevation: 0, // Remove shadow mud
-                            side: const BorderSide(color: Color(0xFFFCA5A5)), // Red border
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          onPressed: _isSaving ? null : _kickDriver,
-                          icon: const Icon(Icons.delete_forever),
-                          label: const Text("이 기사를 소속 해제 및 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                      onPressed: _isSaving ? null : _kickDriver,
+                      icon: const Icon(Icons.delete_forever),
+                      label: const Text(
+                        "이 기사를 소속 해제 및 삭제",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
     );
   }
 }

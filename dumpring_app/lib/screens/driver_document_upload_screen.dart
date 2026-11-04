@@ -3,7 +3,6 @@ import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'driver_pending_screen.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../shared/file_picker_helper.dart';
 
@@ -12,20 +11,23 @@ class DriverDocumentUploadScreen extends StatefulWidget {
   final String token;
 
   const DriverDocumentUploadScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
-  }) : super(key: key);
+  });
 
   @override
-  State<DriverDocumentUploadScreen> createState() => _DriverDocumentUploadScreenState();
+  State<DriverDocumentUploadScreen> createState() =>
+      _DriverDocumentUploadScreenState();
 }
 
-class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen> {
+class _DriverDocumentUploadScreenState
+    extends State<DriverDocumentUploadScreen> {
   String get _baseUrl => AppConfig.baseUrl;
 
   List<Map<String, dynamic>> _requiredDocs = [];
-  Map<String, String?> _uploadedFiles = {}; // { document_code: file_name }
+  final Map<String, String?> _uploadedFiles =
+      {}; // { document_code: file_name }
   bool _isLoading = true;
   bool _isSubmitting = false;
 
@@ -52,12 +54,14 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes)) as List;
         setState(() {
-          _requiredDocs = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+          _requiredDocs = decoded
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
           for (var doc in _requiredDocs) {
             _uploadedFiles[doc['code']] = null;
           }
         });
-        
+
         await _fetchExistingStatus();
       }
     } catch (e) {
@@ -81,7 +85,8 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        final uploadedFilesMap = decoded['uploaded_files'] as Map<String, dynamic>?;
+        final uploadedFilesMap =
+            decoded['uploaded_files'] as Map<String, dynamic>?;
         setState(() {
           if (uploadedFilesMap != null) {
             uploadedFilesMap.forEach((key, value) {
@@ -108,10 +113,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
           "Authorization": "Bearer ${widget.token}",
           "Content-Type": "application/json",
         },
-        body: jsonEncode({
-          "document_code": docCode,
-          "file_name": fileName,
-        }),
+        body: jsonEncode({"document_code": docCode, "file_name": fileName}),
       );
 
       if (response.statusCode == 200) {
@@ -127,7 +129,10 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("🔴 서류 업로드 도중 네트워크 오류가 발생했습니다."), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text("🔴 서류 업로드 도중 네트워크 오류가 발생했습니다."),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -152,10 +157,10 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
         'POST',
         Uri.parse("$_baseUrl/api/files/upload"),
       );
-      
+
       request.headers['Authorization'] = "Bearer ${widget.token}";
       request.fields['category'] = 'documents';
-      
+
       final multipartFile = http.MultipartFile.fromBytes(
         'file',
         selectedFile.bytes,
@@ -224,18 +229,22 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
     );
   }
 
-
   Future<void> _viewDocument(String fileName) async {
     String url = fileName;
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      final String path = url.startsWith("/static/") ? url : "/static/uploads/documents/$url";
+      final String path = url.startsWith("/static/")
+          ? url
+          : "/static/uploads/documents/$url";
       final String cleanPath = path.startsWith("/") ? path.substring(1) : path;
-      url = _baseUrl.endsWith("/") ? "$_baseUrl$cleanPath" : "$_baseUrl/$cleanPath";
+      url = _baseUrl.endsWith("/")
+          ? "$_baseUrl$cleanPath"
+          : "$_baseUrl/$cleanPath";
     }
     debugPrint("🔍 [DEBUG] driver viewDocument url: $url");
 
     final String lowerUrl = url.toLowerCase();
-    final bool isImage = lowerUrl.endsWith('.png') ||
+    final bool isImage =
+        lowerUrl.endsWith('.png') ||
         lowerUrl.endsWith('.jpg') ||
         lowerUrl.endsWith('.jpeg') ||
         lowerUrl.endsWith('.gif') ||
@@ -260,11 +269,18 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                   url,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFFFF7A00)));
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFFF7A00),
+                      ),
+                    );
                   },
                   errorBuilder: (context, error, stackTrace) {
                     return const Center(
-                      child: Text("이미지를 불러올 수 없습니다.", style: TextStyle(color: Colors.white)),
+                      child: Text(
+                        "이미지를 불러올 수 없습니다.",
+                        style: TextStyle(color: Colors.white),
+                      ),
                     );
                   },
                 ),
@@ -276,7 +292,8 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
     } else {
       String finalUrl = url;
       if (lowerUrl.endsWith('.pdf')) {
-        finalUrl = "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(url)}";
+        finalUrl =
+            "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(url)}";
       }
       final uri = Uri.parse(finalUrl);
       try {
@@ -287,30 +304,43 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
         }
       } catch (e) {
         debugPrint("서류 열기 실패: $e");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("📄 서류를 열 수 없습니다: $url")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("📄 서류를 열 수 없습니다: $url")));
       }
     }
   }
 
-
   void _submitAllDocuments() {
-    final missing = _requiredDocs.where((doc) => _uploadedFiles[doc['code']] == null).toList();
+    final missing = _requiredDocs
+        .where((doc) => _uploadedFiles[doc['code']] == null)
+        .toList();
 
     if (missing.isNotEmpty) {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: Text("필수 서류 누락", style: TextStyle(fontWeight: FontWeight.bold)),
-          content: Text("아직 제출하지 않은 필수 서류가 있습니다:\n\n" + 
-              missing.map((e) => "• ${e['code_name']}").join("\n")),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Text(
+            "필수 서류 누락",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "아직 제출하지 않은 필수 서류가 있습니다:\n\n${missing.map((e) => "• ${e['code_name']}").join("\n")}",
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text("확인", style: TextStyle(color: Color(0xFFFF7A00), fontWeight: FontWeight.bold)),
-            )
+              child: Text(
+                "확인",
+                style: TextStyle(
+                  color: Color(0xFFFF7A00),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ],
         ),
       );
@@ -319,10 +349,8 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => DriverPendingScreen(
-          user: widget.user,
-          token: widget.token,
-        ),
+        builder: (context) =>
+            DriverPendingScreen(user: widget.user, token: widget.token),
       ),
     );
   }
@@ -332,12 +360,18 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
+        backgroundColor: (Theme.of(context).brightness == Brightness.dark
+            ? Colors.white
+            : const Color(0xFF1F2937)),
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Color(0xFF1A202C)),
         title: Text(
           "덤프 기사 필수 서류 제출",
-          style: TextStyle(color: Color(0xFF1A202C), fontWeight: FontWeight.bold, fontSize: 17),
+          style: TextStyle(
+            color: Color(0xFF1A202C),
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+          ),
         ),
         centerTitle: true,
       ),
@@ -345,7 +379,9 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
         child: Stack(
           children: [
             _isLoading
-                ? Center(child: CircularProgressIndicator(color: Color(0xFFFF7A00)))
+                ? Center(
+                    child: CircularProgressIndicator(color: Color(0xFFFF7A00)),
+                  )
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
@@ -357,12 +393,20 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                           decoration: BoxDecoration(
                             color: const Color(0xFFE2F0F2),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFF80B3BC).withOpacity(0.5)),
+                            border: Border.all(
+                              color: const Color(
+                                0xFF80B3BC,
+                              ).withValues(alpha: 0.5),
+                            ),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.info_outline_rounded, color: Color(0xFF004D5A), size: 24),
+                              Icon(
+                                Icons.info_outline_rounded,
+                                color: Color(0xFF004D5A),
+                                size: 24,
+                              ),
                               SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -370,16 +414,24 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                                   children: [
                                     Text(
                                       "신속한 가입 승인을 위한 안내",
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF004D5A)),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: Color(0xFF004D5A),
+                                      ),
                                     ),
                                     SizedBox(height: 6),
                                     Text(
                                       "덤프링은 안전한 중계 플랫폼 운영을 위해 기사님의 운전 자격 및 본인 통장 계좌를 검증합니다.\n글자가 또렷하게 보이도록 밝은 곳에서 촬영해 주세요.",
-                                      style: TextStyle(fontSize: 12, color: Color(0xFF002D35), height: 1.4),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF002D35),
+                                        height: 1.4,
+                                      ),
                                     ),
                                   ],
                                 ),
-                              )
+                              ),
                             ],
                           ),
                         ),
@@ -387,7 +439,11 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
 
                         Text(
                           "📋 제출 필수 증빙 서류 목록",
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A202C)),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1A202C),
+                          ),
                         ),
                         SizedBox(height: 12),
 
@@ -401,17 +457,28 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: Card(
-                              color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)),
+                              color:
+                                  (Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? (Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.white
+                                        : const Color(0xFF1F2937))
+                                  : const Color(0xFF1F2937)),
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                                 side: BorderSide(
-                                  color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFFE2E8F0),
+                                  color: isUploaded
+                                      ? const Color(0xFFFF7A00)
+                                      : const Color(0xFFE2E8F0),
                                   width: isUploaded ? 1.5 : 1.0,
                                 ),
                               ),
                               child: InkWell(
-                                onTap: () => isUploaded ? _showDocumentOptions(docCode) : _pickAndUploadFile(docCode),
+                                onTap: () => isUploaded
+                                    ? _showDocumentOptions(docCode)
+                                    : _pickAndUploadFile(docCode),
                                 borderRadius: BorderRadius.circular(16),
                                 child: Padding(
                                   padding: const EdgeInsets.all(20.0),
@@ -419,35 +486,52 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                                     children: [
                                       CircleAvatar(
                                         radius: 26,
-                                        backgroundColor: isUploaded ? const Color(0xFFFFF4E5) : const Color(0xFFF7FAFC),
+                                        backgroundColor: isUploaded
+                                            ? const Color(0xFFFFF4E5)
+                                            : const Color(0xFFF7FAFC),
                                         child: Icon(
                                           docCode == 'LICENSE'
                                               ? Icons.badge_outlined
                                               : docCode == 'SAFETY_TRAINING'
-                                                  ? Icons.security_outlined
-                                                  : docCode == 'SPECIAL_LABOR_TRAINING'
-                                                      ? Icons.assignment_turned_in_outlined
-                                                      : Icons.description_outlined,
-                                          color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFF718096),
+                                              ? Icons.security_outlined
+                                              : docCode ==
+                                                    'SPECIAL_LABOR_TRAINING'
+                                              ? Icons
+                                                    .assignment_turned_in_outlined
+                                              : Icons.description_outlined,
+                                          color: isUploaded
+                                              ? const Color(0xFFFF7A00)
+                                              : const Color(0xFF718096),
                                           size: 26,
                                         ),
                                       ),
                                       SizedBox(width: 16),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               docName,
-                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A202C)),
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                                color: Color(0xFF1A202C),
+                                              ),
                                             ),
                                             SizedBox(height: 4),
                                             Text(
-                                              isUploaded ? fileName! : "심사 제출을 위해 촬영해 주세요",
+                                              isUploaded
+                                                  ? fileName
+                                                  : "심사 제출을 위해 촬영해 주세요",
                                               style: TextStyle(
                                                 fontSize: 12,
-                                                color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFF718096),
-                                                fontWeight: isUploaded ? FontWeight.bold : FontWeight.normal,
+                                                color: isUploaded
+                                                    ? const Color(0xFFFF7A00)
+                                                    : const Color(0xFF718096),
+                                                fontWeight: isUploaded
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
                                               ),
                                             ),
                                           ],
@@ -455,8 +539,12 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                                       ),
                                       SizedBox(width: 8),
                                       Icon(
-                                        isUploaded ? Icons.check_circle : Icons.camera_alt_outlined,
-                                        color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFFCBD5E0),
+                                        isUploaded
+                                            ? Icons.check_circle
+                                            : Icons.camera_alt_outlined,
+                                        color: isUploaded
+                                            ? const Color(0xFFFF7A00)
+                                            : const Color(0xFFCBD5E0),
                                         size: 24,
                                       ),
                                     ],
@@ -465,7 +553,7 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                               ),
                             ),
                           );
-                        }).toList(),
+                        }),
                         SizedBox(height: 32),
 
                         // 심사 요청 버튼
@@ -473,15 +561,23 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                           onPressed: _isSubmitting ? null : _submitAllDocuments,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF004D5A),
-                            foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
+                            foregroundColor:
+                                (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : const Color(0xFF1F2937)),
                             disabledBackgroundColor: const Color(0xFF80B3BC),
                             padding: const EdgeInsets.symmetric(vertical: 18),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                             elevation: 0,
                           ),
                           child: Text(
                             "기사 서류 심사 요청",
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         SizedBox(height: 50),
@@ -490,11 +586,11 @@ class _DriverDocumentUploadScreenState extends State<DriverDocumentUploadScreen>
                   ),
             if (_isSubmitting)
               Container(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 child: Center(
                   child: CircularProgressIndicator(color: Color(0xFFFF7A00)),
                 ),
-              )
+              ),
           ],
         ),
       ),

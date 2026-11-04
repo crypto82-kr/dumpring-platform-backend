@@ -3,7 +3,6 @@ import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
-import 'package:image_picker/image_picker.dart';
 import '../shared/widgets/dr_qr_scanner_dialog.dart';
 
 class SiteManagementScreen extends StatefulWidget {
@@ -11,10 +10,10 @@ class SiteManagementScreen extends StatefulWidget {
   final String token;
 
   const SiteManagementScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
-  }) : super(key: key);
+  });
 
   @override
   State<SiteManagementScreen> createState() => _SiteManagementScreenState();
@@ -33,7 +32,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   final TextEditingController _siteAddressController = TextEditingController();
   final TextEditingController _siteLatController = TextEditingController();
   final TextEditingController _siteLngController = TextEditingController();
-  final TextEditingController _siteRadiusController = TextEditingController(text: "200.0");
+  final TextEditingController _siteRadiusController = TextEditingController(
+    text: "200.0",
+  );
 
   @override
   void initState() {
@@ -85,13 +86,16 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     final endpoint = "$_baseUrl/api/sites/create-site";
     final double? lat = double.tryParse(_siteLatController.text.trim());
     final double? lng = double.tryParse(_siteLngController.text.trim());
-    final double radius = double.tryParse(_siteRadiusController.text.trim()) ?? 200.0;
+    final double radius =
+        double.tryParse(_siteRadiusController.text.trim()) ?? 200.0;
 
     final requestData = {
       "site_name": _siteNameController.text.trim(),
       "company_name": _siteCompanyController.text.trim(),
       "business_number": _siteBizNumController.text.trim(),
-      "site_address": _siteAddressController.text.trim().isEmpty ? null : _siteAddressController.text.trim(),
+      "site_address": _siteAddressController.text.trim().isEmpty
+          ? null
+          : _siteAddressController.text.trim(),
       "latitude": lat,
       "longitude": lng,
       "geofencing_radius": radius,
@@ -110,9 +114,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       if (response.statusCode == 200) {
         Navigator.of(context).pop(); // 다이얼로그 닫기
         _clearFormControllers();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🎉 공사현장 개설이 완료되었습니다.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("🎉 공사현장 개설이 완료되었습니다.")));
         _fetchMySites();
       } else {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -133,12 +137,15 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     final endpoint = "$_baseUrl/api/sites/$siteId";
     final double? lat = double.tryParse(_siteLatController.text.trim());
     final double? lng = double.tryParse(_siteLngController.text.trim());
-    final double radius = double.tryParse(_siteRadiusController.text.trim()) ?? 200.0;
+    final double radius =
+        double.tryParse(_siteRadiusController.text.trim()) ?? 200.0;
 
     final requestData = {
       "company_name": _siteCompanyController.text.trim(),
       "business_number": _siteBizNumController.text.trim(),
-      "site_address": _siteAddressController.text.trim().isEmpty ? null : _siteAddressController.text.trim(),
+      "site_address": _siteAddressController.text.trim().isEmpty
+          ? null
+          : _siteAddressController.text.trim(),
       "latitude": lat,
       "longitude": lng,
       "geofencing_radius": radius,
@@ -157,9 +164,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       if (response.statusCode == 200) {
         Navigator.of(context).pop(); // 다이얼로그 닫기
         _clearFormControllers();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🎉 현장 정보가 수정되었습니다.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("🎉 현장 정보가 수정되었습니다.")));
         _fetchMySites();
       } else {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -199,7 +206,13 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("닫기", style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
+            child: const Text(
+              "닫기",
+              style: TextStyle(
+                color: AppColors.danger,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -217,7 +230,8 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       _siteAddressController.text = existingSite['site_address'] ?? '';
       _siteLatController.text = existingSite['latitude']?.toString() ?? '';
       _siteLngController.text = existingSite['longitude']?.toString() ?? '';
-      _siteRadiusController.text = existingSite['geofencing_radius']?.toString() ?? '200.0';
+      _siteRadiusController.text =
+          existingSite['geofencing_radius']?.toString() ?? '200.0';
     } else {
       _clearFormControllers();
     }
@@ -228,12 +242,20 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
-              Icon(isEdit ? Icons.edit_note : Icons.add_business_outlined, color: AppColors.success),
+              Icon(
+                isEdit ? Icons.edit_note : Icons.add_business_outlined,
+                color: AppColors.success,
+              ),
               const SizedBox(width: 8),
-              Text(isEdit ? "공사현장 정보 수정" : "새 공사현장 개설", style: AppTextStyles.h3),
+              Text(
+                isEdit ? "공사현장 정보 수정" : "새 공사현장 개설",
+                style: AppTextStyles.h3,
+              ),
             ],
           ),
           content: SingleChildScrollView(
@@ -244,36 +266,66 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (!isEdit) ...[
-                    Text("공사현장명", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                    Text(
+                      "공사현장명",
+                      style: AppTextStyles.caption.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _siteNameController,
                       style: TextStyle(color: AppColors.textPrimary),
-                      decoration: _buildInputDecoration("현장 명칭 (예: 강남 아파트 신축공사)"),
-                      validator: (value) => value == null || value.trim().isEmpty ? "현장명을 입력해 주세요" : null,
+                      decoration: _buildInputDecoration(
+                        "현장 명칭 (예: 강남 아파트 신축공사)",
+                      ),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? "현장명을 입력해 주세요"
+                          : null,
                     ),
                     const SizedBox(height: 12),
                   ],
-                  Text("건설사/상호명", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                  Text(
+                    "건설사/상호명",
+                    style: AppTextStyles.caption.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _siteCompanyController,
                     style: TextStyle(color: AppColors.textPrimary),
                     decoration: _buildInputDecoration("건설사명 (예: 현대건설)"),
-                    validator: (value) => value == null || value.trim().isEmpty ? "건설사명을 입력해 주세요" : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? "건설사명을 입력해 주세요"
+                        : null,
                   ),
                   const SizedBox(height: 12),
-                  Text("사업자등록번호", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                  Text(
+                    "사업자등록번호",
+                    style: AppTextStyles.caption.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _siteBizNumController,
                     keyboardType: TextInputType.number,
                     style: TextStyle(color: AppColors.textPrimary),
                     decoration: _buildInputDecoration("숫자 10자리 입력"),
-                    validator: (value) => value == null || value.trim().length < 10 ? "올바른 사업자번호를 입력해 주세요" : null,
+                    validator: (value) =>
+                        value == null || value.trim().length < 10
+                        ? "올바른 사업자번호를 입력해 주세요"
+                        : null,
                   ),
                   const SizedBox(height: 12),
-                  Text("현장 지번/도로명 주소", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                  Text(
+                    "현장 지번/도로명 주소",
+                    style: AppTextStyles.caption.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _siteAddressController,
@@ -287,12 +339,20 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("위도 (Latitude)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                            Text(
+                              "위도 (Latitude)",
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             TextFormField(
                               controller: _siteLatController,
                               style: TextStyle(color: AppColors.textPrimary),
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                               decoration: _buildInputDecoration("예: 37.56"),
                             ),
                           ],
@@ -303,12 +363,20 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("경도 (Longitude)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                            Text(
+                              "경도 (Longitude)",
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             TextFormField(
                               controller: _siteLngController,
                               style: TextStyle(color: AppColors.textPrimary),
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                               decoration: _buildInputDecoration("예: 126.97"),
                             ),
                           ],
@@ -317,14 +385,23 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text("지오펜싱 반경 (m)", style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+                  Text(
+                    "지오펜싱 반경 (m)",
+                    style: AppTextStyles.caption.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _siteRadiusController,
                     style: TextStyle(color: AppColors.textPrimary),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: _buildInputDecoration("도착 인식 반경 (기본 200.0)"),
-                    validator: (value) => value == null || value.trim().isEmpty ? "반경을 입력해 주세요" : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? "반경을 입력해 주세요"
+                        : null,
                   ),
                 ],
               ),
@@ -336,7 +413,10 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                 _clearFormControllers();
                 Navigator.of(context).pop();
               },
-              child: Text("취소", style: TextStyle(color: AppColors.textSecondary)),
+              child: Text(
+                "취소",
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -346,8 +426,16 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                   _registerConstructionSite();
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: Text(isEdit ? "저장" : "등록", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              child: Text(
+                isEdit ? "저장" : "등록",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         );
@@ -383,7 +471,12 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     }
   }
 
-  Future<void> _registerEmployee(int siteId, String phone, String role, StateSetter setDialogState) async {
+  Future<void> _registerEmployee(
+    int siteId,
+    String phone,
+    String role,
+    StateSetter setDialogState,
+  ) async {
     if (phone.isEmpty) return;
     setDialogState(() => _isLoadingEmployees = true);
     final endpoint = "$_baseUrl/api/sites/$siteId/employees";
@@ -394,10 +487,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
           "Authorization": "Bearer ${widget.token}",
           "Content-Type": "application/json",
         },
-        body: jsonEncode({
-          "phone_number": phone,
-          "employee_role": role,
-        }),
+        body: jsonEncode({"phone_number": phone, "employee_role": role}),
       );
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -415,7 +505,11 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     }
   }
 
-  Future<void> _deleteEmployee(int siteId, int employeeId, StateSetter setDialogState) async {
+  Future<void> _deleteEmployee(
+    int siteId,
+    int employeeId,
+    StateSetter setDialogState,
+  ) async {
     setDialogState(() => _isLoadingEmployees = true);
     final endpoint = "$_baseUrl/api/sites/$siteId/employees/$employeeId";
     try {
@@ -427,9 +521,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
         },
       );
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("정상적으로 직원이 소속 해제되었습니다.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("정상적으로 직원이 소속 해제되었습니다.")));
         await _fetchEmployees(siteId, setDialogState);
       } else {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -449,7 +543,10 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
         title: const Text("오류"),
         content: Text(msg),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("확인"),
+          ),
         ],
       ),
     );
@@ -476,8 +573,13 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
 
             return AlertDialog(
               backgroundColor: AppColors.surface,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: Row(
                 children: [
                   const Icon(Icons.people_outline, color: AppColors.success),
@@ -492,7 +594,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                 ],
               ),
               content: SizedBox(
-                width: MediaQuery.of(context).size.width > 600 ? 500 : MediaQuery.of(context).size.width * 0.95,
+                width: MediaQuery.of(context).size.width > 600
+                    ? 500
+                    : MediaQuery.of(context).size.width * 0.95,
                 height: 520,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -510,7 +614,14 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("➕ 신규 직원 선등록", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
+                            Text(
+                              "➕ 신규 직원 선등록",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
                             const SizedBox(height: 8),
                             Row(
                               children: [
@@ -518,13 +629,25 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                   child: TextField(
                                     controller: phoneController,
                                     keyboardType: TextInputType.phone,
-                                    style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 12,
+                                    ),
                                     decoration: InputDecoration(
                                       hintText: "휴대폰 번호 입력 (예: 01012345678)",
-                                      hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                                      hintStyle: TextStyle(
+                                        color: AppColors.textTertiary,
+                                        fontSize: 11,
+                                      ),
                                       isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 10,
+                                          ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -533,16 +656,33 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                   onPressed: () {
                                     final phone = phoneController.text.trim();
                                     if (phone.isNotEmpty) {
-                                      _registerEmployee(siteId, phone, "staff", setDialogState);
+                                      _registerEmployee(
+                                        siteId,
+                                        phone,
+                                        "staff",
+                                        setDialogState,
+                                      );
                                       phoneController.clear();
                                     }
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                   ),
-                                  child: const Text("등록", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                  child: const Text(
+                                    "등록",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -551,80 +691,125 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text("👥 소속 직원 목록", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
+                    Text(
+                      "👥 소속 직원 목록",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Expanded(
                       child: _isLoadingEmployees
-                          ? const Center(child: CircularProgressIndicator(color: AppColors.success))
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.success,
+                              ),
+                            )
                           : _employees.isEmpty
-                              ? Center(
-                                  child: Text("등록된 직원이 없습니다.", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                                )
-                              : ListView.builder(
-                                  itemCount: _employees.length,
-                                  itemBuilder: (context, idx) {
-                                    final emp = _employees[idx];
-                                    final isJoined = emp['status'] == '가입 완료';
+                          ? Center(
+                              child: Text(
+                                "등록된 직원이 없습니다.",
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: _employees.length,
+                              itemBuilder: (context, idx) {
+                                final emp = _employees[idx];
+                                final isJoined = emp['status'] == '가입 완료';
 
-                                    return Card(
-                                      color: AppColors.background,
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        side: BorderSide(color: AppColors.divider),
+                                return Card(
+                                  color: AppColors.background,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    side: BorderSide(color: AppColors.divider),
+                                  ),
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: CircleAvatar(
+                                      backgroundColor: AppColors.primaryLight,
+                                      radius: 16,
+                                      child: Icon(
+                                        Icons.person,
+                                        color: AppColors.primary,
+                                        size: 16,
                                       ),
-                                      child: ListTile(
-                                        dense: true,
-                                        leading: CircleAvatar(
-                                          backgroundColor: AppColors.primaryLight,
-                                          radius: 16,
-                                          child: Icon(
-                                            Icons.person,
-                                            color: AppColors.primary,
-                                            size: 16,
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Text(
+                                          emp['name'] ?? '가입 대기',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: isJoined
+                                                ? AppColors.textPrimary
+                                                : AppColors.textTertiary,
                                           ),
                                         ),
-                                        title: Row(
-                                          children: [
-                                            Text(
-                                              emp['name'] ?? '가입 대기',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: isJoined ? AppColors.textPrimary : AppColors.textTertiary,
-                                              ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: isJoined
+                                                ? AppColors.success.withValues(
+                                                    alpha: 0.15,
+                                                  )
+                                                : Colors.orange.withValues(
+                                                    alpha: 0.15,
+                                                  ),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
                                             ),
-                                            const SizedBox(width: 8),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: isJoined ? AppColors.success.withOpacity(0.15) : Colors.orange.withOpacity(0.15),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                emp['status'] ?? '대기',
-                                                style: TextStyle(
-                                                  color: isJoined ? AppColors.success : Colors.orange,
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
+                                          ),
+                                          child: Text(
+                                            emp['status'] ?? '대기',
+                                            style: TextStyle(
+                                              color: isJoined
+                                                  ? AppColors.success
+                                                  : Colors.orange,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
                                             ),
-                                          ],
+                                          ),
                                         ),
-                                        subtitle: Text(
-                                          emp['registered_phone'] ?? emp['phone_number'] ?? '',
-                                          style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                                        ),
-                                        trailing: IconButton(
-                                          icon: const Icon(Icons.person_remove, color: AppColors.danger, size: 18),
-                                          onPressed: () {
-                                            _deleteEmployee(siteId, emp['id'], setDialogState);
-                                          },
-                                        ),
+                                      ],
+                                    ),
+                                    subtitle: Text(
+                                      emp['registered_phone'] ??
+                                          emp['phone_number'] ??
+                                          '',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 11,
                                       ),
-                                    );
-                                  },
-                                ),
+                                    ),
+                                    trailing: IconButton(
+                                      icon: const Icon(
+                                        Icons.person_remove,
+                                        color: AppColors.danger,
+                                        size: 18,
+                                      ),
+                                      onPressed: () {
+                                        _deleteEmployee(
+                                          siteId,
+                                          emp['id'],
+                                          setDialogState,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),
@@ -637,7 +822,10 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                     phoneController.dispose();
                     Navigator.of(context).pop();
                   },
-                  child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
+                  child: Text(
+                    "닫기",
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
                 ),
               ],
             );
@@ -653,7 +841,8 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       final String? scannedPayload = await DrQrScannerDialog.scan(
         context,
         title: "상차 덤프 기사 QR 스캔",
-        description: "[${site['site_name'] ?? '현장'}]에 도착하여 상차를 마친 기사의\n스마트폰 화면 [상차 확인 QR]을 스캔합니다.",
+        description:
+            "[${site['site_name'] ?? '현장'}]에 도착하여 상차를 마친 기사의\n스마트폰 화면 [상차 확인 QR]을 스캔합니다.",
       );
 
       if (scannedPayload != null && scannedPayload.isNotEmpty) {
@@ -667,7 +856,8 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
             ticketId = int.tryParse(uri.pathSegments.last);
           }
           if (ticketId == null) {
-            final match = RegExp(r'ticket[s]?/(\d+)').firstMatch(scannedPayload) ??
+            final match =
+                RegExp(r'ticket[s]?/(\d+)').firstMatch(scannedPayload) ??
                 RegExp(r'id=(\d+)').firstMatch(scannedPayload) ??
                 RegExp(r'(\d+)').firstMatch(scannedPayload);
             if (match != null) {
@@ -681,9 +871,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
           try {
             final ticketRes = await http.get(
               Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId"),
-              headers: {
-                "Authorization": "Bearer ${widget.token}",
-              },
+              headers: {"Authorization": "Bearer ${widget.token}"},
             );
 
             if (ticketRes.statusCode == 200) {
@@ -743,7 +931,10 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   }
 
   // 상차 현장 검수 및 승인 다이얼로그
-  void _showLoadingInspectionDialog(Map<String, dynamic> site, Map<String, dynamic> ticket) {
+  void _showLoadingInspectionDialog(
+    Map<String, dynamic> site,
+    Map<String, dynamic> ticket,
+  ) {
     final int ticketId = ticket['id'] ?? 0;
     final driver = ticket['driver'] ?? {};
     final car = ticket['car'] ?? {};
@@ -757,7 +948,8 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
 
     // 하차지 목적지명
     String dropoffName = "하차지 미지정";
-    if (job['drop_off_request'] != null && job['drop_off_request']['drop_off'] != null) {
+    if (job['drop_off_request'] != null &&
+        job['drop_off_request']['drop_off'] != null) {
       dropoffName = job['drop_off_request']['drop_off']['name'] ?? "사토장";
     } else if (job['matched_drop_off'] != null) {
       dropoffName = job['matched_drop_off']['name'] ?? "사토장";
@@ -778,8 +970,13 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
         final dialogWidth = screenWidth > 380 ? 350.0 : (screenWidth * 0.92);
 
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
           backgroundColor: AppColors.surface,
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -792,14 +989,24 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
               children: [
                 // 1. 헤더 (고정)
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 14,
+                    horizontal: 18,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.fact_check_outlined, color: Colors.white, size: 22),
+                      const Icon(
+                        Icons.fact_check_outlined,
+                        color: Colors.white,
+                        size: 22,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -807,12 +1014,19 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                           children: [
                             const Text(
                               "상차 자재 및 목적지 검수",
-                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               "티켓 #${ticketId > 0 ? ticketId : '-'}",
-                              style: TextStyle(color: Colors.white.withAlpha(200), fontSize: 11),
+                              style: TextStyle(
+                                color: Colors.white.withAlpha(200),
+                                fontSize: 11,
+                              ),
                             ),
                           ],
                         ),
@@ -830,7 +1044,10 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                       children: [
                         // 기사 및 차량 정보 (말줄임 없이 온전한 확인 가능)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.cardBackground,
                             borderRadius: BorderRadius.circular(12),
@@ -844,12 +1061,22 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                 children: [
                                   SizedBox(
                                     width: 60,
-                                    child: Text("운행 기사", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                    child: Text(
+                                      "운행 기사",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
                                   ),
                                   Expanded(
                                     child: Text(
                                       "$driverName${driverPhone.isNotEmpty ? ' ($driverPhone)' : ''}",
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimary,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -860,12 +1087,22 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                 children: [
                                   SizedBox(
                                     width: 60,
-                                    child: Text("배차 차량", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                    child: Text(
+                                      "배차 차량",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
                                   ),
                                   Expanded(
                                     child: Text(
                                       "$carNumber ($tonnageStr)",
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -877,7 +1114,10 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
 
                         // 목적지(하차지) (줄바꿈 허용으로 전체 주소/사토장명 확인)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.cardBackground,
                             borderRadius: BorderRadius.circular(12),
@@ -886,17 +1126,31 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.pin_drop_rounded, size: 16, color: AppColors.primary),
+                              Icon(
+                                Icons.pin_drop_rounded,
+                                size: 16,
+                                color: AppColors.primary,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text("지정 하차지 (도착 사토장)", style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                    Text(
+                                      "지정 하차지 (도착 사토장)",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
                                     const SizedBox(height: 2),
                                     Text(
                                       dropoffName,
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimary,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -908,15 +1162,24 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
 
                         // 배차 지정 적재 품목 (영문 없이 오직 한글명만 깔끔하게 노출)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.amber.withAlpha(25),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.amber.withAlpha(120)),
+                            border: Border.all(
+                              color: Colors.amber.withAlpha(120),
+                            ),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.layers_outlined, color: Colors.amber, size: 26),
+                              const Icon(
+                                Icons.layers_outlined,
+                                color: Colors.amber,
+                                size: 26,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
@@ -924,7 +1187,11 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                   children: [
                                     const Text(
                                       "배차 지정 적재 품목",
-                                      style: TextStyle(fontSize: 11, color: Colors.brown, fontWeight: FontWeight.w600),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.brown,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
@@ -945,7 +1212,11 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                         const SizedBox(height: 8),
                         Text(
                           "* 실제 적재 자재가 [$materialKoreanName]과 일치하는지 확인 후 승인해 주세요.",
-                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                            height: 1.3,
+                          ),
                         ),
                       ],
                     ),
@@ -963,18 +1234,28 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                         child: InkWell(
                           onTap: () {
                             Navigator.of(ctx).pop();
-                            _showLoadingRejectionReasonDialog(ticketId, carNumber: carNumber, driverName: driverName);
+                            _showLoadingRejectionReasonDialog(
+                              ticketId,
+                              carNumber: carNumber,
+                              driverName: driverName,
+                            );
                           },
                           child: Container(
                             height: 48,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: AppColors.danger.withAlpha(20),
-                              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20)),
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(20),
+                              ),
                             ),
                             child: Text(
                               "상차 보류",
-                              style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold, fontSize: 13),
+                              style: TextStyle(
+                                color: AppColors.danger,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ),
@@ -984,18 +1265,29 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                         child: InkWell(
                           onTap: () async {
                             Navigator.of(ctx).pop();
-                            await _executeApproveLoading(ticketId, carNumber: carNumber, driverName: driverName, materialName: materialKoreanName);
+                            await _executeApproveLoading(
+                              ticketId,
+                              carNumber: carNumber,
+                              driverName: driverName,
+                              materialName: materialKoreanName,
+                            );
                           },
                           child: Container(
                             height: 48,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: AppColors.success.withAlpha(30),
-                              borderRadius: const BorderRadius.only(bottomRight: Radius.circular(20)),
+                              borderRadius: const BorderRadius.only(
+                                bottomRight: Radius.circular(20),
+                              ),
                             ),
                             child: Text(
                               "자재 일치 / 승인",
-                              style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 13),
+                              style: TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ),
@@ -1012,7 +1304,11 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   }
 
   // 상차 보류 사유 선택 다이얼로그 (4대 퀵 칩 + 기타 직접입력)
-  void _showLoadingRejectionReasonDialog(int ticketId, {String? carNumber, String? driverName}) {
+  void _showLoadingRejectionReasonDialog(
+    int ticketId, {
+    String? carNumber,
+    String? driverName,
+  }) {
     final List<String> presetReasons = [
       "적재 품목 불일치",
       "기준 과적 / 정량 초과",
@@ -1032,17 +1328,30 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
           builder: (context, setModalState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 8,
+              ),
               actionsPadding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
               title: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.danger,
+                    size: 22,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     "상차 보류 사유 선택",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ],
               ),
@@ -1055,13 +1364,18 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                     children: [
                       Text(
                         "차량: ${carNumber ?? '-'} (${driverName ?? '기사'})\n기사 스마트폰에 즉시 전달될 사유를 선택해 주세요.",
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                        ),
                       ),
                       const SizedBox(height: 12),
 
                       // 1. 4대 퀵 프리셋 사유 버튼
                       ...presetReasons.map((reason) {
-                        final isSelected = !isOtherSelected && selectedReason == reason;
+                        final isSelected =
+                            !isOtherSelected && selectedReason == reason;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: InkWell(
@@ -1073,29 +1387,44 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                             },
                             borderRadius: BorderRadius.circular(10),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 11,
+                                horizontal: 14,
+                              ),
                               decoration: BoxDecoration(
-                                color: isSelected ? AppColors.danger.withAlpha(25) : AppColors.cardBackground,
+                                color: isSelected
+                                    ? AppColors.danger.withAlpha(25)
+                                    : AppColors.cardBackground,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: isSelected ? AppColors.danger : AppColors.divider,
+                                  color: isSelected
+                                      ? AppColors.danger
+                                      : AppColors.divider,
                                   width: isSelected ? 1.5 : 1,
                                 ),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
-                                    isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                                    isSelected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
                                     size: 16,
-                                    color: isSelected ? AppColors.danger : AppColors.textTertiary,
+                                    color: isSelected
+                                        ? AppColors.danger
+                                        : AppColors.textTertiary,
                                   ),
                                   const SizedBox(width: 10),
                                   Text(
                                     reason,
                                     style: TextStyle(
                                       fontSize: 13,
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                      color: isSelected ? AppColors.danger : AppColors.textPrimary,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? AppColors.danger
+                                          : AppColors.textPrimary,
                                     ),
                                   ),
                                 ],
@@ -1103,7 +1432,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
 
                       // 2. 기타 (직접 입력)
                       InkWell(
@@ -1115,29 +1444,44 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                         },
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 11,
+                            horizontal: 14,
+                          ),
                           decoration: BoxDecoration(
-                            color: isOtherSelected ? AppColors.danger.withAlpha(25) : AppColors.cardBackground,
+                            color: isOtherSelected
+                                ? AppColors.danger.withAlpha(25)
+                                : AppColors.cardBackground,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: isOtherSelected ? AppColors.danger : AppColors.divider,
+                              color: isOtherSelected
+                                  ? AppColors.danger
+                                  : AppColors.divider,
                               width: isOtherSelected ? 1.5 : 1,
                             ),
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                isOtherSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                                isOtherSelected
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_off,
                                 size: 16,
-                                color: isOtherSelected ? AppColors.danger : AppColors.textTertiary,
+                                color: isOtherSelected
+                                    ? AppColors.danger
+                                    : AppColors.textTertiary,
                               ),
                               const SizedBox(width: 10),
                               Text(
                                 "기타 (직접 입력)",
                                 style: TextStyle(
                                   fontSize: 13,
-                                  fontWeight: isOtherSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isOtherSelected ? AppColors.danger : AppColors.textPrimary,
+                                  fontWeight: isOtherSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isOtherSelected
+                                      ? AppColors.danger
+                                      : AppColors.textPrimary,
                                 ),
                               ),
                             ],
@@ -1151,20 +1495,31 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                         TextField(
                           controller: otherTextController,
                           autofocus: true,
-                          style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                          ),
                           decoration: InputDecoration(
                             hintText: "사유를 간략히 입력하세요 (예: 타이어 수리 필요)",
-                            hintStyle: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                            hintStyle: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                            ),
                             filled: true,
                             fillColor: AppColors.cardBackground,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                               borderSide: BorderSide(color: AppColors.divider),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: AppColors.danger),
+                              borderSide: const BorderSide(
+                                color: AppColors.danger,
+                              ),
                             ),
                           ),
                         ),
@@ -1176,7 +1531,10 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(reasonCtx).pop(),
-                  child: Text("취소", style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text(
+                    "취소",
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -1199,14 +1557,30 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                     }
 
                     Navigator.of(reasonCtx).pop();
-                    await _executeRejectLoading(ticketId, finalReason, carNumber: carNumber);
+                    await _executeRejectLoading(
+                      ticketId,
+                      finalReason,
+                      carNumber: carNumber,
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.danger,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 10,
+                    ),
                   ),
-                  child: const Text("보류 전송", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  child: const Text(
+                    "보류 전송",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -1217,7 +1591,11 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   }
 
   // 실제 상차 보류 API 호출 실행
-  Future<void> _executeRejectLoading(int ticketId, String reason, {String? carNumber}) async {
+  Future<void> _executeRejectLoading(
+    int ticketId,
+    String reason, {
+    String? carNumber,
+  }) async {
     try {
       final rejectRes = await http.post(
         Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId/reject-loading"),
@@ -1232,7 +1610,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
         if (rejectRes.statusCode == 200) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("⛔ 기사(${carNumber ?? ''})에게 상차 보류 사유가 전송되었습니다: [$reason]"),
+              content: Text(
+                "⛔ 기사(${carNumber ?? ''})에게 상차 보류 사유가 전송되었습니다: [$reason]",
+              ),
               backgroundColor: AppColors.danger,
               duration: const Duration(seconds: 4),
             ),
@@ -1248,7 +1628,12 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   }
 
   // 실제 상차 승인 API 호출 실행
-  Future<void> _executeApproveLoading(int ticketId, {String? carNumber, String? driverName, String? materialName}) async {
+  Future<void> _executeApproveLoading(
+    int ticketId, {
+    String? carNumber,
+    String? driverName,
+    String? materialName,
+  }) async {
     try {
       final approveRes = await http.post(
         Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId/approve-loading"),
@@ -1261,7 +1646,8 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
 
       if (mounted) {
         if (approveRes.statusCode == 200) {
-          final infoText = (driverName != null && carNumber != null && materialName != null)
+          final infoText =
+              (driverName != null && carNumber != null && materialName != null)
               ? "🎉 [$driverName / $carNumber] $materialName 상차 승인 완료!"
               : "🎉 기사 티켓(#$ticketId) 상차 승인이 완료되었습니다!";
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1289,7 +1675,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
 
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       backgroundColor: AppColors.surface,
       builder: (context) => SafeArea(
         child: Padding(
@@ -1301,7 +1689,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.textSecondary.withOpacity(0.3),
+                  color: AppColors.textSecondary.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1309,11 +1697,19 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.qr_code_scanner_rounded, color: AppColors.primary, size: 24),
+                  Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     "상차 덤프 기사 QR 스캔",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ],
               ),
@@ -1321,7 +1717,11 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
               Text(
                 "[$siteName]에 도착하여 상차를 마친 덤프 기사의\n스마트폰 화면에 표시된 [상차 확인 QR]을 카메라로 스캔합니다.",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
               ),
               const SizedBox(height: 20),
               InkWell(
@@ -1336,12 +1736,16 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                   decoration: BoxDecoration(
                     border: Border.all(color: AppColors.primary, width: 2),
                     borderRadius: BorderRadius.circular(16),
-                    color: AppColors.primary.withOpacity(0.04),
+                    color: AppColors.primary.withValues(alpha: 0.04),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.camera_alt_rounded, size: 52, color: AppColors.primary),
+                      Icon(
+                        Icons.camera_alt_rounded,
+                        size: 52,
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         "여기를 터치하여 카메라 켜기",
@@ -1354,7 +1758,10 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                       const SizedBox(height: 4),
                       Text(
                         "실제 카메라로 기사 스마트폰 QR 촬영",
-                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -1374,7 +1781,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
@@ -1391,7 +1800,8 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     final int siteId = site['site_id'] ?? site['id'] ?? 0;
     final String siteName = site['site_name'] ?? '상차지 현장';
     final String qrPayload = "dumpring://site/loading?id=$siteId";
-    final String qrImageUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${Uri.encodeComponent(qrPayload)}&margin=10";
+    final String qrImageUrl =
+        "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${Uri.encodeComponent(qrPayload)}&margin=10";
 
     showDialog(
       context: context,
@@ -1411,15 +1821,32 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.qr_code_2_rounded, color: AppColors.primary, size: 24),
+                    child: Icon(
+                      Icons.qr_code_2_rounded,
+                      color: AppColors.primary,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("상차지 고정형 QR 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text(siteName, style: TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+                        const Text(
+                          "상차지 고정형 QR 안내",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          siteName,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),
@@ -1450,7 +1877,11 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4)),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
                 child: Image.network(
@@ -1471,7 +1902,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
@@ -1489,19 +1922,28 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 8,
+          ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.12),
+                  color: AppColors.success.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.business_rounded, color: AppColors.success, size: 20),
+                child: const Icon(
+                  Icons.business_rounded,
+                  color: AppColors.success,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1526,11 +1968,26 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                   _buildDetailItem("현장명", site['site_name']),
                   _buildDetailItem("건설사명", site['company_name']),
                   _buildDetailItem("사업자등록번호", site['business_number']),
-                  _buildDetailItem("초대코드 (현장 키)", site['site_key'], isHighlight: true),
+                  _buildDetailItem(
+                    "초대코드 (현장 키)",
+                    site['site_key'],
+                    isHighlight: true,
+                  ),
                   _buildDetailItem("현장 주소", site['site_address'] ?? '주소 미등록'),
-                  _buildDetailItem("GPS 좌표", site['latitude'] != null ? "${site['latitude']}, ${site['longitude']}" : '좌표 미등록'),
-                  _buildDetailItem("지오펜싱 반경", "${site['geofencing_radius'] ?? 200.0}m"),
-                  _buildDetailItem("승인 상태", site['status'] == 'APPROVED' ? '승인완료' : '승인대기'),
+                  _buildDetailItem(
+                    "GPS 좌표",
+                    site['latitude'] != null
+                        ? "${site['latitude']}, ${site['longitude']}"
+                        : '좌표 미등록',
+                  ),
+                  _buildDetailItem(
+                    "지오펜싱 반경",
+                    "${site['geofencing_radius'] ?? 200.0}m",
+                  ),
+                  _buildDetailItem(
+                    "승인 상태",
+                    site['status'] == 'APPROVED' ? '승인완료' : '승인대기',
+                  ),
                 ],
               ),
             ),
@@ -1545,9 +2002,19 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
-                  child: Text("닫기", style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 13)),
+                  child: Text(
+                    "닫기",
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
                 if (site['status'] == 'APPROVED') ...[
                   OutlinedButton.icon(
@@ -1556,12 +2023,23 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                       _scanDriverQrForSite(site);
                     },
                     icon: const Icon(Icons.qr_code_scanner, size: 14),
-                    label: const Text("기사 QR", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    label: const Text(
+                      "기사 QR",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: BorderSide(color: AppColors.primary.withAlpha(150)),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   OutlinedButton.icon(
@@ -1570,12 +2048,23 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                       _showSiteFixedQrDialog(site);
                     },
                     icon: const Icon(Icons.qr_code_2, size: 14),
-                    label: const Text("고정 QR", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    label: const Text(
+                      "고정 QR",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: BorderSide(color: AppColors.primary.withAlpha(150)),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   ElevatedButton(
@@ -1585,10 +2074,22 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                    child: const Text("수정", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    child: const Text(
+                      "수정",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 ],
               ],
@@ -1599,13 +2100,22 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     );
   }
 
-  Widget _buildDetailItem(String label, String? value, {bool isHighlight = false}) {
+  Widget _buildDetailItem(
+    String label,
+    String? value, {
+    bool isHighlight = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textTertiary,
+            ),
+          ),
           const SizedBox(height: 2),
           Text(
             value ?? '없음',
@@ -1627,9 +2137,18 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       filled: true,
       fillColor: AppColors.background,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.divider)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.divider)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: AppColors.divider),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: AppColors.divider),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+      ),
     );
   }
 
@@ -1646,17 +2165,22 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.success),
             onPressed: _fetchMySites,
-          )
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openSiteDialog(),
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("새 현장 개설", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        label: const Text(
+          "새 현장 개설",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.success))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.success),
+            )
           : RefreshIndicator(
               onRefresh: _fetchMySites,
               child: _siteMappings.isEmpty
@@ -1664,11 +2188,23 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.business, color: AppColors.textTertiary, size: 64),
+                          Icon(
+                            Icons.business,
+                            color: AppColors.textTertiary,
+                            size: 64,
+                          ),
                           const SizedBox(height: 12),
-                          Text("개설된 공사현장이 없습니다.", style: AppTextStyles.body1.copyWith(color: AppColors.textSecondary)),
+                          Text(
+                            "개설된 공사현장이 없습니다.",
+                            style: AppTextStyles.body1.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                           const SizedBox(height: 8),
-                          Text("우측 하단 버튼을 눌러 새 현장을 추가하세요.", style: AppTextStyles.caption),
+                          Text(
+                            "우측 하단 버튼을 눌러 새 현장을 추가하세요.",
+                            style: AppTextStyles.caption,
+                          ),
                         ],
                       ),
                     )
@@ -1695,24 +2231,42 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text(site['site_name'] ?? '현장명 없음', style: AppTextStyles.h3),
+                                        Text(
+                                          site['site_name'] ?? '현장명 없음',
+                                          style: AppTextStyles.h3,
+                                        ),
                                         const SizedBox(height: 4),
-                                        Text("건설사: ${site['company_name']}", style: AppTextStyles.caption),
+                                        Text(
+                                          "건설사: ${site['company_name']}",
+                                          style: AppTextStyles.caption,
+                                        ),
                                         const SizedBox(height: 6),
                                         Row(
                                           children: [
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 3,
+                                                  ),
                                               decoration: BoxDecoration(
                                                 color: AppColors.background,
-                                                borderRadius: BorderRadius.circular(6),
-                                                border: Border.all(color: AppColors.divider),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                border: Border.all(
+                                                  color: AppColors.divider,
+                                                ),
                                               ),
                                               child: Text(
                                                 "초대코드: ${site['site_key']}",
-                                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.primary,
+                                                ),
                                               ),
                                             ),
                                           ],
@@ -1725,15 +2279,26 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: isApproved ? AppColors.success.withOpacity(0.15) : AppColors.divider,
-                                          borderRadius: BorderRadius.circular(20),
+                                          color: isApproved
+                                              ? AppColors.success.withValues(
+                                                  alpha: 0.15,
+                                                )
+                                              : AppColors.divider,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                         ),
                                         child: Text(
                                           isApproved ? "승인완료" : "승인대기",
                                           style: TextStyle(
-                                            color: isApproved ? AppColors.success : AppColors.textSecondary,
+                                            color: isApproved
+                                                ? AppColors.success
+                                                : AppColors.textSecondary,
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -1744,26 +2309,63 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                         Row(
                                           children: [
                                             TextButton.icon(
-                                              onPressed: () => _scanDriverQrForSite(site),
-                                              icon: const Icon(Icons.qr_code_scanner, size: 14),
-                                              label: const Text("QR 스캔", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              onPressed: () =>
+                                                  _scanDriverQrForSite(site),
+                                              icon: const Icon(
+                                                Icons.qr_code_scanner,
+                                                size: 14,
+                                              ),
+                                              label: const Text(
+                                                "QR 스캔",
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                               style: TextButton.styleFrom(
-                                                foregroundColor: AppColors.primary,
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                foregroundColor:
+                                                    AppColors.primary,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 4,
+                                                    ),
                                                 minimumSize: Size.zero,
-                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
                                               ),
                                             ),
                                             const SizedBox(width: 4),
                                             TextButton.icon(
-                                              onPressed: () => _openEmployeeManagementDialog(site['site_id'], site['site_name'] ?? '현장'),
-                                              icon: const Icon(Icons.people_outline, size: 14),
-                                              label: const Text("직원 관리", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              onPressed: () =>
+                                                  _openEmployeeManagementDialog(
+                                                    site['site_id'],
+                                                    site['site_name'] ?? '현장',
+                                                  ),
+                                              icon: const Icon(
+                                                Icons.people_outline,
+                                                size: 14,
+                                              ),
+                                              label: const Text(
+                                                "직원 관리",
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                               style: TextButton.styleFrom(
-                                                foregroundColor: AppColors.success,
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                foregroundColor:
+                                                    AppColors.success,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 4,
+                                                    ),
                                                 minimumSize: Size.zero,
-                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
                                               ),
                                             ),
                                           ],
@@ -1772,8 +2374,19 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                       const SizedBox(height: 8),
                                       Row(
                                         children: [
-                                          Text("상세보기", style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
-                                          Icon(Icons.chevron_right, size: 16, color: AppColors.primary),
+                                          Text(
+                                            "상세보기",
+                                            style: TextStyle(
+                                              color: AppColors.primary,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.chevron_right,
+                                            size: 16,
+                                            color: AppColors.primary,
+                                          ),
                                         ],
                                       ),
                                     ],

@@ -55,7 +55,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget? drawer; // 기존 드로어 호환 지원용
   final Widget? leading;
 
-  HomeAppBar({
+  const HomeAppBar({
     super.key,
     this.unreadCount = 0,
     this.onNotificationTap,
@@ -154,7 +154,7 @@ class SubAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBackPressed;
   final bool showDivider;
 
-  SubAppBar({
+  const SubAppBar({
     super.key,
     required this.title,
     this.actions,
@@ -208,7 +208,7 @@ class TabAppBar extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget>? actions;
   final VoidCallback? onBackPressed;
 
-  TabAppBar({
+  const TabAppBar({
     super.key,
     required this.title,
     required this.tabs,
@@ -336,7 +336,7 @@ class DriverBottomNav extends StatelessWidget {
   final ValueChanged<int> onTap;
   final bool hasCurvedFAB;
 
-  DriverBottomNav({
+  const DriverBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
@@ -364,7 +364,7 @@ class OwnerBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  OwnerBottomNav({super.key, required this.currentIndex, required this.onTap});
+  const OwnerBottomNav({super.key, required this.currentIndex, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -386,7 +386,7 @@ class SiteBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  SiteBottomNav({super.key, required this.currentIndex, required this.onTap});
+  const SiteBottomNav({super.key, required this.currentIndex, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -407,7 +407,7 @@ class DropoffBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  DropoffBottomNav({super.key, required this.currentIndex, required this.onTap});
+  const DropoffBottomNav({super.key, required this.currentIndex, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -427,7 +427,7 @@ class AdminBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  AdminBottomNav({super.key, required this.currentIndex, required this.onTap});
+  const AdminBottomNav({super.key, required this.currentIndex, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -492,7 +492,7 @@ class DRScaffold extends StatelessWidget {
   final Color? backgroundColor;
   final bool? resizeToAvoidBottomInset;
 
-  DRScaffold({
+  const DRScaffold({
     super.key,
     required this.type,
     required this.body,
@@ -591,7 +591,7 @@ class DRScaffold extends StatelessWidget {
           body: Stack(
             children: [
               // 배경 지도
-              if (backgroundMapWidget != null) backgroundMapWidget!,
+              ?backgroundMapWidget,
               
               // 드래그 가능한 하단 패널
               DraggableScrollableSheet(

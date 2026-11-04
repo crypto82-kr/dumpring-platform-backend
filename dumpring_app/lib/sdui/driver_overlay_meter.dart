@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:system_alert_window/system_alert_window.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// 덤프 기사가 외부 내비(티맵/카카오내비)로 경로 안내를 받고 있을 때,
 /// 화면 위에 플로팅 위젯 형식으로 미터기 실시간 데이터(요금, 거리, 시간)를 띄워주는 클래스 및 위젯.
@@ -14,9 +13,13 @@ class DriverOverlayMeter {
   /// 플로팅 위젯을 띄우기 위한 안드로이드 다른 앱 위에 그리기 권한 검증 및 요청
   static Future<bool> requestOverlayPermission() async {
     try {
-      final isGranted = await SystemAlertWindow.checkPermissions(prefMode: SystemWindowPrefMode.OVERLAY);
+      final isGranted = await SystemAlertWindow.checkPermissions(
+        prefMode: SystemWindowPrefMode.OVERLAY,
+      );
       if (isGranted == null || !isGranted) {
-        final result = await SystemAlertWindow.requestPermissions(prefMode: SystemWindowPrefMode.OVERLAY);
+        final result = await SystemAlertWindow.requestPermissions(
+          prefMode: SystemWindowPrefMode.OVERLAY,
+        );
         return result ?? false;
       }
       return true;
@@ -103,7 +106,9 @@ class DriverOverlayMeter {
   /// 플로팅 미터기 오버레이 윈도우 소멸 및 비활성화
   static Future<void> closeMeter() async {
     try {
-      await SystemAlertWindow.closeSystemWindow(prefMode: SystemWindowPrefMode.OVERLAY);
+      await SystemAlertWindow.closeSystemWindow(
+        prefMode: SystemWindowPrefMode.OVERLAY,
+      );
       _isActive = false;
     } catch (e) {
       log("소멸 처리 에러: $e");
@@ -113,10 +118,11 @@ class DriverOverlayMeter {
 
 /// 오버레이 전용 엔트리포인트에서 실행될 Flutter 위젯
 class DriverOverlayMeterWidget extends StatefulWidget {
-  DriverOverlayMeterWidget({super.key});
+  const DriverOverlayMeterWidget({super.key});
 
   @override
-  State<DriverOverlayMeterWidget> createState() => _DriverOverlayMeterWidgetState();
+  State<DriverOverlayMeterWidget> createState() =>
+      _DriverOverlayMeterWidgetState();
 }
 
 class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
@@ -166,9 +172,9 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
 
   String _formatter(int val) {
     return val.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]},',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
   }
 
   @override
@@ -192,16 +198,18 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
           color: Theme.of(context).scaffoldBackgroundColor, // 프리미엄 다크 네이비
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.3), // 은은한 골드 테두리
+            color: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.3), // 은은한 골드 테두리
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withValues(alpha: 0.4),
               blurRadius: 8,
               spreadRadius: 1,
               offset: const Offset(0, 3),
-            )
+            ),
           ],
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -227,7 +235,9 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
                 Text(
                   "${_distance.toStringAsFixed(1)} km",
                   style: TextStyle(
-                    color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)),
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF8F9BB3)
+                        : const Color(0xFF4B5563)),
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     decoration: TextDecoration.none,
@@ -237,13 +247,19 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
                 Container(
                   width: 1.5,
                   height: 8,
-                  color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)).withOpacity(0.3),
+                  color:
+                      (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF8F9BB3)
+                              : const Color(0xFF4B5563))
+                          .withValues(alpha: 0.3),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   _formatTime(_seconds),
                   style: TextStyle(
-                    color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)),
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF8F9BB3)
+                        : const Color(0xFF4B5563)),
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     decoration: TextDecoration.none,

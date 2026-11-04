@@ -397,7 +397,7 @@ class SduiService {
       sdui['props'] = {
         'text': name.contains('-') ? name.split('-').last : '버튼',
         'variant': 'primary',
-        if (bgColor != null) 'backgroundColor': bgColor,
+        'backgroundColor': ?bgColor,
       };
       return sdui;
     }

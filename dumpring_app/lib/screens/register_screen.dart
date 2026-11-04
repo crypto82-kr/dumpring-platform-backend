@@ -430,7 +430,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isUploaded ? AppColors.success.withOpacity(0.5) : AppColors.divider,
+          color: isUploaded ? AppColors.success.withValues(alpha: 0.5) : AppColors.divider,
           width: isUploaded ? 1.5 : 1,
         ),
       ),
@@ -869,9 +869,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
-                              color: AppColors.danger.withOpacity(0.1),
+                              color: AppColors.danger.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.danger.withOpacity(0.3), width: 1),
+                              border: Border.all(color: AppColors.danger.withValues(alpha: 0.3), width: 1),
                             ),
                             child: Row(
                               children: [
@@ -907,7 +907,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                             ),
                             value: _isDirectDriver,
-                            activeColor: AppColors.primary,
+                            activeThumbColor: AppColors.primary,
                             onChanged: (val) => setState(() => _isDirectDriver = val),
                           ),
                         ],

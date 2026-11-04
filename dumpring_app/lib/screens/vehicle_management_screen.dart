@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 import 'package:http_parser/http_parser.dart';
 import '../shared/file_picker_helper.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,7 +21,8 @@ class VehicleManagementScreen extends StatefulWidget {
   });
 
   @override
-  State<VehicleManagementScreen> createState() => _VehicleManagementScreenState();
+  State<VehicleManagementScreen> createState() =>
+      _VehicleManagementScreenState();
 }
 
 class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
@@ -42,7 +41,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
   List<Map<String, dynamic>> _myDrivers = [];
   int? _selectedDriverId;
-  
+
   // 서류 파일 상태 변수 및 미리보기 데이터
   String? _machineryRegFile;
   String? _bizLicenseFile;
@@ -60,16 +59,25 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   bool _isUploadingBizFile = false;
   bool _isUploadingInsuranceFile = false;
 
-  String _approvalStatus = "APPROVED"; // APPROVED, PENDING, REJECTED
+  final String _approvalStatus = "APPROVED"; // APPROVED, PENDING, REJECTED
 
   @override
   void initState() {
     super.initState();
     _isReadOnlyState = widget.isReadOnly;
-    _vehicleNumController = TextEditingController(text: widget.user['vehicle_number'] ?? widget.user['car_number'] ?? '');
-    _tonnageController = TextEditingController(text: (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString());
-    _carModelController = TextEditingController(text: widget.user['car_model'] ?? '');
-    _inspectionDateController = TextEditingController(text: widget.user['inspection_date'] ?? '2026-12-31');
+    _vehicleNumController = TextEditingController(
+      text: widget.user['vehicle_number'] ?? widget.user['car_number'] ?? '',
+    );
+    _tonnageController = TextEditingController(
+      text: (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '')
+          .toString(),
+    );
+    _carModelController = TextEditingController(
+      text: widget.user['car_model'] ?? '',
+    );
+    _inspectionDateController = TextEditingController(
+      text: widget.user['inspection_date'] ?? '2026-12-31',
+    );
     _machineryRegFile = widget.user['machinery_reg_file'];
     _machineryRegUrl = widget.user['machinery_reg_url'];
     _bizLicenseFile = widget.user['biz_license_file'];
@@ -104,12 +112,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       if (widget.user['is_owner'] == true) {
         final carResponse = await http.get(
           Uri.parse("$_baseUrl/api/fleet/my-cars"),
-          headers: {
-            "Authorization": "Bearer ${widget.token}",
-          },
+          headers: {"Authorization": "Bearer ${widget.token}"},
         );
         if (carResponse.statusCode == 200) {
-          final List<dynamic> cars = jsonDecode(utf8.decode(carResponse.bodyBytes));
+          final List<dynamic> cars = jsonDecode(
+            utf8.decode(carResponse.bodyBytes),
+          );
           if (cars.isNotEmpty) {
             final String targetNum = _vehicleNumController.text.trim();
             var car = cars.first;
@@ -125,7 +133,8 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               _vehicleNumController.text = car['car_number'] ?? '';
               _tonnageController.text = (car['tonnage'] ?? '').toString();
               _carModelController.text = car['car_model'] ?? '';
-              _machineryRegFile = car['machinery_reg_file'] ?? _machineryRegFile;
+              _machineryRegFile =
+                  car['machinery_reg_file'] ?? _machineryRegFile;
               _machineryRegUrl = car['machinery_reg_url'] ?? _machineryRegUrl;
               _bizLicenseFile = car['biz_license_file'] ?? _bizLicenseFile;
               _bizLicenseUrl = car['biz_license_url'] ?? _bizLicenseUrl;
@@ -138,19 +147,23 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         // Fetch drivers
         final driversResponse = await http.get(
           Uri.parse("$_baseUrl/api/fleet/my-drivers"),
-          headers: {
-            "Authorization": "Bearer ${widget.token}",
-          },
+          headers: {"Authorization": "Bearer ${widget.token}"},
         );
         if (driversResponse.statusCode == 200) {
-          final List<dynamic> driversList = jsonDecode(utf8.decode(driversResponse.bodyBytes));
+          final List<dynamic> driversList = jsonDecode(
+            utf8.decode(driversResponse.bodyBytes),
+          );
           setState(() {
-            _myDrivers = driversList.map((d) => {
-              "id": d["driver_id"] as int,
-              "name": d["name"] ?? "선등록 대기기사",
-              "phone": d["phone_number"] ?? "",
-              "car": d["car_number"] ?? "미배정",
-            }).toList();
+            _myDrivers = driversList
+                .map(
+                  (d) => {
+                    "id": d["driver_id"] as int,
+                    "name": d["name"] ?? "선등록 대기기사",
+                    "phone": d["phone_number"] ?? "",
+                    "car": d["car_number"] ?? "미배정",
+                  },
+                )
+                .toList();
 
             final String currentCarNum = _vehicleNumController.text.trim();
             _selectedDriverId = null;
@@ -167,28 +180,34 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       } else {
         final response = await http.get(
           Uri.parse("$_baseUrl/api/auth/profile"),
-          headers: {
-            "Authorization": "Bearer ${widget.token}",
-          },
+          headers: {"Authorization": "Bearer ${widget.token}"},
         );
         if (response.statusCode == 200) {
           final data = jsonDecode(utf8.decode(response.bodyBytes));
           final user = data['user'] ?? data;
           setState(() {
             if (_vehicleNumController.text.isEmpty) {
-              _vehicleNumController.text = user['vehicle_number'] ?? user['car_number'] ?? '';
+              _vehicleNumController.text =
+                  user['vehicle_number'] ?? user['car_number'] ?? '';
             }
             if (_tonnageController.text.isEmpty) {
-              _tonnageController.text = (user['tonnage'] ?? user['vehicle_capacity'] ?? '').toString();
+              _tonnageController.text =
+                  (user['tonnage'] ?? user['vehicle_capacity'] ?? '')
+                      .toString();
             }
             if (_carModelController.text.isEmpty) {
               _carModelController.text = user['car_model'] ?? '';
             }
-            _machineryRegFile = user['machinery_reg_file'] ?? _machineryRegFile ?? '건설기계등록증_2026.jpg';
+            _machineryRegFile =
+                user['machinery_reg_file'] ??
+                _machineryRegFile ??
+                '건설기계등록증_2026.jpg';
             _machineryRegUrl = user['machinery_reg_url'] ?? _machineryRegUrl;
-            _bizLicenseFile = user['biz_license_file'] ?? _bizLicenseFile ?? '사업자등록증_사본.jpg';
+            _bizLicenseFile =
+                user['biz_license_file'] ?? _bizLicenseFile ?? '사업자등록증_사본.jpg';
             _bizLicenseUrl = user['biz_license_url'] ?? _bizLicenseUrl;
-            _insuranceFile = user['insurance_file'] ?? _insuranceFile ?? '영업용자동차보험증.jpg';
+            _insuranceFile =
+                user['insurance_file'] ?? _insuranceFile ?? '영업용자동차보험증.jpg';
             _insuranceUrl = user['insurance_url'] ?? _insuranceUrl;
           });
         }
@@ -209,7 +228,8 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     });
 
     try {
-      final double parsedTonnage = double.tryParse(_tonnageController.text.trim()) ?? 25.0;
+      final double parsedTonnage =
+          double.tryParse(_tonnageController.text.trim()) ?? 25.0;
 
       // 1. 차주 보유 차량 DB 추가/업데이트 API 호출
       final carResponse = await http.post(
@@ -253,7 +273,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
       if (carResponse.statusCode == 200 || carResponse.statusCode == 201) {
         if (widget.user['is_owner'] == true) {
-          final carResponseData = jsonDecode(utf8.decode(carResponse.bodyBytes));
+          final carResponseData = jsonDecode(
+            utf8.decode(carResponse.bodyBytes),
+          );
           final int carId = carResponseData['id'] as int;
 
           await http.post(
@@ -262,10 +284,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               "Content-Type": "application/json",
               "Authorization": "Bearer ${widget.token}",
             },
-            body: jsonEncode({
-              "car_id": carId,
-              "driver_id": _selectedDriverId,
-            }),
+            body: jsonEncode({"car_id": carId, "driver_id": _selectedDriverId}),
           );
         }
 
@@ -357,7 +376,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         });
 
         if (mounted) {
-          final label = docType == 'REG' ? '건설기계 등록증' : docType == 'BIZ' ? '사업자등록증' : '영업용 자동차 보험증';
+          final label = docType == 'REG'
+              ? '건설기계 등록증'
+              : docType == 'BIZ'
+              ? '사업자등록증'
+              : '영업용 자동차 보험증';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("📄 $label 서류가 성공적으로 업로드되었습니다.")),
           );
@@ -391,12 +414,19 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           _isReadOnlyState ? "배정 차량 정보 조회" : "등록 차량 및 서류 관리",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: AppColors.textPrimary,
+          ),
         ),
         centerTitle: true,
         actions: [
@@ -407,7 +437,13 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   _isReadOnlyState = false;
                 });
               },
-              child: const Text("정보변경", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+              child: const Text(
+                "정보변경",
+                style: TextStyle(
+                  color: Color(0xFF004D5A),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
         ],
       ),
@@ -434,10 +470,16 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF16A34A).withOpacity(0.15),
+                                color: const Color(
+                                  0xFF16A34A,
+                                ).withValues(alpha: 0.15),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.verified, color: Color(0xFF15803D), size: 24),
+                              child: const Icon(
+                                Icons.verified,
+                                color: Color(0xFF15803D),
+                                size: 24,
+                              ),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -446,12 +488,19 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                 children: const [
                                   Text(
                                     "정상 등록 승인 차량",
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF166534)),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: Color(0xFF166534),
+                                    ),
                                   ),
                                   SizedBox(height: 2),
                                   Text(
                                     "운송 배차 신청 및 정산 등록이 활성화되어 있습니다.",
-                                    style: TextStyle(fontSize: 12, color: Color(0xFF15803D)),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF15803D),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -476,110 +525,259 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.directions_car, color: AppColors.primary, size: 20),
+                                  Icon(
+                                    Icons.directions_car,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     "차량 정보 입력",
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: AppColors.textPrimary,
+                                    ),
                                   ),
                                 ],
                               ),
                               const Divider(height: 24),
 
-                              Text("차량 번호", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                              Text(
+                                "차량 번호",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _vehicleNumController,
                                 enabled: !_isReadOnlyState,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
                                 decoration: InputDecoration(
                                   hintText: "예: 88덤 1234",
                                   filled: true,
                                   fillColor: AppColors.background,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
                                 ),
-                                validator: (val) => (val == null || val.trim().isEmpty) ? "차량 번호를 입력해 주세요." : null,
+                                validator: (val) =>
+                                    (val == null || val.trim().isEmpty)
+                                    ? "차량 번호를 입력해 주세요."
+                                    : null,
                               ),
                               const SizedBox(height: 16),
 
-                              Text("차종 / 모델", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                              Text(
+                                "차종 / 모델",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _carModelController,
                                 enabled: !_isReadOnlyState,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
                                 decoration: InputDecoration(
                                   hintText: "예: 현대 덤프트럭 25톤",
                                   filled: true,
                                   fillColor: AppColors.background,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
 
-                              Text("적재 톤수 (톤)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                              Text(
+                                "적재 톤수 (톤)",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _tonnageController,
                                 enabled: !_isReadOnlyState,
                                 keyboardType: TextInputType.number,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
                                 decoration: InputDecoration(
                                   hintText: "예: 25",
                                   suffixText: "톤",
                                   filled: true,
                                   fillColor: AppColors.background,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
                                 ),
-                                validator: (val) => (val == null || val.trim().isEmpty) ? "톤수를 입력해 주세요." : null,
+                                validator: (val) =>
+                                    (val == null || val.trim().isEmpty)
+                                    ? "톤수를 입력해 주세요."
+                                    : null,
                               ),
                               const SizedBox(height: 16),
 
-                              Text("정기 안전점검 / 검사 만료예정일", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                              Text(
+                                "정기 안전점검 / 검사 만료예정일",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _inspectionDateController,
                                 enabled: !_isReadOnlyState,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
                                 decoration: InputDecoration(
                                   hintText: "예: 2026-12-31",
-                                  suffixIcon: const Icon(Icons.calendar_today, size: 18),
+                                  suffixIcon: const Icon(
+                                    Icons.calendar_today,
+                                    size: 18,
+                                  ),
                                   filled: true,
                                   fillColor: AppColors.background,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
                                 ),
                               ),
                               if (widget.user['is_owner'] == true) ...[
                                 const SizedBox(height: 16),
-                                Text("배정 기사 선택", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
+                                Text(
+                                  "배정 기사 선택",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
                                 const SizedBox(height: 8),
                                 DropdownButtonFormField<int?>(
-                                  value: _selectedDriverId,
+                                  initialValue: _selectedDriverId,
                                   dropdownColor: AppColors.surface,
                                   decoration: InputDecoration(
                                     filled: true,
                                     fillColor: AppColors.background,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
-                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: AppColors.divider,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: AppColors.divider,
+                                      ),
+                                    ),
                                   ),
                                   items: [
                                     const DropdownMenuItem<int?>(
                                       value: null,
-                                      child: Text("미배정 (선택 안 함)", style: TextStyle(fontSize: 14)),
+                                      child: Text(
+                                        "미배정 (선택 안 함)",
+                                        style: TextStyle(fontSize: 14),
+                                      ),
                                     ),
-                                    ..._myDrivers.where((d) => d["car"] == "미배정" || d["id"] == _selectedDriverId).map((d) => DropdownMenuItem<int?>(
-                                      value: d["id"] as int?,
-                                      child: Text("${d['name']} (${d['phone']})", style: const TextStyle(fontSize: 14)),
-                                    )),
+                                    ..._myDrivers
+                                        .where(
+                                          (d) =>
+                                              d["car"] == "미배정" ||
+                                              d["id"] == _selectedDriverId,
+                                        )
+                                        .map(
+                                          (d) => DropdownMenuItem<int?>(
+                                            value: d["id"] as int?,
+                                            child: Text(
+                                              "${d['name']} (${d['phone']})",
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                   ],
                                   onChanged: _isReadOnlyState
                                       ? null
@@ -611,18 +809,29 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.folder_open, color: AppColors.primary, size: 20),
+                                  Icon(
+                                    Icons.folder_open,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     "차량 구비 서류 (필수 3종)",
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: AppColors.textPrimary,
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 "건설기계 등록증, 사업자등록증, 영업용 자동차 보험증을 등록해 주세요.",
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
                               const Divider(height: 24),
                               // 1. 건설기계 등록증/검사증
@@ -666,7 +875,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                         if (_errorMessage != null) ...[
                           Text(
                             _errorMessage!,
-                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
@@ -679,44 +892,87 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                 child: OutlinedButton(
                                   style: OutlinedButton.styleFrom(
                                     side: BorderSide(color: AppColors.divider),
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                   onPressed: () {
                                     setState(() {
                                       _isReadOnlyState = true;
-                                      _vehicleNumController.text = widget.user['vehicle_number'] ?? widget.user['car_number'] ?? '';
-                                      _tonnageController.text = (widget.user['tonnage'] ?? widget.user['vehicle_capacity'] ?? '').toString();
-                                      _carModelController.text = widget.user['car_model'] ?? '';
-                                      _inspectionDateController.text = widget.user['inspection_date'] ?? '2026-12-31';
-                                      _selectedDriverId = widget.user['driver_id'];
+                                      _vehicleNumController.text =
+                                          widget.user['vehicle_number'] ??
+                                          widget.user['car_number'] ??
+                                          '';
+                                      _tonnageController.text =
+                                          (widget.user['tonnage'] ??
+                                                  widget
+                                                      .user['vehicle_capacity'] ??
+                                                  '')
+                                              .toString();
+                                      _carModelController.text =
+                                          widget.user['car_model'] ?? '';
+                                      _inspectionDateController.text =
+                                          widget.user['inspection_date'] ??
+                                          '2026-12-31';
+                                      _selectedDriverId =
+                                          widget.user['driver_id'];
                                     });
                                   },
-                                  child: Text("변경 취소", style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                                  child: Text(
+                                    "변경 취소",
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
                             ],
                             Expanded(
                               child: ElevatedButton(
-                                onPressed: _isSaving ? null : () async {
-                                  await _saveVehicleInfo();
-                                  if (widget.isReadOnly) {
-                                    setState(() {
-                                      _isReadOnlyState = true;
-                                    });
-                                  }
-                                },
+                                onPressed: _isSaving
+                                    ? null
+                                    : () async {
+                                        await _saveVehicleInfo();
+                                        if (widget.isReadOnly) {
+                                          setState(() {
+                                            _isReadOnlyState = true;
+                                          });
+                                        }
+                                      },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Theme.of(context).colorScheme.primary,
+                                  backgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
                                   foregroundColor: AppColors.background,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                   elevation: 0,
                                 ),
                                 child: _isSaving
-                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                    : const Text("차량 정보 저장하기", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text(
+                                        "차량 정보 저장하기",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                               ),
                             ),
                           ],
@@ -746,7 +1002,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: file != null ? () => _previewDocument(title, file, fileUrl, fileBytes) : null,
+        onTap: file != null
+            ? () => _previewDocument(title, file, fileUrl, fileBytes)
+            : null,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -759,7 +1017,10 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Row(
@@ -770,16 +1031,26 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                             file ?? "등록된 파일 없음",
                             style: TextStyle(
                               fontSize: 12,
-                              color: file != null ? Colors.blue[700] : AppColors.textTertiary,
-                              decoration: file != null ? TextDecoration.underline : TextDecoration.none,
-                              fontWeight: file != null ? FontWeight.w600 : FontWeight.normal,
+                              color: file != null
+                                  ? Colors.blue[700]
+                                  : AppColors.textTertiary,
+                              decoration: file != null
+                                  ? TextDecoration.underline
+                                  : TextDecoration.none,
+                              fontWeight: file != null
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (file != null) ...[
                           const SizedBox(width: 4),
-                          Icon(Icons.open_in_new, size: 14, color: Colors.blue[700]),
+                          Icon(
+                            Icons.open_in_new,
+                            size: 14,
+                            color: Colors.blue[700],
+                          ),
                         ],
                       ],
                     ),
@@ -790,7 +1061,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 TextButton.icon(
                   onPressed: isUploading ? null : onUpload,
                   icon: isUploading
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.upload_file, size: 16),
                   label: Text(file != null ? "재업로드" : "첨부하기"),
                   style: TextButton.styleFrom(
@@ -805,7 +1080,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     );
   }
 
-  void _previewDocument(String docTitle, String fileName, String? fileUrl, List<int>? fileBytes) {
+  void _previewDocument(
+    String docTitle,
+    String fileName,
+    String? fileUrl,
+    List<int>? fileBytes,
+  ) {
     final String fullImageUrl = fileUrl != null
         ? "$_baseUrl$fileUrl"
         : "$_baseUrl/static/uploads/documents/$fileName";
@@ -818,7 +1098,15 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           children: [
             const Icon(Icons.verified_user, color: Color(0xFF004D5A)),
             const SizedBox(width: 8),
-            Expanded(child: Text(docTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+            Expanded(
+              child: Text(
+                docTitle,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ],
         ),
         content: SingleChildScrollView(
@@ -835,7 +1123,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.insert_drive_file, color: Color(0xFF004D5A), size: 28),
+                    const Icon(
+                      Icons.insert_drive_file,
+                      color: Color(0xFF004D5A),
+                      size: 28,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -843,11 +1135,21 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                         children: [
                           Text(
                             fileName,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
-                          const Text("서버 검수 완료 원본 이미지", style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w600)),
+                          const Text(
+                            "서버 검수 완료 원본 이미지",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.green,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -861,7 +1163,10 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(minHeight: 200, maxHeight: 360),
+                  constraints: const BoxConstraints(
+                    minHeight: 200,
+                    maxHeight: 360,
+                  ),
                   color: Colors.black12,
                   child: Builder(
                     builder: (context) {
@@ -877,12 +1182,25 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                         );
                       }
 
-                      final String rawUrl = (fileUrl != null && fileUrl.isNotEmpty) ? fileUrl : "/static/uploads/documents/$fileName";
-                      final String cleanUrl = rawUrl.startsWith("/") ? rawUrl.substring(1) : rawUrl;
-                      final String streamUrl = cleanUrl.startsWith("http") ? cleanUrl : (_baseUrl.endsWith("/") ? "$_baseUrl$cleanUrl" : "$_baseUrl/$cleanUrl");
-                      debugPrint("🔍 [DEBUG] vehicle detail streamUrl: $streamUrl");
+                      final String rawUrl =
+                          (fileUrl != null && fileUrl.isNotEmpty)
+                          ? fileUrl
+                          : "/static/uploads/documents/$fileName";
+                      final String cleanUrl = rawUrl.startsWith("/")
+                          ? rawUrl.substring(1)
+                          : rawUrl;
+                      final String streamUrl = cleanUrl.startsWith("http")
+                          ? cleanUrl
+                          : (_baseUrl.endsWith("/")
+                                ? "$_baseUrl$cleanUrl"
+                                : "$_baseUrl/$cleanUrl");
+                      debugPrint(
+                        "🔍 [DEBUG] vehicle detail streamUrl: $streamUrl",
+                      );
 
-                      final bool isPdf = streamUrl.toLowerCase().endsWith('.pdf') || fileName.toLowerCase().endsWith('.pdf');
+                      final bool isPdf =
+                          streamUrl.toLowerCase().endsWith('.pdf') ||
+                          fileName.toLowerCase().endsWith('.pdf');
 
                       if (isPdf) {
                         return Center(
@@ -891,19 +1209,37 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.picture_as_pdf, size: 52, color: Colors.red),
+                                const Icon(
+                                  Icons.picture_as_pdf,
+                                  size: 52,
+                                  color: Colors.red,
+                                ),
                                 const SizedBox(height: 12),
-                                Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.center),
+                                Text(
+                                  fileName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
                                 const SizedBox(height: 16),
                                 ElevatedButton.icon(
                                   onPressed: () async {
-                                    final String pdfUrl = "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(streamUrl)}";
+                                    final String pdfUrl =
+                                        "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(streamUrl)}";
                                     final uri = Uri.parse(pdfUrl);
                                     try {
                                       if (await canLaunchUrl(uri)) {
-                                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                        await launchUrl(
+                                          uri,
+                                          mode: LaunchMode.externalApplication,
+                                        );
                                       } else {
-                                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                        await launchUrl(
+                                          uri,
+                                          mode: LaunchMode.externalApplication,
+                                        );
                                       }
                                     } catch (e) {
                                       debugPrint("PDF 서류 열기 실패: $e");
@@ -914,7 +1250,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF004D5A),
                                     foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -939,13 +1277,24 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                      value:
+                                          loadingProgress.expectedTotalBytes !=
+                                              null
+                                          ? loadingProgress
+                                                    .cumulativeBytesLoaded /
+                                                loadingProgress
+                                                    .expectedTotalBytes!
                                           : null,
                                       color: const Color(0xFF004D5A),
                                     ),
                                     const SizedBox(height: 12),
-                                    const Text("서버에서 원본 서류 불러오는 중...", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                    const Text(
+                                      "서버에서 원본 서류 불러오는 중...",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -958,11 +1307,27 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.description, size: 52, color: Color(0xFF004D5A)),
+                                    const Icon(
+                                      Icons.description,
+                                      size: 52,
+                                      color: Color(0xFF004D5A),
+                                    ),
                                     const SizedBox(height: 10),
-                                    Text(fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                    Text(
+                                      fileName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
                                     const SizedBox(height: 4),
-                                    const Text("덤프링 백엔드 서버 검수 보관 문서", style: TextStyle(fontSize: 12, color: Colors.green)),
+                                    const Text(
+                                      "덤프링 백엔드 서버 검수 보관 문서",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.green,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -977,7 +1342,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               const SizedBox(height: 14),
               const Text(
                 "📌 해당 서류는 덤프링 안전검수팀 및 현장 관리자가 원본 서류 확인 시 참조하는 공식 등록 문서입니다.",
-                style: TextStyle(fontSize: 12, color: Color(0xFF4B5563), height: 1.4),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF4B5563),
+                  height: 1.4,
+                ),
               ),
             ],
           ),

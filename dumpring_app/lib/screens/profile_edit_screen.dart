@@ -11,11 +11,11 @@ class ProfileEditScreen extends StatefulWidget {
   final Function(Map<String, dynamic> newUser) onProfileUpdated;
 
   const ProfileEditScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
     required this.onProfileUpdated,
-  }) : super(key: key);
+  });
 
   @override
   State<ProfileEditScreen> createState() => _ProfileEditScreenState();
@@ -254,7 +254,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         Text("선호 내비게이션", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textSecondary)),
                         SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: _preferredNavi,
+                          initialValue: _preferredNavi,
                           dropdownColor: AppColors.surface,
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
                           decoration: InputDecoration(

@@ -11,10 +11,10 @@ class OwnerPendingScreen extends StatefulWidget {
   final String token;
 
   const OwnerPendingScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
-  }) : super(key: key);
+  });
 
   @override
   State<OwnerPendingScreen> createState() => _OwnerPendingScreenState();

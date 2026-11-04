@@ -5,18 +5,13 @@ import 'dart:convert';
 import 'dart:async';
 import 'common_drawer.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
-import 'package:image_picker/image_picker.dart';
 import '../shared/widgets/dr_qr_scanner_dialog.dart';
 
 class DropOffHomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final String token;
 
-  const DropOffHomeScreen({
-    Key? key,
-    required this.user,
-    required this.token,
-  }) : super(key: key);
+  const DropOffHomeScreen({super.key, required this.user, required this.token});
 
   @override
   State<DropOffHomeScreen> createState() => _DropOffHomeScreenState();
@@ -27,10 +22,10 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
   // 모의 반입 한도 데이터
   final double _dailyLimitTons = 1000.0;
-  double _currentImportedTons = 420.0;
+  final double _currentImportedTons = 420.0;
 
   List<dynamic> _arrivedTickets = [];
-  bool _isLoadingArrived = false;
+  final bool _isLoadingArrived = false;
   Timer? _refreshTimer;
 
   bool _isLoadingB2B = false;
@@ -58,7 +53,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     _fetchMyDropOffs();
     _fetchMyRequests();
     _fetchCompletedTickets();
-    
+
     // 2초마다 도착 차량을 실시간 갱신하는 타이머 가동 (실시간 양방향 매칭 연동 🚨)
     _refreshTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       if (_currentTabIndex == 0) {
@@ -79,9 +74,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     try {
       final response = await http.get(
         Uri.parse("$_baseUrl/api/dispatch/arrived-tickets"),
-        headers: {
-          "Authorization": "Bearer ${widget.token}",
-        },
+        headers: {"Authorization": "Bearer ${widget.token}"},
       );
 
       if (response.statusCode == 200) {
@@ -103,9 +96,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     try {
       final response = await http.get(
         Uri.parse("$_baseUrl/api/dispatch/completed-tickets"),
-        headers: {
-          "Authorization": "Bearer ${widget.token}",
-        },
+        headers: {"Authorization": "Bearer ${widget.token}"},
       );
 
       if (response.statusCode == 200) {
@@ -120,7 +111,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             if (completedAtStr.isNotEmpty) {
               try {
                 final dt = DateTime.parse(completedAtStr).toLocal();
-                timeStr = "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+                timeStr =
+                    "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
               } catch (_) {
                 timeStr = completedAtStr;
               }
@@ -145,7 +137,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   }
 
   // 2. 하차 최종 판정(승인/거절) API 연동
-  Future<void> _submitInspection(int ticketId, String decision, String soilType) async {
+  Future<void> _submitInspection(
+    int ticketId,
+    String decision,
+    String soilType,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId/inspection"),
@@ -153,10 +149,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           "Authorization": "Bearer ${widget.token}",
           "Content-Type": "application/json",
         },
-        body: jsonEncode({
-          "decision": decision,
-          "soil_type": soilType,
-        }),
+        body: jsonEncode({"decision": decision, "soil_type": soilType}),
       );
 
       if (response.statusCode == 200) {
@@ -165,7 +158,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(decision == "APPROVED" ? "🟢 최종 반입 승인 및 기사 정산 완료" : "🔴 반입 거부 및 회차 지시 완료"),
+            content: Text(
+              decision == "APPROVED"
+                  ? "🟢 최종 반입 승인 및 기사 정산 완료"
+                  : "🔴 반입 거부 및 회차 지시 완료",
+            ),
             backgroundColor: decision == "APPROVED" ? Colors.green : Colors.red,
           ),
         );
@@ -183,13 +180,15 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
     final String url = "$_baseUrl/api/jobs/pending";
     try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer ${widget.token}",
-        },
-      ).timeout(const Duration(seconds: 4));
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer ${widget.token}",
+            },
+          )
+          .timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -217,23 +216,27 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
   Future<void> _approveB2BJob(Map<String, dynamic> job, bool isApprove) async {
     final int jobId = job['id'];
-    
+
     if (isApprove) {
       final String url = "$_baseUrl/api/jobs/$jobId/approve";
       try {
-        final response = await http.patch(
-          Uri.parse(url),
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer ${widget.token}",
-          },
-        ).timeout(const Duration(seconds: 4));
+        final response = await http
+            .patch(
+              Uri.parse(url),
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer ${widget.token}",
+              },
+            )
+            .timeout(const Duration(seconds: 4));
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           _fetchPendingB2BJobs();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("🎉 ${job['site_name']} 현장의 ${job['required_trucks']}대 매칭 모집 오더가 최종 승인되었습니다."),
+              content: Text(
+                "🎉 ${job['site_name']} 현장의 ${job['required_trucks']}대 매칭 모집 오더가 최종 승인되었습니다.",
+              ),
               backgroundColor: Colors.green,
             ),
           );
@@ -364,7 +367,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🎉 상차지 공고에 내 사토장을 매칭 요청했습니다. 현장관리자의 승인 후 기사 매칭이 시작됩니다.")),
+          const SnackBar(
+            content: Text(
+              "🎉 상차지 공고에 내 사토장을 매칭 요청했습니다. 현장관리자의 승인 후 기사 매칭이 시작됩니다.",
+            ),
+          ),
         );
         _fetchWaitingMatchJobs();
       } else {
@@ -377,7 +384,14 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   }
 
   // 신규 하차지 생성
-  Future<void> _registerNewDropOff(String name, String address, String permitNum, double lat, double lng, double radius) async {
+  Future<void> _registerNewDropOff(
+    String name,
+    String address,
+    String permitNum,
+    double lat,
+    double lng,
+    double radius,
+  ) async {
     final endpoint = "$_baseUrl/api/drop-offs";
     try {
       final response = await http.post(
@@ -396,9 +410,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
         }),
       );
       if (response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🎉 새로운 하차지가 개설되었습니다.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("🎉 새로운 하차지가 개설되었습니다.")));
         _fetchMyDropOffs();
       } else {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -410,7 +424,10 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   }
 
   // 하차지 수용 조건 공고(DropOffRequest) 발행
-  Future<void> _createDropOffRequest(int dropOffId, Map<String, dynamic> data) async {
+  Future<void> _createDropOffRequest(
+    int dropOffId,
+    Map<String, dynamic> data,
+  ) async {
     final endpoint = "$_baseUrl/api/drop-offs/$dropOffId/requests";
     try {
       final response = await http.post(
@@ -423,7 +440,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       );
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🎉 하차지 수용 공고(매립 수용 조건)가 활성화되어 등록되었습니다.")),
+          const SnackBar(
+            content: Text("🎉 하차지 수용 공고(매립 수용 조건)가 활성화되어 등록되었습니다."),
+          ),
         );
         _fetchMyDropOffs();
       } else {
@@ -446,7 +465,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text("확인"),
-          )
+          ),
         ],
       ),
     );
@@ -457,7 +476,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
     final int dropId = drop['id'] ?? 0;
     final String dropName = drop['name'] ?? '하차지 사토장';
     final String qrPayload = "dumpring://dropoff/unloading?id=$dropId";
-    final String qrImageUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${Uri.encodeComponent(qrPayload)}&margin=10";
+    final String qrImageUrl =
+        "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${Uri.encodeComponent(qrPayload)}&margin=10";
 
     showDialog(
       context: context,
@@ -474,18 +494,34 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.qr_code_2_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
+                    child: Icon(
+                      Icons.qr_code_2_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("하차지 고정형 QR 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text(dropName, style: TextStyle(fontSize: 12, color: Colors.grey), overflow: TextOverflow.ellipsis),
+                        const Text(
+                          "하차지 고정형 QR 안내",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          dropName,
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),
@@ -501,7 +537,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 decoration: BoxDecoration(
                   color: Theme.of(context).scaffoldBackgroundColor,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+                  border: Border.all(
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF222B45)
+                        : const Color(0xFFE5E7EB)),
+                  ),
                 ),
                 child: const Text(
                   "📌 [기사가 하차지 QR을 촬영하는 모드]일 때 사용됩니다.\n사토장 출입 게이트나 사무실에 인쇄 부착해 두시면, 도착한 기사가 앱으로 촬영하여 반입을 인증합니다.",
@@ -516,7 +556,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4)),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
                 child: Image.network(
@@ -535,8 +579,13 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   label: const Text("확인 완료"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    foregroundColor:
+                        (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF0A0F1D)
+                        : Colors.white),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
@@ -568,7 +617,8 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           }
           if (scannedTicketId == null) {
             // 정규식으로 티켓 숫자 추출
-            final match = RegExp(r'ticket[s]?/(\d+)').firstMatch(scannedPayload) ??
+            final match =
+                RegExp(r'ticket[s]?/(\d+)').firstMatch(scannedPayload) ??
                 RegExp(r'id=(\d+)').firstMatch(scannedPayload) ??
                 RegExp(r'(\d+)').firstMatch(scannedPayload);
             if (match != null) {
@@ -592,9 +642,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             try {
               final fetchRes = await http.get(
                 Uri.parse("$_baseUrl/api/dispatch/tickets/$scannedTicketId"),
-                headers: {
-                  "Authorization": "Bearer ${widget.token}",
-                },
+                headers: {"Authorization": "Bearer ${widget.token}"},
               );
               if (fetchRes.statusCode == 200) {
                 targetTicket = jsonDecode(utf8.decode(fetchRes.bodyBytes));
@@ -612,7 +660,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           if (targetTicket != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("✅ QR 인식 성공! #${targetTicket['id']} (${targetTicket['car']?['car_number'] ?? '덤프트럭'}) 검수를 진행합니다."),
+                content: Text(
+                  "✅ QR 인식 성공! #${targetTicket['id']} (${targetTicket['car']?['car_number'] ?? '덤프트럭'}) 검수를 진행합니다.",
+                ),
                 backgroundColor: const Color(0xFF004D5A),
                 duration: const Duration(seconds: 2),
               ),
@@ -621,7 +671,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("⚠️ QR 인식 (#$scannedTicketId): 도착 대기열에 해당 차량이 없거나 아직 도착 전송이 되지 않았습니다."),
+                content: Text(
+                  "⚠️ QR 인식 (#$scannedTicketId): 도착 대기열에 해당 차량이 없거나 아직 도착 전송이 되지 않았습니다.",
+                ),
                 backgroundColor: Colors.orange,
                 duration: const Duration(seconds: 4),
               ),
@@ -639,7 +691,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   void _showQrScannerModal() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
@@ -650,7 +704,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
+                  color: Colors.grey.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -658,11 +712,19 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.qr_code_scanner_rounded, color: Theme.of(context).colorScheme.primary, size: 24),
+                  Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     "도착 덤프 기사 QR 코드 스캔",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.primary),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ],
               ),
@@ -683,14 +745,23 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   height: 150,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 2,
+                    ),
                     borderRadius: BorderRadius.circular(16),
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.04),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.04),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.camera_alt_rounded, size: 52, color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.camera_alt_rounded,
+                        size: 52,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         "여기를 터치하여 카메라 켜기",
@@ -724,7 +795,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -739,10 +812,16 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         icon: const Icon(Icons.flash_on, size: 18),
                         label: Text("최근차량(#${_arrivedTickets.first['id']})"),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.primary,
-                          side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
@@ -767,8 +846,13 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
         final dialogWidth = screenWidth > 380 ? 350.0 : (screenWidth * 0.92);
 
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
           backgroundColor: Theme.of(ctx).cardColor,
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -781,19 +865,33 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               children: [
                 // 1. 헤더 (고정)
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 14,
+                    horizontal: 18,
+                  ),
                   decoration: const BoxDecoration(
                     color: Color(0xFF004D5A),
-                    borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.local_shipping, color: Colors.white, size: 22),
+                      const Icon(
+                        Icons.local_shipping,
+                        color: Colors.white,
+                        size: 22,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           "반입 자재 및 차량 검수 #${ticket['id']}",
-                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -810,26 +908,47 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                       children: [
                         // 기사 및 차량 정보
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
-                            color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF1E222F) : const Color(0xFFF8FAFC),
+                            color: Theme.of(ctx).brightness == Brightness.dark
+                                ? const Color(0xFF1E222F)
+                                : const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF2A2E3D) : const Color(0xFFE2E8F0)),
+                            border: Border.all(
+                              color: Theme.of(ctx).brightness == Brightness.dark
+                                  ? const Color(0xFF2A2E3D)
+                                  : const Color(0xFFE2E8F0),
+                            ),
                           ),
                           child: Column(
                             children: [
                               Row(
                                 children: [
-                                  const Text("차량 번호", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const Text(
+                                    "차량 번호",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      ticket['car'] != null ? ticket['car']['car_number'] : '알 수 없음',
+                                      ticket['car'] != null
+                                          ? ticket['car']['car_number']
+                                          : '알 수 없음',
                                       textAlign: TextAlign.end,
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
-                                        color: Theme.of(ctx).brightness == Brightness.dark ? Colors.white : Colors.black,
+                                        color:
+                                            Theme.of(ctx).brightness ==
+                                                Brightness.dark
+                                            ? Colors.white
+                                            : Colors.black,
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -839,7 +958,13 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  const Text("운행 기사", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const Text(
+                                    "운행 기사",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
@@ -848,7 +973,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                        color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563),
+                                        color:
+                                            Theme.of(ctx).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF8F9BB3)
+                                            : const Color(0xFF4B5563),
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -862,25 +991,48 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
                         // 배차 적재 품목 (영문 없이 순수 한글명 단독 표시)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.12),
+                            color: Colors.amber.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.amber.withOpacity(0.5)),
+                            border: Border.all(
+                              color: Colors.amber.withValues(alpha: 0.5),
+                            ),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.layers_outlined, color: Colors.amber, size: 24),
+                              const Icon(
+                                Icons.layers_outlined,
+                                color: Colors.amber,
+                                size: 24,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text("반입 검수 대상 품목", style: TextStyle(fontSize: 11, color: Colors.brown[700], fontWeight: FontWeight.w600)),
+                                    Text(
+                                      "반입 검수 대상 품목",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.brown[700],
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      _translateMaterial(ticket['job_post']?['material_type'] ?? ticket['soil_type']),
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.brown),
+                                      _translateMaterial(
+                                        ticket['job_post']?['material_type'] ??
+                                            ticket['soil_type'],
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.brown,
+                                      ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
@@ -895,14 +1047,34 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("주행 거리: ${ticket['drive_distance_km']} km", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            Text("정산 운임: ${_formatter(ticket['accumulated_fare'])} 원", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+                            Text(
+                              "주행 거리: ${ticket['drive_distance_km']} km",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            Text(
+                              "정산 운임: ${_formatter(ticket['accumulated_fare'])} 원",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
                           ],
                         ),
 
                         if (ticket['proof_photo'] != null) ...[
                           const SizedBox(height: 12),
-                          const Text("📸 현장 증빙 사진", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
+                          const Text(
+                            "📸 현장 증빙 사진",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
@@ -910,19 +1082,30 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                               "$_baseUrl${ticket['proof_photo']}",
                               height: 140,
                               fit: BoxFit.cover,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  height: 140,
-                                  color: Colors.grey[200],
-                                  child: const Center(child: CircularProgressIndicator(color: Colors.orange)),
-                                );
-                              },
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      height: 140,
+                                      color: Colors.grey[200],
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Colors.orange,
+                                        ),
+                                      ),
+                                    );
+                                  },
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
                                   height: 140,
                                   color: Colors.grey[300],
-                                  child: const Center(child: Icon(Icons.broken_image, color: Colors.red, size: 36)),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.broken_image,
+                                      color: Colors.red,
+                                      size: 36,
+                                    ),
+                                  ),
                                 );
                               },
                             ),
@@ -931,7 +1114,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         const SizedBox(height: 10),
                         const Text(
                           "* 실제 하차 자재를 육안 검증한 후 반입 승인 또는 회차 판정을 내려주세요.",
-                          style: TextStyle(fontSize: 11, color: Colors.grey, height: 1.3),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                            height: 1.3,
+                          ),
                         ),
                       ],
                     ),
@@ -941,7 +1128,13 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 // 3. 하단 액션 버튼 바
                 Container(
                   decoration: BoxDecoration(
-                    border: Border(top: BorderSide(color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF2A2E3D) : const Color(0xFFE2E8F0))),
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(ctx).brightness == Brightness.dark
+                            ? const Color(0xFF2A2E3D)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -949,34 +1142,66 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         child: InkWell(
                           onTap: () {
                             Navigator.of(ctx).pop();
-                            _submitInspection(ticket['id'], "REJECTED", "MUD_SOIL");
+                            _submitInspection(
+                              ticket['id'],
+                              "REJECTED",
+                              "MUD_SOIL",
+                            );
                           },
                           child: Container(
                             height: 48,
                             alignment: Alignment.center,
                             decoration: const BoxDecoration(
                               color: Color(0xFFFFF5F5),
-                              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20)),
+                              borderRadius: BorderRadius.only(
+                                bottomLeft: Radius.circular(20),
+                              ),
                             ),
-                            child: const Text("반입 거부 (회차)", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13)),
+                            child: const Text(
+                              "반입 거부 (회차)",
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                      Container(width: 1, height: 48, color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF2A2E3D) : const Color(0xFFE2E8F0)),
+                      Container(
+                        width: 1,
+                        height: 48,
+                        color: Theme.of(ctx).brightness == Brightness.dark
+                            ? const Color(0xFF2A2E3D)
+                            : const Color(0xFFE2E8F0),
+                      ),
                       Expanded(
                         child: InkWell(
                           onTap: () {
                             Navigator.of(ctx).pop();
-                            _submitInspection(ticket['id'], "APPROVED", "GOOD_SOIL");
+                            _submitInspection(
+                              ticket['id'],
+                              "APPROVED",
+                              "GOOD_SOIL",
+                            );
                           },
                           child: Container(
                             height: 48,
                             alignment: Alignment.center,
                             decoration: const BoxDecoration(
                               color: Color(0xFFE6F4EA),
-                              borderRadius: BorderRadius.only(bottomRight: Radius.circular(20)),
+                              borderRadius: BorderRadius.only(
+                                bottomRight: Radius.circular(20),
+                              ),
                             ),
-                            child: Text("반입 승인", style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold, fontSize: 13)),
+                            child: Text(
+                              "반입 승인",
+                              style: TextStyle(
+                                color: Colors.green[800],
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -999,7 +1224,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+        border: Border.all(
+          color: (Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF222B45)
+              : const Color(0xFFE5E7EB)),
+        ),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int>(
@@ -1007,13 +1236,19 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           hint: const Text("사토장을 선택하세요"),
           isExpanded: true,
           dropdownColor: Theme.of(context).cardColor,
-          icon: Icon(Icons.keyboard_arrow_down, color: Theme.of(context).colorScheme.primary),
+          icon: Icon(
+            Icons.keyboard_arrow_down,
+            color: Theme.of(context).colorScheme.primary,
+          ),
           items: _myDropOffs.map<DropdownMenuItem<int>>((dynamic drop) {
             return DropdownMenuItem<int>(
               value: drop['id'] as int,
               child: Text(
                 drop['name'] ?? '하차지',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             );
           }).toList(),
@@ -1031,20 +1266,26 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   Widget _buildTab0Control() {
     double importedTons = 0.0;
     double limitTons = 0.0;
-    
+
     if (_selectedDropOffId != null) {
-      final activeRequests = _myRequests.where((r) => r['drop_off_id'] == _selectedDropOffId);
+      final activeRequests = _myRequests.where(
+        (r) => r['drop_off_id'] == _selectedDropOffId,
+      );
       for (var req in activeRequests) {
         limitTons += req['target_quantity'] * 25.5;
       }
-      
-      final completedForDropOff = _completedImports.where((item) => item['drop_off_id'] == _selectedDropOffId);
+
+      final completedForDropOff = _completedImports.where(
+        (item) => item['drop_off_id'] == _selectedDropOffId,
+      );
       for (var item in completedForDropOff) {
         importedTons += item['tonnage'];
       }
     }
-    
-    final double percent = limitTons > 0.0 ? (importedTons / limitTons).clamp(0.0, 1.0) : 0.0;
+
+    final double percent = limitTons > 0.0
+        ? (importedTons / limitTons).clamp(0.0, 1.0)
+        : 0.0;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -1080,88 +1321,138 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
         _fetchMyDropOffs();
       },
       child: _isLoadingWaitingMatch
-          ? const Center(child: CircularProgressIndicator(color: AppColors.success))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.success),
+            )
           : _waitingMatchJobs.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.assignment_late_outlined, color: Colors.grey, size: 64),
-                      const SizedBox(height: 12),
-                      Text(
-                        "현재 매칭 대기 중인 상차지 공고가 없습니다.",
-                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54), fontSize: 13),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.assignment_late_outlined,
+                    color: Colors.grey,
+                    size: 64,
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _waitingMatchJobs.length,
-                  itemBuilder: (context, index) {
-                    final job = _waitingMatchJobs[index];
-                    return Card(
-                      color: Theme.of(context).cardColor,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
-                      ),
-                      child: InkWell(
-                        onTap: () => _showWaitingJobDetails(job),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 12),
+                  Text(
+                    "현재 매칭 대기 중인 상차지 공고가 없습니다.",
+                    style: TextStyle(
+                      color: (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white70
+                          : Colors.black54),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _waitingMatchJobs.length,
+              itemBuilder: (context, index) {
+                final job = _waitingMatchJobs[index];
+                return Card(
+                  color: Theme.of(context).cardColor,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: (Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF222B45)
+                          : const Color(0xFFE5E7EB)),
+                    ),
+                  ),
+                  child: InkWell(
+                    onTap: () => _showWaitingJobDetails(job),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      job['site_name'] ?? '상차지 현장',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                    ),
+                              Expanded(
+                                child: Text(
+                                  job['site_name'] ?? '상차지 현장',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Text(
-                                      "매칭 대기",
-                                      style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
-                              const SizedBox(height: 8),
-                              Text("토사 종류: ${_translateMaterial(job['material_type'])}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              Text("차량 규격: ${_translateTruck(job['truck_type'])}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              Text("작업 희망일: ${job['work_date']?.split("T")?.first ?? ''}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              const Divider(height: 20),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    "${_formatter(job['offered_unit_price'] ?? 50000)}원",
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.amber),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  "매칭 대기",
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  Text(
-                                    "모집 대수: ${job['required_trucks']}대",
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
+                                ),
                               ),
                             ],
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "토사 종류: ${_translateMaterial(job['material_type'])}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            "차량 규격: ${_translateTruck(job['truck_type'])}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            "작업 희망일: ${job['work_date']?.split("T")?.first ?? ''}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const Divider(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "${_formatter(job['offered_unit_price'] ?? 50000)}원",
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber,
+                                ),
+                              ),
+                              Text(
+                                "모집 대수: ${job['required_trucks']}대",
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 
@@ -1178,29 +1469,65 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: Theme.of(context).cardColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text("상차지 공고 상세 및 매칭 신청", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                "상차지 공고 상세 및 매칭 신청",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildPopupDetailItem("현장명", job['site_name'] ?? '현장명 없음'),
-                    _buildPopupDetailItem("토사 종류", _translateMaterial(job['material_type'])),
-                    _buildPopupDetailItem("차량 규격", _translateTruck(job['truck_type'])),
-                    _buildPopupDetailItem("제시 단가", "${_formatter(job['offered_unit_price'] ?? 50000)}원"),
-                    _buildPopupDetailItem("비용 지급", _translatePayer(job['payer_type'])),
-                    _buildPopupDetailItem("모집 덤프 대수", "${job['required_trucks']}대"),
-                    _buildPopupDetailItem("작업 희망일", job['work_date']?.split("T")?.first ?? ''),
+                    _buildPopupDetailItem(
+                      "토사 종류",
+                      _translateMaterial(job['material_type']),
+                    ),
+                    _buildPopupDetailItem(
+                      "차량 규격",
+                      _translateTruck(job['truck_type']),
+                    ),
+                    _buildPopupDetailItem(
+                      "제시 단가",
+                      "${_formatter(job['offered_unit_price'] ?? 50000)}원",
+                    ),
+                    _buildPopupDetailItem(
+                      "비용 지급",
+                      _translatePayer(job['payer_type']),
+                    ),
+                    _buildPopupDetailItem(
+                      "모집 덤프 대수",
+                      "${job['required_trucks']}대",
+                    ),
+                    _buildPopupDetailItem(
+                      "작업 희망일",
+                      job['work_date']?.split("T")?.first ?? '',
+                    ),
                     _buildPopupDetailItem("안내 메모", job['memo'] ?? '메모 없음'),
                     const SizedBox(height: 16),
-                    const Text("내 사토장 선택 (매칭 신청)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.success)),
+                    const Text(
+                      "내 사토장 선택 (매칭 신청)",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: AppColors.success,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     if (_myDropOffs.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-                        child: const Text("매칭을 신청하려면 먼저 하차지를 등록하셔야 합니다.", style: TextStyle(color: Colors.red, fontSize: 11)),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          "매칭을 신청하려면 먼저 하차지를 등록하셔야 합니다.",
+                          style: TextStyle(color: Colors.red, fontSize: 11),
+                        ),
                       )
                     else
                       Container(
@@ -1208,15 +1535,26 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         decoration: BoxDecoration(
                           color: Theme.of(context).scaffoldBackgroundColor,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                          border: Border.all(
+                            color: Colors.grey.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<int>(
                             value: selectedDropOffIdForMatch,
                             dropdownColor: Theme.of(context).cardColor,
                             isExpanded: true,
-                            style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 12),
-                            onChanged: (value) => setDialogState(() => selectedDropOffIdForMatch = value),
+                            style: TextStyle(
+                              color:
+                                  (Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black),
+                              fontSize: 12,
+                            ),
+                            onChanged: (value) => setDialogState(
+                              () => selectedDropOffIdForMatch = value,
+                            ),
                             items: _myDropOffs.map<DropdownMenuItem<int>>((d) {
                               return DropdownMenuItem<int>(
                                 value: d['id'],
@@ -1242,12 +1580,16 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         _requestMatch(job['id'], selectedDropOffIdForMatch!);
                       }
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    ),
                     child: Text(
                       "매칭 신청",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF0A0F1D)
+                            : Colors.white),
                       ),
                     ),
                   ),
@@ -1267,10 +1609,20 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
         children: [
           SizedBox(
             width: 90,
-            child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
@@ -1281,7 +1633,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   Widget _buildTab2Requests() {
     final filteredRequests = _selectedDropOffId == null
         ? _myRequests
-        : _myRequests.where((r) => r['drop_off_id'] == _selectedDropOffId).toList();
+        : _myRequests
+              .where((r) => r['drop_off_id'] == _selectedDropOffId)
+              .toList();
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -1306,25 +1660,40 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : const Color(0xFF1F2937)),
                   ),
                 ),
                 Text(
                   "총 ${filteredRequests.length}건",
-                  style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             if (_isLoadingMyRequests)
-              const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
             else if (filteredRequests.isEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 36),
                 decoration: BoxDecoration(
                   color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+                  border: Border.all(
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF222B45)
+                        : const Color(0xFFE5E7EB)),
+                  ),
                 ),
                 child: const Center(
                   child: Text(
@@ -1340,122 +1709,211 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 itemCount: filteredRequests.length,
                 itemBuilder: (context, index) {
                   final req = filteredRequests[index];
-                    final double progressPercent = req['target_quantity'] > 0
-                        ? (req['current_quantity'] / req['target_quantity']).clamp(0.0, 1.0)
-                        : 0.0;
+                  final double progressPercent = req['target_quantity'] > 0
+                      ? (req['current_quantity'] / req['target_quantity'])
+                            .clamp(0.0, 1.0)
+                      : 0.0;
 
-                    return Card(
-                      color: Theme.of(context).cardColor,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+                  return Card(
+                    color: Theme.of(context).cardColor,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF222B45)
+                            : const Color(0xFFE5E7EB)),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    req['drop_off_name'] ?? '하차지',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  req['drop_off_name'] ?? '하차지',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: req['status'] == 'OPEN' ? Colors.green.withOpacity(0.15) : Colors.grey.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(6),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: req['status'] == 'OPEN'
+                                      ? Colors.green.withValues(alpha: 0.15)
+                                      : Colors.grey.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  req['status'] == 'OPEN' ? "진행중" : "마감됨",
+                                  style: TextStyle(
+                                    color: req['status'] == 'OPEN'
+                                        ? Colors.green
+                                        : Colors.grey,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  child: Text(
-                                    req['status'] == 'OPEN' ? "진행중" : "마감됨",
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            "토사 종류: ${_translateMaterial(req['material_type'])}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            "차량 규격: ${_translateTruck(req['truck_type'])}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            "수용 단가: ${_formatter(req['unit_price'])} 원",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            "정산/정리: ${_translatePayer(req['payer_type'])} (${req['payment_method'] == 'MONTHLY' ? '월정산' : '일정산'})",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const Divider(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                "매칭 달성률",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              Text(
+                                "${req['current_quantity']} / ${req['target_quantity']} 대 (${(progressPercent * 100).toInt()}%)",
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: progressPercent,
+                              backgroundColor:
+                                  (Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFF222B45)
+                                  : const Color(0xFFE5E7EB)),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Theme.of(context).colorScheme.primary,
+                              ),
+                              minHeight: 6,
+                            ),
+                          ),
+                          if (req['status'] == 'OPEN') ...[
+                            const Divider(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text(
+                                          "공고 삭제",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        content: const Text(
+                                          "해당 수용 공고를 정말 삭제하시겠습니까?\n진행 중인 매칭 요청이 있는 경우 삭제되지 않습니다.",
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, false),
+                                            child: const Text("취소"),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.danger,
+                                            ),
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, true),
+                                            child: const Text(
+                                              "삭제",
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      _deleteRequest(req['id']);
+                                    }
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.danger,
+                                    side: const BorderSide(
+                                      color: AppColors.danger,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 14,
+                                  ),
+                                  label: const Text(
+                                    "공고 삭제",
                                     style: TextStyle(
-                                      color: req['status'] == 'OPEN' ? Colors.green : Colors.grey,
-                                      fontSize: 10,
+                                      fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            Text("토사 종류: ${_translateMaterial(req['material_type'])}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            Text("차량 규격: ${_translateTruck(req['truck_type'])}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            Text("수용 단가: ${_formatter(req['unit_price'])} 원", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            Text("정산/정리: ${_translatePayer(req['payer_type'])} (${req['payment_method'] == 'MONTHLY' ? '월정산' : '일정산'})", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            const Divider(height: 24),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text("매칭 달성률", style: TextStyle(fontSize: 11, color: Colors.grey)),
-                                Text(
-                                  "${req['current_quantity']} / ${req['target_quantity']} 대 (${(progressPercent * 100).toInt()}%)",
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: progressPercent,
-                                backgroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB)),
-                                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
-                                minHeight: 6,
-                              ),
-                            ),
-                            if (req['status'] == 'OPEN') ...[
-                              const Divider(height: 24),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  OutlinedButton.icon(
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          title: const Text("공고 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
-                                          content: const Text("해당 수용 공고를 정말 삭제하시겠습니까?\n진행 중인 매칭 요청이 있는 경우 삭제되지 않습니다."),
-                                          actions: [
-                                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소")),
-                                            ElevatedButton(
-                                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-                                              onPressed: () => Navigator.pop(ctx, true),
-                                              child: const Text("삭제", style: TextStyle(color: Colors.white)),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                      if (confirm == true) {
-                                        _deleteRequest(req['id']);
-                                      }
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: AppColors.danger,
-                                      side: const BorderSide(color: AppColors.danger),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    ),
-                                    icon: const Icon(Icons.delete_outline, size: 14),
-                                    label: const Text("공고 삭제", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                  ),
-                                ],
-                              ),
-                            ],
                           ],
-                        ),
+                        ],
                       ),
-                    );
-                  },
-                ),
-            ],
-          ),
+                    ),
+                  );
+                },
+              ),
+          ],
         ),
-      );
+      ),
+    );
   }
 
   // Tab 3: 하차지 설정 및 수용 설정 화면 빌드
@@ -1465,12 +1923,19 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openRegisterDropOffDialog(),
         backgroundColor: Theme.of(context).colorScheme.primary,
-        icon: Icon(Icons.add, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white)),
+        icon: Icon(
+          Icons.add,
+          color: (Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF0A0F1D)
+              : Colors.white),
+        ),
         label: Text(
           "신규 하차지 등록",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+            color: (Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF0A0F1D)
+                : Colors.white),
           ),
         ),
       ),
@@ -1479,110 +1944,197 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           _fetchMyDropOffs();
         },
         child: _isLoadingMyDropOffs
-            ? const Center(child: CircularProgressIndicator(color: AppColors.success))
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.success),
+              )
             : _myDropOffs.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.location_off_outlined, color: Colors.grey, size: 64),
-                        const SizedBox(height: 12),
-                        const Text(
-                          "등록된 하차지(사토장)가 없습니다.",
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "우측 하단 버튼을 눌러 하차지를 새로 개설하세요.",
-                          style: TextStyle(color: Colors.grey.withOpacity(0.6), fontSize: 11),
-                        ),
-                      ],
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.location_off_outlined,
+                      color: Colors.grey,
+                      size: 64,
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _myDropOffs.length,
-                    itemBuilder: (context, index) {
-                      final drop = _myDropOffs[index];
-                      return Card(
-                        color: Theme.of(context).cardColor,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 12),
+                    const Text(
+                      "등록된 하차지(사토장)가 없습니다.",
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "우측 하단 버튼을 눌러 하차지를 새로 개설하세요.",
+                      style: TextStyle(
+                        color: Colors.grey.withValues(alpha: 0.6),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _myDropOffs.length,
+                itemBuilder: (context, index) {
+                  final drop = _myDropOffs[index];
+                  return Card(
+                    color: Theme.of(context).cardColor,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF222B45)
+                            : const Color(0xFFE5E7EB)),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    drop['name'] ?? '하차지',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      drop['status'] == 'ACTIVE' ? "운영중" : "정지됨",
-                                      style: const TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                drop['name'] ?? '하차지',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
                               ),
-                              const SizedBox(height: 6),
-                              Text("인허가번호: ${drop['permit_number']}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              Text("주소: ${drop['address']}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              Text("지오펜싱 범위: ${drop['radius_meter']} m", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              const Divider(height: 20),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                   OutlinedButton.icon(
-                                     onPressed: _scanDriverQrWithCamera,
-                                     style: OutlinedButton.styleFrom(
-                                       foregroundColor: Theme.of(context).colorScheme.primary,
-                                       side: BorderSide(color: Theme.of(context).colorScheme.primary),
-                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                     ),
-                                     icon: const Icon(Icons.qr_code_scanner, size: 16),
-                                     label: const Text("기사 QR 스캔", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                   ),
-                                   const SizedBox(width: 8),
-                                   OutlinedButton.icon(
-                                     onPressed: () => _showDropoffFixedQrDialog(drop),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Theme.of(context).colorScheme.primary,
-                                      side: BorderSide(color: Theme.of(context).colorScheme.primary),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    icon: const Icon(Icons.qr_code_2, size: 16),
-                                    label: const Text("고정 QR 보기", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  drop['status'] == 'ACTIVE' ? "운영중" : "정지됨",
+                                  style: const TextStyle(
+                                    color: Colors.green,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton.icon(
-                                    onPressed: () => _openCreateDropOffRequestDialog(drop['id']),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF004D5A),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    icon: const Icon(Icons.campaign_outlined, size: 16, color: Colors.white),
-                                    label: const Text("수용 공고 등록", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                                  ),
-                                ],
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "인허가번호: ${drop['permit_number']}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            "주소: ${drop['address']}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            "지오펜싱 범위: ${drop['radius_meter']} m",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const Divider(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: _scanDriverQrWithCamera,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                  side: BorderSide(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.qr_code_scanner,
+                                  size: 16,
+                                ),
+                                label: const Text(
+                                  "기사 QR 스캔",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _showDropoffFixedQrDialog(drop),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                  side: BorderSide(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.qr_code_2, size: 16),
+                                label: const Text(
+                                  "고정 QR 보기",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton.icon(
+                                onPressed: () =>
+                                    _openCreateDropOffRequestDialog(drop['id']),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF004D5A),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.campaign_outlined,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                label: const Text(
+                                  "수용 공고 등록",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -1601,11 +2153,21 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: Theme.of(context).cardColor,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text("신규 하차지(사토장) 등록", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            "신규 하차지(사토장) 등록",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width > 600 ? 500 : MediaQuery.of(context).size.width * 0.95,
+            width: MediaQuery.of(context).size.width > 600
+                ? 500
+                : MediaQuery.of(context).size.width * 0.95,
             child: SingleChildScrollView(
               child: Form(
                 key: formKey,
@@ -1614,42 +2176,84 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   children: [
                     TextFormField(
                       controller: nameController,
-                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                      decoration: const InputDecoration(labelText: "하차지명 (예: 김포 검단 사토장)"),
-                      validator: (v) => v == null || v.trim().isEmpty ? "하차지명을 입력하세요" : null,
+                      style: TextStyle(
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black),
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: "하차지명 (예: 김포 검단 사토장)",
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? "하차지명을 입력하세요" : null,
                     ),
                     TextFormField(
                       controller: addressController,
-                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                      style: TextStyle(
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black),
+                      ),
                       decoration: const InputDecoration(labelText: "주소 입력"),
-                      validator: (v) => v == null || v.trim().isEmpty ? "주소를 입력하세요" : null,
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? "주소를 입력하세요" : null,
                     ),
                     TextFormField(
                       controller: permitController,
-                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                      decoration: const InputDecoration(labelText: "토사반입 인허가번호"),
-                      validator: (v) => v == null || v.trim().isEmpty ? "인허가번호를 입력하세요" : null,
+                      style: TextStyle(
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black),
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: "토사반입 인허가번호",
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? "인허가번호를 입력하세요" : null,
                     ),
                     TextFormField(
                       controller: latController,
                       keyboardType: TextInputType.number,
-                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                      decoration: const InputDecoration(labelText: "하차지 위도 (GPS Latitude)"),
-                      validator: (v) => double.tryParse(v ?? '') == null ? "위도 숫자를 입력하세요" : null,
+                      style: TextStyle(
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black),
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: "하차지 위도 (GPS Latitude)",
+                      ),
+                      validator: (v) => double.tryParse(v ?? '') == null
+                          ? "위도 숫자를 입력하세요"
+                          : null,
                     ),
                     TextFormField(
                       controller: lngController,
                       keyboardType: TextInputType.number,
-                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                      decoration: const InputDecoration(labelText: "하차지 경도 (GPS Longitude)"),
-                      validator: (v) => double.tryParse(v ?? '') == null ? "경도 숫자를 입력하세요" : null,
+                      style: TextStyle(
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black),
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: "하차지 경도 (GPS Longitude)",
+                      ),
+                      validator: (v) => double.tryParse(v ?? '') == null
+                          ? "경도 숫자를 입력하세요"
+                          : null,
                     ),
                     TextFormField(
                       controller: radiusController,
                       keyboardType: TextInputType.number,
-                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                      decoration: const InputDecoration(labelText: "감지 범위 반경 (m)"),
-                      validator: (v) => int.tryParse(v ?? '') == null ? "범위를 입력하세요" : null,
+                      style: TextStyle(
+                        color: (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black),
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: "감지 범위 반경 (m)",
+                      ),
+                      validator: (v) =>
+                          int.tryParse(v ?? '') == null ? "범위를 입력하세요" : null,
                     ),
                   ],
                 ),
@@ -1675,12 +2279,16 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   );
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+              ),
               child: Text(
                 "등록",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                  color: (Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF0A0F1D)
+                      : Colors.white),
                 ),
               ),
             ),
@@ -1711,11 +2319,21 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: Theme.of(context).cardColor,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text("하차지 수용 공고 등록", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                "하차지 수용 공고 등록",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
               content: SizedBox(
-                width: MediaQuery.of(context).size.width > 600 ? 500 : MediaQuery.of(context).size.width * 0.95,
+                width: MediaQuery.of(context).size.width > 600
+                    ? 500
+                    : MediaQuery.of(context).size.width * 0.95,
                 child: SingleChildScrollView(
                   child: Form(
                     key: formKey,
@@ -1723,28 +2341,65 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("수용 토사 종류", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        const Text(
+                          "수용 토사 종류",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
                         DropdownButton<String>(
                           value: selectedMaterial,
                           dropdownColor: Theme.of(context).cardColor,
                           isExpanded: true,
-                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
-                          onChanged: (v) => setDialogState(() => selectedMaterial = v!),
+                          style: TextStyle(
+                            color:
+                                (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black),
+                            fontSize: 13,
+                          ),
+                          onChanged: (v) =>
+                              setDialogState(() => selectedMaterial = v!),
                           items: const [
-                            DropdownMenuItem(value: "GOOD_SOIL", child: Text("양질토")),
-                            DropdownMenuItem(value: "MUD_SOIL", child: Text("뻘흙")),
+                            DropdownMenuItem(
+                              value: "GOOD_SOIL",
+                              child: Text("양질토"),
+                            ),
+                            DropdownMenuItem(
+                              value: "MUD_SOIL",
+                              child: Text("뻘흙"),
+                            ),
                             DropdownMenuItem(value: "ROCK", child: Text("암버럭")),
-                            DropdownMenuItem(value: "MIXED", child: Text("혼합 토사")),
+                            DropdownMenuItem(
+                              value: "MIXED",
+                              child: Text("혼합 토사"),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 10),
-                        const Text("수용 차량 종류", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        const Text(
+                          "수용 차량 종류",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
                         DropdownButton<String>(
                           value: selectedTruck,
                           dropdownColor: Theme.of(context).cardColor,
                           isExpanded: true,
-                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
-                          onChanged: (v) => setDialogState(() => selectedTruck = v!),
+                          style: TextStyle(
+                            color:
+                                (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black),
+                            fontSize: 13,
+                          ),
+                          onChanged: (v) =>
+                              setDialogState(() => selectedTruck = v!),
                           items: const [
                             DropdownMenuItem(value: "T_15", child: Text("15톤")),
                             DropdownMenuItem(value: "T_25", child: Text("25톤")),
@@ -1755,62 +2410,132 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         TextFormField(
                           controller: unitPriceController,
                           keyboardType: TextInputType.number,
-                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                          decoration: const InputDecoration(labelText: "수용 단가 (원)"),
-                          validator: (v) => int.tryParse(v ?? '') == null ? "수용 단가를 입력하세요" : null,
+                          style: TextStyle(
+                            color:
+                                (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black),
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: "수용 단가 (원)",
+                          ),
+                          validator: (v) => int.tryParse(v ?? '') == null
+                              ? "수용 단가를 입력하세요"
+                              : null,
                         ),
                         TextFormField(
                           controller: targetQtyController,
                           keyboardType: TextInputType.number,
-                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
-                          decoration: const InputDecoration(labelText: "목표 수량 (대수)"),
-                          validator: (v) => int.tryParse(v ?? '') == null ? "목표 수량을 입력하세요" : null,
+                          style: TextStyle(
+                            color:
+                                (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black),
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: "목표 수량 (대수)",
+                          ),
+                          validator: (v) => int.tryParse(v ?? '') == null
+                              ? "목표 수량을 입력하세요"
+                              : null,
                         ),
                         const SizedBox(height: 10),
-                        const Text("비용 지급 주체", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        const Text(
+                          "비용 지급 주체",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
                         DropdownButton<String>(
                           value: selectedPayer,
                           dropdownColor: Theme.of(context).cardColor,
                           isExpanded: true,
-                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
-                          onChanged: (v) => setDialogState(() => selectedPayer = v!),
+                          style: TextStyle(
+                            color:
+                                (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black),
+                            fontSize: 13,
+                          ),
+                          onChanged: (v) =>
+                              setDialogState(() => selectedPayer = v!),
                           items: const [
-                            DropdownMenuItem(value: "SITE_PAYS", child: Text("상차지(현장) 지불")),
-                            DropdownMenuItem(value: "DROP_OFF_PAYS", child: Text("하차지(지주) 지불")),
+                            DropdownMenuItem(
+                              value: "SITE_PAYS",
+                              child: Text("상차지(현장) 지불"),
+                            ),
+                            DropdownMenuItem(
+                              value: "DROP_OFF_PAYS",
+                              child: Text("하차지(지주) 지불"),
+                            ),
                             DropdownMenuItem(value: "FREE", child: Text("무상")),
                           ],
                         ),
                         const SizedBox(height: 10),
-                        const Text("정산 방식", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        const Text(
+                          "정산 방식",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
                         DropdownButton<String>(
                           value: selectedPaymentMethod,
                           dropdownColor: Theme.of(context).cardColor,
                           isExpanded: true,
-                          style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black), fontSize: 13),
-                          onChanged: (v) => setDialogState(() => selectedPaymentMethod = v!),
+                          style: TextStyle(
+                            color:
+                                (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black),
+                            fontSize: 13,
+                          ),
+                          onChanged: (v) =>
+                              setDialogState(() => selectedPaymentMethod = v!),
                           items: const [
-                            DropdownMenuItem(value: "MONTHLY", child: Text("월정산")),
-                            DropdownMenuItem(value: "DAILY", child: Text("주정산/일정산")),
+                            DropdownMenuItem(
+                              value: "MONTHLY",
+                              child: Text("월정산"),
+                            ),
+                            DropdownMenuItem(
+                              value: "DAILY",
+                              child: Text("주정산/일정산"),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 10),
                         CheckboxListTile(
-                          title: const Text("세륜시설 구비", style: TextStyle(fontSize: 12)),
+                          title: const Text(
+                            "세륜시설 구비",
+                            style: TextStyle(fontSize: 12),
+                          ),
                           value: hasWashing,
                           contentPadding: EdgeInsets.zero,
-                          onChanged: (v) => setDialogState(() => hasWashing = v!),
+                          onChanged: (v) =>
+                              setDialogState(() => hasWashing = v!),
                         ),
                         CheckboxListTile(
-                          title: const Text("야간작업 수용 가능", style: TextStyle(fontSize: 12)),
+                          title: const Text(
+                            "야간작업 수용 가능",
+                            style: TextStyle(fontSize: 12),
+                          ),
                           value: allowNight,
                           contentPadding: EdgeInsets.zero,
-                          onChanged: (v) => setDialogState(() => allowNight = v!),
+                          onChanged: (v) =>
+                              setDialogState(() => allowNight = v!),
                         ),
                         CheckboxListTile(
-                          title: const Text("우천작업 수용 가능", style: TextStyle(fontSize: 12)),
+                          title: const Text(
+                            "우천작업 수용 가능",
+                            style: TextStyle(fontSize: 12),
+                          ),
                           value: allowRain,
                           contentPadding: EdgeInsets.zero,
-                          onChanged: (v) => setDialogState(() => allowRain = v!),
+                          onChanged: (v) =>
+                              setDialogState(() => allowRain = v!),
                         ),
                       ],
                     ),
@@ -1829,8 +2554,12 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                       _createDropOffRequest(dropOffId, {
                         "material_type": selectedMaterial,
                         "truck_type": selectedTruck,
-                        "unit_price": int.parse(unitPriceController.text.trim()),
-                        "target_quantity": int.parse(targetQtyController.text.trim()),
+                        "unit_price": int.parse(
+                          unitPriceController.text.trim(),
+                        ),
+                        "target_quantity": int.parse(
+                          targetQtyController.text.trim(),
+                        ),
                         "payer_type": selectedPayer,
                         "payment_method": selectedPaymentMethod,
                         "has_washing_facility": hasWashing,
@@ -1841,12 +2570,16 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                       });
                     }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                  ),
                   child: Text(
                     "공고 발행",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
+                      color: (Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF0A0F1D)
+                          : Colors.white),
                     ),
                   ),
                 ),
@@ -1861,7 +2594,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // 피그마 다크 테마 통일
+      backgroundColor: Theme.of(
+        context,
+      ).scaffoldBackgroundColor, // 피그마 다크 테마 통일
       drawer: CommonDrawer(
         user: _currentUser,
         token: widget.token,
@@ -1873,20 +2608,24 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
       ),
       appBar: AppBar(
         backgroundColor: Theme.of(context).cardColor, // 다크 네이비 헤더
-        foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
+        foregroundColor: (Theme.of(context).brightness == Brightness.dark
+            ? Colors.white
+            : const Color(0xFF1F2937)),
         elevation: 0,
         title: Text(
           _currentTabIndex == 0
               ? "반입 관제 시스템"
               : _currentTabIndex == 1
-                  ? "상차지 매칭 신청"
-                  : _currentTabIndex == 2
-                      ? "수용 공고 관리"
-                      : "하차지 설정 및 수용 등록",
+              ? "상차지 매칭 신청"
+              : _currentTabIndex == 2
+              ? "수용 공고 관리"
+              : "하차지 설정 및 수용 등록",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
-            color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
+            color: (Theme.of(context).brightness == Brightness.dark
+                ? Colors.white
+                : const Color(0xFF1F2937)),
           ),
         ),
         centerTitle: true,
@@ -1925,22 +2664,43 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed, // 4개 이상의 탭 시 디자인 밀림 방지
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: "반입 관제"),
-          BottomNavigationBarItem(icon: Icon(Icons.compare_arrows), label: "상차지 매칭"),
-          BottomNavigationBarItem(icon: Icon(Icons.campaign_outlined), label: "공고 관리"),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: "하차지 설정"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_outlined),
+            label: "반입 관제",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.compare_arrows),
+            label: "상차지 매칭",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.campaign_outlined),
+            label: "공고 관리",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            label: "하차지 설정",
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildLimitCard(double percent, double importedTons, double limitTons) {
+  Widget _buildLimitCard(
+    double percent,
+    double importedTons,
+    double limitTons,
+  ) {
     return Card(
       color: Theme.of(context).cardColor, // 다크 카드
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB)), width: 1),
+        side: BorderSide(
+          color: (Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF222B45)
+              : const Color(0xFFE5E7EB)),
+          width: 1,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -1950,8 +2710,20 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("오늘의 토사 반입량 한도", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)))),
-                Icon(Icons.bar_chart, color: Theme.of(context).colorScheme.primary),
+                Text(
+                  "오늘의 토사 반입량 한도",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : const Color(0xFF1F2937)),
+                  ),
+                ),
+                Icon(
+                  Icons.bar_chart,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -1960,9 +2732,21 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               children: [
                 Text(
                   "${importedTons.toStringAsFixed(1)} 톤 수용",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
-                Text("일일 한도 ${limitTons.toStringAsFixed(0)} 톤", style: TextStyle(fontSize: 12, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)))),
+                Text(
+                  "일일 한도 ${limitTons.toStringAsFixed(0)} 톤",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF8F9BB3)
+                        : const Color(0xFF4B5563)),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -1971,8 +2755,13 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               child: LinearProgressIndicator(
                 value: percent,
                 minHeight: 14,
-                backgroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB)),
-                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                backgroundColor:
+                    (Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF222B45)
+                    : const Color(0xFFE5E7EB)),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
           ],
@@ -1984,7 +2773,15 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   Widget _buildB2BMatchApprovalsSection() {
     final filteredB2BJobs = _selectedDropOffId == null
         ? _pendingB2BJobs
-        : _pendingB2BJobs.where((j) => j['matched_drop_off_id'] == _selectedDropOffId || (j['drop_off_request'] != null && j['drop_off_request']['drop_off_id'] == _selectedDropOffId)).toList();
+        : _pendingB2BJobs
+              .where(
+                (j) =>
+                    j['matched_drop_off_id'] == _selectedDropOffId ||
+                    (j['drop_off_request'] != null &&
+                        j['drop_off_request']['drop_off_id'] ==
+                            _selectedDropOffId),
+              )
+              .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1992,22 +2789,46 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("🤝 상차지 매칭 요청 목록", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            Text("대기 ${filteredB2BJobs.length}건", style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+            const Text(
+              "🤝 상차지 매칭 요청 목록",
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              "대기 ${filteredB2BJobs.length}건",
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
         if (_isLoadingB2B)
-          const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()))
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(),
+            ),
+          )
         else if (filteredB2BJobs.isEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+              border: Border.all(
+                color: (Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF222B45)
+                    : const Color(0xFFE5E7EB)),
+              ),
             ),
-            child: const Center(child: Text("대기 중인 상차지 매칭 요청이 없습니다.", style: TextStyle(color: Colors.grey, fontSize: 12))),
+            child: const Center(
+              child: Text(
+                "대기 중인 상차지 매칭 요청이 없습니다.",
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
           )
         else
           ListView.builder(
@@ -2022,7 +2843,11 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 elevation: 4,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+                  side: BorderSide(
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF222B45)
+                        : const Color(0xFFE5E7EB)),
+                  ),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -2032,8 +2857,20 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(job['site_name'] ?? '상차지 현장', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text("차량 ${job['required_trucks']}대", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                          Text(
+                            job['site_name'] ?? '상차지 현장',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            "차량 ${job['required_trucks']}대",
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 11,
+                            ),
+                          ),
                         ],
                       ),
                       const Divider(height: 16),
@@ -2042,13 +2879,20 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                         children: [
                           OutlinedButton(
                             onPressed: () => _approveB2BJob(job, false),
-                            style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                            child: const Text("반려", style: TextStyle(fontSize: 11)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                            child: const Text(
+                              "반려",
+                              style: TextStyle(fontSize: 11),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: () => _approveB2BJob(job, true),
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF004D5A)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF004D5A),
+                            ),
                             child: Text(
                               "최종 승인",
                               style: TextStyle(
@@ -2059,7 +2903,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                             ),
                           ),
                         ],
-                      )
+                      ),
                     ],
                   ),
                 ),
@@ -2073,7 +2917,17 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   Widget _buildWaitingQueueSection() {
     final filteredArrivedTickets = _selectedDropOffId == null
         ? _arrivedTickets
-        : _arrivedTickets.where((t) => t['job_post'] != null && (t['job_post']['matched_drop_off_id'] == _selectedDropOffId || (t['job_post']['drop_off_request'] != null && t['job_post']['drop_off_request']['drop_off_id'] == _selectedDropOffId))).toList();
+        : _arrivedTickets
+              .where(
+                (t) =>
+                    t['job_post'] != null &&
+                    (t['job_post']['matched_drop_off_id'] ==
+                            _selectedDropOffId ||
+                        (t['job_post']['drop_off_request'] != null &&
+                            t['job_post']['drop_off_request']['drop_off_id'] ==
+                                _selectedDropOffId)),
+              )
+              .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2091,7 +2945,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : const Color(0xFF1F2937)),
                   ),
                 ),
               ],
@@ -2099,7 +2955,9 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -2122,7 +2980,10 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 onPressed: () {
                   if (_myDropOffs.isNotEmpty) {
                     final targetDrop = _selectedDropOffId != null
-                        ? _myDropOffs.firstWhere((d) => d['id'] == _selectedDropOffId, orElse: () => _myDropOffs.first)
+                        ? _myDropOffs.firstWhere(
+                            (d) => d['id'] == _selectedDropOffId,
+                            orElse: () => _myDropOffs.first,
+                          )
                         : _myDropOffs.first;
                     _showDropoffFixedQrDialog(targetDrop);
                   } else {
@@ -2130,13 +2991,22 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                   }
                 },
                 icon: const Icon(Icons.qr_code_2, size: 16),
-                label: const Text("고정 QR 보기", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: const Text(
+                  "고정 QR 보기",
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   visualDensity: VisualDensity.comfortable,
                   foregroundColor: Theme.of(context).colorScheme.primary,
-                  side: BorderSide(color: Theme.of(context).colorScheme.primary.withOpacity(0.6)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  side: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.6),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
@@ -2145,14 +3015,19 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               child: ElevatedButton.icon(
                 onPressed: _showQrScannerModal,
                 icon: const Icon(Icons.qr_code_scanner, size: 16),
-                label: const Text("기사 QR 스캔", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: const Text(
+                  "기사 QR 스캔",
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   visualDensity: VisualDensity.comfortable,
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
@@ -2165,9 +3040,23 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB))),
+              border: Border.all(
+                color: (Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF222B45)
+                    : const Color(0xFFE5E7EB)),
+              ),
             ),
-            child: Center(child: Text("도착 대기 중인 트럭이 없습니다 (실시간 감지 작동 중)", style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)), fontSize: 12))),
+            child: Center(
+              child: Text(
+                "도착 대기 중인 트럭이 없습니다 (실시간 감지 작동 중)",
+                style: TextStyle(
+                  color: (Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF8F9BB3)
+                      : const Color(0xFF4B5563)),
+                  fontSize: 12,
+                ),
+              ),
+            ),
           )
         else
           ListView.builder(
@@ -2182,34 +3071,65 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 elevation: 4,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB)), width: 1),
+                  side: BorderSide(
+                    color: (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF222B45)
+                        : const Color(0xFFE5E7EB)),
+                    width: 1,
+                  ),
                 ),
                 child: ListTile(
-                  title: Text(ticket['car'] != null ? ticket['car']['car_number'] : "덤프트럭 티켓 #${ticket['id']}", style: TextStyle(fontWeight: FontWeight.bold, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)))),
+                  title: Text(
+                    ticket['car'] != null
+                        ? ticket['car']['car_number']
+                        : "덤프트럭 티켓 #${ticket['id']}",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : const Color(0xFF1F2937)),
+                    ),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         "기사 ID: ${ticket['driver_id']} | 거리 ${ticket['drive_distance_km']}km",
-                        style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563))),
+                        style: TextStyle(
+                          color:
+                              (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF8F9BB3)
+                              : const Color(0xFF4B5563)),
+                        ),
                       ),
                       if (ticket['status'] == 'WAITING_ABSENT_APPROVAL') ...[
                         const SizedBox(height: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.15),
+                            color: Colors.orange.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: Colors.orange),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: const [
-                              Icon(Icons.camera_alt_outlined, size: 12, color: Colors.orange),
+                              Icon(
+                                Icons.camera_alt_outlined,
+                                size: 12,
+                                color: Colors.orange,
+                              ),
                               SizedBox(width: 4),
                               Text(
                                 "지주 부재 (증빙 사진 제출됨)",
-                                style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  color: Colors.orange,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
@@ -2221,11 +3141,22 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                     onPressed: () => _processIncomingTruck(ticket),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0F1D) : Colors.white),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      foregroundColor:
+                          (Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF0A0F1D)
+                          : Colors.white),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                       elevation: 2,
                     ),
-                    child: const Text("반입 검사", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      "반입 검사",
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -2236,15 +3167,26 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
   }
 
   Widget _buildCompletedSection() {
-    final filteredCompleted = _completedImports.where((item) => item['drop_off_id'] == _selectedDropOffId).toList();
+    final filteredCompleted = _completedImports
+        .where((item) => item['drop_off_id'] == _selectedDropOffId)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text("📊 오늘 반입 완료 이력", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        const Text(
+          "📊 오늘 반입 완료 이력",
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 12),
         if (filteredCompleted.isEmpty)
-          const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text("오늘 완료된 이력이 없습니다.", style: TextStyle(color: Colors.grey, fontSize: 12)))
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              "오늘 완료된 이력이 없습니다.",
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          )
         else
           ListView.builder(
             shrinkWrap: true,
@@ -2255,57 +3197,87 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
               return Card(
                 color: Theme.of(context).cardColor,
                 margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: ListTile(
-                  title: Text(item['car_number'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(
+                    item['car_number'],
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   subtitle: Text("${item['soil']} - ${item['time']}"),
-                  trailing: Text("+ ${_formatter(item['fare'])} 원", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  trailing: Text(
+                    "+ ${_formatter(item['fare'])} 원",
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               );
             },
-          )
+          ),
       ],
     );
   }
 
   String _translateMaterial(String? type) {
     switch (type) {
-      case "GOOD_SOIL": return "양질토";
-      case "MUD_SOIL": return "뻘흙";
-      case "ROCK": return "암버럭";
-      case "MIXED": return "혼합토";
-      case "NORMAL_SOIL": return "일반토";
-      case "SAND": return "모래";
-      case "CLAY": return "점토";
-      case "GRAVEL": return "자갈";
-      default: return (type != null && type.isNotEmpty) ? type : "일반토사";
+      case "GOOD_SOIL":
+        return "양질토";
+      case "MUD_SOIL":
+        return "뻘흙";
+      case "ROCK":
+        return "암버럭";
+      case "MIXED":
+        return "혼합토";
+      case "NORMAL_SOIL":
+        return "일반토";
+      case "SAND":
+        return "모래";
+      case "CLAY":
+        return "점토";
+      case "GRAVEL":
+        return "자갈";
+      default:
+        return (type != null && type.isNotEmpty) ? type : "일반토사";
     }
   }
 
   String _translateTruck(String? type) {
     switch (type) {
-      case "T_15": return "15톤";
-      case "T_25": return "25톤";
-      case "T_27": return "27톤";
-      default: return type ?? "25톤";
+      case "T_15":
+        return "15톤";
+      case "T_25":
+        return "25톤";
+      case "T_27":
+        return "27톤";
+      default:
+        return type ?? "25톤";
     }
   }
 
   String _translatePayer(String? type) {
     switch (type) {
-      case "SITE_PAYS": return "현장 지불";
-      case "DROP_OFF_PAYS": return "하차지 지불";
-      case "FREE": return "무상";
-      default: return type ?? "현장 지불";
+      case "SITE_PAYS":
+        return "현장 지불";
+      case "DROP_OFF_PAYS":
+        return "하차지 지불";
+      case "FREE":
+        return "무상";
+      default:
+        return type ?? "현장 지불";
     }
   }
 
   String _formatter(dynamic val) {
     if (val == null) return "0";
-    final intValue = val is num ? val.toInt() : (int.tryParse(val.toString()) ?? 0);
+    final intValue = val is num
+        ? val.toInt()
+        : (int.tryParse(val.toString()) ?? 0);
     return intValue.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]},',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
   }
 }

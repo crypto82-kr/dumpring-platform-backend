@@ -11,10 +11,10 @@ class OwnerDocumentUploadScreen extends StatefulWidget {
   final String token;
 
   const OwnerDocumentUploadScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
-  }) : super(key: key);
+  });
 
   @override
   State<OwnerDocumentUploadScreen> createState() => _OwnerDocumentUploadScreenState();
@@ -24,7 +24,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
   String get _baseUrl => AppConfig.baseUrl;
 
   List<Map<String, dynamic>> _requiredDocs = [];
-  Map<String, String?> _uploadedFiles = {}; // { document_code: file_name }
+  final Map<String, String?> _uploadedFiles = {}; // { document_code: file_name }
   bool _isLoading = true;
   bool _isSubmitting = false;
 
@@ -304,8 +304,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: Text("필수 서류 누락", style: TextStyle(fontWeight: FontWeight.bold)),
-          content: Text("아직 제출하지 않은 필수 서류가 있습니다:\n\n" + 
-              missing.map((e) => "• ${e['code_name']}").join("\n")),
+          content: Text("아직 제출하지 않은 필수 서류가 있습니다:\n\n${missing.map((e) => "• ${e['code_name']}").join("\n")}"),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -358,7 +357,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                           decoration: BoxDecoration(
                             color: const Color(0xFFE2F0F2),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFF80B3BC).withOpacity(0.5)),
+                            border: Border.all(color: const Color(0xFF80B3BC).withValues(alpha: 0.5)),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,7 +443,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                                             ),
                                             SizedBox(height: 4),
                                             Text(
-                                              isUploaded ? fileName! : "심사 제출을 위해 촬영해 주세요",
+                                              isUploaded ? fileName : "심사 제출을 위해 촬영해 주세요",
                                               style: TextStyle(
                                                 fontSize: 12,
                                                 color: isUploaded ? const Color(0xFFFF7A00) : const Color(0xFF718096),
@@ -466,7 +465,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                               ),
                             ),
                           );
-                        }).toList(),
+                        }),
                         SizedBox(height: 32),
 
                         // 심사 요청 버튼
@@ -491,7 +490,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                   ),
             if (_isSubmitting)
               Container(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 child: Center(
                   child: CircularProgressIndicator(color: Color(0xFFFF7A00)),
                 ),

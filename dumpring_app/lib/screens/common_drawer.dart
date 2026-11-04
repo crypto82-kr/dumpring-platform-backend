@@ -17,11 +17,11 @@ class CommonDrawer extends StatelessWidget {
   final Function(Map<String, dynamic> newUser) onProfileUpdated;
 
   const CommonDrawer({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
     required this.onProfileUpdated,
-  }) : super(key: key);
+  });
 
   String _getUserRoleText() {
     // existing method unchanged
@@ -170,13 +170,13 @@ class CommonDrawer extends StatelessWidget {
                   value: true,
                   onChanged: (val) {},
                   title: Text("실시간 배차 푸시 알림", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
-                  activeColor: AppColors.primary,
+                  activeThumbColor: AppColors.primary,
                 ),
                 SwitchListTile(
                   value: false,
                   onChanged: (val) {},
                   title: Text("야간 자동 무음 모드", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
-                  activeColor: AppColors.primary,
+                  activeThumbColor: AppColors.primary,
                 ),
                 ListTile(
                   title: Text("앱 버전 정보", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),

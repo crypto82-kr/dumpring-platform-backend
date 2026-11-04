@@ -33,7 +33,7 @@ class WebScrollBehavior extends MaterialScrollBehavior {
 // 데스크톱 브라우저 환경에서 앱을 모바일 프레임 내부로 보기 좋게 격리하는 래퍼 클래스
 class WebFrameWrapper extends StatelessWidget {
   final Widget child;
-  const WebFrameWrapper({Key? key, required this.child}) : super(key: key);
+  const WebFrameWrapper({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +54,7 @@ class WebFrameWrapper extends StatelessWidget {
             borderRadius: BorderRadius.circular(32),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.6),
                 blurRadius: 24,
                 offset: const Offset(0, 12),
               ),

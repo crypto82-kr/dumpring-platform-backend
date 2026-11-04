@@ -10,10 +10,10 @@ class DashboardScreen extends StatefulWidget {
   final String token;
 
   const DashboardScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
-  }) : super(key: key);
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -463,9 +463,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.15),
+                color: AppColors.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
               ),
               child: Text(
                 _getRoleText(),
@@ -932,12 +932,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: mapping['status'] == 'APPROVED' 
-                          ? AppColors.success.withOpacity(0.15) 
+                          ? AppColors.success.withValues(alpha: 0.15) 
                           : AppColors.divider,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: mapping['status'] == 'APPROVED' 
-                            ? AppColors.success.withOpacity(0.3) 
+                            ? AppColors.success.withValues(alpha: 0.3) 
                             : Colors.transparent,
                       ),
                     ),

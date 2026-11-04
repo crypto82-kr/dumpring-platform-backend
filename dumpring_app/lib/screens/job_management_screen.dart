@@ -9,10 +9,10 @@ class JobManagementScreen extends StatefulWidget {
   final String token;
 
   const JobManagementScreen({
-    Key? key,
+    super.key,
     required this.user,
     required this.token,
-  }) : super(key: key);
+  });
 
   @override
   State<JobManagementScreen> createState() => _JobManagementScreenState();
@@ -463,7 +463,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: isEnabled ? AppColors.success.withOpacity(0.15) : AppColors.divider.withOpacity(0.5),
+        color: isEnabled ? AppColors.success.withValues(alpha: 0.15) : AppColors.divider.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -693,9 +693,9 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: AppColors.success.withOpacity(0.05),
+                                  color: AppColors.success.withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1193,7 +1193,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                         decoration: BoxDecoration(
-                                          color: _getStatusColor(statusStr).withOpacity(0.15),
+                                          color: _getStatusColor(statusStr).withValues(alpha: 0.15),
                                           borderRadius: BorderRadius.circular(20),
                                         ),
                                         child: Text(
