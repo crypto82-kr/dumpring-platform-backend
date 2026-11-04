@@ -835,16 +835,9 @@ class _SiteRegisterScreenState extends State<SiteRegisterScreen> {
   }
 
   InputDecoration _buildInputDecoration(String hint, IconData icon) {
-    return InputDecoration(
+    return buildAdminInputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: AppColors.textTertiary),
-      filled: true,
-      fillColor: AppColors.background,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-      prefixIcon: Icon(icon, color: AppColors.textSecondary),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
+      prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
     );
   }
 }

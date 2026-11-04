@@ -1,3 +1,4 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
@@ -188,10 +189,18 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
         try {
           const channel = MethodChannel('com.example.dumpring/overlay_helper');
           await channel.invokeMethod('openApp');
-          await DriverOverlayMeter.closeMeter();
         } catch (e) {
-          log("★ [Overlay] openApp failed: $e");
+          log("★ [Overlay] MethodChannel openApp failed: $e");
         }
+        try {
+          final uri = Uri.parse('dumpring://open');
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        } catch (e) {
+          log("★ [Overlay] launchUrl failed: $e");
+        }
+        await DriverOverlayMeter.closeMeter();
       },
       child: Container(
         decoration: BoxDecoration(

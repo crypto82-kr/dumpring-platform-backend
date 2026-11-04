@@ -86,51 +86,76 @@ class SduiTheme {
       ),
       cardTheme: CardThemeData(
         color: surface,
-        elevation: 1,
+        elevation: 0,
         shadowColor: Colors.black.withValues(alpha: 0.04),
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE4E7EC),
+            width: 1.0,
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: isDark ? const Color(0xFF1E2638) : const Color(0xFFFFFFFF),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), width: 1),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFD0D5DD),
+            width: 1.0,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF2E384E) : const Color(0xFFE5E7EB), width: 1),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFD0D5DD),
+            width: 1.0,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: primary, width: 1.5),
         ),
-        labelStyle: TextStyle(color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B), fontSize: 13),
-        hintStyle: TextStyle(color: isDark ? const Color(0xFF475569) : const Color(0xFF9CA3AF), fontSize: 13),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFF04438), width: 1.0),
+        ),
+        labelStyle: TextStyle(
+          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF344054),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+        hintStyle: TextStyle(
+          color: isDark ? const Color(0xFF475569) : const Color(0xFF98A2B3),
+          fontSize: 13,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
-          foregroundColor: isDark ? Colors.black : Colors.white,
+          foregroundColor: Colors.white,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: primary,
-          side: BorderSide(color: primary, width: 1.5),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF465FFF) : const Color(0xFFD0D5DD),
+            width: 1.0,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
@@ -147,8 +172,8 @@ class SduiTheme {
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: isDark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB),
-        thickness: 0.5,
+        color: isDark ? const Color(0xFF334155) : const Color(0xFFE4E7EC),
+        thickness: 1.0,
         space: 1,
       ),
       dialogTheme: DialogThemeData(
@@ -173,14 +198,14 @@ class SduiTheme {
   /// 기본 머스터드 옐로우 테마 (공식)
   static SduiTheme defaultTheme() {
     return SduiTheme(
-      themeKey: 'light_mustard',
-      name: '머스터드 옐로우 (공식)',
-      primaryColor: '0xFFF59E0B',
-      secondaryColor: '0xFFD97706',
-      backgroundColor: '0xFFF9F8F6',
-      surfaceColor: '0xFFFFFFFF',
-      textColor: '0xFF1F2937',
-      accentColor: '0xFFD97706',
+      themeKey: 'admin_dashboard',
+      name: '웹 관리자 대시보드 테마 (공식)',
+      primaryColor: '0xFF465FFF',     // Tailwind brand-500 (Royal Blue)
+      secondaryColor: '0xFF3641F5',   // Tailwind brand-600
+      backgroundColor: '0xFFF9FAFB',  // Tailwind gray-50 (소프트 그레이 캔버스)
+      surfaceColor: '0xFFFFFFFF',     // Pure White (카드 및 인풋 표면)
+      textColor: '0xFF101828',        // Tailwind gray-900 (또렷한 텍스트)
+      accentColor: '0xFF465FFF',      // 포인트 강조
     );
   }
 }

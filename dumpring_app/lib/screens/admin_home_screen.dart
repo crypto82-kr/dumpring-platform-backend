@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import '../shared/widgets/layouts/dr_scaffold.dart';
+import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -226,7 +227,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
             Center(
               child: Text(
                 "⚖️ 운송 분쟁 직권 중재 판결",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary),
               ),
             ),
             SizedBox(height: 16),
@@ -246,12 +247,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text("⚖️ [직권 중재 완료] 정산금 70% 지급 조정 명령(`SETTLE_ADJUSTED`)이 원장에 적용되었습니다."),
-                    backgroundColor: Color(0xFF004D5A),
+                    backgroundColor: AppColors.primary,
                   ),
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF004D5A),
+                backgroundColor: AppColors.primary,
                 foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -267,7 +268,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppColors.background,
       drawer: CommonDrawer(
         user: _currentUser,
         token: widget.token,
@@ -278,21 +279,40 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
         },
       ),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A202C), // 플랫폼 마스터 어두운 그레이/블랙 헤더
-        foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        title: Text("덤프링 본사 총괄 Admin", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        scrolledUnderElevation: 0,
+        title: Text(
+          "덤프링 본사 총괄 Admin",
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+            color: AppColors.textPrimary,
+          ),
+        ),
         centerTitle: true,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFFFF7A00),
-          labelColor: const Color(0xFFFF7A00),
-          unselectedLabelColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87),
-          tabs: const [
-            Tab(icon: Icon(Icons.verified_user), text: "가입 심사"),
-            Tab(icon: Icon(Icons.monitor_heart), text: "실시간 배차"),
-            Tab(icon: Icon(Icons.gavel), text: "분쟁 중재"),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.divider, width: 1.0)),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: AppColors.primary,
+              indicatorWeight: 2.5,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              tabs: const [
+                Tab(icon: Icon(Icons.verified_user_outlined, size: 20), text: "가입 심사"),
+                Tab(icon: Icon(Icons.monitor_heart_outlined, size: 20), text: "실시간 배차"),
+                Tab(icon: Icon(Icons.gavel_outlined, size: 20), text: "분쟁 중재"),
+              ],
+            ),
+          ),
         ),
       ),
       body: SafeArea(
@@ -315,7 +335,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text("📋 신규 가입 서류 심사 대기열", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
+          Text("📋 신규 가입 서류 심사 대기열", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           SizedBox(height: 16),
           if (_pendingMembers.isEmpty)
             Padding(
@@ -340,7 +360,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(m['type'], style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF7A00), fontSize: 13)),
+                            Text(m['type'], style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 13)),
                             Text("ID: #${m['id']}", style: TextStyle(color: Colors.grey, fontSize: 11)),
                           ],
                         ),
@@ -367,7 +387,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                               child: ElevatedButton(
                                 onPressed: () => _approveMember(m, true),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1A202C),
+                                  backgroundColor: AppColors.textPrimary,
                                   foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   elevation: 0,
@@ -395,7 +415,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text("🛰️ 실시간 관제 및 배차 현황판", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
+          Text("🛰️ 실시간 관제 및 배차 현황판", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           SizedBox(height: 16),
           ListView.builder(
             shrinkWrap: true,
@@ -409,7 +429,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   leading: CircleAvatar(
-                    backgroundColor: Color(0xFFFF7A00),
+                    backgroundColor: AppColors.primary,
                     child: Icon(Icons.flash_on, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937))),
                   ),
                   title: Text("${d['site']} ➔ ${d['drop_off']}", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -440,7 +460,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text("⚖️ 운임 및 반입 분쟁 중재 대기열", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A202C))),
+          Text("⚖️ 운임 및 반입 분쟁 중재 대기열", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           SizedBox(height: 16),
           if (_disputes.isEmpty)
             Padding(
@@ -477,7 +497,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
                         ElevatedButton(
                           onPressed: () => _resolveDispute(d),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1A202C),
+                            backgroundColor: AppColors.textPrimary,
                             foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

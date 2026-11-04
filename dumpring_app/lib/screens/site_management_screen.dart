@@ -2135,7 +2135,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
       hintText: hint,
       hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 13),
       filled: true,
-      fillColor: AppColors.background,
+      fillColor: AppColors.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),

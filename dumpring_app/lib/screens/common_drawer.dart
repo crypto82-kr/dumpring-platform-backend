@@ -267,6 +267,8 @@ class CommonDrawer extends StatelessWidget {
                               onPressed: () async {
                                 final prefs = await SharedPreferences.getInstance();
                                 await prefs.remove('token');
+                                await prefs.remove('access_token');
+                                await prefs.remove('user_data');
                                 onProfileUpdated({});
                                 Navigator.of(context).pushAndRemoveUntil(
                                   MaterialPageRoute(builder: (_) => const LoginScreen()),

@@ -1091,22 +1091,8 @@ class _DriverDispatchConfirmScreenState
                               child: Container(
                                 height: 60,
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      AppColors.warning,
-                                      AppColors.warning.withAlpha(200),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.warning.withAlpha(76),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
+                                  color: AppColors.primary,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
@@ -1177,32 +1163,10 @@ class _DriverDispatchConfirmScreenState
                                   child: Container(
                                     height: 60,
                                     decoration: BoxDecoration(
-                                      gradient: isStartEnabled
-                                          ? LinearGradient(
-                                              colors: [
-                                                AppColors.primary,
-                                                AppColors.primary.withAlpha(
-                                                  200,
-                                                ),
-                                              ],
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                            )
-                                          : null,
                                       color: isStartEnabled
-                                          ? null
+                                          ? AppColors.primary
                                           : AppColors.divider,
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: isStartEnabled
-                                          ? [
-                                              BoxShadow(
-                                                color: AppColors.primary
-                                                    .withAlpha(76),
-                                                blurRadius: 12,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ]
-                                          : null,
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                     alignment: Alignment.center,
                                     child: Text(

@@ -1007,7 +1007,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       hintText: hint,
       hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 14),
       filled: true,
-      fillColor: AppColors.background,
+      fillColor: AppColors.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),

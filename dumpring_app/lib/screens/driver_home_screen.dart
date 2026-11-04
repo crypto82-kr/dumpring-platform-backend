@@ -1288,13 +1288,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       borderRadius: BorderRadius.circular(20),
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primary.withAlpha(40), AppColors.warning.withAlpha(30)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.primary.withAlpha(120), width: 1.5),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider, width: 1.0),
         ),
         padding: const EdgeInsets.all(16),
         child: Column(

@@ -10,38 +10,81 @@ import '../../../sdui/sdui_service.dart';
 class AppColors {
   static SduiTheme get _theme => SduiService.currentTheme;
 
-  static Color get primary      => _theme.primary;       // 시그니처 색상
+  static Color get primary      => _theme.primary;       // 시그니처 로열 블루
   static Color get primaryLight => _theme.primary.withAlpha(40);
   static Color get dark         => _theme.background;    // 배경 색상
 
-  // 시맨틱 (상태 피드백)
-  static const success     = Color(0xFF22C55E);
-  static const danger      = Color(0xFFEF4444);
-  static Color get warning => _theme.accent;             // 액센트 피드백
-  static const info        = Color(0xFF3B82F6);
+  // 시맨틱 (상태 피드백 - Web Admin 규격)
+  static const success     = Color(0xFF12B76A);         // 에메랄드 (운행/승인)
+  static const danger      = Color(0xFFF04438);         // 레드 (반려/오류)
+  static Color get warning => const Color(0xFFF79009);  // 앰버 (대기/검수)
+  static const info        = Color(0xFF465FFF);         // 로열 블루
 
   static bool get _isDark => ThemeData.estimateBrightnessForColor(_theme.background) == Brightness.dark;
 
-  // 텍스트
-  static Color get textPrimary   => _theme.text;         // 기본 텍스트 색상
-  static Color get textSecondary => _isDark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563); // 매트 그레이/미디엄 그레이
-  static Color get textTertiary  => _isDark ? const Color(0xFF4A5568) : const Color(0xFF9CA3AF);
+  // 텍스트 (Web Admin 계층)
+  static Color get textPrimary   => _theme.text;         // 짙은 차콜 (#101828)
+  static Color get textSecondary => _isDark ? const Color(0xFF98A2B3) : const Color(0xFF475467); // 서브 텍스트 (gray-600)
+  static Color get textTertiary  => _isDark ? const Color(0xFF667085) : const Color(0xFF98A2B3); // 플레이스홀더 (gray-400)
 
-  // 배경 및 표면
-  static Color get background    => _theme.background;   // 배경색
-  static Color get surface       => _theme.surface;      // 카드/표면색
-  static Color get cardBackground => _theme.surface;     // 카드 배경색 호환용
-  static Color get divider       => _isDark ? const Color(0xFF222B45) : const Color(0xFFE5E7EB); // 보더라인
+  // 배경 및 표면 (Web Admin 화이트/오프화이트)
+  static Color get background    => _theme.background;   // 소프트 그레이 (#F9FAFB)
+  static Color get surface       => _theme.surface;      // 퓨어 화이트 (#FFFFFF)
+  static Color get cardBackground => _theme.surface;     // 카드 표면
+  static Color get divider       => _isDark ? const Color(0xFF334155) : const Color(0xFFE4E7EC); // 1px 정밀 보더 (#E4E7EC)
+  static Color get inputBorder   => _isDark ? const Color(0xFF334155) : const Color(0xFFD0D5DD); // 인풋 테두리 (#D0D5DD)
 }
 
 class AppTextStyles {
-  static TextStyle get h1    => TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textPrimary);
-  static TextStyle get h2    => TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary);
-  static TextStyle get h3    => TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary);
-  static TextStyle get body1 => TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  static TextStyle get h1    => TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary);
+  static TextStyle get h2    => TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary);
+  static TextStyle get h3    => TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary);
+  static TextStyle get body1 => TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
   static TextStyle get body2 => TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
-  static TextStyle get caption => TextStyle(fontSize: 11, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
-  static TextStyle get numLg => TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: AppColors.textPrimary);
+  static TextStyle get caption => TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textTertiary);
+  static TextStyle get numLg => TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textPrimary);
+}
+
+/// 모바일 관리자 스타일 공통 인풋 데코레이션 (표준 44px 높이)
+InputDecoration buildAdminInputDecoration({
+  String? hintText,
+  Widget? prefixIcon,
+  Widget? suffixIcon,
+  String? prefixText,
+  String? suffixText,
+}) {
+  return InputDecoration(
+    hintText: hintText,
+    hintStyle: TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w400,
+      color: AppColors.textTertiary,
+    ),
+    filled: true,
+    fillColor: AppColors.surface,
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    prefixIcon: prefixIcon,
+    suffixIcon: suffixIcon,
+    prefixText: prefixText,
+    suffixText: suffixText,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: AppColors.inputBorder, width: 1.0),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: AppColors.inputBorder, width: 1.0),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: AppColors.danger, width: 1.0),
+    ),
+  );
 }
 
 
