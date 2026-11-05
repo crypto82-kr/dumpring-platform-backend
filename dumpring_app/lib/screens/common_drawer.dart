@@ -8,6 +8,8 @@ import 'driver_home_screen.dart';
 import 'driver_history_screen.dart';
 import 'dashboard_screen.dart';
 import 'drop_off_home_screen.dart';
+import 'site_management_screen.dart';
+import 'job_management_screen.dart';
 import 'vehicle_management_screen.dart';
 import '../shared/widgets/layouts/dr_scaffold.dart';
 
@@ -77,23 +79,23 @@ class CommonDrawer extends StatelessWidget {
     }
     if (user['is_owner'] == true) {
       items.addAll([
-        _tile(context, Icons.receipt_long, "주문 및 정산 관리", () {
-          Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(builder: (_) => OwnerHomeScreen(user: user, token: token, isApproved: true, initialTabIndex: 0)));
-        }),
-        _tile(context, Icons.directions_car, "소속 차량 관리", () {
+        _tile(context, Icons.directions_car, "소속 차량 및 기사 관리", () {
           Navigator.pop(context);
           Navigator.push(context, MaterialPageRoute(builder: (_) => OwnerHomeScreen(user: user, token: token, isApproved: true, initialTabIndex: 1)));
+        }),
+        _tile(context, Icons.receipt_long, "운반비 및 정산 관리", () {
+          Navigator.pop(context);
+          Navigator.push(context, MaterialPageRoute(builder: (_) => OwnerHomeScreen(user: user, token: token, isApproved: true, initialTabIndex: 0)));
         }),
       ]);
     }
     if (user['is_driver'] == true) {
       items.addAll([
-        _tile(context, Icons.delivery_dining, "배달 현황", () {
+        _tile(context, Icons.local_shipping, "배차 및 운행 관리", () {
           Navigator.pop(context);
           Navigator.push(context, MaterialPageRoute(builder: (_) => DriverHomeScreen(user: user, token: token)));
         }),
-        _tile(context, Icons.history, "작업 기록", () {
+        _tile(context, Icons.history, "운행 이력 및 영수증", () {
           Navigator.pop(context);
           Navigator.push(context, MaterialPageRoute(builder: (_) => DriverHistoryScreen(user: user, token: token)));
         }),
@@ -101,18 +103,22 @@ class CommonDrawer extends StatelessWidget {
     }
     if (user['is_site_manager'] == true || user['is_site_worker'] == true) {
       items.addAll([
-        _tile(context, Icons.map_outlined, "현장 현황", () {
+        _tile(context, Icons.campaign_outlined, "공고 및 배차 차량 관제", () {
+          Navigator.pop(context);
+          Navigator.push(context, MaterialPageRoute(builder: (_) => JobManagementScreen(user: user, token: token)));
+        }),
+        _tile(context, Icons.domain_verification_outlined, "공사현장 출입 및 검수", () {
+          Navigator.pop(context);
+          Navigator.push(context, MaterialPageRoute(builder: (_) => SiteManagementScreen(user: user, token: token)));
+        }),
+        _tile(context, Icons.analytics_outlined, "현장 통계 대시보드", () {
           Navigator.pop(context);
           Navigator.push(context, MaterialPageRoute(builder: (_) => DashboardScreen(user: user, token: token)));
-        }),
-        _tile(context, Icons.assignment, "작업 할당", () {
-          Navigator.pop(context);
-          // TODO: implement assignment screen
         }),
       ]);
     }
     if (user['is_drop_off'] == true) {
-      items.add(_tile(context, Icons.local_shipping, "하차 관리", () {
+      items.add(_tile(context, Icons.terrain_outlined, "사토장 반입 관리", () {
         Navigator.pop(context);
         Navigator.push(context, MaterialPageRoute(builder: (_) => DropOffHomeScreen(user: user, token: token)));
       }));

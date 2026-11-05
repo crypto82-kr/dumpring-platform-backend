@@ -7,13 +7,15 @@ from datetime import datetime, date, timedelta
 from pydantic import BaseModel
 
 from app.core.db import get_db
-from app.models import GpsTrack, (
+from app.models import (
+    GpsTrack,
     User, JobPost, DropOff, DropOffRequest, ConstructionSite, 
     DriverFavoriteRegion, DispatchTicket, Driver, Car, CommonCode,
     SiteEmployee
 )
 from app.api.auth import get_current_user
-from app.schemas.dispatch import ChangeMaterialDropOffRequest, GpsTrackBatchRequest, GpsTrackResponse, (
+from app.schemas.dispatch import (
+    ChangeMaterialDropOffRequest, GpsTrackBatchRequest, GpsTrackResponse,
     FavoriteRegionCreate, FavoriteRegionResponse,
     DispatchTicketResponse, InspectionRequest, ArriveRequest,
     ApproveLoadingRequest, RejectLoadingRequest

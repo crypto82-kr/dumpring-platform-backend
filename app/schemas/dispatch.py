@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Any
 from app.schemas import KstDateTime
 from app.schemas.jobs import JobPostResponse
 
