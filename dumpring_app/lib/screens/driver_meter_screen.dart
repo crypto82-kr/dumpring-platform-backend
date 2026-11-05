@@ -52,6 +52,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   bool _hasGpsSignal = false;
   final List<Map<String, dynamic>> _gpsBatchBuffer = [];
   DateTime? _lastGpsUploadTime;
+  bool _isAutoArrivedTriggered = false;
 
   // Dynamic pricing policy & planned metrics
   String _calculationMethod = "CONTINUOUS";
@@ -1028,6 +1029,22 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
             _flushGpsBatchBuffer();
           }
 
+          // 🏁 [3번 요구사항: 200m 지오펜싱 자동 도착 감지]
+          if (!_isAutoArrivedTriggered && _driveStep == 3 && _dropOffLat != null && _dropOffLng != null && _dropOffLat != 0.0) {
+            final double distToDropOff = Geolocator.distanceBetween(
+              position.latitude,
+              position.longitude,
+              _dropOffLat!,
+              _dropOffLng!,
+            );
+            // 하차지 반경 200m 이내 최초 진입 시 자동 도착 완료 트리거
+            if (distToDropOff <= 200.0) {
+              _isAutoArrivedTriggered = true;
+              debugPrint("★ [Geofence] 하차지 반경 200m 진입 감지 (${distToDropOff.toStringAsFixed(1)}m) -> 자동 도착 처리 실행");
+              _arrivedAtUnloadingSite(isAutoDetected: true);
+            }
+          }
+
           setState(() {
             _hasGpsSignal = true;
             _gpsAccuracy = position.accuracy;
@@ -1278,9 +1295,18 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     });
   }
 
-  Future<void> _arrivedAtUnloadingSite() async {
+  Future<void> _arrivedAtUnloadingSite({bool isAutoDetected = false}) async {
     _stopMeterTracking();
     DriverOverlayMeter.closeMeter();
+    if (mounted && isAutoDetected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🏁 하차지 반경 200m 진입이 감지되어 도착 처리가 자동으로 완료되었습니다."),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
     try {
       final response = await http.post(
         Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/arrive"),
