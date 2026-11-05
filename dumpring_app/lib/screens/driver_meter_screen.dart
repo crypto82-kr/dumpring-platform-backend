@@ -88,6 +88,9 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   double? _dropOffLng;
   String? _dropOffName;
   String? _dropOffAddress;
+  String? _actualMaterialType;
+  String? _materialChangeReason;
+  bool _isDropOffChanged = false;
 
   bool _isSiteLoadingApproved = false;
   String? _loadingRejectionReason; // 현장담당자가 전달한 상차 보류 사유
@@ -708,6 +711,28 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       _dropOffLng = (jp['drop_off_longitude'] as num?)?.toDouble();
       _dropOffName = jp['drop_off_name'] as String?;
       _dropOffAddress = jp['drop_off_address'] as String?;
+    }
+
+    // 🚨 [현장 실재료 및 하차지 긴급 변경 감지]
+    _actualMaterialType = ticket['actual_material_type'] as String?;
+    _materialChangeReason = ticket['change_reason'] as String?;
+
+    if (ticket['changed_drop_off'] != null) {
+      final cd = ticket['changed_drop_off'];
+      final newLat = (cd['latitude'] as num?)?.toDouble();
+      final newLng = (cd['longitude'] as num?)?.toDouble();
+      final newName = cd['name'] as String?;
+      final newAddr = cd['address'] as String?;
+
+      if (newLat != null && newLng != null && (_dropOffLat != newLat || _dropOffLng != newLng)) {
+        _isDropOffChanged = true;
+        _dropOffLat = newLat;
+        _dropOffLng = newLng;
+        _dropOffName = newName ?? _dropOffName;
+        _dropOffAddress = newAddr ?? _dropOffAddress;
+        _isAutoArrivedTriggered = false; // 새 하차지 기준 200m 지오펜싱 재감지 가능하도록 리셋
+        debugPrint("★ [하차지 변경 감지] 새로운 하차지로 목적지 좌표 및 지오펜싱 갱신: $_dropOffName ($newLat, $newLng)");
+      }
     }
 
     _loadingRejectionReason = ticket['loading_rejection_reason'];

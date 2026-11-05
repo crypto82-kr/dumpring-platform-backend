@@ -13,7 +13,7 @@ from app.models import GpsTrack, (
     SiteEmployee
 )
 from app.api.auth import get_current_user
-from app.schemas.dispatch import GpsTrackBatchRequest, GpsTrackResponse, (
+from app.schemas.dispatch import ChangeMaterialDropOffRequest, GpsTrackBatchRequest, GpsTrackResponse, (
     FavoriteRegionCreate, FavoriteRegionResponse,
     DispatchTicketResponse, InspectionRequest, ArriveRequest,
     ApproveLoadingRequest, RejectLoadingRequest
@@ -2461,4 +2461,56 @@ async def get_ticket_latest_gps(
         "heading": latest.heading,
         "accuracy": latest.accuracy,
         "recorded_at": latest.recorded_at.isoformat() if latest.recorded_at else None
+    }
+
+
+@router.patch(
+    "/tickets/{ticket_id}/change-material-dropoff",
+    summary="[현장/관리자] 배차 티켓의 실재료(토질) 및 하차지 긴급 변경",
+    description="현장에서 상차 굴착 중 발생한 토질 변동이나 사토장 수용 불가 상황에 따라 실재료(actual_material_type) 및 하차지(changed_drop_off_id)를 변경합니다."
+)
+async def change_ticket_material_and_dropoff(
+    ticket_id: int,
+    data: ChangeMaterialDropOffRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    ticket = await fetch_loaded_ticket(ticket_id, db)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="티켓을 찾을 수 없습니다.")
+
+    # 권한 검증: 현장관리자, 현장담당자, 시스템관리자
+    allowed_roles = ["ROLE_ADMIN"]
+    is_authorized = current_user.role in allowed_roles or current_user.is_site_manager or current_user.is_site_worker or current_user.is_admin
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="현장 관리자 또는 시스템 관리자만 변경할 수 있습니다.")
+
+    # 이미 완료되었거나 취소된 티켓은 변경 불가
+    if ticket.status in ["APPROVED", "CANCELLED", "REJECTED"]:
+        raise HTTPException(status_code=400, detail="이미 운행이 완료되거나 취소된 티켓은 변경할 수 없습니다.")
+
+    now = datetime.now()
+    if data.new_material_type:
+        ticket.actual_material_type = data.new_material_type
+
+    if data.new_drop_off_id:
+        new_drop = await db.get(DropOff, data.new_drop_off_id)
+        if not new_drop:
+            raise HTTPException(status_code=404, detail="지정한 새로운 하차지(사토장)를 찾을 수 없습니다.")
+        ticket.changed_drop_off_id = data.new_drop_off_id
+
+    ticket.change_reason = data.reason
+    ticket.changed_at = now
+
+    await db.commit()
+    await db.refresh(ticket)
+
+    return {
+        "status": "success",
+        "message": "실재료 및 하차지 정보가 성공적으로 변경되었습니다.",
+        "ticket_id": ticket.id,
+        "actual_material_type": ticket.actual_material_type,
+        "changed_drop_off_id": ticket.changed_drop_off_id,
+        "change_reason": ticket.change_reason,
+        "changed_at": ticket.changed_at.isoformat() if ticket.changed_at else None
     }

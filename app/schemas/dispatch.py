@@ -64,6 +64,11 @@ class DispatchTicketResponse(BaseModel):
     pricing_policy: Optional[MeterPricingPolicy] = None
     driver: Optional[DriverInfoResponse] = None
     car: Optional[CarInfoResponse] = None
+    actual_material_type: Optional[str] = None
+    changed_drop_off_id: Optional[int] = None
+    change_reason: Optional[str] = None
+    changed_at: Optional[KstDateTime] = None
+    changed_drop_off: Optional[Any] = None
 
     class Config:
         orm_mode = True
@@ -117,3 +122,9 @@ class GpsTrackResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ChangeMaterialDropOffRequest(BaseModel):
+    new_material_type: Optional[str] = Field(None, description="실제 적재된 토질 종류 코드")
+    new_drop_off_id: Optional[int] = Field(None, description="새로 변경할 하차지(사토장) ID")
+    reason: str = Field(..., description="변경 사유 (예: 굴착 중 뻘토 발생으로 수용 가능한 사토장으로 긴급 변경)")

@@ -600,9 +600,16 @@ class DispatchTicket(Base):
     dropoff_invoice_issued_at = Column(DateTime(timezone=True), nullable=True)  # 발행 일시
     dropoff_invoice_nts_code = Column(String, nullable=True)  # 국세청 전자세금계산서 승인번호
 
+    # 🚨 [현장 실재료 및 하차지 변경 관리 필드]
+    actual_material_type = Column(String, nullable=True)          # 실제 적재된 토질 (예: 'MUD_SOIL', 'ROCK', 'GOOD_SOIL')
+    changed_drop_off_id = Column(Integer, ForeignKey("drop_offs.id", ondelete="SET NULL"), nullable=True) # 변경된 하차지 ID
+    change_reason = Column(String, nullable=True)                 # 재료 또는 하차지 변경 사유
+    changed_at = Column(DateTime(timezone=True), nullable=True)   # 변경 일시
+
     # Relationships
     job_post = relationship("JobPost")
     driver = relationship("User", foreign_keys=[driver_id])
+    changed_drop_off = relationship("DropOff", foreign_keys=[changed_drop_off_id])
     car = relationship("Car")
 
 
