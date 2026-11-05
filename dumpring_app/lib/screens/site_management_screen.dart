@@ -2563,17 +2563,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                                 minimumSize: Size.zero,
                                               ),
                                             ),
-                                            OutlinedButton.icon(
-                                              onPressed: () => _showSiteVehiclesDialog(site),
-                                              icon: const Icon(Icons.local_shipping_outlined, size: 14),
-                                              label: const Text('운행 차량', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor: Colors.orange.shade800,
-                                                side: BorderSide(color: Colors.orange.shade300),
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                minimumSize: Size.zero,
-                                              ),
-                                            ),
+
                                             TextButton.icon(
                                               onPressed: () => _openEmployeeManagementDialog(site['site_id'], site['site_name'] ?? '현장'),
                                               icon: const Icon(Icons.people_outline, size: 14),
