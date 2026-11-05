@@ -99,6 +99,36 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   String _dropoffInspectionMode = "MANAGER_SCANS_DRIVER";
   bool _isTestLocationBypass = kDebugMode; // 디버그/테스트 환경 기본 활성화 (현장 밖에서도 QR 스캔/운행 테스트 가능)
 
+  /// 주소를 실제 TMap 정밀 위경도로 자동 지오코딩 변환하는 유틸리티
+  Future<Map<String, double>?> _geocodeAddress(String? address) async {
+    if (address == null || address.trim().isEmpty) return null;
+    try {
+      final String encoded = Uri.encodeComponent(address.trim());
+      final url = Uri.parse(
+        "https://apis.openapi.sk.com/tmap/geo/fullAddrGeo?version=1&format=json&coordType=WGS84GEO&fullAddr=$encoded",
+      );
+      final res = await http.get(url, headers: {"appKey": AppConfig.tmapAppKey});
+      if (res.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes));
+        final coords = data['coordinateInfo']?['coordinate'];
+        if (coords != null && coords is List && coords.isNotEmpty) {
+          final first = coords[0];
+          final String? latStr = first['newLat'] ?? first['lat'];
+          final String? lonStr = first['newLon'] ?? first['lon'];
+          if (latStr != null && lonStr != null) {
+            final double lat = double.parse(latStr);
+            final double lng = double.parse(lonStr);
+            debugPrint("📍 [주소 정밀 지오코딩 성공] $address -> ($lat, $lng)");
+            return {"lat": lat, "lng": lng};
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("지오코딩 조회 예외 발생: $e");
+    }
+    return null;
+  }
+
   Future<void> _launchTMap({required String destinationName, required double? lat, required double? lng}) async {
     debugPrint("티맵 호출 목적지: $destinationName, 위도(Y): $lat, 경도(X): $lng");
     if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
@@ -575,17 +605,38 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
   }
 
-  Future<void> _launchPreferredNavi({required String destinationName, required double? lat, required double? lng}) async {
+  Future<void> _launchPreferredNavi({
+    required String destinationName,
+    required double? lat,
+    required double? lng,
+    String? address,
+  }) async {
+    double? finalLat = lat;
+    double? finalLng = lng;
+
+    // 만약 전달받은 좌표가 서울시청 기본값이거나(37.5665, 126.978) 비어있는 경우, 실제 도로명 주소로 실시간 지오코딩 수행
+    final bool isDefaultOrNull = (finalLat == null || finalLng == null || 
+        (finalLat == 37.5665 && finalLng == 126.978) ||
+        (finalLat == 0.0 && finalLng == 0.0));
+
+    if (isDefaultOrNull && address != null && address.trim().isNotEmpty) {
+      final resolved = await _geocodeAddress(address);
+      if (resolved != null) {
+        finalLat = resolved["lat"];
+        finalLng = resolved["lng"];
+      }
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final String preferred = prefs.getString("preferred_navi") ?? "tmap";
       if (preferred == "kakaonavi") {
-        await _launchKakaoNavi(destinationName: destinationName, lat: lat, lng: lng);
+        await _launchKakaoNavi(destinationName: destinationName, lat: finalLat, lng: finalLng);
       } else {
-        await _launchTMap(destinationName: destinationName, lat: lat, lng: lng);
+        await _launchTMap(destinationName: destinationName, lat: finalLat, lng: finalLng);
       }
     } catch (e) {
-      await _launchTMap(destinationName: destinationName, lat: lat, lng: lng);
+      await _launchTMap(destinationName: destinationName, lat: finalLat, lng: finalLng);
     }
   }
 
@@ -712,6 +763,18 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       _dropOffLng = (jp['drop_off_longitude'] as num?)?.toDouble();
       _dropOffName = jp['drop_off_name'] as String?;
       _dropOffAddress = jp['drop_off_address'] as String?;
+
+      if ((_dropOffLat == null || _dropOffLat == 37.5665 || _dropOffLat == 0.0) && _dropOffAddress != null) {
+        _geocodeAddress(_dropOffAddress).then((resolved) {
+          if (resolved != null && mounted) {
+            setState(() {
+              _dropOffLat = resolved["lat"];
+              _dropOffLng = resolved["lng"];
+            });
+            debugPrint("📌 [_applyTicketState] 하차지 도로명 주소로부터 정밀 위경도 자동 복원: $_dropOffName ($_dropOffLat, $_dropOffLng)");
+          }
+        });
+      }
     }
 
     // 🚨 [현장 실재료 및 하차지 긴급 변경 감지]
@@ -1830,6 +1893,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
               destinationName: _siteName ?? "상차 현장",
               lat: _siteLat,
               lng: _siteLng,
+              address: _siteAddress,
             );
           },
           icon: const Icon(Icons.navigation_outlined),
@@ -2247,6 +2311,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
               destinationName: _dropOffName ?? "하차지 현장",
               lat: _dropOffLat,
               lng: _dropOffLng,
+              address: _dropOffAddress,
             );
           },
           icon: const Icon(Icons.navigation_outlined, color: Colors.white),

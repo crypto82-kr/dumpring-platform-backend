@@ -98,7 +98,31 @@ class _DriverDispatchConfirmScreenState
     return 230000;
   }
 
-  void _initMapController() {
+  Future<Map<String, double>?> _geocodeAddress(String? address) async {
+    if (address == null || address.trim().isEmpty) return null;
+    try {
+      final String encoded = Uri.encodeComponent(address.trim());
+      final url = Uri.parse(
+        "https://apis.openapi.sk.com/tmap/geo/fullAddrGeo?version=1&format=json&coordType=WGS84GEO&fullAddr=$encoded",
+      );
+      final res = await http.get(url, headers: {"appKey": AppConfig.tmapAppKey});
+      if (res.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes));
+        final coords = data['coordinateInfo']?['coordinate'];
+        if (coords != null && coords is List && coords.isNotEmpty) {
+          final first = coords[0];
+          final String? latStr = first['newLat'] ?? first['lat'];
+          final String? lonStr = first['newLon'] ?? first['lon'];
+          if (latStr != null && lonStr != null) {
+            return {"lat": double.parse(latStr), "lng": double.parse(lonStr)};
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  void _initMapController() async {
     if (kIsWeb) return;
     final Map<String, dynamic>? jp = _ticket?['job_post'] ?? widget.job;
 
@@ -109,6 +133,25 @@ class _DriverDispatchConfirmScreenState
         (jp?['drop_off_latitude'] as num?)?.toDouble() ?? 37.5950;
     double dropOffLng =
         (jp?['drop_off_longitude'] as num?)?.toDouble() ?? 126.7200;
+
+    // 도로명 주소가 있는데 좌표가 서울시청 기본값이거나 누락된 경우 자동 보정
+    final String? dropAddr = jp?['drop_off_address'] as String?;
+    if ((dropOffLat == 37.5665 || dropOffLat == 37.5950 || dropOffLat == 0.0) && dropAddr != null && dropAddr.isNotEmpty) {
+      final resolved = await _geocodeAddress(dropAddr);
+      if (resolved != null) {
+        dropOffLat = resolved["lat"]!;
+        dropOffLng = resolved["lng"]!;
+      }
+    }
+
+    final String? siteAddr = jp?['site_address'] as String?;
+    if ((siteLat == 37.5665 || siteLat == 0.0) && siteAddr != null && siteAddr.isNotEmpty) {
+      final resolvedSite = await _geocodeAddress(siteAddr);
+      if (resolvedSite != null) {
+        siteLat = resolvedSite["lat"]!;
+        siteLng = resolvedSite["lng"]!;
+      }
+    }
 
     final String htmlContent =
         '''
