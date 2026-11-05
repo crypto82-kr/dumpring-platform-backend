@@ -1004,31 +1004,22 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         (Position position) {
           if (!mounted) return;
 
-          // 오차 40m 초과하는 불량 GPS 수신값은 필터링
-          if (position.accuracy > 40.0) {
-            debugPrint("★ [GPS] 오차 과다(${position.accuracy.toStringAsFixed(1)}m)로 좌표 무시");
+          // 오차 35m 초과하는 불량 GPS 수신값은 필터링
+          if (position.accuracy > 35.0) {
+            debugPrint('★ [GPS] 오차 과다(\${position.accuracy.toStringAsFixed(1)}m)로 좌표 무시');
             return;
           }
 
-          // 실제 이동 속도(km/h) 산출
-          int calculatedSpeed = 0;
-          if (position.speed >= 0) {
-            calculatedSpeed = (position.speed * 3.6).round();
-          } else if (_lastPosition != null && _lastPositionTime != null) {
-            final double timeDiffSec = DateTime.now().difference(_lastPositionTime!).inMilliseconds / 1000.0;
-            if (timeDiffSec > 0.5) {
-              final double distM = Geolocator.distanceBetween(
-                _lastPosition!.latitude,
-                _lastPosition!.longitude,
-                position.latitude,
-                position.longitude,
-              );
-              calculatedSpeed = ((distM / timeDiffSec) * 3.6).round();
-            }
+          // 1. 하드웨어 GPS 칩셋이 직접 계산한 속도(m/s) 확인
+          // 스마트폰 GPS 칩셋의 실제 속도(speed)가 양수일 때만 km/h로 변환
+          double rawSpeedKmh = 0.0;
+          if (position.speed > 0.0) {
+            rawSpeedKmh = position.speed * 3.6;
           }
-          calculatedSpeed = calculatedSpeed.clamp(0, 160);
 
-          // 실제 이동 거리 누적 (정차 시 오차 노이즈 및 비정상 점프 방지)
+          int calculatedSpeed = rawSpeedKmh.round().clamp(0, 160);
+
+          // 2. 실제 이동 거리 누적 (정차 시 오차 노이즈 및 비정상 점프 방지)
           if (_lastPosition != null) {
             final double deltaMeters = Geolocator.distanceBetween(
               _lastPosition!.latitude,
@@ -1037,15 +1028,22 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
               position.longitude,
             );
 
-            // 신호 대기/정차 중 GPS 흔들림(2m 미만 또는 속도 3km/h 미만)은 거리 가산 제외
-            // 순간이동(250m 이상 급점프) 튐 무시
-            if (deltaMeters >= 2.0 && deltaMeters < 250.0 && calculatedSpeed >= 3) {
+            // 🚨 [정차 중 GPS 드리프트 100% 차단 로직]
+            // - 하드웨어 속도가 시속 5km/h 이상이어야 실제 주행으로 판정 (정차/실내 GPS 좌표 떨림 완전 차단)
+            // - 1회 수신당 이동 거리가 최소 5m 이상이고, 순간이동(250m 이상 급점프)이 아닐 때만 거리 누적
+            if (rawSpeedKmh >= 5.0 && deltaMeters >= 5.0 && deltaMeters < 250.0) {
               _distanceKm += (deltaMeters / 1000.0);
+              _lastPosition = position;
+              _lastPositionTime = DateTime.now();
+            } else if (rawSpeedKmh < 3.0) {
+              // 확실한 정차 상태인 경우, 좌표 기준점을 현재 위치로 갱신하여 점진적 드리프트 누적 방지
+              _lastPosition = position;
+              _lastPositionTime = DateTime.now();
             }
+          } else {
+            _lastPosition = position;
+            _lastPositionTime = DateTime.now();
           }
-
-          _lastPosition = position;
-          _lastPositionTime = DateTime.now();
 
           // 🛰️ 10초 주기 서버 전송용 GPS 버퍼에 누적
           _gpsBatchBuffer.add({

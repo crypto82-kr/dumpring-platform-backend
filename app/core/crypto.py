@@ -41,3 +41,4 @@ def decrypt_sensitive_data(cipher_text: Optional[str]) -> Optional[str]:
         return decrypted_bytes.decode('utf-8')
     except Exception as e:
         return cipher_text
+
