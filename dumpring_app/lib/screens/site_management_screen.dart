@@ -1529,35 +1529,6 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                       Container(width: 1, height: 48, color: AppColors.divider),
                       Expanded(
                         child: InkWell(
-                          onTap: () {
-                            Navigator.of(ctx).pop();
-                            _showChangeMaterialDropoffDialog(
-                              site,
-                              ticket,
-                              carNumber: carNumber,
-                              driverName: driverName,
-                            );
-                          },
-                          child: Container(
-                            height: 48,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withAlpha(25),
-                            ),
-                            child: const Text(
-                              "하차지/토질 변경",
-                              style: TextStyle(
-                                color: Colors.deepOrange,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Container(width: 1, height: 48, color: AppColors.divider),
-                      Expanded(
-                        child: InkWell(
                           onTap: () async {
                             Navigator.of(ctx).pop();
                             await _executeApproveLoading(
@@ -2522,166 +2493,105 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                             borderRadius: BorderRadius.circular(16),
                             child: Padding(
                               padding: const EdgeInsets.all(16.0),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          site['site_name'] ?? '현장명 없음',
-                                          style: AppTextStyles.h3,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          "건설사: ${site['company_name']}",
-                                          style: AppTextStyles.caption,
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
+                                            Text(
+                                              site['site_name'] ?? '현장명 없음',
+                                              style: AppTextStyles.h3,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '건설사: \${site["company_name"]}',
+                                              style: AppTextStyles.caption,
+                                            ),
+                                            const SizedBox(height: 6),
                                             Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 3,
-                                                  ),
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                               decoration: BoxDecoration(
                                                 color: AppColors.background,
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                                border: Border.all(
-                                                  color: AppColors.divider,
-                                                ),
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: Border.all(color: AppColors.divider),
                                               ),
                                               child: Text(
-                                                "초대코드: ${site['site_key']}",
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: AppColors.primary,
-                                                ),
+                                                '초대코드: \${site["site_key"]}',
+                                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
                                               ),
                                             ),
                                           ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: isApproved
-                                              ? AppColors.success.withValues(
-                                                  alpha: 0.15,
-                                                )
-                                              : AppColors.divider,
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          isApproved ? "승인완료" : "승인대기",
-                                          style: TextStyle(
-                                            color: isApproved
-                                                ? AppColors.success
-                                                : AppColors.textSecondary,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                          ),
                                         ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      if (isApproved) ...[
-                                        Row(
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: isApproved ? AppColors.success.withValues(alpha: 0.15) : AppColors.divider,
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          isApproved ? '승인완료' : '승인대기',
+                                          style: TextStyle(color: isApproved ? AppColors.success : AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Divider(height: 1),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      if (isApproved)
+                                        Wrap(
+                                          spacing: 6,
                                           children: [
-                                            TextButton.icon(
-                                              onPressed: () =>
-                                                  _scanDriverQrForSite(site),
-                                              icon: const Icon(
-                                                Icons.qr_code_scanner,
-                                                size: 14,
-                                              ),
-                                              label: const Text(
-                                                "QR 스캔",
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              style: TextButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.primary,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 4,
-                                                    ),
+                                            OutlinedButton.icon(
+                                              onPressed: () => _scanDriverQrForSite(site),
+                                              icon: const Icon(Icons.qr_code_scanner, size: 14),
+                                              label: const Text('상차 QR 스캔', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              style: OutlinedButton.styleFrom(
+                                                foregroundColor: AppColors.primary,
+                                                side: BorderSide(color: AppColors.primary.withAlpha(120)),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                 minimumSize: Size.zero,
-                                                tapTargetSize:
-                                                    MaterialTapTargetSize
-                                                        .shrinkWrap,
                                               ),
                                             ),
-                                            const SizedBox(width: 4),
-                                            TextButton.icon(
-                                              onPressed: () =>
-                                                  _openEmployeeManagementDialog(
-                                                    site['site_id'],
-                                                    site['site_name'] ?? '현장',
-                                                  ),
-                                              icon: const Icon(
-                                                Icons.people_outline,
-                                                size: 14,
-                                              ),
-                                              label: const Text(
-                                                "직원 관리",
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              style: TextButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.success,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 4,
-                                                    ),
+                                            OutlinedButton.icon(
+                                              onPressed: () => _showSiteVehiclesDialog(site),
+                                              icon: const Icon(Icons.local_shipping_outlined, size: 14),
+                                              label: const Text('운행 차량', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              style: OutlinedButton.styleFrom(
+                                                foregroundColor: Colors.orange.shade800,
+                                                side: BorderSide(color: Colors.orange.shade300),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                 minimumSize: Size.zero,
-                                                tapTargetSize:
-                                                    MaterialTapTargetSize
-                                                        .shrinkWrap,
+                                              ),
+                                            ),
+                                            TextButton.icon(
+                                              onPressed: () => _openEmployeeManagementDialog(site['site_id'], site['site_name'] ?? '현장'),
+                                              icon: const Icon(Icons.people_outline, size: 14),
+                                              label: const Text('직원', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: AppColors.success,
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                minimumSize: Size.zero,
                                               ),
                                             ),
                                           ],
-                                        ),
-                                      ],
-                                      const SizedBox(height: 8),
+                                        )
+                                      else
+                                        const SizedBox(),
                                       Row(
                                         children: [
-                                          Text(
-                                            "상세보기",
-                                            style: TextStyle(
-                                              color: AppColors.primary,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          Icon(
-                                            Icons.chevron_right,
-                                            size: 16,
-                                            color: AppColors.primary,
-                                          ),
+                                          Text('상세보기', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+                                          Icon(Icons.chevron_right, size: 16, color: AppColors.primary),
                                         ],
                                       ),
                                     ],
@@ -2696,4 +2606,196 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
             ),
     );
   }
+
+
+  // 🚛 [현장 관리: 운행 중 / 하차지 도착 차량 목록 및 하차지 변경 다이얼로그]
+  Future<void> _showSiteVehiclesDialog(Map<String, dynamic> site) async {
+    final int siteId = site['site_id'] ?? site['id'] ?? 0;
+    final String siteName = site['site_name'] ?? '현장';
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) {
+        return FutureBuilder<List<dynamic>>(
+          future: _fetchSiteActiveTickets(siteId),
+          builder: (context, snapshot) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withAlpha(30),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.local_shipping, color: Colors.deepOrange, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("$siteName 운행 차량 관리", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        const Text("현재 운행 중이거나 하차지에 도착한 차량 목록", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width > 600 ? 550 : MediaQuery.of(context).size.width * 0.95,
+                height: 420,
+                child: snapshot.connectionState == ConnectionState.waiting
+                    ? const Center(child: CircularProgressIndicator())
+                    : (snapshot.data == null || snapshot.data!.isEmpty)
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.check_circle_outline, color: Colors.green, size: 48),
+                                SizedBox(height: 12),
+                                Text("현재 운행 중인 배차 차량이 없습니다.", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: snapshot.data!.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (ctx, idx) {
+                              final ticket = snapshot.data![idx];
+                              final driver = ticket['driver'] ?? {};
+                              final car = ticket['car'] ?? {};
+                              final job = ticket['job_post'] ?? {};
+                              final String status = ticket['status'] ?? '';
+                              final String currentDropoff = ticket['changed_drop_off']?['name'] ??
+                                  job['drop_off_name'] ??
+                                  job['drop_off_request']?['drop_off']?['name'] ??
+                                  "지정 사토장";
+
+                              String statusKorean = "운행 중";
+                              Color statusColor = Colors.blue;
+                              if (status == "ARRIVED") {
+                                statusKorean = "하차지 도착";
+                                statusColor = Colors.orange;
+                              } else if (status == "REJECTED") {
+                                statusKorean = "반입 거부(대기)";
+                                statusColor = Colors.red;
+                              }
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                "${car['car_number'] ?? '차량번호 미기재'} (${driver['name'] ?? '기사'})",
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: statusColor.withAlpha(25),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  statusKorean,
+                                                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            "목적지: $currentDropoff | 품목: ${_translateSoilName(ticket['actual_material_type'] ?? job['material_type'])}",
+                                            style: TextStyle(color: Colors.grey.shade700, fontSize: 11),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.deepOrange,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        minimumSize: Size.zero,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.pop(dialogCtx);
+                                        _showChangeMaterialDropoffDialog(
+                                          site,
+                                          ticket,
+                                          carNumber: car['car_number'],
+                                          driverName: driver['name'],
+                                        );
+                                      },
+                                      child: const Text("하차지 변경", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text("닫기"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 특정 공사현장의 운행 중 배차 티켓 목록 조회
+  Future<List<dynamic>> _fetchSiteActiveTickets(int siteId) async {
+    try {
+      final res = await http.get(
+        Uri.parse("$_baseUrl/api/dispatch/job-posts"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (res.statusCode == 200) {
+        final List<dynamic> jobPosts = jsonDecode(utf8.decode(res.bodyBytes));
+        final siteJobs = jobPosts.where((j) => (j['site_id'] ?? 0) == siteId).toList();
+        List<dynamic> activeTickets = [];
+
+        for (final job in siteJobs) {
+          final int jobId = job['id'];
+          final tRes = await http.get(
+            Uri.parse("$_baseUrl/api/dispatch/job/$jobId/tickets"),
+            headers: {"Authorization": "Bearer ${widget.token}"},
+          );
+          if (tRes.statusCode == 200) {
+            final List<dynamic> tickets = jsonDecode(utf8.decode(tRes.bodyBytes));
+            for (final t in tickets) {
+              final String status = t['status'] ?? '';
+              if (status == "DRIVING" || status == "ARRIVED" || status == "REJECTED" || status == "WAITING_ABSENT_APPROVAL") {
+                activeTickets.add(t);
+              }
+            }
+          }
+        }
+        return activeTickets;
+      }
+    } catch (e) {
+      debugPrint("현장 운행 티켓 조회 실패: $e");
+    }
+    return [];
+  }
+
 }
