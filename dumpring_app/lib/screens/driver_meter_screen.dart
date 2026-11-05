@@ -1514,9 +1514,38 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           _driveStep = 5;
         });
       } else {
+        // 이미 승인(APPROVED)되었거나 다른 완료 상태인 경우, 5단계(전표)로 즉시 전환
+        try {
+          final checkRes = await http.get(
+            Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}"),
+            headers: {"Authorization": "Bearer ${widget.token}"},
+          );
+          if (checkRes.statusCode == 200) {
+            final ticketData = jsonDecode(utf8.decode(checkRes.bodyBytes));
+            final currentStatus = ticketData['status'];
+            if (currentStatus == "APPROVED" || currentStatus == "COMPLETED") {
+              setState(() {
+                _driveStep = 5;
+              });
+              return;
+            }
+          }
+        } catch (_) {}
+
+        String errMsg = "코드: ${response.statusCode}";
+        try {
+          final errBody = jsonDecode(utf8.decode(response.bodyBytes));
+          if (errBody['detail'] != null) {
+            errMsg = errBody['detail'];
+          }
+        } catch (_) {}
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("⚠️ 강제 승인 요청 실패 (코드: ${response.statusCode})")),
+            SnackBar(
+              content: Text("⚠️ 강제 승인 요청 실패 ($errMsg)"),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }

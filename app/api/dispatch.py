@@ -1043,6 +1043,10 @@ async def inspect_and_confirm(
             detail="해당 운행 티켓을 찾을 수 없습니다."
         )
 
+    if ticket.status == "APPROVED":
+        # 이미 승인 완료된 티켓인 경우 성공 처리
+        return await attach_pricing_policy(ticket, db)
+
     if ticket.status not in ["ARRIVED", "DRIVING", "WAITING_ABSENT_APPROVAL"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
