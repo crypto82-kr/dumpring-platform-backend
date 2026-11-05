@@ -292,7 +292,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("🚚 신규 보유 차량 및 서류 등록이 완료되었습니다."),
-            backgroundColor: Color(0xFF004D5A),
+            backgroundColor: const Color(0xFF465FFF),
           ),
         );
         Navigator.pop(context, true);
@@ -440,7 +440,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               child: const Text(
                 "정보변경",
                 style: TextStyle(
-                  color: Color(0xFF004D5A),
+                  color: const Color(0xFF465FFF),
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1096,7 +1096,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.verified_user, color: Color(0xFF004D5A)),
+            const Icon(Icons.verified_user, color: const Color(0xFF465FFF)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1125,7 +1125,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                   children: [
                     const Icon(
                       Icons.insert_drive_file,
-                      color: Color(0xFF004D5A),
+                      color: const Color(0xFF465FFF),
                       size: 28,
                     ),
                     const SizedBox(width: 10),
@@ -1248,7 +1248,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                   icon: const Icon(Icons.open_in_new),
                                   label: const Text("PDF 문서 열기"),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF004D5A),
+                                    backgroundColor: const Color(0xFF465FFF),
                                     foregroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8),
@@ -1285,7 +1285,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                                 loadingProgress
                                                     .expectedTotalBytes!
                                           : null,
-                                      color: const Color(0xFF004D5A),
+                                      color: const Color(0xFF465FFF),
                                     ),
                                     const SizedBox(height: 12),
                                     const Text(
@@ -1310,7 +1310,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                     const Icon(
                                       Icons.description,
                                       size: 52,
-                                      color: Color(0xFF004D5A),
+                                      color: const Color(0xFF465FFF),
                                     ),
                                     const SizedBox(height: 10),
                                     Text(

@@ -258,7 +258,7 @@ class _DriverDetailScreenState extends State<DriverDetailScreen> {
               child: const Text(
                 "정보변경",
                 style: TextStyle(
-                  color: Color(0xFF004D5A),
+                  color: const Color(0xFF465FFF),
                   fontWeight: FontWeight.bold,
                 ),
               ),

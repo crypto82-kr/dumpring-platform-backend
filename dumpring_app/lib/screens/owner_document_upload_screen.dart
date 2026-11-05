@@ -121,7 +121,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("📸 [등록 완료] 필수서류($docCode)가 정상적으로 업로드 처리되었습니다."),
-            backgroundColor: const Color(0xFF004D5A),
+            backgroundColor: const Color(0xFF465FFF),
           ),
         );
       }
@@ -203,7 +203,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.visibility, color: Color(0xFF004D5A)),
+              leading: const Icon(Icons.visibility, color: const Color(0xFF465FFF)),
               title: const Text('서류 보기 (PDF/이미지)'),
               onTap: () {
                 Navigator.of(context).pop();
@@ -211,7 +211,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.cloud_upload, color: Color(0xFF004D5A)),
+              leading: const Icon(Icons.cloud_upload, color: const Color(0xFF465FFF)),
               title: const Text('새로운 서류로 변경'),
               onTap: () {
                 Navigator.of(context).pop();
@@ -362,7 +362,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.info_outline_rounded, color: Color(0xFF004D5A), size: 24),
+                              Icon(Icons.info_outline_rounded, color: const Color(0xFF465FFF), size: 24),
                               SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -370,7 +370,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                                   children: [
                                     Text(
                                       "차주 사장님 가입 승인 안내",
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF004D5A)),
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF465FFF)),
                                     ),
                                     SizedBox(height: 6),
                                     Text(
@@ -472,7 +472,7 @@ class _OwnerDocumentUploadScreenState extends State<OwnerDocumentUploadScreen> {
                         ElevatedButton(
                           onPressed: _isSubmitting ? null : _submitAllDocuments,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF004D5A),
+                            backgroundColor: const Color(0xFF465FFF),
                             foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                             disabledBackgroundColor: const Color(0xFF80B3BC),
                             padding: const EdgeInsets.symmetric(vertical: 18),

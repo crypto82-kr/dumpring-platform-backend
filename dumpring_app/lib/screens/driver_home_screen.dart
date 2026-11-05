@@ -188,7 +188,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: Row(
                 children: [
-                  const Icon(Icons.notifications_active, color: Color(0xFF004D5A)),
+                  const Icon(Icons.notifications_active, color: const Color(0xFF465FFF)),
                   const SizedBox(width: 8),
                   const Text("앱 내 알림함", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ],
@@ -229,7 +229,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                                 ? const Icon(Icons.check_circle_outline, color: Colors.grey, size: 20)
                                 : ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF004D5A),
+                                      backgroundColor: const Color(0xFF465FFF),
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       minimumSize: const Size(40, 28),
                                     ),
@@ -248,7 +248,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text("닫기", style: TextStyle(color: Color(0xFF004D5A), fontWeight: FontWeight.bold)),
+                  child: const Text("닫기", style: TextStyle(color: const Color(0xFF465FFF), fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -666,7 +666,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
               alignment: Alignment.center,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.notifications_outlined, color: Color(0xFF004D5A)),
+                  icon: const Icon(Icons.notifications_outlined, color: const Color(0xFF465FFF)),
                   onPressed: _showNotificationsDialog,
                 ),
                 if (_unreadNotifCount > 0)
@@ -811,9 +811,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                                       children: [
                                         Row(
                                           children: [
-                                            Text(
-                                              _currentUser['vehicle_number'] ?? _currentUser['car_number'] ?? '88덤 4567',
-                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                                            Flexible(
+                                              child: Text(
+                                                _currentUser['vehicle_number'] ?? _currentUser['car_number'] ?? '88덤 4567',
+                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
                                             const SizedBox(width: 8),
                                             Container(

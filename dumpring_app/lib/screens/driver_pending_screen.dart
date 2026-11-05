@@ -200,7 +200,7 @@ class _DriverPendingScreenState extends State<DriverPendingScreen> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF004D5A),
+                          backgroundColor: const Color(0xFF465FFF),
                           foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

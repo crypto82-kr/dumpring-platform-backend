@@ -220,13 +220,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         contentPadding: const EdgeInsets.all(24),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Text(
-                "⚖️ 운송 분쟁 직권 중재 판결",
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Text(
+                  "⚖️ 운송 분쟁 직권 중재 판결",
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary),
               ),
             ),
@@ -262,7 +263,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> with SingleTickerProv
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   @override

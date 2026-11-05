@@ -165,10 +165,11 @@ class _SduiScreenState extends State<SduiScreen> {
           "🔗 피그마 라이브 프레임 연동",
           style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Text(
               "피그마 프레임의 전체 주소(URL)를 붙여넣으세요. 해당 디자인 구조가 즉시 모바일에 실시간 반영됩니다.",
               style: TextStyle(color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87) : Colors.black87), fontSize: 13, height: 1.45),
@@ -187,6 +188,7 @@ class _SduiScreenState extends State<SduiScreen> {
             ),
           ],
         ),
+      ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

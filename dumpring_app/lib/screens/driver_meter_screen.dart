@@ -1466,12 +1466,12 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.camera_alt, color: Color(0xFF004D5A)),
+              leading: Icon(Icons.camera_alt, color: AppColors.primary),
               title: const Text('카메라로 촬영하기'),
               onTap: () => Navigator.of(context).pop(ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library, color: Color(0xFF004D5A)),
+              leading: Icon(Icons.photo_library, color: AppColors.primary),
               title: const Text('갤러리에서 선택하기'),
               onTap: () => Navigator.of(context).pop(ImageSource.gallery),
             ),
@@ -1589,16 +1589,17 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
-        elevation: 0.5,
-        title: Text(_getAppBarTitle(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        elevation: 0,
+        title: Text(_getAppBarTitle(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
         centerTitle: true,
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
         actions: [
           IconButton(
             icon: Icon(
               _isTestLocationBypass ? Icons.bug_report : Icons.gps_fixed,
-              color: _isTestLocationBypass ? Colors.amberAccent : Colors.white70,
+              color: _isTestLocationBypass ? AppColors.warning : AppColors.textSecondary,
               size: 22,
             ),
             tooltip: _isTestLocationBypass ? "테스트 모드 (GPS 1km 우회 켜짐)" : "운영 모드 (GPS 1km 엄격 검증)",
@@ -1682,15 +1683,15 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       children: [
         CircleAvatar(
           radius: 12,
-          backgroundColor: isActive
-              ? AppColors.warning
-              : (isPassed ? AppColors.primary : AppColors.divider),
+          backgroundColor: (isActive || isPassed)
+              ? AppColors.primary
+              : AppColors.divider,
           child: Text(
             step.toString(),
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: isActive || isPassed ? AppColors.textPrimary : AppColors.textSecondary,
+              color: (isActive || isPassed) ? Colors.white : AppColors.textSecondary,
             ),
           ),
         ),
@@ -1700,7 +1701,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           style: TextStyle(
             fontSize: 10,
             fontWeight: isActive || isPassed ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? AppColors.warning : (isPassed ? AppColors.primary : AppColors.textSecondary),
+            color: isActive ? AppColors.primary : (isPassed ? AppColors.textPrimary : AppColors.textSecondary),
           ),
         ),
       ],
@@ -1966,7 +1967,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                   label: const Text("내 상차 확인 QR 코드 띄우기"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.textPrimary,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     elevation: 0,
@@ -2035,7 +2036,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           onPressed: _isSiteLoadingApproved ? _startDriving : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: _isSiteLoadingApproved ? AppColors.primary : AppColors.divider,
-            foregroundColor: _isSiteLoadingApproved ? AppColors.textPrimary : AppColors.textSecondary,
+            foregroundColor: _isSiteLoadingApproved ? Colors.white : AppColors.textSecondary,
             padding: const EdgeInsets.symmetric(vertical: 18),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             elevation: 0,
@@ -2064,32 +2065,39 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primary),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _isDistanceMode ? Icons.speed : Icons.timer,
-                            color: AppColors.primary,
-                            size: 14,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            _isDistanceMode ? "거리 가산 모드 (>10km/h)" : "시간 가산 모드 (정체/대기)",
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isDistanceMode ? Icons.speed : Icons.timer,
+                              color: AppColors.primary,
+                              size: 14,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                _isDistanceMode ? "거리 가산 모드 (>10km/h)" : "시간 가산 모드 (정체/대기)",
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
@@ -2129,7 +2137,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                 Text(
                   "${_formatter(_currentFare)} 원",
                   style: TextStyle(
-                    color: AppColors.warning, 
+                    color: AppColors.textPrimary, 
                     fontSize: 34,
                     fontWeight: FontWeight.w900,
                     fontFamily: 'monospace',
@@ -2164,20 +2172,23 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
               Row(
                 children: [
                   Icon(Icons.satellite_alt_outlined, color: AppColors.primary, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    "실시간 GPS 위성 계측",
-                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      "실시간 GPS 위성 계측",
+                      style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: _isDistanceMode ? AppColors.primary.withAlpha(20) : Colors.orange.withAlpha(20),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      _isDistanceMode ? "거리 가산 모드 (>10km/h)" : "시간 가산 모드 (서행/정차)",
+                      _isDistanceMode ? "거리 모드 (>10km/h)" : "시간 모드 (정체/대기)",
                       style: TextStyle(
                         color: _isDistanceMode ? AppColors.primary : Colors.orange,
                         fontSize: 10,
@@ -2238,11 +2249,11 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
               lng: _dropOffLng,
             );
           },
-          icon: const Icon(Icons.navigation_outlined),
-          label: const Text("내비게이션 경로 안내 (하차지)"),
+          icon: const Icon(Icons.navigation_outlined, color: Colors.white),
+          label: const Text("내비게이션 경로 안내 (하차지)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.warning,
-            foregroundColor: AppColors.textPrimary,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
@@ -2253,7 +2264,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           onPressed: _arrivedAtUnloadingSite,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.textPrimary,
+            foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,

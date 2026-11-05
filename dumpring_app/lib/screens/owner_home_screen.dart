@@ -140,7 +140,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("📲 기사님께 앱 내 초대 알림이 정상적으로 전송되었습니다."),
-              backgroundColor: Color(0xFF004D5A),
+              backgroundColor: const Color(0xFF465FFF),
             ),
           );
           _fetchDrivers();
@@ -191,11 +191,11 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
           children: [
             Row(
               children: [
-                Icon(Icons.person_add, color: Color(0xFF004D5A)),
+                Icon(Icons.person_add, color: const Color(0xFF465FFF)),
                 SizedBox(width: 8),
                 Text(
                   "신규 소속 기사 초대",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D5A)),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF465FFF)),
                 ),
               ],
             ),
@@ -235,7 +235,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                 _sendInvitation(name, phone);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF004D5A),
+                backgroundColor: const Color(0xFF465FFF),
                 foregroundColor: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

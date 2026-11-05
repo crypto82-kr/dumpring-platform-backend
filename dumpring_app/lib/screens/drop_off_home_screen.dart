@@ -663,7 +663,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                 content: Text(
                   "✅ QR 인식 성공! #${targetTicket['id']} (${targetTicket['car']?['car_number'] ?? '덤프트럭'}) 검수를 진행합니다.",
                 ),
-                backgroundColor: const Color(0xFF004D5A),
+                backgroundColor: const Color(0xFF465FFF),
                 duration: const Duration(seconds: 2),
               ),
             );
@@ -870,7 +870,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                     horizontal: 18,
                   ),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF004D5A),
+                    color: const Color(0xFF465FFF),
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(20),
                       topRight: Radius.circular(20),
@@ -2108,7 +2108,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                                 onPressed: () =>
                                     _openCreateDropOffRequestDialog(drop['id']),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF004D5A),
+                                  backgroundColor: const Color(0xFF465FFF),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -2891,7 +2891,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                           ElevatedButton(
                             onPressed: () => _approveB2BJob(job, true),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF004D5A),
+                              backgroundColor: const Color(0xFF465FFF),
                             ),
                             child: Text(
                               "최종 승인",

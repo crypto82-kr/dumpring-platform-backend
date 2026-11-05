@@ -105,7 +105,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("✨ 개인정보 및 등록정보가 성공적으로 수정되었습니다."),
-            backgroundColor: Color(0xFF004D5A),
+            backgroundColor: const Color(0xFF465FFF),
           ),
         );
         Navigator.pop(context);

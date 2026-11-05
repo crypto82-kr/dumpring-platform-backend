@@ -1356,9 +1356,12 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                                             children: [
                                               Row(
                                                 children: [
-                                                  Text(
-                                                    "${car['car_number'] ?? '차량번호 미기재'} (${driver['name'] ?? '기사'})",
-                                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                  Flexible(
+                                                    child: Text(
+                                                      "${car['car_number'] ?? '차량번호 미기재'} (${driver['name'] ?? '기사'})",
+                                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
                                                   ),
                                                   const SizedBox(width: 8),
                                                   Container(
