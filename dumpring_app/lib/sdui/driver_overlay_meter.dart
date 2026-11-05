@@ -6,12 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:system_alert_window/system_alert_window.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 덤프 기사가 외부 내비(티맵/카카오내비)로 경로 안내를 받고 있을 때,
-/// 화면 위에 플로팅 위젯 형식으로 미터기 실시간 데이터(요금, 거리, 시간)를 띄워주는 클래스 및 위젯.
+/// 덤프트럭 기사가 외부 내비게이션(티맵/카카오내비)으로 길안내를 받고 있을 때,
+/// 화면 위에 플로팅되어 실시간 미터기 정보(금액, 거리, 시간)를 보여주는 오버레이 위젯 관리 클래스.
 class DriverOverlayMeter {
   static bool _isActive = false;
 
-  /// 플로팅 위젯을 띄우기 위한 안드로이드 다른 앱 위에 그리기 권한 검증 및 요청
+  /// 플로팅 오버레이를 띄우기 위한 안드로이드 다른 앱 위에 그리기 권한 확인 및 요청
   static Future<bool> requestOverlayPermission() async {
     try {
       final isGranted = await SystemAlertWindow.checkPermissions(
@@ -29,7 +29,7 @@ class DriverOverlayMeter {
     }
   }
 
-  /// 플로팅 오버레이 미터기 팝업 창 생성 및 구동
+  /// 플로팅 팝업 미터기 창 띄우기 (옵션 1 : 가로 175px 콤팩트 화이트 카드)
   static Future<void> showActiveMeter({
     required int currentFare,
     required double distanceKm,
@@ -52,19 +52,20 @@ class DriverOverlayMeter {
     }
 
     try {
-      // 덤프링 앱에서 오버레이 윈도우 띄우기 전에 초기 데이터 저장 (깜빡임 방지용)
+      // SharedPreferences에 최신 초기 값 저장
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setInt("overlay_initial_fare", currentFare);
         await prefs.setDouble("overlay_initial_distance", distanceKm);
         await prefs.setInt("overlay_initial_time", elapsedSeconds);
       } catch (e) {
-        log("오버레이 초기 데이터 저장 에러: $e");
+        log("오버레이 초기 데이터 저장 실패: $e");
       }
 
+      // 옵션 1 : 가로 폭을 215에서 175px로 콤팩트하게 축소 조정하여 지도 시야 확보
       await SystemAlertWindow.showSystemWindow(
-        height: 72,
-        width: 200,
+        height: 70,
+        width: 175,
         gravity: SystemWindowGravity.TOP,
         prefMode: SystemWindowPrefMode.OVERLAY,
         layoutParamFlags: [
@@ -73,7 +74,7 @@ class DriverOverlayMeter {
         ],
       );
 
-      // 초기 데이터 즉시 전송
+      // 초기 데이터 전송
       await updateMeterData(
         currentFare: currentFare,
         distanceKm: distanceKm,
@@ -81,11 +82,11 @@ class DriverOverlayMeter {
       );
     } catch (e) {
       _isActive = false;
-      log("오버레이 생성 에러: $e");
+      log("오버레이 표시 실패: $e");
     }
   }
 
-  /// 실시간 주행 중인 거리/요금 수치를 오버레이 위젯에 실시간 전송
+  /// 실시간 운행 요금 및 거리/시간 수치를 팝업으로 실시간 갱신
   static Future<void> updateMeterData({
     required int currentFare,
     required double distanceKm,
@@ -100,11 +101,11 @@ class DriverOverlayMeter {
       };
       await SystemAlertWindow.sendMessageToOverlay(data);
     } catch (e) {
-      log("오버레이 업데이트 통신 에러: $e");
+      log("오버레이 업데이트 메시지 전송 실패: $e");
     }
   }
 
-  /// 플로팅 미터기 오버레이 윈도우 소멸 및 비활성화
+  /// 플로팅 미터기 닫기 및 소멸
   static Future<void> closeMeter() async {
     try {
       await SystemAlertWindow.closeSystemWindow(
@@ -112,12 +113,12 @@ class DriverOverlayMeter {
       );
       _isActive = false;
     } catch (e) {
-      log("소멸 처리 에러: $e");
+      log("소멸 처리 실패: $e");
     }
   }
 }
 
-/// 오버레이 전용 엔트리포인트에서 실행될 Flutter 위젯
+/// 오버레이 위젯 내부 Flutter UI
 class DriverOverlayMeterWidget extends StatefulWidget {
   const DriverOverlayMeterWidget({super.key});
 
@@ -136,7 +137,6 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
   void initState() {
     super.initState();
     _loadInitialData();
-    // 메인 앱으로부터 주행 데이터 수신 리스너 등록
     SystemAlertWindow.overlayListener.listen((event) {
       if (event is Map) {
         if (mounted) {
@@ -168,7 +168,7 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
   String _formatTime(int seconds) {
     final int min = seconds ~/ 60;
     final int sec = seconds % 60;
-    return "$min분 $sec초";
+    return "${min}분 ${sec}초";
   }
 
   String _formatter(int val) {
@@ -190,7 +190,7 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
           const channel = MethodChannel('com.example.dumpring/overlay_helper');
           await channel.invokeMethod('openApp');
         } catch (e) {
-          log("★ [Overlay] MethodChannel openApp failed: $e");
+          log("⚠️ [Overlay] MethodChannel openApp failed: $e");
         }
         try {
           final uri = Uri.parse('dumpring://open');
@@ -198,78 +198,109 @@ class _DriverOverlayMeterWidgetState extends State<DriverOverlayMeterWidget> {
             await launchUrl(uri, mode: LaunchMode.externalApplication);
           }
         } catch (e) {
-          log("★ [Overlay] launchUrl failed: $e");
+          log("⚠️ [Overlay] launchUrl failed: $e");
         }
         await DriverOverlayMeter.closeMeter();
       },
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor, // 프리미엄 다크 네이비
-          borderRadius: BorderRadius.circular(12),
+          color: Colors.white, // 대낮에도 눈에 번쩍 띄는 화이트 카드 베이스
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Theme.of(
-              context,
-            ).colorScheme.primary.withValues(alpha: 0.3), // 은은한 골드 테두리
+            color: const Color(0xFF465FFF), // 덤프링 시그니처 로열 블루 테두리
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 8,
+              color: const Color(0xFF465FFF).withValues(alpha: 0.22),
+              blurRadius: 10,
               spreadRadius: 1,
               offset: const Offset(0, 3),
             ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 요금 표시
+            // 1. 상단 미니 브랜드 태그 및 상태
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "덤프링 미터",
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF465FFF),
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    "GPS ON",
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF16A34A),
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+
+            // 2. 실시간 정산 금액 (선명한 차콜 블랙)
             Text(
               "${_formatter(_fare)} 원",
+              textAlign: TextAlign.center,
               style: const TextStyle(
-                color: Color(0xFFFF7A00), // 시그니처 주황색
-                fontSize: 20,
+                color: Color(0xFF0F172A), // 차콜 블랙
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
                 decoration: TextDecoration.none,
               ),
             ),
-            const SizedBox(height: 4),
-            // 거리 및 시간 표시
+            const SizedBox(height: 2),
+
+            // 3. 거리 및 시간 요약
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  "${_distance.toStringAsFixed(1)} km",
-                  style: TextStyle(
-                    color: (Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF8F9BB3)
-                        : const Color(0xFF4B5563)),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                  "${_distance.toStringAsFixed(1)}km",
+                  style: const TextStyle(
+                    color: Color(0xFF465FFF), // 포인트 블루
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
                     decoration: TextDecoration.none,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 1.5,
-                  height: 8,
-                  color:
-                      (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF8F9BB3)
-                              : const Color(0xFF4B5563))
-                          .withValues(alpha: 0.3),
+                const SizedBox(width: 4),
+                const Text(
+                  "•",
+                  style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 9, decoration: TextDecoration.none),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 Text(
                   _formatTime(_seconds),
-                  style: TextStyle(
-                    color: (Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF8F9BB3)
-                        : const Color(0xFF4B5563)),
-                    fontSize: 10,
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 9,
                     fontWeight: FontWeight.w700,
                     decoration: TextDecoration.none,
                   ),
