@@ -45,6 +45,11 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   int _elapsedSeconds = 0;
   int _speedKmh = 0;
   bool _isDistanceMode = true; 
+  StreamSubscription<Position>? _positionStreamSub;
+  Position? _lastPosition;
+  DateTime? _lastPositionTime;
+  double _gpsAccuracy = 0.0;
+  bool _hasGpsSignal = false;
 
   // Dynamic pricing policy & planned metrics
   String _calculationMethod = "CONTINUOUS";
@@ -892,19 +897,14 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
   }
 
-  void _resumeMeterTimer() {
-    _meterTimer?.cancel();
-    _speedKmh = 60;
+  void _startMeterTracking() async {
+    _stopMeterTracking();
+
+    // 1. 1초 주기 타이머 (경과 시간 카운트, 로컬 저장 및 오버레이/라이브액티비티 주기 전송)
     _meterTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
           _elapsedSeconds += 1;
-          if (_speedKmh > 10) {
-            _isDistanceMode = true;
-            _distanceKm += (_speedKmh / 3600);
-          } else {
-            _isDistanceMode = false;
-          }
           _currentFare = _calculateFare(_distanceKm, _elapsedSeconds);
         });
         _saveProgressToLocal();
@@ -921,12 +921,133 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         );
       }
     });
+
+    // 2. 실시간 GPS 위치 스트림 가동
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      late LocationSettings locationSettings;
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        locationSettings = AndroidSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 2,
+          intervalDuration: const Duration(seconds: 1),
+          foregroundNotificationConfig: const ForegroundNotificationConfig(
+            notificationTitle: "덤프링 실시간 미터기 운행 중",
+            notificationText: "운행 거리 및 요금이 실시간 측정되고 있습니다.",
+            enableWakeLock: true,
+            setOngoing: true,
+          ),
+        );
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        locationSettings = AppleSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          activityType: ActivityType.automotiveNavigation,
+          distanceFilter: 2,
+          pauseLocationUpdatesAutomatically: false,
+          showBackgroundLocationIndicator: true,
+        );
+      } else {
+        locationSettings = const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 2,
+        );
+      }
+
+      _lastPosition = null;
+      _lastPositionTime = null;
+
+      _positionStreamSub = Geolocator.getPositionStream(
+        locationSettings: locationSettings,
+      ).listen(
+        (Position position) {
+          if (!mounted) return;
+
+          // 오차 40m 초과하는 불량 GPS 수신값은 필터링
+          if (position.accuracy > 40.0) {
+            debugPrint("★ [GPS] 오차 과다(${position.accuracy.toStringAsFixed(1)}m)로 좌표 무시");
+            return;
+          }
+
+          // 실제 이동 속도(km/h) 산출
+          int calculatedSpeed = 0;
+          if (position.speed >= 0) {
+            calculatedSpeed = (position.speed * 3.6).round();
+          } else if (_lastPosition != null && _lastPositionTime != null) {
+            final double timeDiffSec = DateTime.now().difference(_lastPositionTime!).inMilliseconds / 1000.0;
+            if (timeDiffSec > 0.5) {
+              final double distM = Geolocator.distanceBetween(
+                _lastPosition!.latitude,
+                _lastPosition!.longitude,
+                position.latitude,
+                position.longitude,
+              );
+              calculatedSpeed = ((distM / timeDiffSec) * 3.6).round();
+            }
+          }
+          calculatedSpeed = calculatedSpeed.clamp(0, 160);
+
+          // 실제 이동 거리 누적 (정차 시 오차 노이즈 및 비정상 점프 방지)
+          if (_lastPosition != null) {
+            final double deltaMeters = Geolocator.distanceBetween(
+              _lastPosition!.latitude,
+              _lastPosition!.longitude,
+              position.latitude,
+              position.longitude,
+            );
+
+            // 신호 대기/정차 중 GPS 흔들림(2m 미만 또는 속도 3km/h 미만)은 거리 가산 제외
+            // 순간이동(250m 이상 급점프) 튐 무시
+            if (deltaMeters >= 2.0 && deltaMeters < 250.0 && calculatedSpeed >= 3) {
+              _distanceKm += (deltaMeters / 1000.0);
+            }
+          }
+
+          _lastPosition = position;
+          _lastPositionTime = DateTime.now();
+
+          setState(() {
+            _hasGpsSignal = true;
+            _gpsAccuracy = position.accuracy;
+            _speedKmh = calculatedSpeed;
+            _isDistanceMode = _speedKmh > 10;
+            _currentFare = _calculateFare(_distanceKm, _elapsedSeconds);
+          });
+        },
+        onError: (e) {
+          debugPrint("★ [GPS Stream 에러]: $e");
+          if (mounted) {
+            setState(() {
+              _hasGpsSignal = false;
+            });
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint("★ [GPS 가동 실패]: $e");
+    }
+  }
+
+  void _stopMeterTracking() {
+    _meterTimer?.cancel();
+    _meterTimer = null;
+    _positionStreamSub?.cancel();
+    _positionStreamSub = null;
+    _lastPosition = null;
+    _lastPositionTime = null;
+  }
+
+  void _resumeMeterTimer() {
+    _startMeterTracking();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _meterTimer?.cancel();
+    _stopMeterTracking();
     _statusPollTimer?.cancel();
     DriverOverlayMeter.closeMeter();
     LiveActivityService.endLiveActivity(
@@ -1055,7 +1176,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       if (response.statusCode == 200) {
         setState(() {
           _driveStep = 3;
-          _speedKmh = 60;
+          _speedKmh = 0;
         });
 
         // iOS 다이내믹 아일랜드 및 잠금화면 라이브 액티비티 개시
@@ -1069,32 +1190,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           statusText: "하차지 이동 중",
         );
 
-        _meterTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          if (mounted) {
-            setState(() {
-              _elapsedSeconds += 1;
-              if (_speedKmh > 10) {
-                _isDistanceMode = true;
-                _distanceKm += (_speedKmh / 3600);
-              } else {
-                _isDistanceMode = false;
-              }
-              _currentFare = _calculateFare(_distanceKm, _elapsedSeconds);
-            });
-            _saveProgressToLocal();
-            DriverOverlayMeter.updateMeterData(
-              currentFare: _currentFare,
-              distanceKm: _distanceKm,
-              elapsedSeconds: _elapsedSeconds,
-            );
-            LiveActivityService.updateLiveActivity(
-              currentFare: _currentFare,
-              distanceKm: _distanceKm,
-              elapsedSeconds: _elapsedSeconds,
-              statusText: "운행 중",
-            );
-          }
-        });
+        _startMeterTracking();
       } else {
         String errMsg = "주행 개시에 실패했습니다.";
         try {
@@ -1130,7 +1226,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   }
 
   Future<void> _arrivedAtUnloadingSite() async {
-    _meterTimer?.cancel();
+    _stopMeterTracking();
     DriverOverlayMeter.closeMeter();
     try {
       final response = await http.post(
@@ -1344,6 +1440,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   }
 
   void _completeEntireDrive() {
+    _stopMeterTracking();
     _clearLocalProgress();
     DriverOverlayMeter.closeMeter();
     LiveActivityService.endLiveActivity(
@@ -1881,12 +1978,36 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                         ],
                       ),
                     ),
-                    Row(
-                      children: [
-                        Icon(Icons.gps_fixed, color: Colors.green, size: 14),
-                        SizedBox(width: 4),
-                        Text("GPS 수신 정상", style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _hasGpsSignal ? Colors.green.withAlpha(20) : Colors.orange.withAlpha(20),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _hasGpsSignal ? Colors.green.withAlpha(120) : Colors.orange.withAlpha(120),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _hasGpsSignal ? Icons.gps_fixed : Icons.gps_not_fixed,
+                            color: _hasGpsSignal ? Colors.green : Colors.orange,
+                            size: 13,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _hasGpsSignal
+                                ? "GPS 정상 (±${_gpsAccuracy.toStringAsFixed(0)}m)"
+                                : "GPS 수신 중...",
+                            style: TextStyle(
+                              color: _hasGpsSignal ? Colors.green : Colors.orange,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     )
                   ],
                 ),
@@ -1917,56 +2038,82 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
             ),
           ),
         ),
-        SizedBox(height: 24),
+        const SizedBox(height: 16),
         Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.divider),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "⚙️ [모의 요금 주행 시뮬레이터]",
-                textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12),
-              ),
-              SizedBox(height: 4),
-              Text(
-                "아래 버튼으로 속도를 바꾸어 가산 전환을 테스트하세요.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
-              ),
-              SizedBox(height: 14),
               Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _changeSpeed(5),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.warning,
-                        side: BorderSide(color: AppColors.warning.withAlpha(128)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: Text("서행/대기 (5km/h)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
+                  Icon(Icons.satellite_alt_outlined, color: AppColors.primary, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    "실시간 GPS 위성 계측",
+                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13),
                   ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _changeSpeed(60),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(color: AppColors.primary.withAlpha(128)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: _isDistanceMode ? AppColors.primary.withAlpha(20) : Colors.orange.withAlpha(20),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _isDistanceMode ? "거리 가산 모드 (>10km/h)" : "시간 가산 모드 (서행/정차)",
+                      style: TextStyle(
+                        color: _isDistanceMode ? AppColors.primary : Colors.orange,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                       ),
-                      child: Text("일반 고속 (60km/h)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              Text(
+                "• 실제 위성 위치와 주행 속도를 실시간 감지하여 거리가 누적됩니다.\n• 10km/h 초과 시 거리 기준, 정차 및 서행 시 시간 기준으로 자동 계산됩니다.",
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4),
+              ),
+              if (_isTestLocationBypass) ...[
+                const SizedBox(height: 12),
+                Divider(color: AppColors.divider, height: 1),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text("테스트 속도 시뮬레이션:", style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () => _changeSpeed(5),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.warning),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text("5km/h", style: TextStyle(color: AppColors.warning, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: () => _changeSpeed(60),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.primary),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text("60km/h", style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
