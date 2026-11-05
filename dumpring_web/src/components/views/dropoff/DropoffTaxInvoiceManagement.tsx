@@ -248,7 +248,7 @@ export default function DropoffTaxInvoiceManagement({
         <div>
           <div className="flex items-center gap-2.5">
             <FileText className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">하차지 반입 거래명세서 관리</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">거래명세서 관리</h2>
             <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-black rounded-full border border-blue-200">
               e-Ticket 실거래 검증
             </span>

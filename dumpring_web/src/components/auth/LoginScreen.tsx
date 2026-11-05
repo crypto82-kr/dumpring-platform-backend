@@ -95,9 +95,9 @@ export default function LoginScreen() {
     {
       role: "owner",
       roleName: "차주 / 운송사",
-      phone: "010-1111-1111",
-      password: "password123",
-      name: "김차주",
+      phone: "010-9433-9433",
+      password: "1234",
+      name: "이몽룡",
       icon: BarChart3,
       color: "from-amber-500 to-orange-500",
       textColor: "text-amber-600 dark:text-amber-400",

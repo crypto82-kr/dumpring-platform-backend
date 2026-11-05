@@ -11,6 +11,7 @@ import { PlatformAdminUserManagement } from "@/components/views/admin/PlatformAd
 import { PlatformAdminFeeManagement } from "@/components/views/admin/PlatformAdminFeeManagement";
 import { PlatformAdminDispatchControl } from "@/components/views/admin/PlatformAdminDispatchControl";
 import { PlatformAdminSiteDropoffManagement } from "@/components/views/admin/PlatformAdminSiteDropoffManagement";
+import { PlatformAdminDisputeManagement } from "@/components/views/admin/PlatformAdminDisputeManagement";
 import { SiteManagerDashboard } from "@/components/views/site/SiteManagerDashboard";
 import SiteWorkerManagement from "@/components/views/site/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/views/site/SiteInfoManagement";
@@ -23,6 +24,8 @@ import SiteTaxInvoiceManagement from "@/components/views/site/SiteTaxInvoiceMana
 import SiteSafetyManagement from "@/components/views/site/SiteSafetyManagement";
 import SiteOverviewDashboard from "@/components/views/site/SiteOverviewDashboard";
 import { DropoffManagerDashboard } from "@/components/views/dropoff/DropoffManagerDashboard";
+import DropoffRegisterManagement from "@/components/views/dropoff/DropoffRegisterManagement";
+import DropoffAnnouncementManagement from "@/components/views/dropoff/DropoffAnnouncementManagement";
 import { OwnerDashboard } from "@/components/views/owner/OwnerDashboard";
 import { OwnerOverviewDashboard } from "@/components/views/owner/OwnerOverviewDashboard";
 import { OwnerScheduleManagement } from "@/components/views/owner/OwnerScheduleManagement";
@@ -31,9 +34,11 @@ import { OwnerDriverManagement } from "@/components/views/owner/OwnerDriverManag
 import { OwnerSettlementManagement } from "@/components/views/owner/OwnerSettlementManagement";
 import { OwnerNoticeManagement } from "@/components/views/owner/OwnerNoticeManagement";
 import { OwnerOperationStatistics } from "@/components/views/owner/OwnerOperationStatistics";
+import OwnerMyPage from "@/components/views/owner/OwnerMyPage";
 import { DeveloperDashboard } from "@/components/views/developer/DeveloperDashboard";
 
 import { getApiBaseUrl } from "@/utils/api";
+import { formatToKSTDateString } from "@/utils/date";
 
 export default function Home() {
   const { user, changeRole, activePath, setActivePath } = useAuth();
@@ -410,8 +415,8 @@ export default function Home() {
           tonTypes: job.truck_type ? [job.truck_type] : [],
           truckCount: job.required_trucks || 1,
           soilType: job.material_type || "일반 토사",
-          startDate: job.work_date ? job.work_date.substring(0, 10) : "",
-          endDate: job.work_date ? job.work_date.substring(0, 10) : "",
+          startDate: formatToKSTDateString(job.work_date),
+          endDate: formatToKSTDateString(job.work_date),
           dropoffMode: job.matched_drop_off_id ? "search" : (job.drop_off_request_id ? "search" : "none"),
           dropoffName: job.drop_off_name || "",
           dropoffAddress: job.drop_off_address || "",
@@ -475,8 +480,8 @@ export default function Home() {
           currentQuantity: req.current_quantity || 0,
           unitPrice: req.unit_price || 0,
           payerType: req.payer_type || "",
-          startDate: req.start_date ? req.start_date.substring(0, 10) : "",
-          endDate: req.end_date ? req.end_date.substring(0, 10) : "",
+          startDate: formatToKSTDateString(req.start_date),
+          endDate: formatToKSTDateString(req.end_date),
           soilDealType: req.payer_type === "SITE_PAYS" ? "buy" : "sell",
           status: req.status || "OPEN",
           hasWashingFacility: req.has_washing_facility || false,
@@ -523,8 +528,8 @@ export default function Home() {
         tonTypes: job.truck_type ? [job.truck_type] : [],
         truckCount: job.required_trucks || 1,
         soilType: job.material_type || "일반 토사",
-        startDate: job.work_date ? job.work_date.substring(0, 10) : "",
-        endDate: job.work_date ? job.work_date.substring(0, 10) : "",
+        startDate: formatToKSTDateString(job.work_date),
+        endDate: formatToKSTDateString(job.work_date),
         dropoffMode: job.matched_drop_off_id ? "search" : (job.drop_off_request_id ? "search" : "none"),
         dropoffName: job.drop_off_name || "",
         dropoffAddress: job.drop_off_address || "",
@@ -694,9 +699,9 @@ export default function Home() {
           rain_work_allowed: payload.rainWorkAllowed || false,
           start_date: formattedStartDate,
           end_date: formattedEndDate,
-          // 현장 매칭 연동: search 모드로 현장을 선택한 경우에만 전달
-          ...(payload.matchMode === "search" && payload.matchedSiteId
-            ? { matched_site_id: Number(payload.matchedSiteId) }
+          // 현장 매칭 연동: search 모드로 배차 공고를 선택한 경우 고유 PK(matched_job_post_id)만 전달
+          ...(payload.matchMode === "search" && payload.matchedJobPostId
+            ? { matched_job_post_id: Number(payload.matchedJobPostId) }
             : {})
         })
       });
@@ -766,34 +771,40 @@ export default function Home() {
   /** 하차지 수용 공고 수정 API 연동 */
   const handleUpdateDropoffRequest = async (id: number, payload: any): Promise<boolean> => {
     try {
+      const baseUrl = getApiBaseUrl();
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      
+
       const formattedStartDate = payload.startDate ? `${payload.startDate}T00:00:00` : new Date().toISOString().split('T')[0] + 'T00:00:00';
       const formattedEndDate = payload.endDate ? `${payload.endDate}T23:59:59` : formattedStartDate.replace('T00:00:00', 'T23:59:59');
 
-      const res = await fetch(`${API_BASE_URL}/api/drop-offs/requests/${id}`, {
+      const requestUrl = `${baseUrl}/api/drop-offs/requests/${id}`;
+      const requestBody = {
+        material_type: payload.materialType || "GOOD_SOIL",
+        truck_type: payload.capacityType || "T_25",
+        target_quantity: Number(payload.targetQuantity) || 100,
+        payer_type: payload.payerType || "SITE_PAYS",
+        payment_method: payload.paymentMethod || "MONTHLY",
+        unit_price: Number(payload.unitPrice) || 0,
+        has_washing_facility: payload.hasWashingFacility || false,
+        night_work_allowed: payload.nightWorkAllowed || false,
+        rain_work_allowed: payload.rainWorkAllowed || false,
+        start_date: formattedStartDate,
+        end_date: formattedEndDate,
+        // 현장 매칭 연동: search 모드로 배차 공고를 선택한 경우 고유 PK(matched_job_post_id)만 전달
+        ...(payload.matchMode === "search" && payload.matchedJobPostId
+          ? { matched_job_post_id: Number(payload.matchedJobPostId) }
+          : {})
+      };
+
+      console.log("[handleUpdateDropoffRequest] Sending to:", requestUrl, requestBody);
+
+      const res = await fetch(requestUrl, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          material_type: payload.materialType || "GOOD_SOIL",
-          truck_type: payload.capacityType || "T_25",
-          target_quantity: Number(payload.targetQuantity) || 100,
-          payer_type: payload.payerType || "SITE_PAYS",
-          payment_method: payload.paymentMethod || "MONTHLY",
-          unit_price: Number(payload.unitPrice) || 0,
-          has_washing_facility: payload.hasWashingFacility || false,
-          night_work_allowed: payload.nightWorkAllowed || false,
-          rain_work_allowed: payload.rainWorkAllowed || false,
-          start_date: formattedStartDate,
-          end_date: formattedEndDate,
-          // 현장 매칭 연동: search 모드로 현장을 선택한 경우에만 전달
-          ...(payload.matchMode === "search" && payload.matchedSiteId
-            ? { matched_site_id: Number(payload.matchedSiteId) }
-            : {})
-        })
+        body: JSON.stringify(requestBody)
       });
       if (res.ok) {
         await fetchOpenDropOffRequests();
@@ -820,8 +831,9 @@ export default function Home() {
       }
       console.error("handleUpdateDropoffRequest failed:", res.status, errDetail);
       return false;
-    } catch (e) {
-      console.error("handleUpdateDropoffRequest error:", e);
+    } catch (e: any) {
+      console.error("handleUpdateDropoffRequest network error:", e);
+      alert(`공고 수정 중 통신 오류가 발생했습니다: ${e?.message || e}`);
       return false;
     }
   };
@@ -1499,6 +1511,8 @@ export default function Home() {
           <PlatformAdminDispatchControl setActivePath={setActivePath} />
         ) : activePath === "/admin/sites" ? (
           <PlatformAdminSiteDropoffManagement setActivePath={setActivePath} />
+        ) : activePath === "/admin/disputes" ? (
+          <PlatformAdminDisputeManagement setActivePath={setActivePath} />
         ) : (
           <PlatformAdminDashboard
             activePath={activePath}
@@ -1749,45 +1763,62 @@ export default function Home() {
         ))
       }
       {user.role === "dropoff_manager" && (
-        <DropoffManagerDashboard
-          user={user}
-          activePath={activePath}
-          setActivePath={setActivePath}
-          dropoffFormName={dropoffFormName}
-          setDropoffFormName={setDropoffFormName}
-          dropoffFormAddress={dropoffFormAddress}
-          setDropoffFormAddress={setDropoffFormAddress}
-          dropoffFormManagers={dropoffFormManagers}
-          setDropoffFormManagers={setDropoffFormManagers}
-          dropoffFormSoilTypes={dropoffFormSoilTypes}
-          setDropoffFormSoilTypes={setDropoffFormSoilTypes}
-          dropoffFormCapacity={dropoffFormCapacity}
-          setDropoffFormCapacity={setDropoffFormCapacity}
-          dropoffFormSoilDealType={dropoffFormSoilDealType}
-          setDropoffFormSoilDealType={setDropoffFormSoilDealType}
-          registeredDropoffList={registeredDropoffList}
-          setRegisteredDropoffList={setRegisteredDropoffList}
-          inboundTrucks={inboundTrucks}
-          handleVerifyInbound={handleVerifyInbound}
-          dropoffVerifiedCount={dropoffVerifiedCount}
-          dbCommonCodes={dbCommonCodes}
-          handleCreateDropoff={handleCreateDropoff}
-          handleDeleteDropoff={handleDeleteDropoff}
-          handleUpdateDropoff={handleUpdateDropoff}
-          handleUpdateDispatch={handleUpdateDispatch}
-          dispatchRequestList={dispatchRequestList}
-          dropoffRequestList={dropoffRequestList}
-          handleCreateDropoffRequest={handleCreateDropoffRequest}
-          handleDeleteDropoffRequest={handleDeleteDropoffRequest}
-          handleUpdateDropoffRequestStatus={handleUpdateDropoffRequestStatus}
-          handleUpdateDropoffRequest={handleUpdateDropoffRequest}
-          handleApproveJobPost={handleApproveJobPost}
-          handleRejectJobPost={handleRejectJobPost}
-          handleMatchJobPost={handleMatchJobPost}
-          fetchOpenDropOffRequests={fetchOpenDropOffRequests}
-          registeredSiteList={registeredSiteList}
-          handleResetMatchJobPost={handleResetMatchJobPost}
-        />
+        activePath === "/dropoff/register" ? (
+          <DropoffRegisterManagement
+            user={user}
+            registeredDropoffList={registeredDropoffList}
+            setRegisteredDropoffList={setRegisteredDropoffList}
+            dbCommonCodes={dbCommonCodes}
+            handleCreateDropoff={handleCreateDropoff}
+            handleDeleteDropoff={handleDeleteDropoff}
+            handleUpdateDropoff={handleUpdateDropoff}
+          />
+        ) : activePath === "/dropoff/dispatch-request" ? (
+          <DropoffAnnouncementManagement
+            user={user}
+            registeredDropoffList={registeredDropoffList}
+            dropoffRequestList={dropoffRequestList}
+            dispatchRequestList={dispatchRequestList}
+            registeredSiteList={registeredSiteList}
+            dbCommonCodes={dbCommonCodes}
+            handleCreateDropoffRequest={handleCreateDropoffRequest}
+            handleDeleteDropoffRequest={handleDeleteDropoffRequest}
+            handleUpdateDropoffRequestStatus={handleUpdateDropoffRequestStatus}
+            handleUpdateDropoffRequest={handleUpdateDropoffRequest}
+            handleApproveJobPost={handleApproveJobPost}
+            handleRejectJobPost={handleRejectJobPost}
+            fetchOpenDropOffRequests={fetchOpenDropOffRequests}
+            handleResetMatchJobPost={handleResetMatchJobPost}
+          />
+        ) : (
+          <DropoffManagerDashboard
+            user={user}
+            activePath={activePath}
+            setActivePath={setActivePath}
+            registeredDropoffList={registeredDropoffList}
+            setRegisteredDropoffList={setRegisteredDropoffList}
+            inboundTrucks={inboundTrucks}
+            handleVerifyInbound={handleVerifyInbound}
+            dropoffVerifiedCount={dropoffVerifiedCount}
+            dbCommonCodes={dbCommonCodes}
+            handleCreateDropoff={handleCreateDropoff}
+            handleDeleteDropoff={handleDeleteDropoff}
+            handleUpdateDropoff={handleUpdateDropoff}
+            handleUpdateDispatch={handleUpdateDispatch}
+            dispatchRequestList={dispatchRequestList}
+            dropoffRequestList={dropoffRequestList}
+            handleCreateDropoffRequest={handleCreateDropoffRequest}
+            handleDeleteDropoffRequest={handleDeleteDropoffRequest}
+            handleUpdateDropoffRequestStatus={handleUpdateDropoffRequestStatus}
+            handleUpdateDropoffRequest={handleUpdateDropoffRequest}
+            handleApproveJobPost={handleApproveJobPost}
+            handleRejectJobPost={handleRejectJobPost}
+            handleMatchJobPost={handleMatchJobPost}
+            fetchOpenDropOffRequests={fetchOpenDropOffRequests}
+            registeredSiteList={registeredSiteList}
+            handleResetMatchJobPost={handleResetMatchJobPost}
+          />
+        )
       )}
       {user.role === "owner" && (
         activePath === "/owner/schedule" ? (
@@ -1806,6 +1837,8 @@ export default function Home() {
           />
         ) : activePath === "/owner/statistics" ? (
           <OwnerOperationStatistics setActivePath={setActivePath} />
+        ) : activePath === "/owner/mypage" ? (
+          <OwnerMyPage setActivePath={setActivePath} />
         ) : activePath === "/owner" || activePath === "" ? (
           <OwnerOverviewDashboard setActivePath={setActivePath} />
         ) : (

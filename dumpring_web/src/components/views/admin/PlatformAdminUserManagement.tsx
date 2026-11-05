@@ -16,6 +16,7 @@ import {
   Layers
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import DocumentViewerModal from "@/components/common/DocumentViewerModal";
 
 interface UserItem {
   id: number;
@@ -42,7 +43,7 @@ interface UserItem {
   dropoff_name?: string | null;
   permit_number?: string | null;
   dropoff_address?: string | null;
-  documents: Array<{ code: string; file_name: string; url: string }>;
+  documents: Array<{ code: string; file_name: string; original_name?: string; url: string }>;
 }
 
 interface PlatformAdminUserManagementProps {
@@ -60,6 +61,9 @@ export function PlatformAdminUserManagement({ setActivePath }: PlatformAdminUser
 
   // 상세 모달
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+
+  // 공통 서류 뷰어 모달 상태
+  const [viewerDoc, setViewerDoc] = useState<{ title: string; url: string } | null>(null);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -619,32 +623,66 @@ export function PlatformAdminUserManagement({ setActivePath }: PlatformAdminUser
                 </h4>
                 {selectedUser.documents.length > 0 ? (
                   <div className="space-y-2">
-                    {selectedUser.documents.map((doc, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                            {doc.code}
-                          </span>
-                          <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-xs">
-                            {doc.file_name}
-                          </span>
-                        </div>
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-slate-100"
+                    {selectedUser.documents.map((doc, idx) => {
+                      const docNameMap: Record<string, string> = {
+                        BIZ_LICENSE: "사업자등록증",
+                        DUST_REPORT: "비산먼지 배출신고서",
+                        CONSTRUCTION_CONTRACT: "공사 계약서",
+                        LICENSE: "운전면허증 (대형/1종)",
+                        SAFETY_TRAINING: "기초안전교육 이수증",
+                        SPECIAL_LABOR_TRAINING: "특수형태근로 교육증",
+                        QUALIFICATION: "화물운송종사 자격증",
+                        MACHINERY_REG: "건설기계 등록증",
+                        INSURANCE: "화물 종합보험증권",
+                        DEVELOPMENT_PERMIT: "개발행위 허가증",
+                        LAND_USE_AGREEMENT: "토지 사용 승낙서",
+                        CONSTRUCTION_PROOF: "공사현장 증빙서류",
+                        BANKBOOK: "통장 사본",
+                      };
+                      const isCommonCode = doc.code && docNameMap[doc.code];
+                      const badgeTitle = isCommonCode ? docNameMap[doc.code] : null;
+                      const fileLabel = doc.original_name || doc.file_name;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700"
                         >
-                          서류 보기
-                        </a>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2 max-w-[70%]">
+                            {badgeTitle ? (
+                              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 shrink-0">
+                                {badgeTitle}
+                              </span>
+                            ) : (
+                              <>
+                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 shrink-0">
+                                  일반 첨부
+                                </span>
+                                <span className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate" title={fileLabel}>
+                                  {fileLabel}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const baseUrl = getApiBaseUrl();
+                              const fullUrl = doc.url.startsWith("http")
+                                ? doc.url
+                                : `${baseUrl}${doc.url.startsWith("/") ? "" : "/"}${doc.url}`;
+                              setViewerDoc({ title: badgeTitle || fileLabel, url: fullUrl });
+                            }}
+                            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-slate-100 transition-all shadow-sm active:scale-95 shrink-0"
+                          >
+                            서류 보기
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl text-center text-slate-400">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl text-center text-slate-400 text-xs">
                     제출된 서류가 없습니다.
                   </div>
                 )}
@@ -663,6 +701,14 @@ export function PlatformAdminUserManagement({ setActivePath }: PlatformAdminUser
           </div>
         </div>
       )}
+
+      {/* 공통 서류 뷰어 모달 (새창 이탈 없이 확대/회전/다운로드) */}
+      <DocumentViewerModal
+        isOpen={!!viewerDoc}
+        onClose={() => setViewerDoc(null)}
+        title={viewerDoc?.title || "서류 확인"}
+        fileUrl={viewerDoc?.url || null}
+      />
     </div>
   );
 }

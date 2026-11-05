@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { 
-  Truck, 
-  Plus, 
-  Search, 
-  RefreshCw, 
-  FileText, 
-  ShieldCheck, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  Truck,
+  Plus,
+  Search,
+  RefreshCw,
+  FileText,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
   UserCheck,
   X,
   Calendar,
@@ -454,26 +454,23 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
                   <div
                     key={car.id}
                     onClick={() => setSelectedCarId(car.id)}
-                    className={`p-4 rounded-xl border text-left cursor-pointer transition-all duration-200 group active:scale-98 ${
-                      isSelected
+                    className={`p-4 rounded-xl border text-left cursor-pointer transition-all duration-200 group active:scale-98 ${isSelected
                         ? "bg-blue-50/80 dark:bg-blue-900/30 border-blue-400 dark:border-blue-700 shadow-md"
                         : "bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300"
-                    }`}
+                      }`}
                   >
                     <div className="flex justify-between items-start gap-2">
                       <span
-                        className={`text-xs font-black leading-tight font-mono ${
-                          isSelected ? "text-blue-700 dark:text-blue-300" : "text-slate-800 dark:text-slate-200 group-hover:text-blue-600"
-                        }`}
+                        className={`text-xs font-black leading-tight font-mono ${isSelected ? "text-blue-700 dark:text-blue-300" : "text-slate-800 dark:text-slate-200 group-hover:text-blue-600"
+                          }`}
                       >
                         {car.car_number}
                       </span>
                       <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
-                          hasDriver
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${hasDriver
                             ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
                             : "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-                        }`}
+                          }`}
                       >
                         {hasDriver ? "기사 배정됨" : "공차 (미배정)"}
                       </span>
@@ -824,7 +821,7 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
                       </div>
                     )}
                   </div>
-                  
+
                   {existingMachineryUrl && !machineryFile ? (
                     <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50">
                       <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">

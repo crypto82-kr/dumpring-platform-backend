@@ -394,7 +394,7 @@ export default function DropoffSoilSettlementManagement({
             </div>
             <div>
               <h1 className="text-xl font-black text-slate-900 tracking-tight">
-                하차지(사토장) 흙값 정산 관리
+                흙값 정산 관리
               </h1>
               <p className="text-xs font-semibold text-slate-600 mt-0.5">
                 사토 수수료 수령액 및 토사 매입비 지출을 검토·확정하고, 마감된 이력을 확인합니다.

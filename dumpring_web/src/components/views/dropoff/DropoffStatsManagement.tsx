@@ -17,7 +17,7 @@ export default function DropoffStatsManagement({
       {/* Header Bar */}
       <div className="flex justify-between items-center border-b border-slate-200 pb-4">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900">하차지 정보 및 운행 통계 분석</h2>
+          <h2 className="text-xl font-extrabold text-slate-900">하차지 정보 통계</h2>
           <p className="text-xs text-slate-500 mt-1">
             하차지별 토사 반입량, 처리 잔여 용량 및 현장별 반입 추이를 다각도로 분석합니다.
           </p>

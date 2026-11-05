@@ -140,25 +140,39 @@ async def stream_file(
                     finally:
                         await resp.aclose()
 
+                import urllib.parse
+                safe_encoded_filename = urllib.parse.quote(clean_filename)
+
                 return StreamingResponse(
                     file_iterator(),
                     media_type=content_type,
                     headers={
-                        "Content-Disposition": f"inline; filename={clean_filename}",
+                        "Content-Disposition": f"inline; filename*=UTF-8''{safe_encoded_filename}",
                         "Cache-Control": "public, max-age=3600"
                     }
                 )
         except Exception as e:
             logger.warning(f"Supabase 스트리밍 실패, 로컬 폴백: {e}")
 
-    # 2. 로컬 스토리지 폴백
-    local_path = os.path.join(settings.UPLOAD_DIR, category, clean_filename)
+    # 2. 로컬 스토리지 폴백 (uploads 디렉토리 안전 검사)
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    upload_dir = getattr(settings, "UPLOAD_DIR", os.path.join(base_dir, "uploads"))
+    local_path = os.path.join(upload_dir, category, clean_filename)
+
+    # 직접 일치하는 파일이 없을 경우, 접두사 난수가 붙은 파일 검색 (예: {uuid}_{filename})
+    if not os.path.exists(local_path) and os.path.exists(os.path.join(upload_dir, category)):
+        for f in os.listdir(os.path.join(upload_dir, category)):
+            if f.endswith(f"_{clean_filename}") or f == clean_filename:
+                local_path = os.path.join(upload_dir, category, f)
+                break
+
     if os.path.exists(local_path):
+        import urllib.parse
+        safe_encoded_filename = urllib.parse.quote(clean_filename)
         return FileResponse(
             local_path,
             media_type=content_type,
-            filename=clean_filename,
-            headers={"Content-Disposition": f"inline; filename={clean_filename}"}
+            headers={"Content-Disposition": f"inline; filename*=UTF-8''{safe_encoded_filename}"}
         )
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="요청한 서류 파일을 찾을 수 없습니다.")

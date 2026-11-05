@@ -160,10 +160,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateApprovalStatus = (approved: boolean) => {
     setUser(prev => {
       if (!prev) return null;
-      return {
+      const updated = {
         ...prev,
         isApproved: approved
       };
+      localStorage.setItem("userProfile", JSON.stringify(updated));
+      return updated;
     });
   };
 

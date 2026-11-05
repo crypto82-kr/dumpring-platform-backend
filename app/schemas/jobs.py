@@ -18,6 +18,7 @@ class DropOffRequestCreate(BaseModel):
     start_date: datetime = Field(..., description="수용 시작 날짜")
     end_date: datetime = Field(..., description="수용 종료 날짜")
     matched_site_id: Optional[int] = Field(None, description="매칭 요청할 현장 ID (공고 등록/수정 시 현장 직접 지정한 경우)")
+    matched_job_post_id: Optional[int] = Field(None, description="매칭 요청할 현장 배차 공고 고유 PK (정확한 공고 타겟 매칭용)")
 
 
 class DropOffRequestResponse(BaseModel):

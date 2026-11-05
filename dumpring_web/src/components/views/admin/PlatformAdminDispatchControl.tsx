@@ -124,7 +124,16 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
     return `${y}-${m}-${d}`;
   }, []);
 
-  // 필터 탭 (실시간 관제: 오늘 전체 / 미매차 / 운행중)
+  // 관제 대상 작업일자 필터 (기본값: 오늘 날짜, 'ALL'은 전체 작업일자)
+  const [targetWorkDate, setTargetWorkDate] = useState<string>(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  });
+
+  // 매칭 진행상태 필터 탭 (전체 / 미매차 / 운행중)
   const [filterTab, setFilterTab] = useState<"ALL" | "WAITING" | "DRIVING">("ALL");
 
   // 공통코드 목록 상태
@@ -319,6 +328,9 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
             acceptedAt: t.accepted_at,
           }));
 
+          // '재매칭 긴급'은 미래 오더가 아닌, "오늘 당일(isToday) 작업 건인데 등록 45분 이상 경과 후에도 기사 배정이 0대"인 경우에만 발동
+          const isEmergency = isToday && elapsedMin > 45 && parsedTickets.length === 0;
+
           return {
             id: j.id,
             siteId: j.site_id,
@@ -343,7 +355,7 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
             status: j.status,
             statusLabel: getCodeName("JOB_STATUS", j.status, "기사 모집중"),
             isTodayWork: isToday,
-            isCancelledReopen: elapsedMin > 45 && parsedTickets.length === 0,
+            isCancelledReopen: isEmergency,
           };
         });
 
@@ -381,19 +393,19 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
     return () => clearInterval(interval);
   }, [commonCodes]);
 
-  // 실시간 KPI 통계 지표 계산 (금일 당일 todayStr 실시간 배차 오더 기준)
+  // 실시간 KPI 통계 지표 계산 (선택된 작업일자 기준)
   const kpiStats = useMemo(() => {
-    // 1. 실시간 관제 대상: 오늘(todayStr) 작업일이면서 마감/취소/정산완료가 아닌 활성 오더
-    const activeTodayOrders = orders.filter((o) => {
+    const activeTargetOrders = orders.filter((o) => {
       const isPastOrClosed = ["CANCELLED", "CLOSED", "SETTLEMENT_CLOSED"].includes(o.status);
-      return o.workDate === todayStr && !isPastOrClosed;
+      const isDateMatch = targetWorkDate === "ALL" || o.workDate === targetWorkDate;
+      return isDateMatch && !isPastOrClosed;
     });
 
-    const totalCount = activeTodayOrders.length;
-    const unassignedCount = activeTodayOrders.filter((o) => o.matchedTrucks < o.requiredTrucks).length;
-    const activeTrucks = activeTodayOrders.reduce((acc, cur) => acc + cur.matchedTrucks, 0);
+    const totalCount = activeTargetOrders.length;
+    const unassignedCount = activeTargetOrders.filter((o) => o.matchedTrucks < o.requiredTrucks).length;
+    const activeTrucks = activeTargetOrders.reduce((acc, cur) => acc + cur.matchedTrucks, 0);
 
-    const requiredTrucksSum = activeTodayOrders.reduce((acc, cur) => acc + cur.requiredTrucks, 0);
+    const requiredTrucksSum = activeTargetOrders.reduce((acc, cur) => acc + cur.requiredTrucks, 0);
     const matchingRate = requiredTrucksSum > 0 ? ((activeTrucks / requiredTrucksSum) * 100).toFixed(1) : "0.0";
 
     return {
@@ -402,13 +414,13 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
       activeTrucks,
       matchingRate,
     };
-  }, [orders, todayStr]);
+  }, [orders, targetWorkDate]);
 
-  // 필터링된 오더 목록 (실시간 관제: 무조건 금일 todayStr 당일 건만 엄격 표시)
+  // 필터링된 오더 목록 (작업일자 기준 필터링)
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
-      // 1. 무조건 당일 오더만 관제 대상 (과거 날짜 및 이미 마감/취소/정산완료된 과거 이력은 실시간 관제에서 완전 배제)
-      if (o.workDate !== todayStr) return false;
+      // 1. 작업일자 필터링 ('ALL'이면 전체 작업일자, 그 외 특정 날짜)
+      if (targetWorkDate !== "ALL" && o.workDate !== targetWorkDate) return false;
       if (["CANCELLED", "CLOSED", "SETTLEMENT_CLOSED"].includes(o.status)) return false;
 
       // 2. 검색어 필터링
@@ -428,9 +440,9 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
       if (filterTab === "DRIVING") {
         return o.matchedTrucks > 0;
       }
-      return true; // 오늘 전체 활성 오더
+      return true; // 전체 활성 오더
     });
-  }, [orders, searchQuery, filterTab, todayStr]);
+  }, [orders, searchQuery, filterTab, targetWorkDate]);
 
   // 선택된 오더 (좌측 현재 목록(filteredOrders)에 존재하는 공고 중에서만 선택 및 활성화)
   const selectedOrder = useMemo(() => {
@@ -553,15 +565,23 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               실시간 배차 관제 콘솔
-              <span className="text-xs px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-lg flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                LIVE (금일 {todayStr})
+              <span className={`text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold border ${
+                targetWorkDate === todayStr 
+                  ? "bg-blue-50 border-blue-200 text-blue-700"
+                  : "bg-indigo-50 border-indigo-200 text-indigo-700"
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${targetWorkDate === todayStr ? "bg-emerald-500 animate-pulse" : "bg-indigo-500"}`} />
+                {targetWorkDate === todayStr ? `금일 작업일 (${targetWorkDate})` : `작업예정일 (${targetWorkDate})`}
               </span>
             </h1>
           </div>
 
           <p className="text-xs text-slate-500 mt-1">
-            금일(<strong className="text-blue-600 font-bold">{todayStr}</strong>) 기준 전국 상·하차지 실시간 오더 현황 및 운행 차량 배차 관제 콘솔입니다.
+            {targetWorkDate === todayStr ? (
+              <>금일(<strong className="text-blue-600 font-bold">{todayStr}</strong>) 기준 전국 상·하차지 실시간 운행 및 당일 배차 관제 콘솔입니다.</>
+            ) : (
+              <>향후 작업예정일(<strong className="text-indigo-600 font-bold">{targetWorkDate}</strong>) 사전 배차 예약 및 차량 모집 현황입니다.</>
+            )}
           </p>
         </div>
 
@@ -569,9 +589,11 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200/70 p-2.5 rounded-2xl">
           <div className="px-4 py-2 bg-white rounded-xl border border-slate-200/80 shadow-xs">
             <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-              <span>금일 관제 오더</span>
-              <span className="text-[9.5px] px-1.5 py-0.2 bg-blue-50 text-blue-700 rounded font-bold">
-                TODAY
+              <span>{targetWorkDate === todayStr ? "금일 관제 오더" : "예정 관제 오더"}</span>
+              <span className={`text-[9.5px] px-1.5 py-0.2 rounded font-bold ${
+                targetWorkDate === todayStr ? "bg-blue-50 text-blue-700" : "bg-indigo-50 text-indigo-700"
+              }`}>
+                {targetWorkDate === todayStr ? "TODAY" : "RESERVE"}
               </span>
             </div>
             <div className="text-lg font-black text-slate-900 mt-0.5">
@@ -603,11 +625,45 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
       {/* 2. 본문 2분할 통합 레이아웃 (좌측: 오더 목록 / 우측: 선택 오더 심층 관제 & 차량 전체 현황) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ======================================================== */}
-        {/* [좌측 영역 (5 Cols)]: 금일 실시간 배차 오더 리스트 */}
+        {/* [좌측 영역 (5 Cols)]: 실시간 배차 오더 리스트 */}
         {/* ======================================================== */}
         <div className="lg:col-span-5 bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex flex-col h-[780px]">
-          {/* 필터 탭 & 검색창 */}
-          <div className="space-y-3 mb-4">
+          {/* 작업일/예정일 필터 바 + 진행상태 탭 & 검색창 */}
+          <div className="space-y-2.5 mb-4">
+            {/* 작업일/작업예정일 선택 바 */}
+            <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <span>{targetWorkDate === todayStr ? "관제 기준:" : "예정 기준:"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTargetWorkDate(todayStr)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    targetWorkDate === todayStr
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  오늘 작업일 ({todayStr})
+                </button>
+                <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                  <span className="text-[11px] text-slate-400 font-medium">예정일:</span>
+                  <input
+                    type="date"
+                    min={todayStr}
+                    value={targetWorkDate}
+                    onChange={(e) => {
+                      if (e.target.value) setTargetWorkDate(e.target.value);
+                    }}
+                    className="px-2 py-0.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 상태 필터 탭 & 새로고침 */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex bg-slate-200/60 p-1 rounded-xl text-xs font-bold">
                 <button
@@ -617,7 +673,7 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
                     filterTab === "ALL" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  오늘 전체 ({kpiStats.totalCount})
+                  전체 ({kpiStats.totalCount})
                 </button>
                 <button
                   type="button"
@@ -667,11 +723,11 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
           {/* 오더 카드 스크롤 목록 */}
           <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
             {filteredOrders.length === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-xs">
+              <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-xs text-center p-4">
                 <AlertTriangle className="w-6 h-6 mb-2 text-slate-300" />
-                금일({todayStr}) 실시간 관제 대상 배차 공고가 없습니다.
+                선택된 작업일자({targetWorkDate === "ALL" ? "전체" : targetWorkDate})의 관제 대상 배차 공고가 없습니다.
                 <span className="text-[11px] text-slate-400 mt-1">
-                  (마감 및 정산 완료 건은 실시간 관제에서 자동 제외됩니다)
+                  (상단의 날짜 버튼이나 전체일자를 선택하시면 다른 작업일자의 공고를 확인하실 수 있습니다)
                 </span>
               </div>
             ) : (
@@ -704,8 +760,13 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
                             : "bg-indigo-50 text-indigo-700 border border-indigo-200"
                         }`}>
                           <Calendar className="w-2.5 h-2.5" />
-                          작업일: {order.workDate || "미정"}
-                          {order.isTodayWork && " (오늘)"}
+                          {order.isTodayWork 
+                            ? `작업일: ${order.workDate} (오늘)` 
+                            : `작업예정일: ${order.workDate}`}
+                        </span>
+
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200" title={`등록일시: ${order.createdAt}`}>
+                          등록: {order.createdAt ? order.createdAt.slice(0, 10) : "-"}
                         </span>
 
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -794,13 +855,20 @@ export function PlatformAdminDispatchControl({ setActivePath }: { setActivePath?
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
                         공고 #{selectedOrder.id}
                       </span>
-                      <span className="text-xs font-bold text-slate-500">
-                        작업일: <strong className="text-slate-900">{selectedOrder.workDate}</strong>
-                        {selectedOrder.isTodayWork && <span className="text-blue-600 ml-1">(오늘)</span>}
+                      <span className="text-xs font-bold text-slate-700">
+                        {selectedOrder.isTodayWork ? (
+                          <>작업일: <strong className="text-blue-600">{selectedOrder.workDate} (오늘 당일 운행)</strong></>
+                        ) : (
+                          <>작업예정일: <strong className="text-indigo-600">{selectedOrder.workDate} (사전 예약)</strong></>
+                        )}
+                      </span>
+                      <span className="text-xs text-slate-400">|</span>
+                      <span className="text-xs text-slate-500">
+                        공고 등록일: <strong className="text-slate-700">{selectedOrder.createdAt}</strong>
                       </span>
                     </div>
                     <h2 className="text-lg font-black text-slate-900 mt-1 flex items-center gap-2">

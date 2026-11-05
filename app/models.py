@@ -48,6 +48,7 @@ class User(Base):
     owned_cars = relationship("Car", back_populates="owner")
     site_profile = relationship("SiteProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     drop_off_profile = relationship("DropOffProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    owner_profile = relationship("OwnerProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     site_mappings = relationship("SiteUserMapping", back_populates="user", cascade="all, delete-orphan")
     drop_offs = relationship("DropOff", back_populates="owner", cascade="all, delete-orphan")
 
@@ -193,8 +194,9 @@ class UserUploadedDocument(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    document_code = Column(String, nullable=False, index=True)  # CommonCode의 code 연동 (예: 'LICENSE', 'BIZ_LICENSE')
-    file_name = Column(String, nullable=False)  # 업로드된 파일명 또는 URL 경로
+    document_code = Column(String, nullable=True, index=True)  # CommonCode 연동 (공통코드 없는 일반 파일은 NULL 또는 'OTHER')
+    file_name = Column(String, nullable=False)  # 스토리지 실제 물리 저장 키 (난수 UUID)
+    original_name = Column(String, nullable=True)  # 사용자가 업로드한 원본 한글/영문 파일명
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -301,6 +303,32 @@ class DropOffProfile(Base):
 
     # Relationships
     user = relationship("User", back_populates="drop_off_profile")
+
+
+class OwnerProfile(Base):
+    """
+    9-1. OwnerProfile (차주 상세 프로필 테이블)
+    - 차주(운수사/개인차주) 가입 및 마이페이지에서 관리하는 사업자 및 운임 정산 계좌 정보입니다.
+    """
+    __tablename__ = "owner_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    company_name = Column(String, nullable=True)     # 운수사/상호명 (개인일 경우 대표자명)
+    business_number = Column(String, nullable=True)  # 사업자등록번호
+    tax_email = Column(String, nullable=True)        # 전자세금계산서 역발행용 수신 이메일
+    
+    # 운임 정산 입금 계좌
+    bank_name = Column(String, nullable=True)        # 은행명 (예: 국민은행)
+    account_number = Column(String, nullable=True)   # 계좌번호
+    account_holder = Column(String, nullable=True)   # 예금주명
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    user = relationship("User", back_populates="owner_profile")
+
 
 
 class SiteUserStatus(str, enum.Enum):

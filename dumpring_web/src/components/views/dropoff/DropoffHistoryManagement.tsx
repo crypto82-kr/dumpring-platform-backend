@@ -272,7 +272,7 @@ export default function DropoffHistoryManagement({
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <Truck className="w-6 h-6 text-emerald-600" />
-            하차지 토사 반입 운행 이력 현황
+            운행 이력 현황
           </h2>
           <p className="text-xs text-slate-500 mt-1">
             사토장에 반입 완료된 모든 덤프트럭의 운행 일지와 전자송장(상·하차 서명, 반입 검수 내역) 원본을 조회합니다.

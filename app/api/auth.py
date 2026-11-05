@@ -17,8 +17,10 @@ from app.schemas.auth import (
     DriverRegister, OwnerRegister, LoginRequest, TokenResponse, UserResponse,
     SiteManagerRegister, SiteWorkerRegister, DropOffRegister,
     CheckPhoneRegisterRequest, CheckPhoneRegisterResponse,
-    PortoneConfigResponse, PortoneVerifyIdentityRequest, PortoneVerifyIdentityResponse
+    PortoneConfigResponse, PortoneVerifyIdentityRequest, PortoneVerifyIdentityResponse,
+    UserProfileResponse, UpdateProfileRequest, ChangePasswordRequest
 )
+from app.models import OwnerProfile
 from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM, normalize_phone
 from app.core.config import settings
 from app.services.portone import portone_service
@@ -986,6 +988,7 @@ async def upload_document(
     if existing_doc:
         old_file_name = existing_doc.file_name
         existing_doc.file_name = storage_file_key
+        existing_doc.original_name = file.filename
         # 이전 물리 파일이 있으면 Supabase Storage에서 자동 삭제
         if old_file_name:
             try:
@@ -997,7 +1000,8 @@ async def upload_document(
         new_doc = UserUploadedDocument(
             user_id=current_user.id,
             document_code=document_code,
-            file_name=storage_file_key
+            file_name=storage_file_key,
+            original_name=file.filename
         )
         db.add(new_doc)
         
@@ -1822,6 +1826,7 @@ async def get_all_users_for_admin(
         docs_by_user_id.setdefault(doc.user_id, []).append({
             "code": doc.document_code,
             "file_name": doc.file_name,
+            "original_name": doc.original_name or doc.file_name,
             "url": doc.file_name if doc.file_name.startswith("http") else f"/api/files/stream/{doc.file_name.split('/')[-1]}?category=documents"
         })
 
@@ -1929,3 +1934,143 @@ async def register_device_token(
     current_user.push_enabled = data.push_enabled if data.push_enabled is not None else True
     await db.commit()
     return {"message": "기기 알림 수신키가 정상적으로 등록되었습니다.", "device_token": data.device_token}
+
+
+@router.get(
+    "/me",
+    summary="내 프로필 정보 조회",
+    description="로그인한 회원의 기본 인적사항 및 역할별 프로필(차주/현장/사토장) 데이터를 반환합니다."
+)
+async def get_my_profile(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    owner_prof_data = None
+    if current_user.is_owner:
+        op_res = await db.execute(select(OwnerProfile).where(OwnerProfile.user_id == current_user.id))
+        op = op_res.scalars().first()
+        if op:
+            owner_prof_data = {
+                "company_name": op.company_name or "",
+                "business_number": op.business_number or "",
+                "tax_email": op.tax_email or "",
+                "bank_name": op.bank_name or "",
+                "account_number": op.account_number or "",
+                "account_holder": op.account_holder or current_user.name
+            }
+        else:
+            owner_prof_data = {
+                "company_name": "",
+                "business_number": "",
+                "tax_email": "",
+                "bank_name": "",
+                "account_number": "",
+                "account_holder": current_user.name
+            }
+
+    site_prof_data = None
+    if current_user.is_site_manager:
+        sp_res = await db.execute(select(SiteProfile).where(SiteProfile.user_id == current_user.id))
+        sp = sp_res.scalars().first()
+        if sp:
+            site_prof_data = {
+                "company_name": sp.company_name or "",
+                "site_name": sp.site_name or "",
+                "business_number": sp.business_number or ""
+            }
+
+    dropoff_prof_data = None
+    if current_user.is_drop_off:
+        dp_res = await db.execute(select(DropOffProfile).where(DropOffProfile.user_id == current_user.id))
+        dp = dp_res.scalars().first()
+        if dp:
+            dropoff_prof_data = {
+                "location_name": dp.location_name or "",
+                "address": dp.address or "",
+                "permit_number": dp.permit_number or ""
+            }
+
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "phone_number": current_user.phone_number,
+        "is_owner": current_user.is_owner,
+        "is_driver": current_user.is_driver,
+        "is_site_manager": current_user.is_site_manager,
+        "is_site_worker": current_user.is_site_worker,
+        "is_drop_off": current_user.is_drop_off,
+        "is_admin": current_user.is_admin,
+        "is_approved": current_user.is_approved,
+        "reject_reason": current_user.reject_reason,
+        "created_at": current_user.created_at.strftime("%Y-%m-%d %H:%M") if current_user.created_at else None,
+        "owner_profile": owner_prof_data,
+        "site_profile": site_prof_data,
+        "drop_off_profile": dropoff_prof_data
+    }
+
+
+@router.patch(
+    "/me/profile",
+    summary="내 프로필 정보 수정",
+    description="로그인한 회원의 이름, 상호명, 세금계산서 이메일, 정산 입금 계좌를 수정합니다."
+)
+async def update_my_profile(
+    data: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if data.name:
+        current_user.name = data.name.strip()
+
+    if current_user.is_owner:
+        op_res = await db.execute(select(OwnerProfile).where(OwnerProfile.user_id == current_user.id))
+        op = op_res.scalars().first()
+        if not op:
+            op = OwnerProfile(
+                user_id=current_user.id,
+                company_name=data.company_name or "",
+                business_number=data.business_number or "",
+                tax_email=data.tax_email or "",
+                bank_name=data.bank_name or "",
+                account_number=data.account_number or "",
+                account_holder=data.account_holder or current_user.name
+            )
+            db.add(op)
+        else:
+            if data.company_name is not None: op.company_name = data.company_name.strip()
+            if data.business_number is not None: op.business_number = data.business_number.strip()
+            if data.tax_email is not None: op.tax_email = data.tax_email.strip()
+            if data.bank_name is not None: op.bank_name = data.bank_name.strip()
+            if data.account_number is not None: op.account_number = data.account_number.strip()
+            if data.account_holder is not None: op.account_holder = data.account_holder.strip()
+
+    await db.commit()
+    return {"message": "내 프로필 정보가 정상 수정되었습니다."}
+
+
+@router.post(
+    "/me/change-password",
+    summary="로그인 사용자 비밀번호 자체 변경",
+    description="현재 비밀번호를 확인한 뒤 새로운 비밀번호로 변경합니다."
+)
+async def change_my_password(
+    data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not verify_password(data.current_password, current_user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 비밀번호가 일치하지 않습니다."
+        )
+
+    if len(data.new_password) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="새 비밀번호는 최소 4자 이상이어야 합니다."
+        )
+
+    current_user.password = get_password_hash(data.new_password)
+    await db.commit()
+    return {"message": "비밀번호가 성공적으로 변경되었습니다."}
+

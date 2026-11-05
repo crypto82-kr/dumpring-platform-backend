@@ -104,7 +104,7 @@ export function PlatformAdminUnifiedApproval({
           ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
           : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
         iconBg: isWorker ? "bg-purple-500" : "bg-amber-500",
-        companyOrSite: isWorker 
+        companyOrSite: isWorker
           ? (s.siteName || s.name || "소속 현장 미지정")
           : `${s.siteName || s.name || "공사현장"} (${s.companyName || s.company || "시공사"})`,
         docName: isWorker ? "현장_담당자_연동_신청서.pdf" : "비산먼지_배출신고서_및_공사계약서.pdf",
@@ -196,11 +196,10 @@ export function PlatformAdminUnifiedApproval({
                   setVerifyZoom(1.0);
                   setVerifyRotate(0);
                 }}
-                className={`px-3 py-1.5 text-xs font-extrabold rounded-xl transition-all active:scale-95 ${
-                  isSelected
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-xl transition-all active:scale-95 ${isSelected
                     ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20 ring-2 ring-blue-600/30"
                     : "bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -217,11 +216,10 @@ export function PlatformAdminUnifiedApproval({
                 setFilterStatus("ALL");
                 setSelectedItem(null);
               }}
-              className={`px-3 py-1 text-xs font-extrabold rounded-lg transition-all ${
-                filterStatus === "ALL"
+              className={`px-3 py-1 text-xs font-extrabold rounded-lg transition-all ${filterStatus === "ALL"
                   ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              }`}
+                }`}
             >
               전체 ({allApprovalList.length})
             </button>
@@ -230,11 +228,10 @@ export function PlatformAdminUnifiedApproval({
                 setFilterStatus("PENDING");
                 setSelectedItem(null);
               }}
-              className={`px-3 py-1 text-xs font-extrabold rounded-lg transition-all ${
-                filterStatus === "PENDING"
+              className={`px-3 py-1 text-xs font-extrabold rounded-lg transition-all ${filterStatus === "PENDING"
                   ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm"
                   : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              }`}
+                }`}
             >
               심사대기 ({pendingCount})
             </button>
@@ -243,11 +240,10 @@ export function PlatformAdminUnifiedApproval({
                 setFilterStatus("REJECTED");
                 setSelectedItem(null);
               }}
-              className={`px-3 py-1 text-xs font-extrabold rounded-lg transition-all ${
-                filterStatus === "REJECTED"
+              className={`px-3 py-1 text-xs font-extrabold rounded-lg transition-all ${filterStatus === "REJECTED"
                   ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow-sm"
                   : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              }`}
+                }`}
             >
               반려됨 ({rejectedCount})
             </button>
@@ -316,11 +312,10 @@ export function PlatformAdminUnifiedApproval({
                         setActiveDocTab("DOC_1");
                       }
                     }}
-                    className={`p-5 rounded-2xl border text-left cursor-pointer transition-all duration-200 relative group overflow-hidden ${
-                      isSelected
+                    className={`p-5 rounded-2xl border text-left cursor-pointer transition-all duration-200 relative group overflow-hidden ${isSelected
                         ? "bg-blue-50/80 dark:bg-blue-950/50 border-blue-500 shadow-lg ring-2 ring-blue-500/20"
                         : "bg-slate-50/70 dark:bg-slate-950/40 hover:bg-blue-50/30 border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md"
-                    }`}
+                      }`}
                   >
                     <div className="flex justify-between items-start gap-3">
                       <div className="space-y-1.5 flex-1 min-w-0">
@@ -352,13 +347,12 @@ export function PlatformAdminUnifiedApproval({
 
                       {/* Status Tag */}
                       <span
-                        className={`text-[10.5px] font-extrabold px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 ${
-                          item.status === "반려됨"
+                        className={`text-[10.5px] font-extrabold px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 ${item.status === "반려됨"
                             ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                             : isApproved
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                        }`}
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          }`}
                       >
                         {item.status === "반려됨" ? (
                           <XCircle className="w-3 h-3 text-rose-500" />
@@ -394,11 +388,10 @@ export function PlatformAdminUnifiedApproval({
                 </div>
 
                 <span
-                  className={`text-[11px] font-extrabold px-3 py-1 rounded-xl border shrink-0 flex items-center gap-1 ${
-                    selectedItem.status === "반려됨"
+                  className={`text-[11px] font-extrabold px-3 py-1 rounded-xl border shrink-0 flex items-center gap-1 ${selectedItem.status === "반려됨"
                       ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                       : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                  }`}
+                    }`}
                 >
                   {selectedItem.status === "반려됨" ? <XCircle className="w-3.5 h-3.5 text-rose-500" /> : <AlertCircle className="w-3.5 h-3.5 animate-spin-slow" />}
                   <span>{selectedItem.status === "반려됨" ? "가입 심사 반려됨" : "승인 심사 대기중"}</span>
@@ -602,187 +595,171 @@ export function PlatformAdminUnifiedApproval({
 
                     {/* Document Tab Buttons */}
                     <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar shrink-0">
-                        {selectedItem.typeKey === "DRIVER" && (
-                          <>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_LICENSE")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_LICENSE" || activeDocTab === "DOC_1"
-                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                      {selectedItem.typeKey === "DRIVER" && (
+                        <>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_LICENSE")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_LICENSE" || activeDocTab === "DOC_1"
+                                ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              운전면허증
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_SAFETY")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_SAFETY"
-                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            운전면허증
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_SAFETY")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_SAFETY"
+                                ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              기초안전보건교육이수증
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_SPECIAL")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_SPECIAL"
-                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            기초안전보건교육이수증
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_SPECIAL")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_SPECIAL"
+                                ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              특수형태근로자 확인서
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_QUALIFICATION")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_QUALIFICATION"
-                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            특수형태근로자 확인서
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_QUALIFICATION")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_QUALIFICATION"
+                                ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              화물운송종사자격
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_BANKBOOK")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_BANKBOOK"
-                                  ? "bg-blue-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            화물운송종사자격
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_BANKBOOK")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_BANKBOOK"
+                                ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              통장사본
-                            </button>
-                          </>
-                        )}
-                        {selectedItem.typeKey === "OWNER" && (
-                          <>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_BIZ")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_1"
-                                  ? "bg-indigo-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            통장사본
+                          </button>
+                        </>
+                      )}
+                      {selectedItem.typeKey === "OWNER" && (
+                        <>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_BIZ")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_1"
+                                ? "bg-indigo-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              사업자등록증
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_MACHINERY")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_MACHINERY"
-                                  ? "bg-indigo-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            사업자등록증
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_MACHINERY")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_MACHINERY"
+                                ? "bg-indigo-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              건설기계등록증
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_INSURANCE")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_INSURANCE"
-                                  ? "bg-indigo-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            건설기계등록증
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_INSURANCE")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_INSURANCE"
+                                ? "bg-indigo-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              화물 종합보험증권
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_BANKBOOK")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_BANKBOOK"
-                                  ? "bg-indigo-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            화물 종합보험증권
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_BANKBOOK")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_BANKBOOK"
+                                ? "bg-indigo-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              통장사본
-                            </button>
-                            {/* 겸직 차주인 경우 기사 서류 탭 추가 노출 */}
-                            {(selectedItem.rawObj?.is_driver || selectedItem.rawObj?.is_direct_driver) && (
-                              <>
-                                <button
-                                  onClick={() => setActiveDocTab("DOC_LICENSE")}
-                                  className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                    activeDocTab === "DOC_LICENSE"
-                                      ? "bg-blue-600 text-white shadow-md font-extrabold"
-                                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100"
+                          >
+                            통장사본
+                          </button>
+                          {/* 겸직 차주인 경우 기사 서류 탭 추가 노출 */}
+                          {(selectedItem.rawObj?.is_driver || selectedItem.rawObj?.is_direct_driver) && (
+                            <>
+                              <button
+                                onClick={() => setActiveDocTab("DOC_LICENSE")}
+                                className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_LICENSE"
+                                    ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                    : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100"
                                   }`}
-                                >
-                                  [기사] 운전면허증
-                                </button>
-                                <button
-                                  onClick={() => setActiveDocTab("DOC_SAFETY")}
-                                  className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                    activeDocTab === "DOC_SAFETY"
-                                      ? "bg-blue-600 text-white shadow-md font-extrabold"
-                                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100"
+                              >
+                                [기사] 운전면허증
+                              </button>
+                              <button
+                                onClick={() => setActiveDocTab("DOC_SAFETY")}
+                                className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_SAFETY"
+                                    ? "bg-blue-600 text-white shadow-md font-extrabold"
+                                    : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100"
                                   }`}
-                                >
-                                  [기사] 안전교육이수증
-                                </button>
-                              </>
-                            )}
-                          </>
-                        )}
-                        {(selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER") && (
-                          <>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_BIZ")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_1"
-                                  ? "bg-amber-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                              >
+                                [기사] 안전교육이수증
+                              </button>
+                            </>
+                          )}
+                        </>
+                      )}
+                      {(selectedItem.typeKey === "SITE_MANAGER" || selectedItem.typeKey === "SITE_WORKER") && (
+                        <>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_BIZ")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_BIZ" || activeDocTab === "DOC_1"
+                                ? "bg-amber-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              사업자등록증
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_DUST")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_DUST"
-                                  ? "bg-amber-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            사업자등록증
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_DUST")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_DUST"
+                                ? "bg-amber-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              비산먼지 배출신고서
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_CONTRACT")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_CONTRACT"
-                                  ? "bg-amber-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            비산먼지 배출신고서
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_CONTRACT")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_CONTRACT"
+                                ? "bg-amber-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              공사계약서
-                            </button>
-                          </>
-                        )}
-                        {selectedItem.typeKey === "DROPOFF" && (
-                          <>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_PERMIT")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_PERMIT" || activeDocTab === "DOC_1"
-                                  ? "bg-emerald-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            공사계약서
+                          </button>
+                        </>
+                      )}
+                      {selectedItem.typeKey === "DROPOFF" && (
+                        <>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_PERMIT")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_PERMIT" || activeDocTab === "DOC_1"
+                                ? "bg-emerald-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              사토장 허가증
-                            </button>
-                            <button
-                              onClick={() => setActiveDocTab("DOC_LAND")}
-                              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${
-                                activeDocTab === "DOC_LAND"
-                                  ? "bg-emerald-600 text-white shadow-md font-extrabold"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                          >
+                            사토장 허가증
+                          </button>
+                          <button
+                            onClick={() => setActiveDocTab("DOC_LAND")}
+                            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap ${activeDocTab === "DOC_LAND"
+                                ? "bg-emerald-600 text-white shadow-md font-extrabold"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
                               }`}
-                            >
-                              토지사용승낙서
-                            </button>
-                          </>
-                        )}
+                          >
+                            토지사용승낙서
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 

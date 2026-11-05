@@ -193,6 +193,7 @@ async def update_drop_off_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    print(f"====== [DEBUG update_drop_off_request] request_id={request_id}, matched_site_id={data.matched_site_id}, matched_job_post_id={data.matched_job_post_id}, start_date={data.start_date} ======", flush=True)
     query = select(DropOffRequest).where(DropOffRequest.id == request_id)
     result = await db.execute(query)
     dropoff_req = result.scalars().first()
@@ -213,18 +214,17 @@ async def update_drop_off_request(
             detail="본인의 하차지 공고만 수정할 수 있습니다."
         )
 
-    # 제약 조건: 해당 수용 공고에 대해 이미 대기 중이거나 진행 중인 매칭 오더가 있는 경우 수정 제한
-    # (다른 공고나 하차지 전체에 걸린 오더로 인해 불필요하게 차단되지 않도록 request_id 기준으로만 검증)
+    # 제약 조건: 해당 수용 공고에 대해 이미 기사 배차가 시작된 진행 중(OPEN)인 오더가 있는 경우 수정 제한
     job_query = select(JobPost).where(
         JobPost.drop_off_request_id == request_id,
-        JobPost.status.in_(["WAITING_APPROVAL", "OPEN"])
+        JobPost.status == "OPEN"
     )
     job_result = await db.execute(job_query)
-    active_job = job_result.scalars().first()
-    if active_job:
+    active_open_job = job_result.scalars().first()
+    if active_open_job:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="현재 진행 중이거나 승인 대기 중인 매칭 오더가 존재하여 공고 정보를 수정할 수 없습니다."
+            detail="현재 기사 모집/배차가 진행 중인 매칭 오더가 존재하여 공고 정보를 수정할 수 없습니다."
         )
 
     # --- 하이브리드 공통 코드 무결성(Validation) 실시간 동적 검증 ---
@@ -284,76 +284,64 @@ async def update_drop_off_request(
     await db.commit()
     await db.refresh(dropoff_req)
 
-    # 현장 매칭 요청 처리: matched_site_id가 주어진 경우 새 JobPost 생성
-    if data.matched_site_id:
-        # 해당 현장이 실제로 존재하고 본인이 관리 중인 현장인지 확인
-        site_query = select(ConstructionSite).where(ConstructionSite.id == data.matched_site_id)
-        site_result = await db.execute(site_query)
-        target_site = site_result.scalars().first()
+    # 현장 배차 공고(JobPost) 매칭 요청 처리: matched_job_post_id가 주어진 경우 1:1 다이렉트 매칭
+    if getattr(data, "matched_job_post_id", None):
+        target_job_query = select(JobPost).where(
+            JobPost.id == data.matched_job_post_id,
+            JobPost.status.in_(["WAITING_MATCH", "WAITING_APPROVAL"])
+        )
+        target_job_result = await db.execute(target_job_query)
+        waiting_match_job = target_job_result.scalars().first()
 
-        if target_site:
+        print(f"====== [DEBUG matching branch] matched_job_post_id={data.matched_job_post_id}, found job={waiting_match_job.id if waiting_match_job else None} ======", flush=True)
+
+        if waiting_match_job:
+            # 거리 및 예상 시간 계산: JobPost에 연결된 ConstructionSite와 DropOff 간 좌표 계산
             distance = None
             est_time = None
-            if target_site.latitude and target_site.longitude and dropoff.latitude and dropoff.longitude:
-                import math
-                lat1, lon1 = target_site.latitude, target_site.longitude
-                lat2, lon2 = dropoff.latitude, dropoff.longitude
-                R = 6371.0
-                dlat = math.radians(lat2 - lat1)
-                dlon = math.radians(lon2 - lon1)
-                a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
-                c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-                distance = round(R * c, 1)
-                est_time = int(distance * 1.5 + 5)
+            if waiting_match_job.site_id:
+                site_query = select(ConstructionSite).where(ConstructionSite.id == waiting_match_job.site_id)
+                site_result = await db.execute(site_query)
+                target_site = site_result.scalars().first()
+                if target_site and target_site.latitude and target_site.longitude and dropoff.latitude and dropoff.longitude:
+                    import math
+                    lat1, lon1 = target_site.latitude, target_site.longitude
+                    lat2, lon2 = dropoff.latitude, dropoff.longitude
+                    R = 6371.0
+                    dlat = math.radians(lat2 - lat1)
+                    dlon = math.radians(lon2 - lon1)
+                    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+                    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                    distance = round(R * c, 1)
+                    est_time = int(distance * 1.5 + 5)
 
-            # WAITING_MATCH 상태인 기존 현장 공고가 존재하는지 확인
-            waiting_match_query = select(JobPost).where(
-                JobPost.site_id == data.matched_site_id,
-                JobPost.status == "WAITING_MATCH"
+            # 기존에 이 수용 공고에 묶여 있던 다른 WAITING_APPROVAL 상태 오더들을 먼저 해제(WAITING_MATCH로 원복)
+            old_pending_query = select(JobPost).where(
+                JobPost.drop_off_request_id == dropoff_req.id,
+                JobPost.id != waiting_match_job.id,
+                JobPost.status == "WAITING_APPROVAL"
             )
-            waiting_match_result = await db.execute(waiting_match_query)
-            waiting_match_job = waiting_match_result.scalars().first()
+            old_pending_res = await db.execute(old_pending_query)
+            for old_job in old_pending_res.scalars().all():
+                print(f"====== [DEBUG releasing old job] #{old_job.id} ======", flush=True)
+                old_job.drop_off_request_id = None
+                old_job.matched_drop_off_id = None
+                old_job.status = "WAITING_MATCH"
 
-            if waiting_match_job:
-                # 기존 현장 공고가 존재하면 새로 만들지 않고, 해당 공고의 상태를 WAITING_APPROVAL로 업데이트하고 수용 공고와 바인딩
-                waiting_match_job.drop_off_request_id = dropoff_req.id
-                waiting_match_job.matched_drop_off_id = dropoff_req.drop_off_id
-                waiting_match_job.status = "WAITING_APPROVAL"
-                waiting_match_job.offered_unit_price = dropoff_req.unit_price
-                waiting_match_job.payer_type = dropoff_req.payer_type
-                if distance is not None:
-                    waiting_match_job.distance = distance
-                if est_time is not None:
-                    waiting_match_job.estimated_time = est_time
-                await db.commit()
-            else:
-                # 이미 동일 공고에 대해 대기 중인 매칭 요청이 없는 경우에만 생성
-                existing_query = select(JobPost).where(
-                    JobPost.drop_off_request_id == dropoff_req.id,
-                    JobPost.site_id == data.matched_site_id,
-                    JobPost.status.in_(["WAITING_APPROVAL", "OPEN"])
-                )
-                existing_result = await db.execute(existing_query)
-                existing_job = existing_result.scalars().first()
-
-                if not existing_job:
-                    new_job = JobPost(
-                        site_id=data.matched_site_id,
-                        drop_off_request_id=dropoff_req.id,
-                        matched_drop_off_id=dropoff_req.drop_off_id,
-                        author_id=current_user.id,
-                        material_type=dropoff_req.material_type,
-                        truck_type=dropoff_req.truck_type,
-                        offered_unit_price=dropoff_req.unit_price,
-                        payer_type=dropoff_req.payer_type,
-                        work_date=dropoff_req.start_date,
-                        required_trucks=dropoff_req.target_quantity,
-                        status="WAITING_APPROVAL",
-                        distance=distance,
-                        estimated_time=est_time
-                    )
-                    db.add(new_job)
-                    await db.commit()
+            # 선택된 현장 배차 공고에 하차지 수용 공고(PK) 및 하차지 ID를 1:1 바인딩
+            waiting_match_job.drop_off_request_id = dropoff_req.id
+            waiting_match_job.matched_drop_off_id = dropoff_req.drop_off_id
+            waiting_match_job.status = "WAITING_APPROVAL"
+            waiting_match_job.offered_unit_price = dropoff_req.unit_price
+            waiting_match_job.payer_type = dropoff_req.payer_type
+            if distance is not None:
+                waiting_match_job.distance = distance
+            if est_time is not None:
+                waiting_match_job.estimated_time = est_time
+            await db.commit()
+            print(f"====== [DEBUG SUCCESS 1:1 BINDING] Job #{waiting_match_job.id} bound to Request #{dropoff_req.id} ======", flush=True)
+        else:
+            print(f"====== [DEBUG JobPost #{data.matched_job_post_id} not found or status not eligible] ======", flush=True)
 
     # 추가 바인딩 필드 설정
     dropoff_req.drop_off_name = dropoff.name

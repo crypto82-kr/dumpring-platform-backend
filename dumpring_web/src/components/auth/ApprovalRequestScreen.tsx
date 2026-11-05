@@ -6,7 +6,7 @@ import { MockMap } from "@/components/views/common/MockMap";
 
 export default function ApprovalRequestScreen() {
   const { user, logout, updateApprovalStatus } = useAuth();
-  
+
   // 폼 입력 상태
   const [companyName, setCompanyName] = useState("");
   const [siteName, setSiteName] = useState("");
@@ -18,7 +18,7 @@ export default function ApprovalRequestScreen() {
   const [longitude, setLongitude] = useState("");
   const [permitNumber, setPermitNumber] = useState("");
   const [isDirectDriver, setIsDirectDriver] = useState(false);
-  
+
   // 필수 서류 관리 상태
   const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
   const [missingDocs, setMissingDocs] = useState<any[]>([]);
@@ -59,7 +59,7 @@ export default function ApprovalRequestScreen() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [rejectReason, setRejectReason] = useState<string | null>(null);
-  
+
   // 개별 서류별 에러 상태 관리 (docCode -> 에러 메시지)
   const [docErrors, setDocErrors] = useState<Record<string, string>>({});
 
@@ -67,7 +67,7 @@ export default function ApprovalRequestScreen() {
   const checkMemberStatus = async (showLoading = false) => {
     if (showLoading) setChecking(true);
     setErrorMsg("");
-    
+
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) {
@@ -84,9 +84,10 @@ export default function ApprovalRequestScreen() {
 
       if (res.ok) {
         const data = await res.json();
-        
+
         // 1. 이미 승인 완료된 경우 즉시 대시보드로 유입
         if (data.is_approved) {
+          setChecking(false);
           updateApprovalStatus(true);
           return;
         }
@@ -132,7 +133,7 @@ export default function ApprovalRequestScreen() {
     // 1. 프론트엔드 파일 확장자 사전 검증
     const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
     const fileExt = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
-    
+
     if (!allowedExtensions.includes(fileExt)) {
       const errMsg = `[${file.name}] 허용되지 않는 파일 형식입니다. (지원 형식: jpg, png, webp, pdf)`;
       setDocErrors((prev) => ({ ...prev, [docCode]: errMsg }));
@@ -359,7 +360,7 @@ export default function ApprovalRequestScreen() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl mt-8 animate-fadeIn">
-      
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-5 mb-6">
         <div>
@@ -373,7 +374,7 @@ export default function ApprovalRequestScreen() {
             정식 플랫폼 대시보드 사용을 위해 필수 상세 정보를 입력하고 승인을 요청해야 합니다.
           </p>
         </div>
-        
+
         <button
           onClick={logout}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-950/20 dark:hover:text-rose-400 font-bold text-slate-700 dark:text-slate-300 rounded-xl transition-all"
@@ -414,7 +415,7 @@ export default function ApprovalRequestScreen() {
           <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center mx-auto text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/35">
             <RefreshCw className="w-8 h-8 animate-spin-slow" />
           </div>
-          
+
           <div className="space-y-2 max-w-md mx-auto">
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">어드민 승인을 기다리는 중입니다</h3>
             <p className="text-xs text-slate-550 leading-relaxed dark:text-slate-450">
@@ -441,7 +442,7 @@ export default function ApprovalRequestScreen() {
       ) : (
         /* ------------------ Form Submission View ------------------ */
         <form onSubmit={handleSubmitApproval} className="space-y-5">
-          
+
           {/* Site Manager Form */}
           {user?.role === "site_manager" && (
             <div className="space-y-4">
@@ -455,7 +456,7 @@ export default function ApprovalRequestScreen() {
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-black text-slate-800 dark:text-slate-200 transition-all"
                 />
               </div>
-              
+
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 block px-1">소속 공사현장명</label>
                 <input
@@ -529,7 +530,7 @@ export default function ApprovalRequestScreen() {
                     📍 지도 인터랙티브 핀 매핑 활성화
                   </span>
                 </div>
-                
+
                 <p className="text-[10.5px] text-slate-450 leading-relaxed px-1">
                   주소를 검색하면 지도 중심부 근처에 핀이 자동 매핑됩니다. 지도를 드래그하여 정확한 위치로 핀을 조정할 수 있습니다.
                 </p>
@@ -590,7 +591,7 @@ export default function ApprovalRequestScreen() {
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-black text-slate-800 dark:text-slate-200 transition-all"
                 />
               </div>
-              
+
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-550 dark:text-slate-400 block px-1">하차지 상세 주소</label>
                 <input
@@ -679,7 +680,7 @@ export default function ApprovalRequestScreen() {
                   <span>{errorMsg}</span>
                 </div>
               )}
-              
+
               <div className="space-y-3">
                 {/* Uploaded Documents */}
                 {filteredUploadedDocs.map((docCode) => {
@@ -687,11 +688,10 @@ export default function ApprovalRequestScreen() {
                   return (
                     <div
                       key={docCode}
-                      className={`p-3 rounded-xl text-xs shadow-sm transition-all border ${
-                        docError
+                      className={`p-3 rounded-xl text-xs shadow-sm transition-all border ${docError
                           ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/50 ring-1 ring-rose-500/20"
                           : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex flex-col gap-0.5">
@@ -732,11 +732,10 @@ export default function ApprovalRequestScreen() {
                           )}
 
                           {/* 서류 교체 / 재업로드 버튼 */}
-                          <label className={`px-2.5 py-1 text-[10px] font-bold rounded-lg cursor-pointer active:scale-95 transition-all shrink-0 flex items-center gap-1 border ${
-                            docError
+                          <label className={`px-2.5 py-1 text-[10px] font-bold rounded-lg cursor-pointer active:scale-95 transition-all shrink-0 flex items-center gap-1 border ${docError
                               ? "bg-rose-600 hover:bg-rose-700 text-white border-rose-600 shadow-sm"
                               : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
-                          }`}>
+                            }`}>
                             {uploadingDocCode === docCode ? (
                               <>
                                 <Loader2 className="w-3 h-3 animate-spin text-white" />
@@ -777,11 +776,10 @@ export default function ApprovalRequestScreen() {
                   return (
                     <div
                       key={doc.code}
-                      className={`p-3 rounded-xl text-xs shadow-sm transition-all border ${
-                        docError
+                      className={`p-3 rounded-xl text-xs shadow-sm transition-all border ${docError
                           ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/50 ring-1 ring-rose-500/20"
                           : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex flex-col gap-0.5">
@@ -792,7 +790,7 @@ export default function ApprovalRequestScreen() {
                             {docError ? "등록 실패 (파일 확인 필요)" : "필수 서류 미제출"}
                           </span>
                         </div>
-                        
+
                         <label className="px-3 py-1.5 bg-blue-600 hover:bg-blue-750 text-white text-[10px] font-extrabold rounded-lg cursor-pointer active:scale-95 transition-all shrink-0 flex items-center gap-1.5 shadow-sm">
                           {uploadingDocCode === doc.code ? (
                             <>

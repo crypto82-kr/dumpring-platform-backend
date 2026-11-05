@@ -130,65 +130,46 @@ async def create_drop_off_request(
     await db.commit()
     await db.refresh(new_request)
 
-    # 현장 매칭 요청 처리: matched_site_id가 주어진 경우 새 JobPost 생성
-    if data.matched_site_id:
-        site_query = select(ConstructionSite).where(ConstructionSite.id == data.matched_site_id)
-        site_result = await db.execute(site_query)
-        target_site = site_result.scalars().first()
+    # 현장 배차 공고(JobPost) 매칭 요청 처리: matched_job_post_id가 주어진 경우 1:1 다이렉트 매칭
+    if getattr(data, "matched_job_post_id", None):
+        target_job_query = select(JobPost).where(
+            JobPost.id == data.matched_job_post_id,
+            JobPost.status.in_(["WAITING_MATCH", "WAITING_APPROVAL"])
+        )
+        target_job_result = await db.execute(target_job_query)
+        waiting_match_job = target_job_result.scalars().first()
 
-        if target_site:
+        if waiting_match_job:
+            # 거리 및 예상 시간 계산
             distance = None
             est_time = None
-            if target_site.latitude and target_site.longitude and dropoff.latitude and dropoff.longitude:
-                import math
-                lat1, lon1 = target_site.latitude, target_site.longitude
-                lat2, lon2 = dropoff.latitude, dropoff.longitude
-                R = 6371.0
-                dlat = math.radians(lat2 - lat1)
-                dlon = math.radians(lon2 - lon1)
-                a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
-                c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-                distance = round(R * c, 1)
-                est_time = int(distance * 1.5 + 5)
+            if waiting_match_job.site_id:
+                site_query = select(ConstructionSite).where(ConstructionSite.id == waiting_match_job.site_id)
+                site_result = await db.execute(site_query)
+                target_site = site_result.scalars().first()
+                if target_site and target_site.latitude and target_site.longitude and dropoff.latitude and dropoff.longitude:
+                    import math
+                    lat1, lon1 = target_site.latitude, target_site.longitude
+                    lat2, lon2 = dropoff.latitude, dropoff.longitude
+                    R = 6371.0
+                    dlat = math.radians(lat2 - lat1)
+                    dlon = math.radians(lon2 - lon1)
+                    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+                    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                    distance = round(R * c, 1)
+                    est_time = int(distance * 1.5 + 5)
 
-            # WAITING_MATCH 상태인 기존 현장 공고가 존재하는지 확인
-            waiting_match_query = select(JobPost).where(
-                JobPost.site_id == data.matched_site_id,
-                JobPost.status == "WAITING_MATCH"
-            )
-            waiting_match_result = await db.execute(waiting_match_query)
-            waiting_match_job = waiting_match_result.scalars().first()
-
-            if waiting_match_job:
-                # 기존 현장 공고가 존재하면 새로 만들지 않고, 해당 공고의 상태를 WAITING_APPROVAL로 업데이트하고 수용 공고와 바인딩
-                waiting_match_job.drop_off_request_id = new_request.id
-                waiting_match_job.matched_drop_off_id = new_request.drop_off_id
-                waiting_match_job.status = "WAITING_APPROVAL"
-                waiting_match_job.offered_unit_price = new_request.unit_price
-                waiting_match_job.payer_type = new_request.payer_type
-                if distance:
-                    waiting_match_job.distance = distance
-                if est_time:
-                    waiting_match_job.estimated_time = est_time
-                await db.commit()
-            else:
-                new_job = JobPost(
-                    site_id=data.matched_site_id,
-                    drop_off_request_id=new_request.id,
-                    matched_drop_off_id=new_request.drop_off_id,
-                    author_id=current_user.id,
-                    material_type=new_request.material_type,
-                    truck_type=new_request.truck_type,
-                    offered_unit_price=new_request.unit_price,
-                    payer_type=new_request.payer_type,
-                    work_date=new_request.start_date,
-                    required_trucks=new_request.target_quantity,
-                    status="WAITING_APPROVAL",
-                    distance=distance,
-                    estimated_time=est_time
-                )
-                db.add(new_job)
-                await db.commit()
+            # 선택된 현장 배차 공고에 하차지 수용 공고(PK) 및 하차지 ID를 1:1 바인딩
+            waiting_match_job.drop_off_request_id = new_request.id
+            waiting_match_job.matched_drop_off_id = new_request.drop_off_id
+            waiting_match_job.status = "WAITING_APPROVAL"
+            waiting_match_job.offered_unit_price = new_request.unit_price
+            waiting_match_job.payer_type = new_request.payer_type
+            if distance:
+                waiting_match_job.distance = distance
+            if est_time:
+                waiting_match_job.estimated_time = est_time
+            await db.commit()
 
     # 추가 바인딩 필드 설정
     new_request.drop_off_name = dropoff.name

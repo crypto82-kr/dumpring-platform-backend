@@ -226,7 +226,7 @@ export default function DropoffDispatchManagement({
       {/* Top Title Bar */}
       <div className="flex justify-between items-center border-b border-slate-200 pb-4">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900">하차지 반입 및 배차 현황 관제</h2>
+          <h2 className="text-xl font-extrabold text-slate-900">배차 현황</h2>
           <p className="text-xs text-slate-500 mt-1">
             현장과 매칭되어 반입 운행 중인 덤프트럭 차량의 실시간 이동 동선 및 진입 현황을 관제합니다.
           </p>

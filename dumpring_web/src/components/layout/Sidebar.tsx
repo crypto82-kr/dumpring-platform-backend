@@ -31,7 +31,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sun,
-  Moon
+  Moon,
+  User
 } from "lucide-react";
 
 interface MenuItem {
@@ -120,6 +121,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "배차 스케줄러", icon: Calendar, path: "/owner/schedule" },
     { title: "운행 통계 조회", icon: BarChart3, path: "/owner/statistics" },
     { title: "매출 및 운반 정산", icon: DollarSign, path: "/owner/revenues" },
+    { title: "마이페이지", icon: User, path: "/owner/mypage" },
   ],
 };
 
@@ -187,7 +189,7 @@ export default function Sidebar() {
               <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">통합 모빌리티 플랫폼</p>
             </div>
           </div>
-          
+
           {/* User toggleable Dark Mode button */}
           <button
             onClick={toggleDarkMode}
@@ -212,17 +214,16 @@ export default function Sidebar() {
                 </div>
               </div>
             </div>
-            
+
             {/* Notifications & Logout button */}
             <div className="flex items-center gap-1 relative">
               <button
                 type="button"
                 onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className={`p-1.5 rounded-lg border transition-all relative active:scale-95 ${
-                  isNotificationOpen
+                className={`p-1.5 rounded-lg border transition-all relative active:scale-95 ${isNotificationOpen
                     ? "bg-blue-50 border-blue-300 text-blue-600 dark:bg-blue-950/40 dark:border-blue-800"
                     : "border-gray-200 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 text-gray-400"
-                }`}
+                  }`}
                 title="공통 알림 센터"
               >
                 <Bell className="w-4 h-4" />
@@ -347,14 +348,12 @@ export default function Sidebar() {
                   <a
                     href="#"
                     onClick={(e) => { e.preventDefault(); toggleMenu(item.title); }}
-                    className={`menu-item group ${
-                      isActive ? "menu-item-active" : "menu-item-inactive"
-                    }`}
+                    className={`menu-item group ${isActive ? "menu-item-active" : "menu-item-inactive"
+                      }`}
                   >
                     <Icon
-                      className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${
-                        isActive ? "text-brand-500 dark:text-brand-400" : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200"
-                      }`}
+                      className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${isActive ? "text-brand-500 dark:text-brand-400" : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200"
+                        }`}
                     />
                     <span className="flex-1">{item.title}</span>
                     {isExpanded ? (
@@ -373,9 +372,8 @@ export default function Sidebar() {
                             key={sub.title}
                             href="#"
                             onClick={(e) => { e.preventDefault(); setActivePath(sub.path); }}
-                            className={`menu-dropdown-item group ${
-                              isSubActive ? "menu-dropdown-item-active" : "menu-dropdown-item-inactive"
-                            }`}
+                            className={`menu-dropdown-item group ${isSubActive ? "menu-dropdown-item-active" : "menu-dropdown-item-inactive"
+                              }`}
                           >
                             {sub.title}
                           </a>
@@ -392,14 +390,12 @@ export default function Sidebar() {
                 key={item.title}
                 href="#"
                 onClick={(e) => { e.preventDefault(); setActivePath(item.path); }}
-                className={`menu-item group ${
-                  isActive ? "menu-item-active" : "menu-item-inactive"
-                }`}
+                className={`menu-item group ${isActive ? "menu-item-active" : "menu-item-inactive"
+                  }`}
               >
                 <Icon
-                  className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${
-                    isActive ? "text-brand-500 dark:text-brand-400" : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200"
-                  }`}
+                  className={`w-5 h-5 transition-transform duration-200 group-hover:scale-110 ${isActive ? "text-brand-500 dark:text-brand-400" : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200"
+                    }`}
                 />
                 <span>{item.title}</span>
               </a>

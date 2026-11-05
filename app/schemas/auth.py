@@ -200,3 +200,40 @@ class PortoneVerifyIdentityResponse(BaseModel):
     name: str = Field(..., description="인증된 실명")
     phone_number: str = Field(..., description="인증된 휴대폰 번호")
     message: Optional[str] = Field(None, description="안내 메시지")
+
+
+class UserProfileResponse(BaseModel):
+    id: int
+    phone_number: str
+    name: str
+    is_site_manager: bool
+    is_site_worker: bool
+    is_owner: bool
+    is_driver: bool
+    is_drop_off: bool
+    is_admin: bool
+    is_approved: bool
+    reject_reason: Optional[str] = None
+    created_at: Optional[str] = None
+    
+    # 역할별 프로필 상세
+    owner_profile: Optional[dict] = None
+    site_profile: Optional[dict] = None
+    drop_off_profile: Optional[dict] = None
+
+
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    company_name: Optional[str] = None
+    business_number: Optional[str] = None
+    tax_email: Optional[str] = None
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_holder: Optional[str] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
