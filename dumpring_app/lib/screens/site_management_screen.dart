@@ -23,6 +23,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   String get _baseUrl => AppConfig.baseUrl;
   bool _isLoading = false;
   List<dynamic> _siteMappings = [];
+  List<dynamic> _availableDropOffs = [];
 
   // 현장 생성/수정용 컨트롤러들
   final _siteFormKey = GlobalKey<FormState>();
@@ -40,6 +41,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
   void initState() {
     super.initState();
     _fetchMySites();
+    _fetchAvailableDropOffs();
   }
 
   @override
@@ -52,6 +54,270 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
     _siteLngController.dispose();
     _siteRadiusController.dispose();
     super.dispose();
+  }
+
+
+  Future<void> _fetchAvailableDropOffs() async {
+    try {
+      final res = await http.get(
+        Uri.parse("$_baseUrl/api/drop-offs/all"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (res.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(utf8.decode(res.bodyBytes));
+        setState(() {
+          _availableDropOffs = data;
+        });
+      }
+    } catch (e) {
+      debugPrint("사토장 목록 로드 실패: $e");
+    }
+  }
+
+  // 🚨 [현장 긴급 하차지/토질 변경 다이얼로그]
+  void _showChangeMaterialDropoffDialog(
+    Map<String, dynamic> site,
+    Map<String, dynamic> ticket, {
+    String? carNumber,
+    String? driverName,
+  }) {
+    final int ticketId = ticket['id'] ?? 0;
+    final job = ticket['job_post'] ?? {};
+    final String currentMaterial = job['material_type'] ?? 'GOOD_SOIL';
+    final int? currentDropoffId = (job['drop_off_id'] ?? job['dropoff_id']) as int?;
+
+    String selectedMaterial = currentMaterial;
+    int? selectedDropoffId = currentDropoffId;
+    final reasonController = TextEditingController();
+
+    final List<Map<String, String>> soilOptions = [
+      {"code": "GOOD_SOIL", "label": "양질토 (일반 흙)"},
+      {"code": "MUD_SOIL", "label": "뻘흙 / 함수비 과다"},
+      {"code": "ROCK", "label": "암버럭 / 암석"},
+      {"code": "MIXED", "label": "혼합토 / 폐콘혼합"},
+      {"code": "SAND", "label": "모래 / 마사토"},
+    ];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withAlpha(30),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.edit_location_alt_rounded, color: Colors.orange, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("하차지 및 토질 긴급 변경", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text("상차 현장에서 목적지 사토장 및 토질 변경", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    // 차량 / 기사 정보
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.local_shipping, size: 18, color: Colors.blueGrey),
+                          const SizedBox(width: 8),
+                          Text(
+                            "${carNumber ?? '배차 차량'} (${driverName ?? '기사'})",
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 1. 실제 상차된 토질 선택
+                    const Text("1. 실제 상차된 자재(토질)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedMaterial,
+                          isExpanded: true,
+                          items: soilOptions.map((opt) {
+                            return DropdownMenuItem<String>(
+                              value: opt["code"],
+                              child: Text(opt["label"]!, style: const TextStyle(fontSize: 13)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedMaterial = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 2. 변경할 목적지 사토장(하차지) 선택
+                    const Text("2. 변경 목적지(대체 사토장)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: selectedDropoffId,
+                          hint: const Text("변경할 사토장을 선택하세요", style: TextStyle(fontSize: 13)),
+                          isExpanded: true,
+                          items: _availableDropOffs.map<DropdownMenuItem<int>>((item) {
+                            final int id = item['id'] ?? 0;
+                            final String name = item['name'] ?? '사토장 #$id';
+                            final String addr = item['address'] ?? '';
+                            return DropdownMenuItem<int>(
+                              value: id,
+                              child: Text(
+                                "$name ${addr.isNotEmpty ? '($addr)' : ''}",
+                                style: const TextStyle(fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedDropoffId = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 3. 변경 사유
+                    const Text("3. 변경 사유 입력", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: reasonController,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: "예: 현장 뻘흙 터짐으로 인한 사토장 변경",
+                        hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        contentPadding: const EdgeInsets.all(12),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              ),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("취소", style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade700,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () async {
+                    if (selectedDropoffId == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("변경할 목적지 사토장을 선택해주세요.")),
+                      );
+                      return;
+                    }
+                    Navigator.pop(ctx);
+                    await _executeChangeMaterialDropoff(
+                      ticketId: ticketId,
+                      materialType: selectedMaterial,
+                      newDropoffId: selectedDropoffId!,
+                      reason: reasonController.text.trim().isEmpty ? "현장 사정에 의한 긴급 변경" : reasonController.text.trim(),
+                    );
+                  },
+                  child: const Text("변경 및 승인 완료", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 실제 변경 API 호출
+  Future<void> _executeChangeMaterialDropoff({
+    required int ticketId,
+    required String materialType,
+    required int newDropoffId,
+    required String reason,
+  }) async {
+    setState(() => _isLoading = true);
+    try {
+      final res = await http.patch(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/$ticketId/change-material-dropoff"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "actual_material_type": materialType,
+          "new_drop_off_id": newDropoffId,
+          "reason": reason,
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("🎉 하차지 및 토질이 성공적으로 변경되었습니다. 기사 앱에 실시간 반영됩니다."),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } else {
+        final err = jsonDecode(utf8.decode(res.bodyBytes));
+        _showErrorMsg(err['detail'] ?? "하차지 변경 실패");
+      }
+    } catch (e) {
+      _showErrorMsg("통신 오류 발생: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _fetchMySites() async {
@@ -1253,6 +1519,35 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                               "상차 보류",
                               style: TextStyle(
                                 color: AppColors.danger,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(width: 1, height: 48, color: AppColors.divider),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            _showChangeMaterialDropoffDialog(
+                              site,
+                              ticket,
+                              carNumber: carNumber,
+                              driverName: driverName,
+                            );
+                          },
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withAlpha(25),
+                            ),
+                            child: const Text(
+                              "하차지/토질 변경",
+                              style: TextStyle(
+                                color: Colors.deepOrange,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
