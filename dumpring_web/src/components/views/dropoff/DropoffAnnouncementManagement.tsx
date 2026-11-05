@@ -1,5 +1,5 @@
 import React from "react";
-import { Search } from "lucide-react";
+import { Search, Calendar } from "lucide-react";
 import { MockMap } from "@/components/views/common/MockMap";
 import { MatchStatusCard } from "@/components/views/common/MatchStatusCard";
 
@@ -66,13 +66,30 @@ export function DropoffAnnouncementManagement({
   const [reqTargetQuantity, setReqTargetQuantity] = React.useState("100");
   const [announceSearchQuery, setAnnounceSearchQuery] = React.useState("");
 
+  // 날짜 기간 검색 상태 (기본값: 오늘 ~ 향후 7일)
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [filterStartDate, setFilterStartDate] = React.useState<string>(todayStr);
+  const [filterEndDate, setFilterEndDate] = React.useState<string>(() => {
+    const future = new Date();
+    future.setDate(future.getDate() + 7);
+    return future.toISOString().split("T")[0];
+  });
+
   const isDetailDisabled = editingRequest?.status === "OPEN";
 
-  // 1. 본인의 하차지 수용 공고 목록 필터링 및 검색어 적용
+  // 1. 본인의 하차지 수용 공고 목록 필터링 및 검색어/날짜 기간 적용
   const myDropoffIds = registeredDropoffList.map(d => d.id);
   const rawAnnouncements = dropoffRequestList.filter(req => myDropoffIds.includes(req.dropOffId));
   const myAnnouncements = rawAnnouncements
     .filter(announce => {
+      // 1. 날짜 기간 검색 필터 (수용 지정 작업일 기준)
+      const targetDate = announce.startDate || announce.endDate;
+      if (targetDate) {
+        if (filterStartDate && targetDate < filterStartDate) return false;
+        if (filterEndDate && targetDate > filterEndDate) return false;
+      }
+
+      // 2. 검색어 필터
       if (!announceSearchQuery.trim()) return true;
       const q = announceSearchQuery.toLowerCase();
       const nameMatch = announce.name?.toLowerCase().includes(q);
@@ -281,7 +298,7 @@ export function DropoffAnnouncementManagement({
           </div>
 
           {/* 수용 공고 실시간 검색창 */}
-          <div className="relative mb-3">
+          <div className="relative">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
             <input
               type="text"
@@ -290,6 +307,82 @@ export function DropoffAnnouncementManagement({
               placeholder="공고명, 사토장, 토사 검색..."
               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-500 focus:bg-white transition-all shadow-inner"
             />
+          </div>
+
+          {/* 날짜 기간 검색 바 (현장 배차 요청 화면과 동일 UX) */}
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                <span>검색 기간 (작업일 기준)</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date().toISOString().split("T")[0];
+                    setFilterStartDate(today);
+                    setFilterEndDate(today);
+                  }}
+                  className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-slate-600 transition-all"
+                >
+                  오늘
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const start = today.toISOString().split("T")[0];
+                    const future = new Date();
+                    future.setDate(today.getDate() + 7);
+                    setFilterStartDate(start);
+                    setFilterEndDate(future.toISOString().split("T")[0]);
+                  }}
+                  className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-slate-600 transition-all"
+                >
+                  1주일
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const start = today.toISOString().split("T")[0];
+                    const future = new Date();
+                    future.setMonth(today.getMonth() + 1);
+                    setFilterStartDate(start);
+                    setFilterEndDate(future.toISOString().split("T")[0]);
+                  }}
+                  className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-slate-600 transition-all"
+                >
+                  1개월
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterStartDate("");
+                    setFilterEndDate("");
+                  }}
+                  className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-slate-600 transition-all"
+                >
+                  전체
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-700 focus:outline-none focus:border-blue-500"
+              />
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-700 focus:outline-none focus:border-blue-500"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -310,46 +403,42 @@ export function DropoffAnnouncementManagement({
                       {announce.name}
                     </span>
                     <div className="flex flex-wrap gap-1 items-center justify-end">
-                      {announce.status === "CLOSED" ? (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-600 border-rose-200">
-                          수용 정지
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200">
-                          수용 중
-                        </span>
-                      )}
                       {(() => {
-                        const linkedJobs = dispatchRequestList.filter(job => job.dropOffRequestId === announce.id);
-                        if (linkedJobs.length === 0) return null;
+                        const targetQty = Number(announce.targetQuantity) || 0;
+                        const currentQty = Number(announce.currentQuantity) || 0;
+                        const remainingQty = Math.max(0, targetQty - currentQty);
+
+                        if (announce.status === "CLOSED") {
+                          return (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-600 border-rose-200">
+                              수용 정지
+                            </span>
+                          );
+                        }
+
+                        // 목표 수량을 모두 채운 경우
+                        if (targetQty > 0 && currentQty >= targetQty) {
+                          return (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-slate-100 text-slate-700 border-slate-300">
+                              수용 완료 ({currentQty}/{targetQty}대)
+                            </span>
+                          );
+                        }
+
+                        // 일부만 매칭된 경우 (예: 2대 중 1대 매칭)
+                        if (currentQty > 0 && remainingQty > 0) {
+                          return (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-300">
+                              부분 매칭 ({currentQty}/{targetQty}대, 잔여 {remainingQty}대)
+                            </span>
+                          );
+                        }
+
+                        // 아직 매칭된 수량이 없는 순수 수용 대기 상태
                         return (
-                          <div className="flex flex-wrap items-center gap-1 justify-end">
-                            {linkedJobs.some(j => j.rawStatus === "WAITING_APPROVAL") && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-200">
-                                승인대기
-                              </span>
-                            )}
-                            {linkedJobs.some(j => j.rawStatus === "OPEN") && (
-                              <>
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-600 border-emerald-300">
-                                  매칭완료
-                                </span>
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-600 border-indigo-200">
-                                  🚚 기사 모집 중
-                                </span>
-                              </>
-                            )}
-                            {linkedJobs.some(j => j.rawStatus === "CLOSED") && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-300">
-                                🚚 기사 배차 완료
-                              </span>
-                            )}
-                            {linkedJobs.some(j => j.rawStatus === "CANCELLED") && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-600 border-rose-200">
-                                매칭반려
-                              </span>
-                            )}
-                          </div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200">
+                            수용 중 ({targetQty > 0 ? `잔여 ${targetQty}대` : "협의"})
+                          </span>
                         );
                       })()}
                     </div>
@@ -371,11 +460,37 @@ export function DropoffAnnouncementManagement({
                     const activeJob = linkedJobs.find(j => j.rawStatus === "WAITING_APPROVAL" || j.rawStatus === "OPEN" || j.rawStatus === "COMPLETED" || j.rawStatus === "CLOSED") || linkedJobs[0];
                     if (!activeJob) return null;
                     const isMySent = Number(activeJob.authorId) === Number(user?.id);
+
+                    // 현장 배차 오더의 상태 뱃지 (하차지 수용 뱃지와 명확히 구분)
+                    const getSiteJobBadge = () => {
+                      if (activeJob.rawStatus === "WAITING_APPROVAL") {
+                        return <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-700">승인 대기</span>;
+                      }
+                      if (activeJob.rawStatus === "OPEN") {
+                        return <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700">현장 기사 모집 중 ({activeJob.truckCount}대)</span>;
+                      }
+                      if (activeJob.rawStatus === "CLOSED") {
+                        return <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">현장 기사 배차 완료 ({activeJob.truckCount}대)</span>;
+                      }
+                      if (activeJob.rawStatus === "COMPLETED") {
+                        return <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-100 text-blue-700">현장 운행 완료 ({activeJob.truckCount}대)</span>;
+                      }
+                      if (activeJob.rawStatus === "CANCELLED") {
+                        return <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-700">매칭 반려</span>;
+                      }
+                      return null;
+                    };
+
                     return (
-                      <div className="mt-2 text-[9.5px] font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200/40">
-                        <span className="text-slate-400">매칭 : </span>
-                        <span>{isMySent ? "하차지 ➔ 현장" : "현장 ➔ 하차지"}</span>
-                        <span className="text-slate-400 ml-1">({activeJob.siteName})</span>
+                      <div className="mt-2 text-[9.5px] font-semibold text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200/60 flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1 truncate">
+                          <span className="text-slate-400">매칭현장:</span>
+                          <span className="font-bold text-slate-800 truncate">{activeJob.siteName}</span>
+                          <span className="text-slate-400 text-[9px]">({isMySent ? "하차지 ➔ 현장" : "현장 ➔ 하차지"})</span>
+                        </div>
+                        <div className="shrink-0">
+                          {getSiteJobBadge()}
+                        </div>
                       </div>
                     );
                   })()}
@@ -946,7 +1061,7 @@ export function DropoffAnnouncementManagement({
                       현장을 지정하지 않고 공고를 올립니다.
                     </p>
                     <p className="text-[10px] text-slate-400 font-semibold">
-                      현장 관리자들의 매칭 신청을 대기(WAITING_MATCH)합니다.
+                      현장 관리자들의 매칭 신청을 대기합니다.
                     </p>
                   </div>
                 )}
@@ -959,21 +1074,67 @@ export function DropoffAnnouncementManagement({
                       </div>
                     );
                   }
-                  const searchCandidates = dispatchRequestList.filter(job => 
-                    job.rawStatus === "WAITING_MATCH" && 
-                    job.startDate === reqWorkDate
-                  );
+
+                  const formatSoilName = (soil: string) => {
+                    if (soil === "GOOD_SOIL") return "양질토";
+                    if (soil === "MUD_SOIL") return "뻘흙";
+                    if (soil === "ROCK") return "암버럭";
+                    if (soil === "MIXED") return "혼합";
+                    return soil || "토사";
+                  };
+
+                  const formatTonName = (ton: string) => {
+                    if (ton === "T_25") return "25톤";
+                    if (ton === "T_15") return "15톤";
+                    if (ton === "T_27") return "27톤";
+                    return ton || "규격";
+                  };
+
+                  // 1. 작업일 일치 + 2. 토사 종류 동일 + 3. 차량 톤수 규격 동일
+                  const searchCandidates = dispatchRequestList.filter(job => {
+                    const isWaiting = job.rawStatus === "WAITING_MATCH";
+                    const isDateMatch = job.startDate === reqWorkDate;
+                    
+                    // 토사 종류 일치 검사
+                    const isSoilMatch = !reqMaterialType || job.soilType === reqMaterialType;
+
+                    // 차량 톤수 규격 일치 검사 (job.tonTypes 배열 또는 단일값)
+                    const isTonMatch = !reqCapacityType || (
+                      Array.isArray(job.tonTypes) && job.tonTypes.length > 0
+                        ? job.tonTypes.includes(reqCapacityType)
+                        : true
+                    );
+
+                    return isWaiting && isDateMatch && isSoilMatch && isTonMatch;
+                  });
+
                   const selectedJob = searchCandidates.find(j => String(j.id) === reqSelectedJobId);
+
                   return (
                     <div className="space-y-3 animate-fadeIn">
-                      <p className="text-[10px] text-slate-400 font-bold">
-                        ℹ️ 선택한 수용 지정 작업일({reqWorkDate})에 매칭 가능한 현장 공고 목록입니다.
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <p className="text-[10px] text-slate-500 font-bold">
+                          ℹ️ 선택 조건과 일치하는 매칭 대기 현장 공고 목록입니다.
+                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                            📅 작업일: {reqWorkDate}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            흙: {formatSoilName(reqMaterialType)}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            🚚 {formatTonName(reqCapacityType)}
+                          </span>
+                        </div>
+                      </div>
+
                       <div className="space-y-1.5">
                         <label className="text-slate-700 font-bold block">현장 배차 공고 선택 <span className="text-rose-500">*</span></label>
                         {searchCandidates.length === 0 ? (
-                          <div className="p-3 text-center bg-slate-100 border border-slate-200 rounded-xl text-[11px] text-slate-500 font-semibold">
-                            해당 날짜에 등록된 매칭 대기 중인 현장 공고가 없습니다.
+                          <div className="p-3.5 text-center bg-slate-100 border border-slate-200 rounded-xl text-[11px] text-slate-500 font-semibold space-y-1">
+                            <p>조건(작업일: {reqWorkDate}, 토종: {formatSoilName(reqMaterialType)}, 톤수: {formatTonName(reqCapacityType)})에 맞는 현장 배차 공고가 없습니다.</p>
+                            <p className="text-[10px] text-slate-400">토사 종류나 차량 규격이 일치하는 공고만 노출됩니다.</p>
                           </div>
                         ) : (
                           <select
@@ -991,12 +1152,17 @@ export function DropoffAnnouncementManagement({
                             className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 font-bold focus:outline-none focus:border-blue-500 transition-all shadow-sm"
                             required
                           >
-                            <option value="">-- 매칭할 등록 현장 공고 선택 --</option>
-                            {searchCandidates.map(job => (
-                              <option key={job.id} value={job.id}>
-                                [공고 #{job.id}] {job.siteName} (작업일: {job.startDate} | {job.soilType === "GOOD_SOIL" ? "양질토" : job.soilType === "MUD_SOIL" ? "뻘흙" : job.soilType === "ROCK" ? "암버럭" : job.soilType === "MIXED" ? "혼합" : job.soilType} | {job.truckCount}대)
-                              </option>
-                            ))}
+                            <option value="">-- 매칭할 등록 현장 공고 선택 ({searchCandidates.length}건 일치) --</option>
+                            {searchCandidates.map(job => {
+                              const jobTon = Array.isArray(job.tonTypes) && job.tonTypes.length > 0
+                                ? job.tonTypes.map((t: string) => formatTonName(t)).join(", ")
+                                : "규격 미지정";
+                              return (
+                                <option key={job.id} value={job.id}>
+                                  [공고 #{job.id}] {job.siteName} (작업일: {job.startDate} | 토종: {formatSoilName(job.soilType)} | 차량: {jobTon} | {job.truckCount}대)
+                                </option>
+                              );
+                            })}
                           </select>
                         )}
                       </div>
@@ -1008,11 +1174,11 @@ export function DropoffAnnouncementManagement({
                           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] font-semibold">
                             <div>• 현장명: <span className="text-slate-900 font-bold">{selectedJob.siteName}</span></div>
                             <div>• 작업일: <span className="text-slate-900 font-bold">{selectedJob.startDate}</span></div>
-                            <div>• 토사 종류: <span className="text-blue-700 font-bold">{
-                              selectedJob.soilType === "GOOD_SOIL" ? "양질토" :
-                              selectedJob.soilType === "MUD_SOIL" ? "뻘흙" :
-                              selectedJob.soilType === "ROCK" ? "암버럭" :
-                              selectedJob.soilType === "MIXED" ? "혼합" : selectedJob.soilType
+                            <div>• 토사 종류: <span className="text-blue-700 font-bold">{formatSoilName(selectedJob.soilType)}</span></div>
+                            <div>• 차량 규격: <span className="text-amber-700 font-bold">{
+                              Array.isArray(selectedJob.tonTypes) && selectedJob.tonTypes.length > 0
+                                ? selectedJob.tonTypes.map((t: string) => formatTonName(t)).join(", ")
+                                : "25톤"
                             }</span></div>
                             <div>• 필요 수량: <span className="text-slate-900 font-bold">{selectedJob.truckCount} 대</span></div>
                             <div>• 제시 단가: <span className="text-emerald-700 font-bold">{selectedJob.offeredUnitPrice.toLocaleString()} 원/㎥</span></div>

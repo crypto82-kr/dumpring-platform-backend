@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, List, Any
 from app.schemas import KstDateTime
 from app.schemas.jobs import JobPostResponse
+from app.schemas.locations import DropOffResponse
 
 class FavoriteRegionCreate(BaseModel):
     sido: str = Field(..., description="시/도 (예: 서울특별시, 경기도)")
@@ -69,7 +70,7 @@ class DispatchTicketResponse(BaseModel):
     changed_drop_off_id: Optional[int] = None
     change_reason: Optional[str] = None
     changed_at: Optional[KstDateTime] = None
-    changed_drop_off: Optional[Any] = None
+    changed_drop_off: Optional[DropOffResponse] = None
 
     class Config:
         orm_mode = True

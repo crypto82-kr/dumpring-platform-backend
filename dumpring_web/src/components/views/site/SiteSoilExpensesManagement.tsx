@@ -948,11 +948,21 @@ export default function SiteSoilExpensesManagement({
                               ₩ {item.totalAmount.toLocaleString()}
                             </span>
                           </div>
-                          <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1.5 mt-1">
+                          <div className="text-[11px] text-slate-500 font-bold flex flex-wrap items-center gap-1.5 mt-1">
                             <span>하차 사토장:</span>
                             <span className="text-slate-800 font-extrabold">{item.dropoffName}</span>
                             <span>•</span>
                             <span className="text-blue-600">{item.soilType}</span>
+                            {item.isChanged && (
+                              <span className="px-1.5 py-0.2 text-[9px] font-black rounded bg-amber-500 text-white shrink-0" title={`변경 사유: ${item.changeReason || '미입력'}`}>
+                                하차지/성상변경
+                              </span>
+                            )}
+                            {item.isSplit && (
+                              <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-slate-100 text-slate-600 border border-slate-300">
+                                분할정산 ({item.truckCount}/{item.totalOrderTrucks}대)
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1014,11 +1024,25 @@ export default function SiteSoilExpensesManagement({
                         <span className="block text-slate-500 text-[11px] mt-0.5">{selectedJobItem.siteAddress || "현장 주소지 정보"}</span>
                       </div>
                       <div className="p-3 bg-white rounded-lg border border-slate-200">
-                        <span className="text-slate-400 block font-bold text-[10px]">하차 사토장</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 block font-bold text-[10px]">하차 사토장</span>
+                          {selectedJobItem.isChanged && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-black rounded bg-amber-500 text-white">
+                              긴급 변경 적용
+                            </span>
+                          )}
+                        </div>
                         <span className="font-black text-slate-800 text-sm">{selectedJobItem.dropoffName}</span>
                         <span className="block text-slate-500 text-[11px] mt-0.5">{selectedJobItem.dropoffAddress || "사토장 위치 정보"}</span>
                       </div>
                     </div>
+
+                    {selectedJobItem.isChanged && selectedJobItem.changeReason && (
+                      <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 flex items-start gap-1.5">
+                        <span className="font-black shrink-0">⚠️ 변경 사유:</span>
+                        <span className="font-medium">{selectedJobItem.changeReason}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 2. 토사 스펙 및 대수 산출 명세 */}

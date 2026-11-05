@@ -157,13 +157,10 @@ async def update_drop_off_request_status(
             detail="상태값은 'OPEN' 또는 'CLOSED'여야 합니다."
         )
 
-    # 제약 조건: CLOSED 상태로 전환 시, 대기 중이거나 진행 중인 매칭 오더가 없어야 함
+    # 제약 조건: CLOSED 상태로 전환 시, 해당 공고에 직접 연결된 대기 중이거나 진행 중인 매칭 오더가 없어야 함
     if new_status == "CLOSED":
         job_query = select(JobPost).where(
-            sa.or_(
-                JobPost.drop_off_request_id == request_id,
-                JobPost.matched_drop_off_id == dropoff_req.drop_off_id
-            ),
+            JobPost.drop_off_request_id == request_id,
             JobPost.status.in_(["WAITING_APPROVAL", "OPEN"])
         )
         job_result = await db.execute(job_query)
@@ -171,7 +168,7 @@ async def update_drop_off_request_status(
         if active_job:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="현재 진행 중이거나 승인 대기 중인 매칭 오더가 존재하여 공고를 정지할 수 없습니다."
+                detail=f"해당 공고에 대기 중이거나 진행 중인 오더(공고 #{active_job.id})가 존재하여 수용을 일시정지할 수 없습니다."
             )
 
     dropoff_req.status = new_status

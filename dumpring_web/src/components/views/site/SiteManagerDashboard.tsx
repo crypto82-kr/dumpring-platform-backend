@@ -3,6 +3,7 @@ import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock } from "lucide-re
 import { getApiBaseUrl } from "@/utils/api";
 import { MockMap } from "@/components/views/common/MockMap";
 import { MatchStatusCard } from "@/components/views/common/MatchStatusCard";
+import DocumentViewerModal from "@/components/common/DocumentViewerModal";
 
 interface SiteManagerDashboardProps {
   activePath: string;
@@ -168,6 +169,9 @@ export function SiteManagerDashboard({
   const [siteFormDustReportUrl, setSiteFormDustReportUrl] = useState("");
   const [isUploadingBizLicense, setIsUploadingBizLicense] = useState(false);
   const [isUploadingDustReport, setIsUploadingDustReport] = useState(false);
+
+  // 서류 뷰어 모달 상태
+  const [viewingDoc, setViewingDoc] = useState<{ title: string; url: string } | null>(null);
 
   const uploadDocumentFile = async (file: File, docType: "biz_license" | "dust_report") => {
     const formData = new FormData();
@@ -561,14 +565,21 @@ export function SiteManagerDashboard({
                             </span>
                           </div>
                           {selectedSite.bizLicenseUrl ? (
-                            <a
-                              href={`http://127.0.0.1:8000${selectedSite.bizLicenseUrl}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-blue-600 font-bold hover:underline"
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const fullUrl = selectedSite.bizLicenseUrl.startsWith("http")
+                                  ? selectedSite.bizLicenseUrl
+                                  : `${getApiBaseUrl()}${selectedSite.bizLicenseUrl}`;
+                                setViewingDoc({
+                                  title: `[${selectedSite.name}] 사업자등록증`,
+                                  url: fullUrl
+                                });
+                              }}
+                              className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition-all"
                             >
                               📄 열람하기
-                            </a>
+                            </button>
                           ) : (
                             <span className="text-[10px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                               미첨부 (수정에서 등록)
@@ -589,14 +600,21 @@ export function SiteManagerDashboard({
                             </span>
                           </div>
                           {selectedSite.dustReportUrl ? (
-                            <a
-                              href={`http://127.0.0.1:8000${selectedSite.dustReportUrl}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-blue-600 font-bold hover:underline"
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const fullUrl = selectedSite.dustReportUrl.startsWith("http")
+                                  ? selectedSite.dustReportUrl
+                                  : `${getApiBaseUrl()}${selectedSite.dustReportUrl}`;
+                                setViewingDoc({
+                                  title: `[${selectedSite.name}] 비산먼지 배출신고 필증`,
+                                  url: fullUrl
+                                });
+                              }}
+                              className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition-all"
                             >
                               📄 열람하기
-                            </a>
+                            </button>
                           ) : (
                             <span className="text-[10px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                               미첨부 (수정에서 등록)
@@ -1130,6 +1148,14 @@ export function SiteManagerDashboard({
           </table>
         </div>
       </div>
+
+      {/* 통합 서류 열람 뷰어 모달 */}
+      <DocumentViewerModal
+        isOpen={Boolean(viewingDoc)}
+        onClose={() => setViewingDoc(null)}
+        title={viewingDoc?.title || "서류 확인"}
+        fileUrl={viewingDoc?.url || null}
+      />
     </div>
   );
 }

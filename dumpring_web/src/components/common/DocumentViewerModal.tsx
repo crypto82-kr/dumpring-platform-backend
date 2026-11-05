@@ -2,12 +2,14 @@
 
 import React, { useState } from "react";
 import { ZoomIn, ZoomOut, RotateCcw, X, FileText, Download } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DocumentViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   fileUrl: string | null;
+  canDownload?: boolean;
 }
 
 export default function DocumentViewerModal({
@@ -15,9 +17,15 @@ export default function DocumentViewerModal({
   onClose,
   title,
   fileUrl,
+  canDownload,
 }: DocumentViewerModalProps) {
+  const { user } = useAuth();
   const [zoom, setZoom] = useState(1.0);
   const [rotation, setRotation] = useState(0);
+
+  // 플랫폼 관리자(platform_admin) 또는 시스템 개발자(developer)만 다운로드 가능 (명시적 canDownload prop 허용)
+  const isPlatformAdmin = user?.role === "platform_admin" || user?.role === "developer";
+  const allowDownload = canDownload !== undefined ? canDownload : isPlatformAdmin;
 
   if (!isOpen || !fileUrl) return null;
 
@@ -85,16 +93,18 @@ export default function DocumentViewerModal({
               </div>
             )}
 
-            <a
-              href={fileUrl}
-              download
-              target="_blank"
-              rel="noreferrer"
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>다운로드</span>
-            </a>
+            {allowDownload && (
+              <a
+                href={fileUrl}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>다운로드</span>
+              </a>
+            )}
 
             <button
               type="button"

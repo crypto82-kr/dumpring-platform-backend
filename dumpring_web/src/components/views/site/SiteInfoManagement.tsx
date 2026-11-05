@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2, X, QrCode } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 import { MockMap } from "@/components/views/common/MockMap";
+import DocumentViewerModal from "@/components/common/DocumentViewerModal";
 
 export interface RegisteredSiteItem {
   id: number;
@@ -570,14 +571,22 @@ export default function SiteInfoManagement({
                           </span>
                         </div>
                         {selectedSite.bizLicenseUrl ? (
-                          <a
-                            href={selectedSite.bizLicenseUrl.startsWith("http") ? selectedSite.bizLicenseUrl : `${getApiBaseUrl()}${selectedSite.bizLicenseUrl}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-blue-600 font-bold hover:underline"
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const rawUrl = selectedSite.bizLicenseUrl || "";
+                              const fullUrl = rawUrl.startsWith("http")
+                                ? rawUrl
+                                : `${getApiBaseUrl()}${rawUrl}`;
+                              setViewingDoc({
+                                title: `[${selectedSite.name}] 사업자등록증`,
+                                url: fullUrl
+                              });
+                            }}
+                            className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition-all"
                           >
                             📄 열람하기
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-[10px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                             미첨부 (정보 수정에서 파일 선택)
@@ -598,14 +607,22 @@ export default function SiteInfoManagement({
                           </span>
                         </div>
                         {selectedSite.dustReportUrl ? (
-                          <a
-                            href={selectedSite.dustReportUrl.startsWith("http") ? selectedSite.dustReportUrl : `${getApiBaseUrl()}${selectedSite.dustReportUrl}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-blue-600 font-bold hover:underline"
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const rawUrl = selectedSite.dustReportUrl || "";
+                              const fullUrl = rawUrl.startsWith("http")
+                                ? rawUrl
+                                : `${getApiBaseUrl()}${rawUrl}`;
+                              setViewingDoc({
+                                title: `[${selectedSite.name}] 비산먼지 배출신고 필증`,
+                                url: fullUrl
+                              });
+                            }}
+                            className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition-all"
                           >
                             📄 열람하기
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-[10px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                             미첨부 (정보 수정에서 파일 선택)
@@ -1008,6 +1025,14 @@ export default function SiteInfoManagement({
           </div>
         </div>
       )}
+
+      {/* 통합 서류 열람 뷰어 모달 */}
+      <DocumentViewerModal
+        isOpen={Boolean(viewingDoc)}
+        onClose={() => setViewingDoc(null)}
+        title={viewingDoc?.title || "서류 확인"}
+        fileUrl={viewingDoc?.url || null}
+      />
     </div>
   );
 }

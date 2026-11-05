@@ -82,6 +82,7 @@ def get_ticket_eager_options():
         selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
         selectinload(DispatchTicket.driver),
         selectinload(DispatchTicket.car).selectinload(Car.owner),
+        selectinload(DispatchTicket.changed_drop_off),
     ]
 
 async def fetch_loaded_ticket(ticket_id: int, db: AsyncSession) -> Optional[DispatchTicket]:
@@ -1923,61 +1924,95 @@ async def get_site_soil_expenses(
         if unit_price == 0 and j.drop_off_request:
             unit_price = j.drop_off_request.unit_price or 0
 
-        truck_count = arrived_count if arrived_count > 0 else (j.required_trucks or 0)
-        total_amount = unit_price * truck_count if payer_type != "FREE" else 0
+        # 3-1. 해당 JobPost의 실제 반입 승인 완료된 티켓 목록 조회 (하차지/성상 변경 여부 확인)
+        ticket_query = (
+            select(DispatchTicket)
+            .where(
+                DispatchTicket.job_post_id == j.id,
+                DispatchTicket.status.in_(arrived_ticket_statuses)
+            )
+            .options(
+                selectinload(DispatchTicket.changed_drop_off)
+            )
+        )
+        t_res = await db.execute(ticket_query)
+        completed_tickets = t_res.scalars().all()
 
-        if payer_type == "SITE_PAYS":
-            total_expense += total_amount
-        elif payer_type == "SITE_RECEIVES":
-            total_income += total_amount
+        # 만약 완료 티켓이 없으면 건너뜀
+        if not completed_tickets:
+            continue
 
-        # 토사 종류 표시명
-        soil_type_raw = j.material_type or (j.drop_off_request.material_type if j.drop_off_request else "") or "일반토사"
-        soil_type_name = material_type_map.get(soil_type_raw, soil_type_raw)
+        # 티켓들을 (drop_off_id, dropoff_name, material_type) 별로 그룹핑
+        # 변경된 하차지/성상이 있는 티켓은 해당 변경 정보로 집계
+        breakdowns = {}
+        for t in completed_tickets:
+            target_drop_id = t.changed_drop_off_id if t.changed_drop_off_id else (j.matched_drop_off_id or (j.drop_off_request.drop_off_id if j.drop_off_request else None))
+            
+            # 하차지명 판별
+            if t.changed_drop_off and t.changed_drop_off.name:
+                t_drop_name = t.changed_drop_off.name
+                t_drop_address = t.changed_drop_off.address
+            else:
+                t_drop_name = dropoff_name
+                t_drop_address = j.drop_off_address or ""
 
-        # 흙값 정산 상태 매핑
-        # SETTLEMENT_PAID: 송금 완료
-        # 흙값 정산 상태 판정:
-        # - SETTLEMENT_CLOSED: 관리자/담당자가 최종 마감 확정한 건만 "정산 마감"
-        # - SETTLEMENT_CONFIRMED: 수취처 입금 수령 확인 완료 (마감 대기)
-        # - SETTLEMENT_PAID: 지급처 송금 완료 (수령 확인 대기)
-        # - SETTLEMENT_DISPUTED: 이의제기 / 정산 보류
-        # - COMPLETED 또는 운행완료(APPROVED 등) 직후: 아직 정산 처리 전이므로 "정산 검토"
-        if j.status == "SETTLEMENT_CLOSED":
-            status_desc = "정산 마감"
-        elif j.status == "SETTLEMENT_CONFIRMED":
-            status_desc = "수령 확인"
-        elif j.status == "SETTLEMENT_PAID":
-            status_desc = "송금 완료"
-        elif j.status == "SETTLEMENT_DISPUTED":
-            status_desc = "이의제기"
-        else:
-            status_desc = "정산 검토"
+            # 토사 종류 판별
+            t_soil_raw = t.actual_material_type or j.material_type or (j.drop_off_request.material_type if j.drop_off_request else "") or "GOOD_SOIL"
+            t_soil_name = material_type_map.get(t_soil_raw, t_soil_raw)
+            is_changed = bool(t.changed_drop_off_id or t.actual_material_type)
 
-        disputed_at_str = ""
-        if j.disputed_at:
-            d_dt = j.disputed_at if j.disputed_at.tzinfo else j.disputed_at.replace(tzinfo=timezone.utc)
-            disputed_at_str = d_dt.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M")
+            group_key = (target_drop_id, t_drop_name, t_soil_name, is_changed)
+            if group_key not in breakdowns:
+                breakdowns[group_key] = {
+                    "drop_off_id": target_drop_id,
+                    "dropoff_name": t_drop_name,
+                    "dropoff_address": t_drop_address,
+                    "soil_type": t_soil_name,
+                    "is_changed": is_changed,
+                    "change_reason": t.change_reason or "",
+                    "truck_count": 0,
+                    "ticket_ids": []
+                }
+            breakdowns[group_key]["truck_count"] += 1
+            breakdowns[group_key]["ticket_ids"].append(t.id)
 
-        soil_items.append({
-            "id": j.id,
-            "jobPostId": f"JOB-#{j.id:04d}",
-            "workDate": work_date_str,
-            "siteId": j.site_id,
-            "siteName": site_name_val,
-            "dropoffName": dropoff_name,
-            "soilType": soil_type_name,
-            "payerType": payer_type,
-            "unitPrice": unit_price,
-            "truckCount": truck_count,
-            "totalAmount": total_amount,
-            "rawStatus": j.status,
-            "status": status_desc,
-            "disputeType": j.dispute_type,
-            "disputeReason": j.dispute_reason,
-            "disputeAmount": j.dispute_amount,
-            "disputedAt": disputed_at_str,
-        })
+        # 각 그룹별로 soil_items에 추가 (동일 공고라도 하차지/토질이 달라진 경우 분리 표시)
+        for idx, ((g_drop_id, g_drop_name, g_soil_name, g_is_changed), b_data) in enumerate(breakdowns.items()):
+            b_truck_count = b_data["truck_count"]
+            b_total_amount = unit_price * b_truck_count if payer_type != "FREE" else 0
+
+            if payer_type == "SITE_PAYS":
+                total_expense += b_total_amount
+            elif payer_type == "SITE_RECEIVES":
+                total_income += b_total_amount
+
+            soil_items.append({
+                "id": j.id,
+                "splitId": f"{j.id}-{idx}",
+                "jobPostId": f"JOB-#{j.id:04d}" if len(breakdowns) == 1 else f"JOB-#{j.id:04d}-{idx+1}",
+                "workDate": work_date_str,
+                "siteId": j.site_id,
+                "siteName": site_name_val,
+                "siteAddress": site_obj.site_address if site_obj else "",
+                "dropoffName": g_drop_name,
+                "dropoffAddress": b_data["dropoff_address"],
+                "dropOffId": g_drop_id,
+                "soilType": g_soil_name,
+                "isChanged": g_is_changed,
+                "changeReason": b_data["change_reason"],
+                "payerType": payer_type,
+                "unitPrice": unit_price,
+                "truckCount": b_truck_count,
+                "totalAmount": b_total_amount,
+                "rawStatus": j.status,
+                "status": status_desc,
+                "disputeType": j.dispute_type,
+                "disputeReason": j.dispute_reason,
+                "disputeAmount": j.dispute_amount,
+                "disputedAt": disputed_at_str,
+                "isSplit": len(breakdowns) > 1,
+                "totalOrderTrucks": len(completed_tickets),
+            })
 
     return {
         "summary": {
@@ -2499,14 +2534,15 @@ async def change_ticket_material_and_dropoff(
         raise HTTPException(status_code=404, detail="티켓을 찾을 수 없습니다.")
 
     # 권한 검증: 현장관리자, 현장담당자, 시스템관리자
-    allowed_roles = ["ROLE_ADMIN"]
-    is_authorized = current_user.role in allowed_roles or current_user.is_site_manager or current_user.is_site_worker or current_user.is_admin
+    is_authorized = current_user.is_site_manager or current_user.is_site_worker or current_user.is_admin
     if not is_authorized:
         raise HTTPException(status_code=403, detail="현장 관리자 또는 시스템 관리자만 변경할 수 있습니다.")
 
-    # 이미 완료되었거나 취소된 티켓은 변경 불가
-    if ticket.status in ["APPROVED", "CANCELLED", "REJECTED"]:
-        raise HTTPException(status_code=400, detail="이미 운행이 완료되거나 취소된 티켓은 변경할 수 없습니다.")
+    # 이미 완료(APPROVED)되었거나 취소(CANCELLED)된 티켓은 변경 불가 (REJECTED 반입거부건은 새 하차지 지정하여 재운행 허용)
+    if ticket.status in ["APPROVED", "CANCELLED"]:
+        raise HTTPException(status_code=400, detail="이미 반입 완료되거나 취소된 티켓은 변경할 수 없습니다.")
+    if ticket.status == "REJECTED" and not data.new_drop_off_id:
+        raise HTTPException(status_code=400, detail="반입 거부된 티켓은 변경할 새로운 하차지(사토장)를 지정해야 합니다.")
 
     now = datetime.now()
     if data.new_material_type:

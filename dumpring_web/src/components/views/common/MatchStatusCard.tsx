@@ -188,7 +188,7 @@ export const MatchStatusCard: React.FC<MatchStatusCardProps> = ({
       {rawStatus === "WAITING_MATCH" && (
         <div className="pt-2 border-t border-slate-150">
           <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-[11px] font-semibold text-blue-800 leading-normal animate-fadeIn">
-            ⏳ <strong>매칭 대기 중:</strong> 현재 공고는 하차지 매칭 대기(WAITING_MATCH) 상태입니다.
+            ⏳ <strong>매칭 대기 중:</strong> 현재 공고는 하차지(사토장) 매칭을 대기하고 있는 상태입니다.
           </div>
         </div>
       )}

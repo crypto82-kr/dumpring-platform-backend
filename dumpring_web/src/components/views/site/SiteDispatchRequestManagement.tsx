@@ -1062,11 +1062,23 @@ export default function SiteDispatchRequestManagement({
                         return false;
                       }
 
+                      // 1. 작업일 일치 필터
                       if (dispatchFormStartDate) {
                         const dropDate = drop.startDate || drop.workDate;
                         if (dropDate && dropDate !== dispatchFormStartDate) {
                           return false;
                         }
+                      }
+
+                      // 2. 토사 종류 동일성 필터 (반출 토사와 하차지 수용 토사가 일치해야 함)
+                      if (dispatchFormSoilType && drop.soilType && drop.soilType !== dispatchFormSoilType) {
+                        return false;
+                      }
+
+                      // 3. 차량 톤수 동일성 필터 (요청 톤수와 하차지 수용 톤수가 일치해야 함)
+                      const requestedTon = dispatchFormTonTypes && dispatchFormTonTypes.length > 0 ? dispatchFormTonTypes[0] : "";
+                      if (requestedTon && drop.truckType && drop.truckType !== requestedTon) {
+                        return false;
                       }
 
                       if (!dropoffSearchQuery.trim()) return true;
@@ -1082,15 +1094,30 @@ export default function SiteDispatchRequestManagement({
                       dispatchFormDropoffRequestId ? d.id === dispatchFormDropoffRequestId : d.name === dispatchFormDropoffName
                     );
 
+                    const requestedTon = dispatchFormTonTypes && dispatchFormTonTypes.length > 0 ? dispatchFormTonTypes[0] : "";
+                    const tonName = requestedTon === "T_25" ? "25톤" : requestedTon === "T_15" ? "15톤" : requestedTon === "T_27" ? "27톤" : requestedTon;
+
                     return (
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-1">
                           <label className="text-xs text-slate-700 font-bold block">등록 하차지 수용 공고 검색 / 선택</label>
-                          {dispatchFormStartDate && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
-                              작업일({dispatchFormStartDate}) 수용 가능 필터링
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {dispatchFormStartDate && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                                📅 작업일: {dispatchFormStartDate}
+                              </span>
+                            )}
+                            {dispatchFormSoilType && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                흙: {formatSoilType(dispatchFormSoilType)}
+                              </span>
+                            )}
+                            {tonName && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                🚚 {tonName}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         
                         <div className="relative">
@@ -1140,12 +1167,13 @@ export default function SiteDispatchRequestManagement({
                         >
                           <option value="">
                             {filteredDropoffs.length === 0
-                              ? `선택한 작업일(${dispatchFormStartDate})에 수용 가능한 하차지 공고가 없습니다.`
-                              : `수용 공고 하차지 선택 (수용 가능: ${filteredDropoffs.length}건)`}
+                              ? `조건(작업일: ${dispatchFormStartDate || "-"}, 토종: ${formatSoilType(dispatchFormSoilType)}, 톤수: ${tonName || "-"})에 맞는 수용 가능 공고가 없습니다.`
+                              : `수용 공고 하차지 선택 (일치 공고: ${filteredDropoffs.length}건)`}
                           </option>
                           {filteredDropoffs.map((drop: any) => {
                             const dateStr = drop.startDate ? `[작업일: ${drop.startDate}] ` : "";
                             const soilName = formatSoilType(drop.soilType);
+                            const dropTon = drop.truckType === "T_25" ? "25톤" : drop.truckType === "T_15" ? "15톤" : drop.truckType === "T_27" ? "27톤" : drop.truckType;
                             const target = drop.targetQuantity || 0;
                             const current = drop.currentQuantity || 0;
                             const remaining = Math.max(0, target - current);
@@ -1155,7 +1183,7 @@ export default function SiteDispatchRequestManagement({
 
                             return (
                               <option key={drop.id} value={drop.id}>
-                                {dateStr}{drop.name} ({drop.address}) - 토종: {soilName} / {capacityStr}
+                                {dateStr}{drop.name} ({drop.address}) - 토종: {soilName} / 규격: {dropTon} / {capacityStr}
                               </option>
                             );
                           })}
