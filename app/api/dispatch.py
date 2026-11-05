@@ -7,13 +7,13 @@ from datetime import datetime, date, timedelta
 from pydantic import BaseModel
 
 from app.core.db import get_db
-from app.models import (
+from app.models import GpsTrack, (
     User, JobPost, DropOff, DropOffRequest, ConstructionSite, 
     DriverFavoriteRegion, DispatchTicket, Driver, Car, CommonCode,
     SiteEmployee
 )
 from app.api.auth import get_current_user
-from app.schemas.dispatch import (
+from app.schemas.dispatch import GpsTrackBatchRequest, GpsTrackResponse, (
     FavoriteRegionCreate, FavoriteRegionResponse,
     DispatchTicketResponse, InspectionRequest, ArriveRequest,
     ApproveLoadingRequest, RejectLoadingRequest
@@ -2354,3 +2354,111 @@ async def get_dispatch_control_job_posts(
 
 
 
+
+
+# ==========================================
+# 🛰️ [실시간 GPS 궤적 수집 및 운행 관제 API]
+# ==========================================
+
+@router.post(
+    "/tickets/{ticket_id}/gps-tracks",
+    summary="[기사용] GPS 궤적 10초 배치 업로드",
+    description="기사 앱에서 운행 중 10초 주기로 수집된 GPS 좌표 목록을 서버 DB(gps_tracks)에 일괄 저장합니다."
+)
+async def upload_gps_tracks(
+    ticket_id: int,
+    data: GpsTrackBatchRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    ticket = await db.get(DispatchTicket, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="티켓을 찾을 수 없습니다.")
+
+    # 티켓의 기사 본인 확인
+    if ticket.driver_id != current_user.id and current_user.role != "ROLE_ADMIN":
+        raise HTTPException(status_code=403, detail="해당 티켓의 운행 기사만 GPS 좌표를 전송할 수 있습니다.")
+
+    if not data.points:
+        return {"status": "success", "saved_count": 0}
+
+    new_tracks = []
+    now = datetime.now()
+    for pt in data.points:
+        new_tracks.append(
+            GpsTrack(
+                ticket_id=ticket.id,
+                driver_id=current_user.id,
+                latitude=pt.latitude,
+                longitude=pt.longitude,
+                speed_kmh=pt.speed_kmh,
+                heading=pt.heading,
+                accuracy=pt.accuracy,
+                recorded_at=pt.recorded_at or now
+            )
+        )
+
+    db.add_all(new_tracks)
+    await db.commit()
+
+    return {
+        "status": "success",
+        "saved_count": len(new_tracks),
+        "ticket_status": ticket.status
+    }
+
+
+@router.get(
+    "/tickets/{ticket_id}/gps-tracks",
+    response_model=list[GpsTrackResponse],
+    summary="[공통/관리자] 티켓 운행 GPS 전체 궤적 조회",
+    description="티켓의 운행 중 수집된 전체 GPS 궤적 목록을 시간순으로 조회합니다. (관제 지도 폴리라인 표출 및 분쟁 중재 증빙용)"
+)
+async def get_ticket_gps_tracks(
+    ticket_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    ticket = await db.get(DispatchTicket, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="티켓을 찾을 수 없습니다.")
+
+    query = (
+        select(GpsTrack)
+        .where(GpsTrack.ticket_id == ticket_id)
+        .order_by(GpsTrack.recorded_at.asc())
+    )
+    res = await db.execute(query)
+    return res.scalars().all()
+
+
+@router.get(
+    "/tickets/{ticket_id}/gps-latest",
+    summary="[공통/관리자] 차량 실시간 최신 위치 단건 조회",
+    description="해당 운행 티켓의 가장 최근에 수집된 GPS 1건(현재 위치)을 조회합니다."
+)
+async def get_ticket_latest_gps(
+    ticket_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    query = (
+        select(GpsTrack)
+        .where(GpsTrack.ticket_id == ticket_id)
+        .order_by(GpsTrack.recorded_at.desc())
+        .limit(1)
+    )
+    res = await db.execute(query)
+    latest = res.scalars().first()
+    if not latest:
+        return {"has_location": False, "message": "수집된 위치 정보가 없습니다."}
+
+    return {
+        "has_location": True,
+        "latitude": latest.latitude,
+        "longitude": latest.longitude,
+        "speed_kmh": latest.speed_kmh,
+        "heading": latest.heading,
+        "accuracy": latest.accuracy,
+        "recorded_at": latest.recorded_at.isoformat() if latest.recorded_at else None
+    }

@@ -673,3 +673,28 @@ class SiteSafetyNoticeRead(Base):
     driver = relationship("User", foreign_keys=[driver_id])
 
 
+
+
+class GpsTrack(Base):
+    """
+    [GPS 운행 궤적 및 실시간 위치 트래킹 테이블]
+    - 기사가 운행 중(DRIVING) 10초 주기로 전송하는 위치 좌표, 속도, 방위각 저장
+    - 관제 대시보드 실시간 표출 및 운행 후 궤적/분쟁 중재 증빙용
+    """
+    __tablename__ = "gps_tracks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("dispatch_tickets.id", ondelete="CASCADE"), nullable=False, index=True)
+    driver_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    speed_kmh = Column(Float, default=0.0, nullable=False)
+    heading = Column(Float, nullable=True)  # 이동 방향 (0~360도)
+    accuracy = Column(Float, nullable=True) # GPS 수신 오차 (m)
+
+    recorded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    # Relationships
+    ticket = relationship("DispatchTicket", backref="gps_tracks")
+    driver = relationship("User", foreign_keys=[driver_id])

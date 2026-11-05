@@ -50,6 +50,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   DateTime? _lastPositionTime;
   double _gpsAccuracy = 0.0;
   bool _hasGpsSignal = false;
+  final List<Map<String, dynamic>> _gpsBatchBuffer = [];
+  DateTime? _lastGpsUploadTime;
 
   // Dynamic pricing policy & planned metrics
   String _calculationMethod = "CONTINUOUS";
@@ -1009,6 +1011,23 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           _lastPosition = position;
           _lastPositionTime = DateTime.now();
 
+          // 🛰️ 10초 주기 서버 전송용 GPS 버퍼에 누적
+          _gpsBatchBuffer.add({
+            "latitude": position.latitude,
+            "longitude": position.longitude,
+            "speed_kmh": calculatedSpeed.toDouble(),
+            "heading": position.heading,
+            "accuracy": position.accuracy,
+            "recorded_at": DateTime.now().toIso8601String(),
+          });
+
+          // 10초 경과 시 서버 DB로 일괄 전송
+          final now = DateTime.now();
+          if (_lastGpsUploadTime == null || now.difference(_lastGpsUploadTime!).inSeconds >= 10) {
+            _lastGpsUploadTime = now;
+            _flushGpsBatchBuffer();
+          }
+
           setState(() {
             _hasGpsSignal = true;
             _gpsAccuracy = position.accuracy;
@@ -1031,7 +1050,41 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
   }
 
+  Future<void> _flushGpsBatchBuffer() async {
+    if (_gpsBatchBuffer.isEmpty) return;
+    final List<Map<String, dynamic>> toUpload = List.from(_gpsBatchBuffer);
+    _gpsBatchBuffer.clear();
+
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/gps-tracks"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "points": toUpload,
+        }),
+      );
+      if (response.statusCode == 200) {
+        debugPrint("★ [GPS Tracking] 10초 배치 전송 성공 (${toUpload.length}건)");
+      } else {
+        debugPrint("★ [GPS Tracking] 전송 실패: ${response.statusCode}");
+        // 통신 오류 시 재시도를 위해 버퍼 앞에 다시 추가 (최대 100개 제한)
+        if (_gpsBatchBuffer.length + toUpload.length < 100) {
+          _gpsBatchBuffer.insertAll(0, toUpload);
+        }
+      }
+    } catch (e) {
+      debugPrint("★ [GPS Tracking] 전송 예외 발생: $e");
+      if (_gpsBatchBuffer.length + toUpload.length < 100) {
+        _gpsBatchBuffer.insertAll(0, toUpload);
+      }
+    }
+  }
+
   void _stopMeterTracking() {
+    _flushGpsBatchBuffer();
     _meterTimer?.cancel();
     _meterTimer = null;
     _positionStreamSub?.cancel();

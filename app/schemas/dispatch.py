@@ -91,3 +91,29 @@ class ArriveRequest(BaseModel):
     max_single_offline_seconds: Optional[int] = Field(0, description="단일 최대 오프라인 시간 (초)")
     total_offline_seconds: Optional[int] = Field(0, description="총 오프라인 시간 (초)")
     client_timestamp_ms: Optional[int] = Field(None, description="기사 단말기 현재 에폭 타임스탬프 (ms)")
+
+
+class GpsTrackPoint(BaseModel):
+    latitude: float = Field(..., description="위도")
+    longitude: float = Field(..., description="경도")
+    speed_kmh: float = Field(0.0, description="속도(km/h)")
+    heading: Optional[float] = Field(None, description="방위각")
+    accuracy: Optional[float] = Field(None, description="GPS 정확도(m)")
+    recorded_at: Optional[datetime] = Field(None, description="수집 시각")
+
+class GpsTrackBatchRequest(BaseModel):
+    points: list[GpsTrackPoint] = Field(..., description="10초 동안 수집된 GPS 좌표 목록")
+
+class GpsTrackResponse(BaseModel):
+    id: int
+    ticket_id: int
+    driver_id: int
+    latitude: float
+    longitude: float
+    speed_kmh: float
+    heading: Optional[float]
+    accuracy: Optional[float]
+    recorded_at: datetime
+
+    class Config:
+        from_attributes = True
