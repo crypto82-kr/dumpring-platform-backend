@@ -108,6 +108,9 @@ class GpsTrackPoint(BaseModel):
     recorded_at: Optional[datetime] = Field(None, description="수집 시각")
 
 class GpsTrackBatchRequest(BaseModel):
+    current_distance_km: Optional[float] = Field(None, description="현재 누적 거리")
+    current_elapsed_seconds: Optional[int] = Field(None, description="현재 총 운행 시간(초)")
+    current_fare: Optional[int] = Field(None, description="현재 실시간 정산 금액")
     points: list[GpsTrackPoint] = Field(..., description="10초 동안 수집된 GPS 좌표 목록")
 
 class GpsTrackResponse(BaseModel):

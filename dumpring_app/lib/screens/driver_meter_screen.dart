@@ -866,9 +866,14 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         }
       }
 
-      _elapsedSeconds = savedTime ?? ticket['drive_time_seconds'] ?? 0;
-      _distanceKm = savedDistance ?? (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
-      _currentFare = savedFare ?? ticket['accumulated_fare'] ?? _baseTariff;
+      // 앱 재설치 시 로컬 캐시가 날아갔어도 서버 DB의 최신 실시간 거리/요금을 그대로 복원
+      final int serverSec = ticket['drive_time_seconds'] ?? 0;
+      final double serverKm = (ticket['drive_distance_km'] as num?)?.toDouble() ?? 0.0;
+      final int serverFare = ticket['accumulated_fare'] ?? _baseTariff;
+
+      _elapsedSeconds = (savedTime != null && savedTime > serverSec) ? savedTime : serverSec;
+      _distanceKm = (savedDistance != null && savedDistance > serverKm) ? savedDistance : serverKm;
+      _currentFare = (savedFare != null && savedFare > serverFare) ? savedFare : serverFare;
       if (_currentFare == 0) {
         _currentFare = _baseTariff;
       }
@@ -1177,6 +1182,9 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         },
         body: jsonEncode({
           "points": toUpload,
+          "current_distance_km": _distanceKm,
+          "current_elapsed_seconds": _elapsedSeconds,
+          "current_fare": _currentFare,
         }),
       );
       if (response.statusCode == 200) {

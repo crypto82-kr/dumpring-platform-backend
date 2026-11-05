@@ -2404,6 +2404,16 @@ async def upload_gps_tracks(
         )
 
     db.add_all(new_tracks)
+
+    # 💾 [앱 삭제/재설치 대비 실시간 동기화]
+    # 기사가 운행 중 10초마다 보낸 거리, 시간, 금액을 티켓 원장에도 즉시 반영
+    if data.current_distance_km is not None and data.current_distance_km > ticket.drive_distance_km:
+        ticket.drive_distance_km = data.current_distance_km
+    if data.current_elapsed_seconds is not None and data.current_elapsed_seconds > ticket.drive_time_seconds:
+        ticket.drive_time_seconds = data.current_elapsed_seconds
+    if data.current_fare is not None and data.current_fare > ticket.accumulated_fare:
+        ticket.accumulated_fare = data.current_fare
+
     await db.commit()
 
     return {
