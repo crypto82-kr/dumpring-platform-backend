@@ -52,6 +52,7 @@ class DispatchTicketResponse(BaseModel):
     status: str
     loading_approval_type: Optional[str] = None
     loading_rejection_reason: Optional[str] = None
+    dropoff_rejection_reason: Optional[str] = None
     proof_photo: Optional[str] = None
     accumulated_fare: int
     drive_distance_km: float

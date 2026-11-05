@@ -571,6 +571,7 @@ class DispatchTicket(Base):
     status = Column(String, default="ACCEPTED", nullable=False)
     loading_approval_type = Column(String, nullable=True)  # 상차 승인 방식 ('QR' 또는 'OFFICE')
     loading_rejection_reason = Column(String, nullable=True)  # 상차 보류/재작업 사유
+    dropoff_rejection_reason = Column(String, nullable=True)  # 하차지 토사 반입 금지/반려 사유 (예: 뻘토, 암석 섞임)
     proof_photo = Column(String, nullable=True)  # 지주 부재 시 실시간 현장 증빙 사진 URL
 
     accumulated_fare = Column(Integer, default=0, nullable=False)

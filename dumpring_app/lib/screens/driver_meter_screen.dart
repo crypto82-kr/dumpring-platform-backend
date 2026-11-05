@@ -94,6 +94,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
 
   bool _isSiteLoadingApproved = false;
   String? _loadingRejectionReason; // 현장담당자가 전달한 상차 보류 사유
+  String? _dropoffRejectionReason; // 하차지 지주가 전달한 반입 거부/금지 사유
   String _approvalMode = "MANAGER_SCANS_DRIVER";
   String _dropoffInspectionMode = "MANAGER_SCANS_DRIVER";
   bool _isTestLocationBypass = kDebugMode; // 디버그/테스트 환경 기본 활성화 (현장 밖에서도 QR 스캔/운행 테스트 가능)
@@ -736,6 +737,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     }
 
     _loadingRejectionReason = ticket['loading_rejection_reason'];
+    _dropoffRejectionReason = ticket['dropoff_rejection_reason'];
 
     if (status == "ACCEPTED") {
       _driveStep = 1;
@@ -764,6 +766,13 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         _attachedPhoto = ticket['proof_photo'];
       } else if (status == "APPROVED" || status == "COMPLETED") {
         _driveStep = 5;
+        _stopMeterTracking();
+        _statusPollTimer?.cancel();
+      } else if (status == "REJECTED") {
+        // 🚨 지주가 토사 반입 거부한 경우: 4단계(대기 화면)에 머물며 대체 하차지 지정 대기
+        _driveStep = 4;
+        _stopMeterTracking();
+        _startStatusPollTimer(); // 대체 하차지 지정을 실시간 감지하기 위해 폴링 유지
       }
 
       final prefs = await SharedPreferences.getInstance();
@@ -802,6 +811,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       }
 
       if (status == "DRIVING") {
+        _driveStep = 3;
         _resumeMeterTimer();
       } else if (status == "ARRIVED" || status == "WAITING_ABSENT_APPROVAL") {
         _startStatusPollTimer();
@@ -2330,6 +2340,44 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           ),
         ),
         SizedBox(height: 28),
+        // 🚨 [하차지 반입 금지/반려 발생 시 긴급 안내 배너]
+        if (_dropoffRejectionReason != null) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red.withAlpha(20),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.withAlpha(120), width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.block, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      "하차지 토사 반입 금지 (반려 통보)",
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 14),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "반려 사유: $_dropoffRejectionReason",
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  "• 상차지 현장관리자가 대체 사토장(제2 하차지)을 지정하면 화면이 자동으로 갱신되며 미터기가 재가동됩니다.\n• 추가 주행거리와 시간 요금은 기존 금액에 누적되어 온전히 정산됩니다.",
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+
         if (!_isLandownerAbsent) ...[
           // 1. 관리자가 기사를 스캔할 때 (내 QR 띄우기)
           ElevatedButton.icon(

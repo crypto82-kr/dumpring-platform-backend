@@ -1112,7 +1112,10 @@ async def inspect_and_confirm(
 
     await validate_dispatch_status(decision_status, db)
     ticket.status = decision_status
-    ticket.completed_at = datetime.now()
+    if decision_status == "REJECTED":
+        ticket.dropoff_rejection_reason = data.reason or "토질 부적합 또는 현장 사정으로 반입 금지 처리됨"
+    else:
+        ticket.completed_at = datetime.now()
 
     # [내실 다지기 🚨] 해당 JobPost에 연동된 모든 DispatchTicket들의 반입 완료 여부 검증
     # 만약 배차 신청한 모든 차량의 운행이 완료(APPROVED)되었고,
@@ -2501,6 +2504,13 @@ async def change_ticket_material_and_dropoff(
 
     ticket.change_reason = data.reason
     ticket.changed_at = now
+
+    # 🚨 [반입 금지/반려 후 새 하차지 지정 시 운행 자동 재개]
+    # 기사가 반입 거부(REJECTED)된 상태에서 현장관리자가 새 하차지를 지정하면,
+    # 미터기 및 티켓 상태를 다시 운행 중('DRIVING')으로 자동 복구하여 추가 거리/시간 요금 누적을 이어가도록 처리
+    if ticket.status == "REJECTED" and data.new_drop_off_id:
+        ticket.status = "DRIVING"
+        ticket.completed_at = None
 
     await db.commit()
     await db.refresh(ticket)
