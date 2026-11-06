@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy import or_, and_, update, func
 from typing import List, Optional
 from datetime import datetime, date, timedelta
@@ -1779,7 +1780,8 @@ async def update_settlement_status(
 
 
 class SoilSettlementStatusUpdateRequest(BaseModel):
-    job_post_ids: List[int]
+    job_post_ids: Optional[List[int]] = []
+    ticket_ids: Optional[List[int]] = None
     target_status: str  # 'SETTLEMENT_REVIEW', 'SETTLEMENT_PAID', 'SETTLEMENT_CONFIRMED', 'SETTLEMENT_DISPUTED'
     dispute_type: Optional[str] = "SITE"  # 'SITE' 또는 'DROPOFF'
     dispute_reason: Optional[str] = None
@@ -1873,14 +1875,20 @@ async def get_site_soil_expenses(
     total_expense = 0
     total_income = 0
 
-    # material_type 한글 매핑 딕셔너리
+    # material_type 한글 매핑 딕셔너리 (DB 공통코드 + 표준 코드 전체 커버)
     material_type_map = {
-        "GOOD_SOIL": "양질토사",
+        "GOOD_SOIL": "양질토",
         "SOIL": "일반토사",
-        "ROCK": "발파암/암버럭",
-        "MUD_SOIL": "뻘흙/점토",
+        "NORMAL_SOIL": "일반토사",
+        "NORMAL": "일반토사",
+        "ROCK": "암버럭",
+        "MUD_SOIL": "뻘흙",
+        "MUD": "뻘흙",
+        "CLAY": "점토",
         "SAND": "모래/골재",
-        "MIXED_SOIL": "혼합토사"
+        "MIXED": "혼합토",
+        "MIXED_SOIL": "혼합토",
+        "WEATHERED_SOIL": "풍화토"
     }
 
     from datetime import timezone, timedelta
@@ -1987,10 +1995,12 @@ async def get_site_soil_expenses(
                     "is_changed": is_changed,
                     "change_reason": t.change_reason or "",
                     "truck_count": 0,
-                    "ticket_ids": []
+                    "ticket_ids": [],
+                    "tickets": []
                 }
             breakdowns[group_key]["truck_count"] += 1
             breakdowns[group_key]["ticket_ids"].append(t.id)
+            breakdowns[group_key]["tickets"].append(t)
 
         # 각 그룹별로 soil_items에 추가 (동일 공고라도 하차지/토질이 달라진 경우 분리 표시)
         for idx, ((g_drop_id, g_drop_name, g_soil_name, g_is_changed), b_data) in enumerate(breakdowns.items()):
@@ -2002,21 +2012,35 @@ async def get_site_soil_expenses(
             elif payer_type == "SITE_RECEIVES":
                 total_income += b_total_amount
 
-            # 상태 라벨 매핑
-            status_map = {
-                "COMPLETED": "운행 완료 (정산 확정)",
-                "CLOSED": "운행 진행 중 (마감)",
-                "OPEN": "기사 모집 중",
-                "WAITING_MATCH": "매칭 대기",
-                "WAITING_APPROVAL": "승인 대기"
-            }
-            status_desc = status_map.get(j.status, "운행 완료")
-            disputed_at_str = j.disputed_at.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M") if getattr(j, "disputed_at", None) else None
+            # 그룹별 독립 정산 상태 판정 (해당 하차지 묶음 티켓의 soil_settlement_status 기준)
+            rep_ticket = b_data["tickets"][0]
+            eff_status = getattr(rep_ticket, "soil_settlement_status", None) or j.status
+            eff_dispute_type = getattr(rep_ticket, "soil_dispute_type", None) or j.dispute_type
+            eff_dispute_reason = getattr(rep_ticket, "soil_dispute_reason", None) or j.dispute_reason
+            eff_dispute_amount = getattr(rep_ticket, "soil_dispute_amount", None) if getattr(rep_ticket, "soil_dispute_amount", None) is not None else j.dispute_amount
+            eff_disputed_at = getattr(rep_ticket, "soil_disputed_at", None) or getattr(j, "disputed_at", None)
+
+            if eff_status == "SETTLEMENT_CLOSED":
+                status_desc = "정산 마감"
+            elif eff_status == "SETTLEMENT_CONFIRMED":
+                status_desc = "수령 확인"
+            elif eff_status == "SETTLEMENT_PAID":
+                status_desc = "송금 완료"
+            elif eff_status == "SETTLEMENT_DISPUTED":
+                status_desc = "이의제기"
+            else:
+                status_desc = "정산 검토"
+
+            disputed_at_str = None
+            if eff_disputed_at:
+                d_dt = eff_disputed_at if eff_disputed_at.tzinfo else eff_disputed_at.replace(tzinfo=timezone.utc)
+                disputed_at_str = d_dt.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M")
 
             soil_items.append({
                 "id": j.id,
                 "splitId": f"{j.id}-{idx}",
-                "jobPostId": f"JOB-#{j.id:04d}" if len(breakdowns) == 1 else f"JOB-#{j.id:04d}-{idx+1}",
+                "ticketIds": b_data["ticket_ids"],
+                "jobPostId": f"{j.id:04d}" if len(breakdowns) == 1 else f"{j.id:04d}-{idx+1}",
                 "workDate": work_date_str,
                 "siteId": j.site_id,
                 "siteName": site_name_val,
@@ -2031,11 +2055,11 @@ async def get_site_soil_expenses(
                 "unitPrice": unit_price,
                 "truckCount": b_truck_count,
                 "totalAmount": b_total_amount,
-                "rawStatus": j.status,
+                "rawStatus": eff_status,
                 "status": status_desc,
-                "disputeType": j.dispute_type,
-                "disputeReason": j.dispute_reason,
-                "disputeAmount": j.dispute_amount,
+                "disputeType": eff_dispute_type,
+                "disputeReason": eff_dispute_reason,
+                "disputeAmount": eff_dispute_amount,
                 "disputedAt": disputed_at_str,
                 "isSplit": len(breakdowns) > 1,
                 "totalOrderTrucks": len(completed_tickets),
@@ -2133,14 +2157,20 @@ async def get_dropoff_soil_settlements(
     jobs_res = await db.execute(job_query)
     jobs = jobs_res.scalars().all()
 
-    # 4. 데이터 가공
+    # 4. 데이터 가공 (DB 공통코드 + 표준 코드 전체 커버)
     material_type_map = {
-        "GOOD_SOIL": "양질토사",
+        "GOOD_SOIL": "양질토",
         "SOIL": "일반토사",
-        "ROCK": "발파암/암버럭",
-        "MUD_SOIL": "뻘흙/점토",
+        "NORMAL_SOIL": "일반토사",
+        "NORMAL": "일반토사",
+        "ROCK": "암버럭",
+        "MUD_SOIL": "뻘흙",
+        "MUD": "뻘흙",
+        "CLAY": "점토",
         "SAND": "모래/골재",
-        "MIXED_SOIL": "혼합토사"
+        "MIXED": "혼합토",
+        "MIXED_SOIL": "혼합토",
+        "WEATHERED_SOIL": "풍화토"
     }
 
     from datetime import timezone, timedelta
@@ -2239,31 +2269,16 @@ async def get_dropoff_soil_settlements(
                     "is_changed": is_changed,
                     "change_reason": t.change_reason or "",
                     "truck_count": 0,
-                    "ticket_ids": []
+                    "ticket_ids": [],
+                    "tickets": []
                 }
             breakdowns[group_key]["truck_count"] += 1
             breakdowns[group_key]["ticket_ids"].append(t.id)
+            breakdowns[group_key]["tickets"].append(t)
 
         # 현재 사토장으로 실제 반입된 티켓이 없으면 건너뜀 (전량 타 사토장으로 회차된 경우)
         if not breakdowns:
             continue
-
-        # 정산 상태 판정
-        if j.status == "SETTLEMENT_CLOSED":
-            status_desc = "정산 마감"
-        elif j.status == "SETTLEMENT_CONFIRMED":
-            status_desc = "수령 확인"
-        elif j.status == "SETTLEMENT_PAID":
-            status_desc = "송금 완료"
-        elif j.status == "SETTLEMENT_DISPUTED":
-            status_desc = "이의제기"
-        else:
-            status_desc = "정산 검토"
-
-        disputed_at_str = ""
-        if j.disputed_at:
-            d_dt = j.disputed_at if j.disputed_at.tzinfo else j.disputed_at.replace(tzinfo=timezone.utc)
-            disputed_at_str = d_dt.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M")
 
         for idx, ((g_drop_id, g_drop_name, g_soil_name, g_is_changed), b_data) in enumerate(breakdowns.items()):
             b_truck_count = b_data["truck_count"]
@@ -2274,10 +2289,35 @@ async def get_dropoff_soil_settlements(
             elif payer_type == "SITE_RECEIVES":
                 total_expense += b_total_amount
 
+            # 그룹별 독립 정산 상태 판정 (해당 하차지 묶음 티켓의 soil_settlement_status 기준)
+            rep_ticket = b_data["tickets"][0]
+            eff_status = getattr(rep_ticket, "soil_settlement_status", None) or j.status
+            eff_dispute_type = getattr(rep_ticket, "soil_dispute_type", None) or j.dispute_type
+            eff_dispute_reason = getattr(rep_ticket, "soil_dispute_reason", None) or j.dispute_reason
+            eff_dispute_amount = getattr(rep_ticket, "soil_dispute_amount", None) if getattr(rep_ticket, "soil_dispute_amount", None) is not None else j.dispute_amount
+            eff_disputed_at = getattr(rep_ticket, "soil_disputed_at", None) or getattr(j, "disputed_at", None)
+
+            if eff_status == "SETTLEMENT_CLOSED":
+                status_desc = "정산 마감"
+            elif eff_status == "SETTLEMENT_CONFIRMED":
+                status_desc = "수령 확인"
+            elif eff_status == "SETTLEMENT_PAID":
+                status_desc = "송금 완료"
+            elif eff_status == "SETTLEMENT_DISPUTED":
+                status_desc = "이의제기"
+            else:
+                status_desc = "정산 검토"
+
+            disputed_at_str = ""
+            if eff_disputed_at:
+                d_dt = eff_disputed_at if eff_disputed_at.tzinfo else eff_disputed_at.replace(tzinfo=timezone.utc)
+                disputed_at_str = d_dt.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M")
+
             settlement_items.append({
                 "id": j.id,
                 "splitId": f"{j.id}-{idx}",
-                "jobPostId": f"JOB-#{j.id:04d}" if len(breakdowns) == 1 else f"JOB-#{j.id:04d}-{idx+1}",
+                "ticketIds": b_data["ticket_ids"],
+                "jobPostId": f"{j.id:04d}" if len(breakdowns) == 1 else f"{j.id:04d}-{idx+1}",
                 "workDate": work_date_str,
                 "dropOffId": g_drop_id,
                 "siteId": j.site_id,
@@ -2290,11 +2330,11 @@ async def get_dropoff_soil_settlements(
                 "unitPrice": unit_price,
                 "truckCount": b_truck_count,
                 "totalAmount": b_total_amount,
-                "rawStatus": j.status,
+                "rawStatus": eff_status,
                 "status": status_desc,
-                "disputeType": j.dispute_type,
-                "disputeReason": j.dispute_reason,
-                "disputeAmount": j.dispute_amount,
+                "disputeType": eff_dispute_type,
+                "disputeReason": eff_dispute_reason,
+                "disputeAmount": eff_dispute_amount,
                 "disputedAt": disputed_at_str,
                 "isSplit": len(breakdowns) > 1,
             })
@@ -2327,36 +2367,58 @@ async def update_soil_settlement_status(
     - 'SETTLEMENT_DISPUTED': 이의제기 / 정산 보류
     - 'CLOSED': 이의제기 보류 해제 및 정산 재검토
     """
-    if not req.job_post_ids:
+    if not req.ticket_ids and not req.job_post_ids:
         return {"success": True, "updated_count": 0}
-
-    query = select(JobPost).where(JobPost.id.in_(req.job_post_ids))
-    res = await db.execute(query)
-    jobs = res.scalars().all()
 
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
 
-    for j in jobs:
+    if req.target_status in ["COMPLETED", "SETTLEMENT_CLOSED"]:
+        mapped_status = "SETTLEMENT_CLOSED"
+    else:
+        mapped_status = req.target_status
+
+    # 1. ticket_ids가 전달된 경우: 해당 하차지 분할 묶음 티켓만 정확히 독립 업데이트!
+    if req.ticket_ids:
+        t_query = select(DispatchTicket).where(DispatchTicket.id.in_(req.ticket_ids))
+    else:
+        t_query = select(DispatchTicket).where(DispatchTicket.job_post_id.in_(req.job_post_ids))
+
+    t_res = await db.execute(t_query)
+    target_tickets = t_res.scalars().all()
+
+    affected_job_ids = set()
+    for t in target_tickets:
+        affected_job_ids.add(t.job_post_id)
+        t.soil_settlement_status = mapped_status
         if req.target_status == "SETTLEMENT_DISPUTED":
-            j.status = "SETTLEMENT_DISPUTED"
-            j.dispute_type = req.dispute_type or "SITE"
-            j.dispute_reason = req.dispute_reason or "흙값 정산 금액/내역 불일치 이의제기"
-            j.dispute_amount = req.dispute_amount
-            j.disputed_at = now
-        elif req.target_status == "CLOSED":  # 보류 해제 후 재검토
-            j.status = "CLOSED"
-        elif req.target_status == "SETTLEMENT_CONFIRMED":
-            j.status = "SETTLEMENT_CONFIRMED"
-        elif req.target_status == "SETTLEMENT_PAID":
-            j.status = "SETTLEMENT_PAID"
-        elif req.target_status in ["COMPLETED", "SETTLEMENT_CLOSED"]:
-            j.status = "SETTLEMENT_CLOSED"
-        else:
-            j.status = req.target_status
+            t.soil_dispute_type = req.dispute_type or "SITE"
+            t.soil_dispute_reason = req.dispute_reason or "흙값 정산 금액/내역 불일치 이의제기"
+            t.soil_dispute_amount = req.dispute_amount
+            t.soil_disputed_at = now
+        elif req.target_status == "CLOSED":
+            t.soil_dispute_type = None
+            t.soil_dispute_reason = None
+            t.soil_dispute_amount = None
+            t.soil_disputed_at = None
+
+    # 2. 만약 분할되지 않은 단일 하차지 오더이거나, 모든 티켓이 동일 상태가 된 경우에만 JobPost 상태도 동기화
+    if affected_job_ids:
+        j_query = select(JobPost).where(JobPost.id.in_(list(affected_job_ids))).options(selectinload(JobPost.tickets))
+        j_res = await db.execute(j_query)
+        jobs = j_res.scalars().all()
+        for j in jobs:
+            valid_tickets = [tk for tk in j.tickets if tk.status not in ["REJECTED", "CANCELLED"]]
+            if valid_tickets and all(getattr(tk, "soil_settlement_status", None) == mapped_status for tk in valid_tickets):
+                j.status = mapped_status
+                if req.target_status == "SETTLEMENT_DISPUTED":
+                    j.dispute_type = req.dispute_type or "SITE"
+                    j.dispute_reason = req.dispute_reason or "흙값 정산 금액/내역 불일치 이의제기"
+                    j.dispute_amount = req.dispute_amount
+                    j.disputed_at = now
 
     await db.commit()
-    return {"success": True, "updated_count": len(jobs), "target_status": req.target_status}
+    return {"success": True, "updated_count": len(target_tickets), "target_status": req.target_status}
 
 
 @router.get(

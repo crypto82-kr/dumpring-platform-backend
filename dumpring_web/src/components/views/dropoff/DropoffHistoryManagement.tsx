@@ -121,7 +121,7 @@ export default function DropoffHistoryManagement({
   // 실무 검수 및 운행 상태 한글 뱃지 포매터
   const getStatusBadgeInfo = (status: string | undefined | null) => {
     const s = (status || "").toUpperCase();
-    if (["APPROVED", "COMPLETED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"].includes(s)) {
+    if (["APPROVED", "COMPLETED", "SETTLEMENT_REQUESTED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"].includes(s)) {
       return {
         label: "반입 확정",
         className: "bg-emerald-100 text-emerald-800 border-emerald-300",
@@ -574,20 +574,20 @@ export default function DropoffHistoryManagement({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-100/70 text-slate-600 font-extrabold">
-                  <th className="py-3 px-3 text-center w-12">No</th>
-                  <th className="py-3 px-3">송장 번호</th>
-                  <th className="py-3 px-3">반입 일자/시간</th>
-                  <th className="py-3 px-3">출발 상차지 (공사현장)</th>
-                  <th className="py-3 px-3">도착 사토장</th>
-                  <th className="py-3 px-3">운행 기사</th>
-                  <th className="py-3 px-3">차량 번호</th>
-                  <th className="py-3 px-3">반입토사</th>
-                  <th className="py-3 px-3 text-right">반입 단가</th>
-                  <th className="py-3 px-3 text-center">검수 상태</th>
-                  <th className="py-3 px-3 text-center w-24">전자송장</th>
+                  <th className="py-3 px-2.5 text-center w-10">순번</th>
+                  <th className="py-3 px-2.5">송장 번호</th>
+                  <th className="py-3 px-2.5">반입 일자/시간</th>
+                  <th className="py-3 px-2.5">출발 상차지 (공사현장)</th>
+                  <th className="py-3 px-2.5">도착 사토장</th>
+                  <th className="py-3 px-2.5">운행 기사</th>
+                  <th className="py-3 px-2.5">차량 번호</th>
+                  <th className="py-3 px-2.5">반입토사</th>
+                  <th className="py-3 px-2.5 text-right">반입 단가</th>
+                  <th className="py-3 px-2.5 text-center">검수 상태</th>
+                  <th className="py-3 px-2.5 text-center w-24">전자송장</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -597,24 +597,24 @@ export default function DropoffHistoryManagement({
                     onClick={() => setSelectedInvoiceTicket(item)}
                     className="hover:bg-emerald-50/40 transition-colors cursor-pointer group"
                   >
-                    <td className="py-3.5 px-3 text-center font-mono text-slate-400 text-[11px]">
+                    <td className="py-3 px-2.5 text-center font-mono text-slate-400 text-[11px]">
                       {idx + 1}
                     </td>
-                    <td className="py-3.5 px-3 font-mono font-black text-slate-900 group-hover:text-emerald-700">
+                    <td className="py-3 px-2.5 font-mono font-black text-slate-900 group-hover:text-emerald-700">
                       {item.ticketNumber}
                     </td>
-                    <td className="py-3.5 px-3">
+                    <td className="py-3 px-2.5">
                       <div className="font-bold text-slate-800">{item.inboundDate}</div>
                       <div className="text-[10px] text-slate-400 font-mono">{item.time} 반입</div>
                     </td>
-                    <td className="py-3.5 px-3 font-extrabold text-slate-900">
+                    <td className="py-3 px-2.5 font-extrabold text-slate-900">
                       {item.siteName}
                     </td>
-                    <td className="py-3.5 px-3">
-                      <div className="font-bold text-emerald-800 flex items-center gap-1.5 flex-wrap">
+                    <td className="py-3 px-2.5">
+                      <div className="font-bold text-emerald-800 flex items-center gap-1.5">
                         <span>{item.dropoffName}</span>
                         {item.isChanged && (
-                          <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap" title={`원래 배정: ${item.originalDropoffName || "타 사토장"} | 사유: ${item.changeReason || "현장 변경"}`}>
+                          <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap shrink-0" title={`원래 배정: ${item.originalDropoffName || "타 사토장"} | 사유: ${item.changeReason || "현장 변경"}`}>
                             경로 변경 유입
                           </span>
                         )}
@@ -625,41 +625,41 @@ export default function DropoffHistoryManagement({
                         </div>
                       )}
                     </td>
-                    <td className="py-3.5 px-3 font-bold text-slate-800">
+                    <td className="py-3 px-2.5 font-bold text-slate-800">
                       {item.driverName}
                     </td>
-                    <td className="py-3.5 px-3 font-mono font-extrabold text-slate-700">
+                    <td className="py-3 px-2.5 font-mono font-extrabold text-slate-700">
                       {item.carNumber} <span className="text-[10px] text-slate-400 font-normal">({item.tonnage})</span>
                     </td>
-                    <td className="py-3.5 px-3">
-                      <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                    <td className="py-3 px-2.5">
+                      <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
                         {item.soilType}
                       </span>
                     </td>
-                    <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900">
+                    <td className="py-3 px-2.5 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
                       ₩ {item.unitPrice ? item.unitPrice.toLocaleString() : "0"}
                     </td>
-                    <td className="py-3.5 px-3 text-center">
+                    <td className="py-3 px-2.5 text-center whitespace-nowrap">
                       {(() => {
                         const badge = getStatusBadgeInfo(item.status);
                         return (
                           <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black border ${badge.className}`}
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black border whitespace-nowrap ${badge.className}`}
                           >
-                            {badge.isCompleted && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                            {badge.isCompleted && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
                             {badge.label}
                           </span>
                         );
                       })()}
                     </td>
-                    <td className="py-3.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="py-3 px-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => setSelectedInvoiceTicket(item)}
-                        className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-700 font-bold rounded-lg text-[11px] transition-all flex items-center gap-1 mx-auto"
+                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-700 font-bold rounded-lg text-[11px] transition-all inline-flex items-center justify-center gap-1 whitespace-nowrap shrink-0"
                       >
-                        <FileText className="w-3 h-3" />
-                        송장 보기
+                        <FileText className="w-3 h-3 shrink-0" />
+                        <span>송장 보기</span>
                       </button>
                     </td>
                   </tr>
@@ -728,12 +728,13 @@ export default function DropoffHistoryManagement({
                     )}
                   </div>
                   <div className="font-black text-sm text-emerald-800 mt-0.5">{selectedInvoiceTicket.dropoffName}</div>
-                  {selectedInvoiceTicket.isChanged ? (
+                  {selectedInvoiceTicket.isChanged && (
                     <div className="text-[10px] text-amber-700 bg-amber-50 p-1.5 rounded-lg border border-amber-200 mt-1">
                       <p className="font-bold">원래 배정: {selectedInvoiceTicket.originalDropoffName || "타 사토장"}</p>
                       <p className="mt-0.5">변경 사유: {selectedInvoiceTicket.changeReason || "현장 상황에 따른 하차지 변경"}</p>
                     </div>
-                  ) : selectedInvoiceTicket.status === "COMPLETED" ? (
+                  )}
+                  {getStatusBadgeInfo(selectedInvoiceTicket.status).isCompleted ? (
                     <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-semibold text-emerald-700">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                       사토장 게이트 계근 및 반입 검수 완료
@@ -779,7 +780,7 @@ export default function DropoffHistoryManagement({
                   <div>
                     <span className="text-slate-400 block font-bold">반입 완료 일시:</span>
                     <span className="font-mono font-bold text-slate-800">
-                      {selectedInvoiceTicket.status === "COMPLETED" ? (
+                      {getStatusBadgeInfo(selectedInvoiceTicket.status).isCompleted ? (
                         `${selectedInvoiceTicket.inboundDate} ${selectedInvoiceTicket.time}`
                       ) : selectedInvoiceTicket.status === "REJECTED" ? (
                         <span className="text-rose-600 font-bold">반입 거부 (회차)</span>
@@ -811,7 +812,7 @@ export default function DropoffHistoryManagement({
                 {/* 하차지 서명 */}
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm text-center">
                   <div className="text-[10px] font-extrabold text-slate-400 mb-1">하차지 사토장 반입 검수 서명</div>
-                  {selectedInvoiceTicket.status === "COMPLETED" ? (
+                  {getStatusBadgeInfo(selectedInvoiceTicket.status).isCompleted ? (
                     <>
                       <div className="h-20 bg-emerald-50/50 border border-dashed border-emerald-200 rounded-xl flex items-center justify-center overflow-hidden">
                         <span className="font-serif italic font-black text-lg text-emerald-800 transform rotate-2 select-none">

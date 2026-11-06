@@ -689,7 +689,7 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
               </div>
             </div>
 
-            {/* 4. 상·하차 자재 검수 및 승인 방식 설정 (신규) */}
+            {/* 4. 상·하차 자재 검수 및 승인 방식 설정 (숨김 처리)
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-4">
               <div className="border-b border-slate-200 pb-2">
                 <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
@@ -702,7 +702,6 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 상차지 승인 방식 */}
                 <div className="space-y-2">
                   <span className="text-[11px] font-extrabold text-slate-800 block">
                     [상차지] 출발 전 자재 적재 승인 방식
@@ -760,7 +759,6 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
                   </div>
                 </div>
 
-                {/* 하차지 검수 방식 */}
                 <div className="space-y-2">
                   <span className="text-[11px] font-extrabold text-slate-800 block">
                     [하차지] 사토장 도착 자재 검수 방식
@@ -819,6 +817,7 @@ export function PlatformAdminFeeManagement({ setActivePath }: PlatformAdminFeeMa
                 </div>
               </div>
             </div>
+            */}
 
             <button
               onClick={handleSavePolicy}

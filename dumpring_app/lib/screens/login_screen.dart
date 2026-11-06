@@ -645,6 +645,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
 
+                    /* 빠른 테스트 로그인 칩 (보고 시 숨김 처리)
                     const SizedBox(height: 14),
 
                     // 정돈된 빠른 테스트 계정 칩
@@ -699,6 +700,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
+                    */
                   ],
                 ),
               ),

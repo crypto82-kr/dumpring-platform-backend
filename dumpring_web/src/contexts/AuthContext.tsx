@@ -15,6 +15,7 @@ export interface UserProfile {
 
 interface AuthContextType {
   user: UserProfile | null;
+  isInitializing: boolean;
   changeRole: (role: UserRole) => void;
   login: (token: string, userData: any) => void;
   logout: () => void;
@@ -36,7 +37,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [activePath, setActivePath] = useState<string>("/");
+  const [isInitializing, setIsInitializing] = useState<boolean>(true);
+  const [activePath, setActivePathState] = useState<string>("/");
+
+  const setActivePath = (path: string) => {
+    setActivePathState(path);
+    try {
+      sessionStorage.setItem("dumpring_active_path", path);
+    } catch (e) {}
+  };
 
   const changeRole = (role: UserRole) => {
     if (!user) return;
@@ -137,7 +146,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           owner: "/owner",
           developer: "/dev",
         };
-        setActivePath(defaultPaths[parsed.role as UserRole] || "/");
+        const savedPath = sessionStorage.getItem("dumpring_active_path");
+        const rolePrefix = defaultPaths[parsed.role as UserRole] || "/";
+        if (savedPath && (savedPath === rolePrefix || savedPath.startsWith(rolePrefix + "/"))) {
+          setActivePathState(savedPath);
+        } else {
+          setActivePath(rolePrefix);
+        }
+        setIsInitializing(false);
         return;
       } catch (e) {
         console.error("Failed to parse saved user profile:", e);
@@ -146,12 +162,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 기본 로그인 유저 세팅 제거 (비로그인 상태 유지)
     setUser(null);
-    setActivePath("/");
+    setActivePathState("/");
+    setIsInitializing(false);
   }, []);
 
   const logout = () => {
     localStorage.removeItem("accessToken");
     sessionStorage.removeItem("dumpring_token");
+    sessionStorage.removeItem("dumpring_active_path");
     localStorage.removeItem("userData");
     localStorage.removeItem("userProfile");
     setUser(null);
@@ -170,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, changeRole, login, logout, activePath, setActivePath, updateApprovalStatus }}>
+    <AuthContext.Provider value={{ user, isInitializing, changeRole, login, logout, activePath, setActivePath, updateApprovalStatus }}>
       {children}
     </AuthContext.Provider>
   );

@@ -59,10 +59,10 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "배차 관제", icon: MapPin, path: "/admin/dispatch-monitor" },
     { title: "현장/하차지 관리", icon: Building2, path: "/admin/sites" },
     { title: "수수료/운임 관리", icon: Percent, path: "/admin/fees" },
-    { title: "분쟁/신고 관리", icon: ShieldAlert, path: "/admin/disputes" },
-    { title: "공지사항 관리", icon: Volume2, path: "/admin/notices" },
-    { title: "정산 관리", icon: DollarSign, path: "/admin/settlement" },
-    { title: "운행 통계", icon: TrendingUp, path: "/admin/stats" },
+    // { title: "분쟁/신고 관리", icon: ShieldAlert, path: "/admin/disputes" },
+    // { title: "공지사항 관리", icon: Volume2, path: "/admin/notices" },
+    // { title: "정산 관리", icon: DollarSign, path: "/admin/settlement" },
+    // { title: "운행 통계", icon: TrendingUp, path: "/admin/stats" },
   ],
   site_manager: [
     { title: "현장 관리 대시보드", icon: LayoutDashboard, path: "/site" },
@@ -112,7 +112,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     },
     { title: "흙값 정산 관리", icon: DollarSign, path: "/dropoff/soil-settlement" },
     { title: "거래명세서 관리", icon: FileText, path: "/dropoff/tax-invoice" },
-    { title: "하차지 정보 통계", icon: BarChart3, path: "/dropoff/stats" },
+    // { title: "하차지 정보 통계", icon: BarChart3, path: "/dropoff/stats" },
   ],
   owner: [
     { title: "운송사 대시보드", icon: LayoutDashboard, path: "/owner" },

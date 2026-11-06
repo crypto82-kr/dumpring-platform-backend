@@ -647,6 +647,13 @@ class DispatchTicket(Base):
     change_reason = Column(String, nullable=True)                 # 재료 또는 하차지 변경 사유
     changed_at = Column(DateTime(timezone=True), nullable=True)   # 변경 일시
 
+    # 흙값 정산 (하차지별 분할 정산 독립 상태 관리 필드)
+    soil_settlement_status = Column(String, nullable=True)        # 'SETTLEMENT_PAID', 'SETTLEMENT_CONFIRMED', 'SETTLEMENT_CLOSED', 'SETTLEMENT_DISPUTED' 등
+    soil_dispute_type = Column(String, nullable=True)
+    soil_dispute_reason = Column(String, nullable=True)
+    soil_dispute_amount = Column(Integer, nullable=True)
+    soil_disputed_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     job_post = relationship("JobPost", back_populates="tickets")
     driver = relationship("User", foreign_keys=[driver_id])

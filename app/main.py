@@ -105,7 +105,12 @@ async def startup_event():
             ("tax_invoice_nts_code", "VARCHAR"),
             ("dropoff_invoice_issued", "BOOLEAN DEFAULT FALSE"),
             ("dropoff_invoice_issued_at", "TIMESTAMP WITH TIME ZONE"),
-            ("dropoff_invoice_nts_code", "VARCHAR")
+            ("dropoff_invoice_nts_code", "VARCHAR"),
+            ("soil_settlement_status", "VARCHAR(50)"),
+            ("soil_dispute_type", "VARCHAR(50)"),
+            ("soil_dispute_reason", "VARCHAR(500)"),
+            ("soil_dispute_amount", "INTEGER"),
+            ("soil_disputed_at", "TIMESTAMP WITH TIME ZONE"),
         ]
         for col, col_type in ticket_cols:
             try:

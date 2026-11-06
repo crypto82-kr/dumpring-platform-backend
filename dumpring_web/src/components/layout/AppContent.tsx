@@ -7,7 +7,11 @@ import LoginScreen from "../auth/LoginScreen";
 import ApprovalRequestScreen from "../auth/ApprovalRequestScreen";
 
 export default function AppContent({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isInitializing } = useAuth();
+
+  if (isInitializing) {
+    return <div className="min-h-screen w-full bg-gray-50 dark:bg-gray-950" />;
+  }
 
   if (!user) {
     return <LoginScreen />;
