@@ -1,0 +1,53 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'dumpring_app/**'
+      - '.github/workflows/android-build.yml'
+
+jobs:
+  build-android:
+    name: Build Android App (.apk)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter Dependencies
+        working-directory: dumpring_app
+        run: flutter pub get
+
+      - name: Build Android Release APK
+        working-directory: dumpring_app
+        run: flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dumpring_app_apk
+          path: dumpring_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+      - name: Build Summary
+        run: |
+          echo "### 🤖 Android APK 빌드 완료!" >> $GITHUB_STEP_SUMMARY
+          echo "1. 상단 **Artifacts** 영역에서 \`dumpring_app_apk\`를 다운로드하세요." >> $GITHUB_STEP_SUMMARY
+          echo "2. 압축을 풀면 \`app-release.apk\` 파일이 나옵니다." >> $GITHUB_STEP_SUMMARY
+          echo "3. 안드로이드 스마트폰으로 전송하여 설치하세요!" >> $GITHUB_STEP_SUMMARY
+
