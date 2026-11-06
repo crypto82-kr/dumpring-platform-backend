@@ -61,22 +61,37 @@ export default function SiteHistoryManagement({
   // 공통코드 영문 -> 한글 표시명 변환 함수
   const getCommonCodeName = (code: string | undefined | null, category?: string) => {
     if (!code) return "-";
-    if (dbCommonCodes && dbCommonCodes.length > 0) {
-      const match = dbCommonCodes.find((c: any) => 
-        c.code === code && (!category || c.category === category)
-      );
-      if (match?.name) return match.name;
-    }
-    // 백업 매핑
+    const upper = String(code).trim().toUpperCase();
+    // 1. 백업 매핑 우선 확인
     const fallbackMap: Record<string, string> = {
       GOOD_SOIL: "양질토",
       MUD_SOIL: "뻘흙",
       ROCK: "암버럭",
+      BLASTED_ROCK: "발파암",
       MIXED: "혼합토",
+      MIXED_SOIL: "혼합토",
       SAND: "모래",
+      CLAY: "점토",
+      GRAVEL: "자갈",
+      PLAIN_SOIL: "일반토사",
+      RED_CLAY: "마사토/황토",
+      WASTE_CONCRETE: "폐콘크리트",
+      RECYCLED_AGGREGATE: "순환골재",
       T_15: "15톤",
+      TON_15: "15톤",
+      "15T": "15톤",
+      T_24: "24톤",
+      TON_24: "24톤",
+      "24T": "24톤",
       T_25: "25.5톤",
+      TON_25: "25.5톤",
+      "25.5T": "25.5톤",
+      "25T": "25.5톤",
       T_27: "27톤",
+      TON_27: "27톤",
+      "27T": "27톤",
+      T_30: "30톤 초과",
+      TON_30: "30톤 초과",
       TRAILER: "트레일러",
       SITE_PAYS: "현장 지급",
       DROPOFF_PAYS: "하차지 지급",
@@ -84,70 +99,92 @@ export default function SiteHistoryManagement({
       COMPLETED: "운행 완료",
       CLOSED: "배차 완료 (모집 마감)",
       CANCELLED: "취소됨",
-      SETTLEMENT_CLOSED: "정산 마감",
-      SETTLEMENT_PAID: "정산 완료",
-      SETTLEMENT_PENDING: "정산 대기",
-      SETTLEMENT_DISPUTED: "정산 이의제기",
+      SETTLEMENT_CLOSED: "운행 완료",
+      SETTLEMENT_PAID: "운행 완료",
+      SETTLEMENT_PENDING: "운행 완료",
+      SETTLEMENT_DISPUTED: "운행 완료",
+      SETTLEMENT_APPROVED: "운행 완료",
+      SETTLEMENT_CONFIRMED: "운행 완료",
+      SETTLEMENT_REQUESTED: "운행 완료",
     };
-    return fallbackMap[code] || code;
+    if (fallbackMap[upper]) return fallbackMap[upper];
+    if (fallbackMap[code]) return fallbackMap[code];
+
+    // 2. DB 공통코드 확인 (code_name 또는 name)
+    if (dbCommonCodes && dbCommonCodes.length > 0) {
+      const match = dbCommonCodes.find(
+        (c: any) =>
+          (c.code === code || c.code === upper) &&
+          (!category || c.category === category || c.group_code === category)
+      );
+      if (match?.code_name || match?.name) return match.code_name || match.name;
+    }
+    return code;
   };
 
   // 운행 상태 영문 코드 -> 친숙한 한글 상태명 변환 함수
   const getStatusKorean = (status: string | null | undefined) => {
     if (!status) return "운행 완료";
+    const s = String(status).trim().toUpperCase();
     const statusMap: Record<string, string> = {
       ACCEPTED: "배차 수락",
+      ASSIGNED: "배차 수락",
       ARRIVED_LOADING: "상차지 도착",
+      LOADING: "상차 적재중",
       LOADING_APPROVED: "상차 승인완료",
+      DEPARTED: "하차지 이동 중",
+      IN_PROGRESS: "하차지 이동 중",
       DRIVING: "하차지 이동 중",
       ARRIVED: "하차지 도착",
-      APPROVED: "반입 승인완료",
-      REJECTED: "반입 반려",
+      ARRIVED_DROPOFF: "하차지 도착",
+      WAITING_INSPECTION: "검수 대기",
+      APPROVED: "운행 완료",
+      REJECTED: "하차지 반려(회차)",
       CANCELLED: "배차 취소",
       COMPLETED: "운행 완료",
       CLOSED: "배차 완료 (모집 마감)",
       OPEN: "기사 모집 중",
       WAITING_APPROVAL: "승인 대기",
       WAITING_MATCH: "매칭 대기",
-      SETTLEMENT_CLOSED: "정산 마감",
-      SETTLEMENT_PAID: "정산 완료",
-      SETTLEMENT_PENDING: "정산 대기",
-      SETTLEMENT_DISPUTED: "정산 이의제기",
+      MATCHED: "매칭 완료",
+      SETTLEMENT_CLOSED: "운행 완료",
+      SETTLEMENT_PAID: "운행 완료",
+      SETTLEMENT_PENDING: "운행 완료",
+      SETTLEMENT_DISPUTED: "운행 완료",
+      SETTLEMENT_APPROVED: "운행 완료",
+      SETTLEMENT_CONFIRMED: "운행 완료",
+      SETTLEMENT_REQUESTED: "운행 완료",
     };
-    return statusMap[status] || status;
+    return statusMap[s] || statusMap[status] || status;
   };
 
   // 운행 상태별 실무 라벨 및 뱃지 스타일 매핑 함수
   const getStatusBadgeInfo = (status: string | null | undefined) => {
     const raw = status || "";
-    if (raw === "SETTLEMENT_PAID" || raw === "정산 완료" || raw === "정산완료") {
-      return {
-        label: "정산 완료",
-        className: "bg-emerald-100 text-emerald-800 border-emerald-300 font-black",
-      };
-    }
-    if (raw === "SETTLEMENT_CLOSED" || raw === "정산 마감" || raw === "정산마감") {
-      return {
-        label: "정산 마감",
-        className: "bg-teal-50 text-teal-800 border-teal-300 font-black",
-      };
-    }
-    if (raw === "SETTLEMENT_PENDING" || raw === "정산 대기" || raw === "정산대기") {
-      return {
-        label: "정산 대기",
-        className: "bg-cyan-50 text-cyan-800 border-cyan-300",
-      };
-    }
-    if (raw === "SETTLEMENT_DISPUTED" || raw === "정산 이의제기") {
-      return {
-        label: "정산 이의제기",
-        className: "bg-rose-50 text-rose-800 border-rose-300 font-black",
-      };
-    }
-    if (raw === "COMPLETED" || raw === "운행완료" || raw === "운행 완료") {
+    if (
+      [
+        "COMPLETED",
+        "운행완료",
+        "운행 완료",
+        "SETTLEMENT_PAID",
+        "정산 완료",
+        "정산완료",
+        "SETTLEMENT_CLOSED",
+        "정산 마감",
+        "정산마감",
+        "SETTLEMENT_PENDING",
+        "정산 대기",
+        "정산대기",
+        "SETTLEMENT_DISPUTED",
+        "정산 이의제기",
+        "SETTLEMENT_APPROVED",
+        "SETTLEMENT_CONFIRMED",
+        "SETTLEMENT_REQUESTED",
+      ].includes(raw)
+    ) {
       return {
         label: "운행 완료",
-        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        className: "bg-emerald-50 text-emerald-700 border-emerald-200 font-extrabold",
       };
     }
     if (raw === "CLOSED" || raw === "마감" || raw === "운행 마감" || raw === "배차 완료 (모집 마감)") {
@@ -621,9 +658,9 @@ export default function SiteHistoryManagement({
                       <tr>
                         <th className="py-2.5 px-3 min-w-[120px]">기사명 / 연락처</th>
                         <th className="py-2.5 px-3 min-w-[110px]">차량번호 / 톤수</th>
-                        <th className="py-2.5 px-3 min-w-[130px]">상차 승인 일시</th>
+                        <th className="py-2.5 px-3 min-w-[130px]">상차 출발 일시</th>
                         <th className="py-2.5 px-3 min-w-[160px]">도착 하차지</th>
-                        <th className="py-2.5 px-3 min-w-[130px]">하차 반입 일시</th>
+                        <th className="py-2.5 px-3 min-w-[130px]">하차 완료 일시</th>
                         <th className="py-2.5 px-3 text-right min-w-[90px]">운행 상태</th>
                       </tr>
                     </thead>
@@ -643,15 +680,15 @@ export default function SiteHistoryManagement({
                       ) : (
                         invoiceTickets.map((t: any, idx: number) => {
                           const isCancelled = t.status === "CANCELLED" || t.status === "REJECTED";
-                          const isApproved = t.status === "APPROVED" || t.status === "COMPLETED";
-                          const isDrivingOrLater = ["LOADING_APPROVED", "DRIVING", "ARRIVED", "APPROVED", "COMPLETED"].includes(t.status);
+                          const isApproved = ["APPROVED", "COMPLETED", "SETTLEMENT_REQUESTED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"].includes((t.status || "").toUpperCase());
+                          const isDrivingOrLater = ["LOADING_APPROVED", "DRIVING", "ARRIVED", "APPROVED", "COMPLETED", "SETTLEMENT_REQUESTED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"].includes((t.status || "").toUpperCase());
 
                           // 1. 상차 승인 일시 계산
                           const hasLoadingTime = Boolean(t.driving_started_at || t.loading_approved_at);
                           const loadingTime = formatDateTime(t.driving_started_at || t.loading_approved_at, true);
 
                           // 2. 하차 반입 일시 계산 (취소되지 않고 실제로 승인/완료된 경우에만)
-                          const hasUnloadingTime = !isCancelled && Boolean(t.completed_at || (t.status === "APPROVED" && t.arrived_at));
+                          const hasUnloadingTime = !isCancelled && Boolean(t.completed_at || (isApproved && t.arrived_at));
                           const unloadingTime = hasUnloadingTime ? formatDateTime(t.completed_at || t.arrived_at, true) : "-";
 
                           // 3. 하차지 변경 여부 및 최종 하차지명 계산
@@ -671,7 +708,7 @@ export default function SiteHistoryManagement({
                                   {t.car?.car_number || "-"}
                                 </span>
                                 <span className="text-[10px] text-slate-500 font-normal">
-                                  {t.car?.tonnage ? `${t.car.tonnage}톤` : "25.5톤"}
+                                  {t.car?.tonnage ? getCommonCodeName(String(t.car.tonnage), "TRUCK_TON") : "25.5톤"}
                                 </span>
                               </td>
 
@@ -737,7 +774,7 @@ export default function SiteHistoryManagement({
                                       {unloadingTime}
                                     </span>
                                     <span className="text-[9px] text-slate-400 font-normal">
-                                      {t.drive_time_seconds ? `소요시간: ${Math.round(t.drive_time_seconds / 60)}분` : "하차지 반입 승인완료"}
+                                      {t.drive_time_seconds ? `소요시간: ${Math.round(t.drive_time_seconds / 60)}분` : "하차 완료"}
                                     </span>
                                   </>
                                 ) : t.status === "DRIVING" ? (

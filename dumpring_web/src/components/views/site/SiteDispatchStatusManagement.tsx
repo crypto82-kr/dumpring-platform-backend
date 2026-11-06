@@ -531,13 +531,40 @@ export default function SiteDispatchStatusManagement({
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 block uppercase">차량 톤수 및 요청 대수</span>
                       <div className="font-black text-slate-900 mt-0.5 text-sm">
-                        {selectedReq.tonTypes.map((t: string) => t === "T_25" ? "25톤" : t === "T_15" ? "15톤" : t).join(", ")} ({selectedReq.truckCount} 대)
+                        {selectedReq.tonTypes.map((t: string) => {
+                          if (t === "T_25" || t === "TON_25" || t === "TON_25톤") return "25.5톤";
+                          if (t === "T_15" || t === "TON_15" || t === "TON_15톤") return "15톤";
+                          if (t === "T_27" || t === "TON_27") return "27톤";
+                          if (t === "T_30" || t === "TON_30") return "30톤";
+                          return t;
+                        }).join(", ")} ({selectedReq.truckCount} 대)
                       </div>
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 block uppercase">반출 토사</span>
                       <div className="font-black text-blue-600 mt-0.5 text-sm">
-                        {selectedReq.soilType === "GOOD_SOIL" ? "양질토" : selectedReq.soilType === "MUD_SOIL" ? "뻘흙" : selectedReq.soilType}
+                        {(() => {
+                          const s = selectedReq.soilType;
+                          if (!s) return "일반 토사";
+                          const found = dbCommonCodes.find((c: any) => c.group_code === "MATERIAL_TYPE" && c.code === s);
+                          if (found) return found.code_name;
+                          const map: Record<string, string> = {
+                            GOOD_SOIL: "양질토",
+                            NORMAL_SOIL: "일반토",
+                            MUD_SOIL: "뻘흙",
+                            ROCK: "암버럭",
+                            ROCK_CRUSHED: "파쇄암",
+                            BLAST_ROCK: "발파암",
+                            WEATHERED_ROCK: "풍화암",
+                            SAND: "모래",
+                            GRAVEL: "자갈",
+                            CLAY: "점토",
+                            WASTE_CONCRETE: "폐콘크리트",
+                            WASTE_ASPHALT: "폐아스콘",
+                            MIXED: "혼합토",
+                          };
+                          return map[s] || s;
+                        })()}
                       </div>
                     </div>
                     <div>

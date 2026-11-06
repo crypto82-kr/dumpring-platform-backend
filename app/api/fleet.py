@@ -841,6 +841,7 @@ async def get_owner_monthly_schedule(
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+                selectinload(DispatchTicket.changed_drop_off),
                 selectinload(DispatchTicket.driver),
                 selectinload(DispatchTicket.car),
             )
@@ -875,17 +876,20 @@ async def get_owner_monthly_schedule(
             car_number = car_obj.car_number if car_obj else "차량미배정"
             tonnage = car_obj.tonnage if car_obj else 25.0
 
-            # 현장명 및 하차지명 가져오기
+            # 현장명 및 하차지명 가져오기 (하차지 변경 시 변경된 하차지 우선 반영)
             job = t.job_post
             site_name = job.site.site_name if (job and job.site) else (job.site_name if job else "상차지 미지정")
-            dropoff_name = ""
+            original_dropoff_name = ""
             if job:
                 if job.drop_off_request and job.drop_off_request.drop_off:
-                    dropoff_name = job.drop_off_request.drop_off.name
+                    original_dropoff_name = job.drop_off_request.drop_off.name
                 elif job.matched_drop_off:
-                    dropoff_name = job.matched_drop_off.name
+                    original_dropoff_name = job.matched_drop_off.name
                 else:
-                    dropoff_name = job.drop_off_name or "하차지 미지정"
+                    original_dropoff_name = job.drop_off_name or "하차지 미지정"
+
+            is_dropoff_changed = bool(t.changed_drop_off_id and t.changed_drop_off)
+            dropoff_name = t.changed_drop_off.name if is_dropoff_changed else original_dropoff_name
 
             is_cancelled = t.status in ["CANCELLED", "REJECTED"]
             is_completed = t.status in ["APPROVED", "COMPLETED", "SETTLEMENT_REQUESTED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"]
@@ -899,7 +903,7 @@ async def get_owner_monthly_schedule(
             elif is_in_progress:
                 schedule_by_date[d_str]["in_progress_count"] += 1
 
-            raw_mat = job.material_type if job else "GOOD_SOIL"
+            raw_mat = t.actual_material_type or (job.material_type if job else "GOOD_SOIL")
             material_name = material_map.get(raw_mat, raw_mat)
             status_name = status_map.get(t.status, t.status)
 
@@ -911,6 +915,9 @@ async def get_owner_monthly_schedule(
                 "tonnage": tonnage,
                 "site_name": site_name,
                 "dropoff_name": dropoff_name,
+                "original_dropoff_name": original_dropoff_name if is_dropoff_changed else None,
+                "is_dropoff_changed": is_dropoff_changed,
+                "change_reason": t.change_reason,
                 "status": t.status,
                 "status_name": status_name,
                 "material_type": raw_mat,
@@ -1049,6 +1056,7 @@ async def get_owner_operation_statistics(
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+                selectinload(DispatchTicket.changed_drop_off),
                 selectinload(DispatchTicket.driver),
                 selectinload(DispatchTicket.car),
             )
@@ -1070,20 +1078,24 @@ async def get_owner_operation_statistics(
             site_name = job.site.site_name if (job and job.site) else (job.site_name if job else "상차지 미지정")
             site_id = job.site_id if job else 0
 
-            dropoff_name = ""
-            dropoff_id = 0
+            original_dropoff_name = ""
+            original_dropoff_id = 0
             if job:
                 if job.drop_off_request and job.drop_off_request.drop_off:
-                    dropoff_name = job.drop_off_request.drop_off.name
-                    dropoff_id = job.drop_off_request.drop_off.id
+                    original_dropoff_name = job.drop_off_request.drop_off.name
+                    original_dropoff_id = job.drop_off_request.drop_off.id
                 elif job.matched_drop_off:
-                    dropoff_name = job.matched_drop_off.name
-                    dropoff_id = job.matched_drop_off.id
+                    original_dropoff_name = job.matched_drop_off.name
+                    original_dropoff_id = job.matched_drop_off.id
                 else:
-                    dropoff_name = job.drop_off_name or "하차지 미지정"
-                    dropoff_id = 0
+                    original_dropoff_name = job.drop_off_name or "하차지 미지정"
+                    original_dropoff_id = 0
 
-            raw_mat = job.material_type if job else "GOOD_SOIL"
+            is_dropoff_changed = bool(t.changed_drop_off_id and t.changed_drop_off)
+            dropoff_name = t.changed_drop_off.name if is_dropoff_changed else original_dropoff_name
+            dropoff_id = t.changed_drop_off.id if is_dropoff_changed else original_dropoff_id
+
+            raw_mat = t.actual_material_type or (job.material_type if job else "GOOD_SOIL")
             material_name = material_map.get(raw_mat, raw_mat)
             status_name = status_map.get(t.status, t.status)
 
@@ -1100,6 +1112,9 @@ async def get_owner_operation_statistics(
                 "site_name": site_name,
                 "dropoff_id": dropoff_id,
                 "dropoff_name": dropoff_name,
+                "original_dropoff_name": original_dropoff_name if is_dropoff_changed else None,
+                "is_dropoff_changed": is_dropoff_changed,
+                "change_reason": t.change_reason,
                 "material_type": raw_mat,
                 "material_name": material_name,
                 "status": t.status,
@@ -1231,6 +1246,7 @@ async def get_owner_settlement_revenues(
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
                 selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+                selectinload(DispatchTicket.changed_drop_off),
                 selectinload(DispatchTicket.driver),
                 selectinload(DispatchTicket.car),
             )
@@ -1256,16 +1272,19 @@ async def get_owner_settlement_revenues(
             billing_email = site.billing_email if site else ""
             site_id = site.id if site else (job.site_id if job else 0)
 
-            dropoff_name = ""
+            original_dropoff_name = ""
             if job:
                 if job.drop_off_request and job.drop_off_request.drop_off:
-                    dropoff_name = job.drop_off_request.drop_off.name
+                    original_dropoff_name = job.drop_off_request.drop_off.name
                 elif job.matched_drop_off:
-                    dropoff_name = job.matched_drop_off.name
+                    original_dropoff_name = job.matched_drop_off.name
                 else:
-                    dropoff_name = job.drop_off_name or "하차지 미지정"
+                    original_dropoff_name = job.drop_off_name or "하차지 미지정"
 
-            raw_mat = job.material_type if job else "GOOD_SOIL"
+            is_dropoff_changed = bool(t.changed_drop_off_id and t.changed_drop_off)
+            dropoff_name = t.changed_drop_off.name if is_dropoff_changed else original_dropoff_name
+
+            raw_mat = t.actual_material_type or (job.material_type if job else "GOOD_SOIL")
             material_name = material_map.get(raw_mat, raw_mat)
 
             # 운송비 단가 및 금액 계산:
@@ -1322,6 +1341,9 @@ async def get_owner_settlement_revenues(
                 "billing_email": billing_email,
                 "client_display": f"{company_name} ({site_name})" if company_name != "건설사 미등록" else site_name,
                 "dropoff_name": dropoff_name,
+                "original_dropoff_name": original_dropoff_name if is_dropoff_changed else None,
+                "is_dropoff_changed": is_dropoff_changed,
+                "change_reason": t.change_reason,
                 "material_type": raw_mat,
                 "material_name": material_name,
                 "trips": trips,

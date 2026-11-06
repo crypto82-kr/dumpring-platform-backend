@@ -22,6 +22,8 @@ export interface RegisteredSiteItem {
   siteKey: string;
   bizLicenseUrl?: string;
   dustReportUrl?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface SiteInfoManagementProps {
@@ -55,6 +57,8 @@ export default function SiteInfoManagement({
   const [siteFormName, setSiteFormName] = useState("");
   const [siteFormCompanyName, setSiteFormCompanyName] = useState("");
   const [siteFormAddress, setSiteFormAddress] = useState("");
+  const [siteFormLat, setSiteFormLat] = useState<number | undefined>(undefined);
+  const [siteFormLng, setSiteFormLng] = useState<number | undefined>(undefined);
   const [siteFormRoadDesc, setSiteFormRoadDesc] = useState("");
   const [siteFormManagers, setSiteFormManagers] = useState("");
   const [siteFormBizRegNo, setSiteFormBizRegNo] = useState("");
@@ -184,6 +188,17 @@ export default function SiteInfoManagement({
           const roadAddr = data.roadAddress || data.address;
           setSiteFormAddress(roadAddr);
           setSiteFormSearchQuery(roadAddr);
+
+          // 주소 선택 시 카카오 지오코더로 좌표 자동 갱신
+          if ((window as any).kakao && (window as any).kakao.maps && (window as any).kakao.maps.services) {
+            const geocoder = new (window as any).kakao.maps.services.Geocoder();
+            geocoder.addressSearch(roadAddr, (result: any, status: any) => {
+              if (status === (window as any).kakao.maps.services.Status.OK && result[0]) {
+                setSiteFormLat(parseFloat(result[0].y));
+                setSiteFormLng(parseFloat(result[0].x));
+              }
+            });
+          }
         },
       }).open();
     } else {
@@ -214,6 +229,8 @@ export default function SiteInfoManagement({
       name: siteFormName,
       companyName: siteFormCompanyName || activeSite?.companyName || "담다건설",
       address: siteFormAddress,
+      latitude: siteFormLat,
+      longitude: siteFormLng,
       roadDesc: siteFormRoadDesc,
       managers: managersList.join(", "),
       bizRegNo: siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678",
@@ -240,6 +257,8 @@ export default function SiteInfoManagement({
       setSiteFormName("");
       setSiteFormCompanyName("");
       setSiteFormAddress("");
+      setSiteFormLat(undefined);
+      setSiteFormLng(undefined);
       setSiteFormRoadDesc("");
       setSiteFormManagers("");
       setSelectedWorkerId("");
@@ -270,6 +289,8 @@ export default function SiteInfoManagement({
               setSiteFormName("");
               setSiteFormCompanyName(activeSite?.companyName || "");
               setSiteFormAddress("");
+              setSiteFormLat(undefined);
+              setSiteFormLng(undefined);
               setSiteFormRoadDesc("");
               setSiteFormManagers("");
               setSiteFormBizRegNo(activeSite?.bizRegNo || "");
@@ -302,6 +323,8 @@ export default function SiteInfoManagement({
                     setSiteFormName(site.name);
                     setSiteFormCompanyName(site.companyName || "");
                     setSiteFormAddress(site.address);
+                    setSiteFormLat(site.latitude);
+                    setSiteFormLng(site.longitude);
                     setSiteFormRoadDesc(site.roadDesc || "");
                     setSiteFormManagers(site.managers?.join(", ") || "");
                     setSiteFormBizRegNo(site.bizRegNo || "");
@@ -394,6 +417,8 @@ export default function SiteInfoManagement({
                             setSiteFormName(selectedSite.name);
                             setSiteFormCompanyName(selectedSite.companyName || "");
                             setSiteFormAddress(selectedSite.address);
+                            setSiteFormLat(selectedSite.latitude);
+                            setSiteFormLng(selectedSite.longitude);
                             setSiteFormRoadDesc(selectedSite.roadDesc || "");
                             setSiteFormManagers(selectedSite.managers?.join(", ") || "");
                             setSiteFormBizRegNo(selectedSite.bizRegNo || "");
@@ -556,6 +581,8 @@ export default function SiteInfoManagement({
                       title="현장"
                       address={selectedSite.address}
                       pinned={true}
+                      lat={selectedSite.latitude}
+                      lng={selectedSite.longitude}
                       onPinClick={() => {}}
                     />
                   </div>
@@ -682,6 +709,8 @@ export default function SiteInfoManagement({
                   setSiteFormName("");
                   setSiteFormCompanyName("");
                   setSiteFormAddress("");
+                  setSiteFormLat(undefined);
+                  setSiteFormLng(undefined);
                   setSiteFormRoadDesc("");
                   setSiteFormManagers("");
                   setSiteFormBizRegNo("");
@@ -871,13 +900,26 @@ export default function SiteInfoManagement({
                 {/* Right Column: Interactive Map */}
                 <div className="flex flex-col h-full">
                   <MockMap
-                    title="현장 위치 지도"
+                    title="현장 위치 (핀 이동 가능)"
                     address={siteFormAddress}
                     pinned={true}
+                    interactive={true}
+                    lat={siteFormLat}
+                    lng={siteFormLng}
+                    onLocationSelect={(newLat, newLng, newAddr) => {
+                      setSiteFormLat(newLat);
+                      setSiteFormLng(newLng);
+                      if (newAddr && !siteFormAddress) {
+                        setSiteFormAddress(newAddr);
+                      }
+                    }}
                     onPinClick={() => {}}
                     className="flex-1 flex flex-col"
                     mapHeightClass="flex-1 min-h-[350px]"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
+                    💡 주소 검색 후 지도를 클릭하거나 핀을 드래그하여 정확한 진입로/현장 위치를 지정할 수 있습니다.
+                  </p>
                 </div>
               </div>
 

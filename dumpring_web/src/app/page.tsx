@@ -296,7 +296,9 @@ export default function Home() {
               bizRegNo: site.business_number || "",
               siteKey: site.site_key || `SG-${site.id || site.site_id}-DUMP`,
               bizLicenseUrl: site.biz_license_url || "",
-              dustReportUrl: site.dust_report_url || ""
+              dustReportUrl: site.dust_report_url || "",
+              latitude: site.latitude,
+              longitude: site.longitude
             };
           });
           setRegisteredSiteList(mapped);
@@ -307,7 +309,7 @@ export default function Home() {
     }
   };
 
-  const handleCreateSite = async (siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }) => {
+  const handleCreateSite = async (siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string; latitude?: number; longitude?: number }) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
@@ -321,6 +323,8 @@ export default function Home() {
           company_name: siteData.companyName,
           business_number: siteData.bizRegNo || "000-00-00000",
           site_address: siteData.address,
+          latitude: typeof siteData.latitude === "number" ? siteData.latitude : 37.5665,
+          longitude: typeof siteData.longitude === "number" ? siteData.longitude : 126.9780,
           geofencing_radius: 200.0,
           managers: siteData.managers,
           biz_license_url: siteData.biz_license_url,
@@ -338,24 +342,31 @@ export default function Home() {
     }
   };
 
-  const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string }): Promise<{ success: boolean; message?: string }> => {
+  const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string; latitude?: number; longitude?: number }): Promise<{ success: boolean; message?: string }> => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const updateBody: any = {
+        site_name: siteData.name,
+        company_name: siteData.companyName,
+        business_number: siteData.bizRegNo,
+        site_address: siteData.address,
+        managers: siteData.managers,
+        biz_license_url: siteData.biz_license_url,
+        dust_report_url: siteData.dust_report_url
+      };
+      if (typeof siteData.latitude === "number") {
+        updateBody.latitude = siteData.latitude;
+      }
+      if (typeof siteData.longitude === "number") {
+        updateBody.longitude = siteData.longitude;
+      }
       const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          site_name: siteData.name,
-          company_name: siteData.companyName,
-          business_number: siteData.bizRegNo,
-          site_address: siteData.address,
-          managers: siteData.managers,
-          biz_license_url: siteData.biz_license_url,
-          dust_report_url: siteData.dust_report_url
-        })
+        body: JSON.stringify(updateBody)
       });
       if (res.ok) {
         await fetchRegisteredSites();
@@ -363,10 +374,9 @@ export default function Home() {
       }
       const errBody = await res.json().catch(() => ({}));
       const msg = errBody.detail || "현장 정보 수정에 실패했습니다.";
-      console.error("Failed to update site in DB:", res.status, msg);
       return { success: false, message: msg };
     } catch (e: any) {
-      console.error("Failed to update site in DB:", e);
+      console.warn("Failed to update site in DB:", e);
       return { success: false, message: e.message || "서버 통신 중 오류가 발생했습니다." };
     }
   };

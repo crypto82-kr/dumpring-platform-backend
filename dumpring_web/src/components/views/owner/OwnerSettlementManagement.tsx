@@ -27,6 +27,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import CommonPortalModal from "@/components/views/common/CommonPortalModal";
 
 // 덤프링 운반 및 정산 티켓 레코드 인터페이스 (실제 시스템 기준)
 export interface SettlementRecord {
@@ -45,6 +46,9 @@ export interface SettlementRecord {
   billing_email: string;     // 세금계산서 청구 이메일
   client_display: string;    // "현대건설 (검단 3공구)"
   dropoff_name: string;
+  original_dropoff_name?: string | null;
+  is_dropoff_changed?: boolean;
+  change_reason?: string | null;
   material_type: string;
   material_name: string;     // 사토(양질토), 모래, 자갈 등
   trips: number;             // 당일 총 운행 횟수 (회)
@@ -995,7 +999,7 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                           </td>
 
                           {/* 운송 구간 (상차현장 -> 하차지) */}
-                          <td className="py-3 px-3 max-w-[220px]">
+                          <td className="py-3 px-3 max-w-[240px]">
                             <div className="font-extrabold text-slate-900 truncate" title={`${r.company_name} - ${r.site_name}`}>
                               {r.site_name}
                               <span className="text-[10px] text-slate-500 font-normal ml-1">({r.company_name})</span>
@@ -1003,7 +1007,20 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                             <div className="text-xs font-semibold text-emerald-700 truncate flex items-center gap-1 mt-0.5">
                               <span>➔</span>
                               <span>{r.dropoff_name || "사토장 미지정"}</span>
+                              {r.is_dropoff_changed && (
+                                <span
+                                  className="px-1.5 py-0.5 text-[9px] font-black rounded bg-amber-500 text-white shrink-0"
+                                  title={`기존: ${r.original_dropoff_name || "-"} / 사유: ${r.change_reason || "하차지 변경"}`}
+                                >
+                                  하차지변경
+                                </span>
+                              )}
                             </div>
+                            {r.is_dropoff_changed && r.original_dropoff_name && (
+                              <div className="text-[10px] text-slate-400 line-through truncate mt-0.5">
+                                기존: {r.original_dropoff_name}
+                              </div>
+                            )}
                           </td>
 
                           {/* 토사/자재 종류 */}
@@ -1452,9 +1469,21 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                       <div className="flex items-start gap-2">
                         <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                         <div>
-                          <span className="text-xs font-black text-slate-900 block">
-                            {selectedInvoiceTicket.dropoff_name || "사토장 (하차지)"}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-slate-900">
+                              {selectedInvoiceTicket.dropoff_name || "사토장 (하차지)"}
+                            </span>
+                            {selectedInvoiceTicket.is_dropoff_changed && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-black rounded bg-amber-500 text-white">
+                                하차지변경
+                              </span>
+                            )}
+                          </div>
+                          {selectedInvoiceTicket.is_dropoff_changed && selectedInvoiceTicket.original_dropoff_name && (
+                            <span className="text-[10px] font-semibold text-amber-700 block">
+                              (기존: {selectedInvoiceTicket.original_dropoff_name}{selectedInvoiceTicket.change_reason ? ` · 사유: ${selectedInvoiceTicket.change_reason}` : ""})
+                            </span>
+                          )}
                           <span className="text-[11px] font-semibold text-slate-500">
                             하차 반입: {selectedInvoiceTicket.completed_at || "반입 승인완료"}
                           </span>
@@ -1569,124 +1598,155 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
       )}
 
       {/* ========================================================================= */}
-      {/* [ 모달 1: 전자 운행전표 상세 팝업 (Row Click Modal) ] */}
+      {/* [ 모달 1: 전자 운행전표 상세 팝업 (Row Click Modal - CommonPortalModal) ] */}
       {/* ========================================================================= */}
-      {detailModalRecord && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border-2 border-slate-400 animate-fadeIn">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-100">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-blue-600" />
-                <h3 className="font-black text-base text-slate-900">
-                  덤프링 공인 전자 운행전표 (티켓 #{detailModalRecord.ticket_id})
-                </h3>
+      <CommonPortalModal
+        isOpen={Boolean(detailModalRecord)}
+        onClose={() => setDetailModalRecord(null)}
+        title={
+          detailModalRecord
+            ? `덤프링 공인 전자 운행전표 (티켓 #${detailModalRecord.ticket_id})`
+            : ""
+        }
+        subtitle="덤프링 GPS 위치 기반 시스템에 의해 전산 저장·검증된 공식 디지털 인수증입니다."
+        icon={<ShieldCheck className="w-5 h-5 text-blue-600" />}
+        maxWidth="xl"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-slate-400 font-medium">
+              ESC 키 또는 닫기 버튼을 누르면 팝업이 닫힙니다.
+            </span>
+            <button
+              type="button"
+              onClick={() => setDetailModalRecord(null)}
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl active:scale-95 transition-all shadow-sm cursor-pointer"
+            >
+              닫기
+            </button>
+          </div>
+        }
+      >
+        {detailModalRecord && (
+          <div className="p-6 space-y-4 text-xs font-bold text-slate-800">
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div>
+                <span className="text-slate-500 font-semibold block text-[11px]">거래처 (건설사)</span>
+                <span className="text-sm font-black text-slate-900">{detailModalRecord.company_name}</span>
               </div>
-              <button
-                onClick={() => setDetailModalRecord(null)}
-                className="p-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div>
+                <span className="text-slate-500 font-semibold block text-[11px]">공사 현장명 (상차지)</span>
+                <span className="text-sm font-black text-slate-900">{detailModalRecord.site_name}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-slate-500 font-semibold block text-[11px]">하차지 (사토장)</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-sm font-black text-emerald-700">{detailModalRecord.dropoff_name || "사토장 미지정"}</span>
+                  {detailModalRecord.is_dropoff_changed && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-amber-500 text-white">
+                      하차지 변경됨
+                    </span>
+                  )}
+                  {detailModalRecord.is_dropoff_changed && detailModalRecord.original_dropoff_name && (
+                    <span className="text-[11px] text-slate-400 line-through">
+                      (기존: {detailModalRecord.original_dropoff_name})
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-500 font-semibold block text-[11px]">운반 일자 및 시간</span>
+                <span className="text-slate-900">{detailModalRecord.date} {detailModalRecord.time}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 font-semibold block text-[11px]">사토 / 자재 품목</span>
+                <span className="text-slate-900">{detailModalRecord.material_name}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 font-semibold block text-[11px]">배정 차량 / 기사</span>
+                <span className="text-slate-900">{detailModalRecord.car_number} ({detailModalRecord.driver_name})</span>
+              </div>
+              <div>
+                <span className="text-slate-500 font-semibold block text-[11px]">당일 총 운행 횟수</span>
+                <span className="text-slate-900">{detailModalRecord.trips || 1} 회</span>
+              </div>
             </div>
 
-            <div className="p-6 space-y-4 text-xs font-bold text-slate-800">
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div>
-                  <span className="text-slate-500 font-semibold block text-[11px]">거래처 (건설사)</span>
-                  <span className="text-sm font-black text-slate-900">{detailModalRecord.company_name}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-semibold block text-[11px]">공사 현장명</span>
-                  <span className="text-sm font-black text-slate-900">{detailModalRecord.site_name}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-semibold block text-[11px]">운반 일자 및 시간</span>
-                  <span className="text-slate-900">{detailModalRecord.date} {detailModalRecord.time}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-semibold block text-[11px]">사토 / 자재 품목</span>
-                  <span className="text-slate-900">{detailModalRecord.material_name}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-semibold block text-[11px]">배정 차량 / 기사</span>
-                  <span className="text-slate-900">{detailModalRecord.car_number} ({detailModalRecord.driver_name})</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-semibold block text-[11px]">당일 총 운행 횟수</span>
-                  <span className="text-slate-900">{detailModalRecord.trips || 1} 회</span>
-                </div>
-              </div>
+            {/* 금액 매칭 테이블 */}
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+              <table className="w-full text-left border-collapse">
+                <tbody>
+                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                    <td className="p-3 text-slate-600 font-semibold">회당 운반 단가</td>
+                    <td className="p-3 text-right font-black text-slate-900 font-mono">
+                      ₩{detailModalRecord.unit_price.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="p-3 text-slate-600 font-semibold">공급가액 (단가 × 횟수)</td>
+                    <td className="p-3 text-right font-black text-slate-900 font-mono">
+                      ₩{detailModalRecord.supply_price.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="p-3 text-slate-600 font-semibold">부가가치세 (10% 절사)</td>
+                    <td className="p-3 text-right font-bold text-slate-700 font-mono">
+                      ₩{detailModalRecord.vat.toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr className="bg-blue-50/70 text-blue-900">
+                    <td className="p-3 font-black text-sm">합계 금액</td>
+                    <td className="p-3 text-right font-black text-base text-blue-700 font-mono">
+                      ₩{detailModalRecord.total_amount.toLocaleString()}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-              {/* 금액 매칭 테이블 */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <tbody>
-                    <tr className="border-b border-slate-200 bg-slate-50/50">
-                      <td className="p-3 text-slate-600 font-semibold">회당 운반 단가</td>
-                      <td className="p-3 text-right font-black text-slate-900">
-                        ₩{detailModalRecord.unit_price.toLocaleString()}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 text-slate-600 font-semibold">공급가액 (단가 × 횟수)</td>
-                      <td className="p-3 text-right font-black text-slate-900">
-                        ₩{detailModalRecord.supply_price.toLocaleString()}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-3 text-slate-600 font-semibold">부가가치세 (10% 절사)</td>
-                      <td className="p-3 text-right font-bold text-slate-700">
-                        ₩{detailModalRecord.vat.toLocaleString()}
-                      </td>
-                    </tr>
-                    <tr className="bg-blue-50 text-blue-900">
-                      <td className="p-3 font-black text-sm">합계 금액</td>
-                      <td className="p-3 text-right font-black text-base text-blue-700">
-                        ₩{detailModalRecord.total_amount.toLocaleString()}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 정산 상태 및 액션 배너 */}
-              <div className="p-3.5 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
+            {/* 정산 상태 및 액션 배너 */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
                   <span className="text-[11px] text-slate-500 block font-bold">현재 정산 상태</span>
-                  <span className="text-sm font-black text-slate-900 flex items-center gap-1.5 mt-0.5">
-                    {detailModalRecord.settlement_label === "정산완료" ? (
-                      <span className="text-blue-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> 정산완료 (입금확인 완료)
-                      </span>
-                    ) : detailModalRecord.settlement_label === "입금확인 대기" ? (
-                      <span className="text-indigo-600 flex items-center gap-1">
-                        <Clock className="w-4 h-4" /> 현장 송금완료 (차주 입금 수령확인 대기)
-                      </span>
-                    ) : detailModalRecord.settlement_label === "정산 이의" ? (
-                      <span className="text-amber-700 flex items-center gap-1">
-                        <AlertTriangle className="w-4 h-4" /> 정산 이의 / 분쟁 접수됨
-                      </span>
-                    ) : (
-                      <span className="text-slate-700">{detailModalRecord.settlement_label}</span>
-                    )}
-                  </span>
-                  {detailModalRecord.dispute_reason && (
-                    <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                      이의 사유: {detailModalRecord.dispute_reason}
-                    </p>
+                  {detailModalRecord.settlement_label === "정산완료" ? (
+                    <div className="flex items-start gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="text-sm font-black text-blue-600 block leading-tight">정산완료</span>
+                        <span className="text-[11px] font-bold text-slate-500 block mt-0.5">(입금확인 완료)</span>
+                      </div>
+                    </div>
+                  ) : detailModalRecord.settlement_label === "입금확인 대기" ? (
+                    <div className="flex items-start gap-1.5">
+                      <Clock className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="text-sm font-black text-indigo-600 block leading-tight">현장 송금완료</span>
+                        <span className="text-[11px] font-bold text-indigo-700/80 block mt-0.5">(차주 입금 수령확인 대기)</span>
+                      </div>
+                    </div>
+                  ) : detailModalRecord.settlement_label === "정산 이의" ? (
+                    <div className="flex items-start gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="text-sm font-black text-amber-700 block leading-tight">정산 이의</span>
+                        <span className="text-[11px] font-bold text-amber-800/80 block mt-0.5">(분쟁 접수됨)</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-sm font-black text-slate-700">{detailModalRecord.settlement_label}</span>
                   )}
                 </div>
 
                 {(detailModalRecord.raw_status === "SETTLEMENT_PAID" || detailModalRecord.settlement_label === "입금확인 대기") && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
                       disabled={isProcessing}
                       onClick={() => handleUpdateSettlementStatus([detailModalRecord.ticket_id], "SETTLEMENT_CONFIRMED")}
-                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-black text-xs shadow flex items-center gap-1.5 transition-all"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs shadow-xs flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer"
                     >
-                      <CheckCircle2 className="w-4 h-4" />
-                      입금 수령확인 (승인)
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>입금 수령확인 (승인)</span>
                     </button>
                     <button
                       type="button"
@@ -1698,7 +1758,7 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                         setDisputeInputReason("운행 대기시간 또는 회차 운임 미포함에 따른 정산금액 불일치");
                         setDisputeInputAmount(String(rec.total_amount));
                       }}
-                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg font-bold text-xs transition-all"
+                      className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl font-bold text-xs whitespace-nowrap transition-all cursor-pointer"
                     >
                       금액 이의제기
                     </button>
@@ -1706,130 +1766,123 @@ export function OwnerSettlementManagement({ setActivePath }: OwnerSettlementMana
                 )}
               </div>
 
-              <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-[11px] text-blue-900 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>
-                  본 운행 전표는 덤프링 GPS 위치 기반 시스템에 의해 전산 저장·검증된 공식 디지털 인수증입니다.
-                </span>
-              </div>
+              {detailModalRecord.dispute_reason && (
+                <p className="text-[11px] text-amber-700 font-semibold pt-2 border-t border-slate-200">
+                  이의 사유: {detailModalRecord.dispute_reason}
+                </p>
+              )}
             </div>
 
-            <div className="px-6 py-3 bg-slate-100 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => setDetailModalRecord(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-black text-xs transition-colors"
-              >
-                닫기
-              </button>
+            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-[11px] text-blue-900 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                본 운행 전표는 덤프링 GPS 위치 기반 시스템에 의해 전산 저장·검증된 공식 디지털 인수증입니다.
+              </span>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </CommonPortalModal>
 
       {/* ========================================================================= */}
-      {/* [ 모달 2: 차주 정산 금액 이의제기 (분쟁신청) 팝업 모달 ] */}
+      {/* [ 모달 2: 차주 정산 금액 이의제기 (분쟁신청) 팝업 모달 - CommonPortalModal ] */}
       {/* ========================================================================= */}
-      {disputeModalRecord && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border-2 border-slate-400 animate-fadeIn">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-rose-50/70">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-rose-600" />
-                <h3 className="font-black text-base text-rose-950">
-                  운반비 정산 금액 이의제기 (티켓 #{disputeModalRecord.ticket_id})
-                </h3>
-              </div>
-              <button
-                onClick={() => setDisputeModalRecord(null)}
-                className="p-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs font-bold text-slate-800">
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">거래처 / 현장</span>
-                  <span className="font-black text-slate-900">{disputeModalRecord.site_name} ({disputeModalRecord.company_name})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">배정 차량 / 운반일</span>
-                  <span className="font-black text-slate-900">{disputeModalRecord.car_number} ({disputeModalRecord.date})</span>
-                </div>
-                <div className="flex justify-between border-t border-slate-200 pt-2">
-                  <span className="text-slate-500">전표 청구 합계금액</span>
-                  <span className="text-sm font-black text-blue-700">₩{disputeModalRecord.total_amount.toLocaleString()}</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-extrabold mb-1">
-                  실제 요구 정산 금액 (KRW)
-                </label>
-                <input
-                  type="number"
-                  value={disputeInputAmount}
-                  onChange={e => setDisputeInputAmount(e.target.value)}
-                  placeholder="예: 233735 (차액 포함 실제 지급 요구액)"
-                  className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-rose-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-extrabold mb-1">
-                  이의제기 사유
-                </label>
-                <textarea
-                  rows={3}
-                  value={disputeInputReason}
-                  onChange={e => setDisputeInputReason(e.target.value)}
-                  placeholder="예: 현장 하차 대기시간 2시간 분 및 편도 회차비가 미포함되어 차액 정산을 요청합니다."
-                  className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-rose-500"
-                />
-              </div>
-
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>
-                  이의제기 등록 시 현장관리자의 정산 대장에 [정산 이의/분쟁]으로 즉시 통보되며, 추가 송금 또는 상호 협의 후 정산이 완료됩니다.
-                </span>
-              </div>
-            </div>
-
-            <div className="px-6 py-3.5 bg-slate-100 border-t border-slate-200 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDisputeModalRecord(null)}
-                className="px-4 py-2 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-bold text-xs transition-colors"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                disabled={isProcessing}
-                onClick={() => {
-                  if (!disputeInputReason.trim()) {
-                    alert("이의제기 사유를 입력해 주세요.");
-                    return;
+      <CommonPortalModal
+        isOpen={Boolean(disputeModalRecord)}
+        onClose={() => setDisputeModalRecord(null)}
+        title={
+          disputeModalRecord
+            ? `운반비 정산 금액 이의제기 (티켓 #${disputeModalRecord.ticket_id})`
+            : ""
+        }
+        subtitle="불일치하는 정산 금액과 이의 사유를 기재해 주시면 현장 관리자 대장에 분쟁신청으로 즉시 접수됩니다."
+        icon={<AlertTriangle className="w-5 h-5 text-rose-600" />}
+        maxWidth="md"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <button
+              type="button"
+              onClick={() => setDisputeModalRecord(null)}
+              className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition-all cursor-pointer"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={() => {
+                if (!disputeModalRecord) return;
+                if (!disputeInputReason.trim()) {
+                  alert("이의제기 사유를 입력해 주세요.");
+                  return;
+                }
+                handleUpdateSettlementStatus(
+                  [disputeModalRecord.ticket_id],
+                  "SETTLEMENT_DISPUTED",
+                  {
+                    dispute_reason: disputeInputReason,
+                    dispute_amount: Number(disputeInputAmount) || disputeModalRecord.total_amount
                   }
-                  handleUpdateSettlementStatus(
-                    [disputeModalRecord.ticket_id],
-                    "SETTLEMENT_DISPUTED",
-                    {
-                      dispute_reason: disputeInputReason,
-                      dispute_amount: Number(disputeInputAmount) || disputeModalRecord.total_amount
-                    }
-                  );
-                }}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-black text-xs shadow transition-colors"
-              >
-                이의제기 등록
-              </button>
+                );
+              }}
+              className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs shadow-sm transition-all cursor-pointer"
+            >
+              이의제기 등록
+            </button>
+          </div>
+        }
+      >
+        {disputeModalRecord && (
+          <div className="p-6 space-y-4 text-xs font-bold text-slate-800">
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-500">거래처 / 현장</span>
+                <span className="font-black text-slate-900">{disputeModalRecord.site_name} ({disputeModalRecord.company_name})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">배정 차량 / 운반일</span>
+                <span className="font-black text-slate-900">{disputeModalRecord.car_number} ({disputeModalRecord.date})</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-2">
+                <span className="text-slate-500">전표 청구 합계금액</span>
+                <span className="text-sm font-black text-blue-700 font-mono">₩{disputeModalRecord.total_amount.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-extrabold mb-1">
+                실제 요구 정산 금액 (KRW)
+              </label>
+              <input
+                type="number"
+                value={disputeInputAmount}
+                onChange={e => setDisputeInputAmount(e.target.value)}
+                placeholder="예: 233735 (차액 포함 실제 지급 요구액)"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-rose-500 rounded-xl text-xs font-black text-slate-900 focus:outline-none transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-extrabold mb-1">
+                이의제기 사유
+              </label>
+              <textarea
+                rows={3}
+                value={disputeInputReason}
+                onChange={e => setDisputeInputReason(e.target.value)}
+                placeholder="예: 현장 하차 대기시간 2시간 분 및 편도 회차비가 미포함되어 차액 정산을 요청합니다."
+                className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-200 focus:border-rose-500 rounded-xl text-xs font-medium text-slate-900 focus:outline-none transition-colors"
+              />
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                이의제기 등록 시 현장관리자의 정산 대장에 [정산 이의/분쟁]으로 즉시 통보되며, 추가 송금 또는 상호 협의 후 정산이 완료됩니다.
+              </span>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </CommonPortalModal>
     </div>
   );
 }

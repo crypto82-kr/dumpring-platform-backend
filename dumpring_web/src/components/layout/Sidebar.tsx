@@ -121,7 +121,7 @@ const menuByRole: Record<UserRole, MenuItem[]> = {
     { title: "배차 스케줄러", icon: Calendar, path: "/owner/schedule" },
     { title: "운행 통계 조회", icon: BarChart3, path: "/owner/statistics" },
     { title: "매출 및 운반 정산", icon: DollarSign, path: "/owner/revenues" },
-    { title: "마이페이지", icon: User, path: "/owner/mypage" },
+    // { title: "마이페이지", icon: User, path: "/owner/mypage" },
   ],
 };
 

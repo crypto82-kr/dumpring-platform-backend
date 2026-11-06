@@ -52,13 +52,6 @@ export default function DropoffHistoryManagement({
   const [inboundTickets, setInboundTickets] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // 최초 로드 시 첫 번째 사토장 기본 선택
-  useEffect(() => {
-    if (registeredDropoffList.length > 0 && selectedDropoffId === "") {
-      setSelectedDropoffId(registeredDropoffList[0].id);
-    }
-  }, [registeredDropoffList, selectedDropoffId]);
-
   // 빠른 기간 필터 클릭 핸들러
   const handleQuickRangeChange = (type: "ALL" | "TODAY" | "WEEK" | "MONTH") => {
     setQuickRange(type);

@@ -24,6 +24,8 @@ import {
   Trash2
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import DocumentViewerModal from "@/components/common/DocumentViewerModal";
+import CommonPortalModal from "@/components/views/common/CommonPortalModal";
 
 interface DriverDocItem {
   code: string;
@@ -86,6 +88,9 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
   const [formCarNumber, setFormCarNumber] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // 통합 서류 뷰어 모달 상태
+  const [viewerDoc, setViewerDoc] = useState<{ title: string; url: string } | null>(null);
 
   const fetchDriversAndCars = async (preferSelectedId?: number | null) => {
     setIsLoading(true);
@@ -667,16 +672,28 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                           </div>
 
                           {isUploaded && fileUrl ? (
-                            <a
-                              href={fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-blue-600 hover:underline flex items-center gap-1 font-bold pt-1 border-t border-slate-100 dark:border-slate-800"
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const rawUrl = docItem?.file_url || "";
+                                const fullUrl = rawUrl.startsWith("http")
+                                  ? rawUrl
+                                  : rawUrl.startsWith("/")
+                                  ? `${getApiBaseUrl()}${rawUrl}`
+                                  : `${getApiBaseUrl()}/api/files/stream/${rawUrl}?category=documents`;
+                                setViewerDoc({
+                                  title: `[${selectedDriver?.name || "기사"}] ${docDef.label}`,
+                                  url: fullUrl,
+                                });
+                              }}
+                              className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer flex items-center justify-between gap-1 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-all border border-blue-100 dark:border-blue-900/50"
                             >
-                              <FileText className="w-3 h-3" />
-                              <span>서류 확인 / 미리보기</span>
-                              <ExternalLink className="w-2.5 h-2.5 ml-auto opacity-70" />
-                            </a>
+                              <span className="flex items-center gap-1">
+                                <FileText className="w-3 h-3 text-blue-600 shrink-0" />
+                                <span>📄 열람하기</span>
+                              </span>
+                              <ExternalLink className="w-2.5 h-2.5 text-blue-600 opacity-70 shrink-0" />
+                            </button>
                           ) : (
                             <span className="text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
                               서류 미등록 상태
@@ -699,107 +716,116 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
         </div>
       </div>
 
-      {/* 등록 및 수정 팝업 모달 */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-blue-600" />
-                <span>{editingDriverId ? "기사 정보 수정 및 차량 배정" : "소속 기사 신규 초대 / 등록"}</span>
-              </h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      {/* 등록 및 수정 팝업 모달 (공통 팝업 디자인 CommonPortalModal 적용) */}
+      <CommonPortalModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingDriverId ? "기사 정보 수정 및 차량 배정" : "소속 기사 신규 초대 / 등록"}
+        subtitle="기사 인적사항 및 배정 차량을 관리합니다."
+        icon={
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+            <UserPlus className="w-5 h-5" />
+          </div>
+        }
+        maxWidth="md"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => {
+                const formEl = document.getElementById("owner-driver-form") as HTMLFormElement | null;
+                if (formEl) formEl.requestSubmit();
+              }}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-extrabold text-xs transition-all shadow-md shadow-blue-500/20 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isSubmitting ? "처리 중..." : editingDriverId ? "수정 완료" : "초대 및 등록 완료"}</span>
+            </button>
+          </div>
+        }
+      >
+        <div className="p-6 space-y-5">
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs rounded-xl border border-rose-200 dark:border-rose-800 font-bold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          <form id="owner-driver-form" onSubmit={handleSaveDriver} className="space-y-4">
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
+                기사 성명 <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="예: 홍길동"
+                value={formDriverName}
+                onChange={(e) => setFormDriverName(e.target.value)}
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+              />
             </div>
 
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs rounded-xl border border-rose-200 dark:border-rose-800 font-bold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
+                기사 휴대폰 번호 <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="tel"
+                required
+                placeholder="예: 01012345678"
+                value={formDriverPhone}
+                onChange={(e) => setFormDriverPhone(e.target.value)}
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                기사님이 모바일 앱 가입 시 이 번호로 로그인하면 자동으로 소속 그룹에 매칭됩니다.
+              </p>
+            </div>
 
-            <form onSubmit={handleSaveDriver} className="space-y-4">
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
-                  기사 성명 <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="예: 홍길동"
-                  value={formDriverName}
-                  onChange={(e) => setFormDriverName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
-                  기사 휴대폰 번호 <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="예: 01012345678"
-                  value={formDriverPhone}
-                  onChange={(e) => setFormDriverPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  기사님이 모바일 앱 가입 시 이 번호로 로그인하면 자동으로 소속 그룹에 매칭됩니다.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
-                  배정 덤프 차량 (선택)
-                </label>
-                <select
-                  value={formCarNumber}
-                  onChange={(e) => setFormCarNumber(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">차량 미배정 (추후 배정)</option>
-                  {cars.map((c) => {
-                    const isAssignedToOther = c.driver_name && c.driver_name !== "미배정" && (!editingDriverId || drivers.find(d => d.driver_id === editingDriverId)?.car_number !== c.car_number);
-                    return (
-                      <option key={c.id} value={c.car_number}>
-                        {c.car_number} ({c.truck_type_name || `${c.tonnage}톤`}){isAssignedToOther ? ` [배정중: ${c.driver_name}]` : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  이미 다른 기사에게 배정된 차량을 선택할 경우, 기존 기사는 자동으로 미배정 상태로 변경됩니다.
-                </p>
-              </div>
-
-              <div className="pt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs transition-all"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition-all shadow-md shadow-blue-500/20 disabled:opacity-50 flex items-center justify-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{isSubmitting ? "처리 중..." : editingDriverId ? "수정 완료" : "초대 및 등록 완료"}</span>
-                </button>
-              </div>
-            </form>
-          </div>
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
+                배정 덤프 차량 (선택)
+              </label>
+              <select
+                value={formCarNumber}
+                onChange={(e) => setFormCarNumber(e.target.value)}
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">차량 미배정 (추후 배정)</option>
+                {cars.map((c) => {
+                  const isAssignedToOther = c.driver_name && c.driver_name !== "미배정" && (!editingDriverId || drivers.find(d => d.driver_id === editingDriverId)?.car_number !== c.car_number);
+                  return (
+                    <option key={c.id} value={c.car_number}>
+                      {c.car_number} ({c.truck_type_name || `${c.tonnage}톤`}){isAssignedToOther ? ` [배정중: ${c.driver_name}]` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1">
+                이미 다른 기사에게 배정된 차량을 선택할 경우, 기존 기사는 자동으로 미배정 상태로 변경됩니다.
+              </p>
+            </div>
+          </form>
         </div>
-      )}
+      </CommonPortalModal>
+
+      {/* 통합 서류 확인 뷰어 모달 */}
+      <DocumentViewerModal
+        isOpen={!!viewerDoc}
+        onClose={() => setViewerDoc(null)}
+        title={viewerDoc?.title || "서류 확인"}
+        fileUrl={viewerDoc?.url || null}
+      />
     </div>
   );
 }

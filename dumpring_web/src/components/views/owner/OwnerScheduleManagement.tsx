@@ -18,6 +18,7 @@ import {
   Filter
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import CommonPortalModal from "@/components/views/common/CommonPortalModal";
 
 interface DriverScheduleItem {
   ticket_id: number;
@@ -27,6 +28,9 @@ interface DriverScheduleItem {
   tonnage: number;
   site_name: string;
   dropoff_name: string;
+  original_dropoff_name?: string | null;
+  is_dropoff_changed?: boolean;
+  change_reason?: string | null;
   status: string;
   status_name?: string;
   material_type: string;
@@ -525,42 +529,54 @@ export function OwnerScheduleManagement({ setActivePath }: OwnerScheduleManageme
         </div>
       </div>
 
-      {/* 5. 날짜 클릭 시 상세정보 모달 팝업 (Detail Modal Popup) */}
-      {selectedDayData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-scaleUp">
-            {/* 팝업 헤더 */}
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/70">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-blue-500/20">
-                  {selectedDayData.day}일
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
-                    <span>{selectedDayData.date} 배차 및 소속 기사 운행 내역</span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                      총 {selectedDayData.total_count}건 운행
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    해당 일자에 투입된 소속 덤프 기사들의 상·하차지 노선, 토사 종류 및 실시간 운행 상태입니다.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDayData(null);
-                  setModalSearchQuery("");
-                }}
-                className="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+      {/* 5. 날짜 클릭 시 상세정보 모달 팝업 (공통 팝업 CommonPortalModal 적용) */}
+      <CommonPortalModal
+        isOpen={Boolean(selectedDayData)}
+        onClose={() => {
+          setSelectedDayData(null);
+          setModalSearchQuery("");
+        }}
+        title={
+          selectedDayData ? (
+            <div className="flex items-center gap-2">
+              <span>{selectedDayData.date} 배차 및 소속 기사 운행 내역</span>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                총 {selectedDayData.total_count}건 운행
+              </span>
             </div>
-
+          ) : ""
+        }
+        subtitle="해당 일자에 투입된 소속 덤프 기사들의 상·하차지 노선, 토사 종류 및 실시간 운행 상태입니다."
+        icon={
+          selectedDayData ? (
+            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-blue-500/20">
+              {selectedDayData.day}일
+            </div>
+          ) : null
+        }
+        maxWidth="4xl"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-slate-400 font-medium">
+              ESC 키 또는 닫기 버튼을 누르면 팝업이 닫힙니다.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDayData(null);
+                setModalSearchQuery("");
+              }}
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl active:scale-95 transition-all shadow-sm cursor-pointer"
+            >
+              닫기
+            </button>
+          </div>
+        }
+      >
+        {selectedDayData && (
+          <div className="flex flex-col">
             {/* 팝업 서브 컨트롤러 (검색 & 요약) */}
-            <div className="px-5 py-3 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white">
+            <div className="px-6 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white">
               <div className="relative w-full sm:w-72">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                 <input
@@ -568,19 +584,19 @@ export function OwnerScheduleManagement({ setActivePath }: OwnerScheduleManageme
                   placeholder="기사명, 차량번호, 현장명 검색..."
                   value={modalSearchQuery}
                   onChange={(e) => setModalSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 font-semibold"
                 />
               </div>
 
               <div className="flex items-center gap-2 text-xs font-bold">
-                <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                   완료: {selectedDayData.completed_count}건
                 </span>
-                <span className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
                   운행중: {selectedDayData.in_progress_count}건
                 </span>
                 {(selectedDayData.cancelled_count || 0) > 0 && (
-                  <span className="px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                  <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
                     취소: {selectedDayData.cancelled_count}건
                   </span>
                 )}
@@ -588,7 +604,7 @@ export function OwnerScheduleManagement({ setActivePath }: OwnerScheduleManageme
             </div>
 
             {/* 팝업 본문 (기사 운행 테이블) */}
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="p-6">
               {filteredModalDrivers.length === 0 ? (
                 <div className="text-center py-16 space-y-3">
                   <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center text-xl">
@@ -600,7 +616,7 @@ export function OwnerScheduleManagement({ setActivePath }: OwnerScheduleManageme
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-wider">
@@ -617,9 +633,6 @@ export function OwnerScheduleManagement({ setActivePath }: OwnerScheduleManageme
                       {filteredModalDrivers.map((driver) => {
                         const isCancelled = driver.status === "CANCELLED" || driver.status === "REJECTED";
                         const isCompleted = driver.status.includes("COMPLETED") || driver.status.includes("SETTLEMENT") || driver.status === "APPROVED";
-                        const isInProgress = driver.status.includes("DRIVING") || driver.status.includes("ARRIVED") || driver.status.includes("ACCEPTED") || driver.status.includes("LOADING");
-
-                        const soilText = getSoilLabel(driver.material_type, driver.material_type_name);
                         const statusText = getStatusLabel(driver.status, driver.status_name);
 
                         return (
@@ -641,23 +654,34 @@ export function OwnerScheduleManagement({ setActivePath }: OwnerScheduleManageme
                               <div className="flex items-center gap-1 text-slate-800 font-bold">
                                 <Navigation className="w-3 h-3 text-emerald-600 shrink-0" />
                                 <span className="truncate max-w-[150px]">{driver.dropoff_name || "하차지 미지정"}</span>
+                                {driver.is_dropoff_changed && (
+                                  <span
+                                    className="px-1.5 py-0.5 text-[9px] font-black rounded bg-amber-500 text-white shrink-0"
+                                    title={`기존: ${driver.original_dropoff_name || "미지정"} / 사유: ${driver.change_reason || "사유 미입력"}`}
+                                  >
+                                    변경됨
+                                  </span>
+                                )}
                               </div>
+                              {driver.is_dropoff_changed && driver.original_dropoff_name && (
+                                <div className="text-[10px] text-slate-400 line-through ml-4">
+                                  기존: {driver.original_dropoff_name}
+                                </div>
+                              )}
                             </td>
                             <td className="py-3 px-3.5 text-slate-600">
                               <span className="px-2 py-0.5 rounded bg-blue-50/80 border border-blue-200/80 text-blue-800 text-[11px] font-extrabold inline-block">
-                                {soilText}
+                                {getSoilLabel(driver.material_type, driver.material_type_name)}
                               </span>
                             </td>
                             <td className="py-3 px-3.5">
                               <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border inline-block ${
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold inline-block border ${
                                   isCancelled
                                     ? "bg-rose-50 text-rose-600 border-rose-200"
                                     : isCompleted
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : isInProgress
-                                    ? "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
-                                    : "bg-slate-100 text-slate-600 border-slate-200"
+                                    : "bg-blue-50 text-blue-700 border-blue-200"
                                 }`}
                               >
                                 {isCancelled ? `✕ ${statusText}` : isCompleted ? `✓ ${statusText}` : `● ${statusText}`}
@@ -682,23 +706,9 @@ export function OwnerScheduleManagement({ setActivePath }: OwnerScheduleManageme
                 </div>
               )}
             </div>
-
-            {/* 팝업 푸터 */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDayData(null);
-                  setModalSearchQuery("");
-                }}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl active:scale-95 transition-all shadow-sm cursor-pointer"
-              >
-                닫기
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </CommonPortalModal>
     </div>
   );
 }
