@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Truck, MapPin, Search, CheckCircle2, QrCode, AlertTriangle } from "lucide-react";
 import { MockMap } from "@/components/views/common/MockMap";
 import { getApiBaseUrl } from "@/utils/api";
@@ -21,6 +22,10 @@ export default function DropoffDispatchManagement({
   dispatchRequestList = [],
   registeredSiteList = [],
 }: DropoffDispatchManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [selectedDropoffFilter, setSelectedDropoffFilter] = useState<string>("");
   const [selectedOrderRequestId, setSelectedOrderRequestId] = useState<number | null>(null);
   const [assignedTickets, setAssignedTickets] = useState<any[]>([]);
@@ -132,7 +137,7 @@ export default function DropoffDispatchManagement({
       req.status === "취소됨";
     if (isCompletedStatus) return false;
 
-    // 작업일/종료일이 오늘보다 이전인 지난 건 제외
+    // 작업일/종료일이 오늘보다 이전인 지난 건 제외 (오늘 현재 진행형만 유지)
     const targetDate = req.endDate || req.startDate;
     if (targetDate && targetDate < todayStr) {
       return false;
@@ -145,14 +150,15 @@ export default function DropoffDispatchManagement({
       Boolean(req.dropoffName);
     if (!isMatched) return false;
 
-    // 운영 하차지가 있을 경우, 선택된 하차지에 속한 오더만 필터링 (matchedDropOffId 또는 하차지명 일치)
+    // 운영 하차지가 있을 경우, 선택된 하차지에 속한 오더만 필터링 (matchedDropOffId 또는 하차지명 일치 또는 하차지 변경 유입)
     if (selectedDropoffObj) {
       const matchById = req.matchedDropOffId && req.matchedDropOffId === selectedDropoffObj.id;
       const matchByName = req.dropoffName && (
         req.dropoffName.toLowerCase() === (selectedDropoffObj.name || "").toLowerCase() ||
         req.dropoffName.toLowerCase() === (selectedDropoffObj.locationName || "").toLowerCase()
       );
-      return Boolean(matchById || matchByName);
+      const matchByChanged = Array.isArray(req.changedDropOffIds) && req.changedDropOffIds.includes(selectedDropoffObj.id);
+      return Boolean(matchById || matchByName || matchByChanged);
     }
 
     return true;
@@ -264,11 +270,14 @@ export default function DropoffDispatchManagement({
               onChange={(e) => setSelectedOrderRequestId(Number(e.target.value))}
               className="w-full bg-blue-50/80 border border-blue-200 rounded-xl px-3 py-2 text-xs font-extrabold text-blue-900 focus:outline-none focus:border-blue-600 shadow-sm"
             >
-              {activeMatchedDispatches.map((req) => (
-                <option key={req.id} value={req.id}>
-                  [{req.siteName} ➔ {req.dropoffName || "내 하차지"}] {req.tonTypes?.map((t: string) => t === "T_25" ? "25톤" : t).join(",")} ({req.truckCount}대) - {req.status}
-                </option>
-              ))}
+              {activeMatchedDispatches.map((req) => {
+                const isChangedInbound = Array.isArray(req.changedDropOffIds) && req.changedDropOffIds.includes(selectedDropoffObj?.id);
+                return (
+                  <option key={req.id} value={req.id}>
+                    {isChangedInbound ? "🔀 [경로변경 유입] " : ""}[{req.siteName} ➔ {req.dropoffName || "내 하차지"}] {req.tonTypes?.map((t: string) => t === "T_25" ? "25톤" : t).join(",")} ({req.truckCount}대) - {req.status}
+                  </option>
+                );
+              })}
               {activeMatchedDispatches.length === 0 && <option value="">진행 중인 반입 배차 오더 없음</option>}
             </select>
           </div>
@@ -340,7 +349,7 @@ export default function DropoffDispatchManagement({
                       </div>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">반입 토사 종류</span>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">반입토사</span>
                       <div className="font-black text-blue-600 mt-0.5 text-sm">
                         {selectedReq.soilType === "GOOD_SOIL" ? "양질토" : selectedReq.soilType === "MUD_SOIL" ? "뻘흙" : selectedReq.soilType}
                       </div>
@@ -420,27 +429,72 @@ export default function DropoffDispatchManagement({
                         기사 운행 정보를 불러오는 중입니다...
                       </td>
                     </tr>
-                  ) : assignedTickets.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
-                        현재 배차를 수락하거나 운행 중인 기사가 없습니다. (기사 배차 대기 중)
-                      </td>
-                    </tr>
-                  ) : (
-                    assignedTickets.map((t) => {
+                  ) : (() => {
+                    // 변경 유입된 하차지 뷰에서는 내 하차지로 변경되어 들어온 기사만 필터링 노출
+                    const isOriginalDropoffView = Boolean(selectedReq?.matchedDropOffId && selectedReq.matchedDropOffId === effectiveDropoffId);
+                    const displayTickets = assignedTickets.filter((t) => {
+                      if (isOriginalDropoffView) {
+                        return true;
+                      }
+                      // 변경 유입 하차지에서는 자기 하차지로 지정된 기사만 노출
+                      return Boolean(t.changed_drop_off_id && effectiveDropoffId && t.changed_drop_off_id === effectiveDropoffId);
+                    });
+
+                    if (displayTickets.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
+                            {isOriginalDropoffView
+                              ? "현재 배차를 수락하거나 운행 중인 기사가 없습니다. (기사 배차 대기 중)"
+                              : "해당 하차지로 경로 변경되어 유입된 기사가 없습니다."}
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return displayTickets.map((t) => {
                       const driverName = t.driver?.name || "기사명 미등록";
                       const carPlate = t.car?.car_number || "차량번호 미등록";
                       const carTonnage = t.car?.tonnage ? `${t.car.tonnage}톤` : "덤프";
-                      const phone = t.driver?.phone || "-";
+                      const phone = t.driver?.phone_number || t.driver?.phone || "-";
                       const acceptedTime = t.accepted_at ? new Date(t.accepted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-";
 
-                      const canInspect = t.status === "ARRIVED" || t.status === "DRIVING" || t.status === "WAITING_ABSENT_APPROVAL";
+                      // 하차지 변경 여부 판단 (원래 하차지 뷰 vs 변경 유입된 하차지 뷰)
+                      const isOriginalDropoff = Boolean(selectedReq?.matchedDropOffId && selectedReq.matchedDropOffId === effectiveDropoffId);
+                      const isDivertedIn = Boolean(t.changed_drop_off_id && effectiveDropoffId && t.changed_drop_off_id === effectiveDropoffId);
+                      const isDivertedOut = isOriginalDropoff
+                        ? Boolean(t.changed_drop_off_id && t.changed_drop_off_id !== effectiveDropoffId)
+                        : !isDivertedIn;
+
+                      const canInspect = !isDivertedOut && (t.status === "ARRIVED" || t.status === "DRIVING" || t.status === "WAITING_ABSENT_APPROVAL");
 
                       return (
-                        <tr key={t.id} className="hover:bg-slate-50/80 transition-all">
-                          <td className="py-3.5 px-4 font-extrabold text-slate-900 flex items-center gap-2">
-                            <span className={`w-2.5 h-2.5 rounded-full ${t.status === "APPROVED" ? "bg-emerald-500" : "bg-blue-500 animate-pulse"}`}></span>
-                            {driverName}
+                        <tr key={t.id} className={`hover:bg-slate-50/80 transition-all ${isDivertedOut ? "bg-slate-50/50 opacity-60" : ""}`}>
+                          <td className="py-3.5 px-4 font-extrabold text-slate-900">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2.5 h-2.5 rounded-full ${isDivertedOut ? "bg-slate-400" : t.status === "APPROVED" ? "bg-emerald-500" : "bg-blue-500 animate-pulse"}`}></span>
+                              <span>{driverName}</span>
+                              {isDivertedIn && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                  경로 변경 유입
+                                </span>
+                              )}
+                              {isDivertedOut && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                  타 사토장 회차 (정산 제외)
+                                </span>
+                              )}
+                            </div>
+                            {isDivertedIn && t.change_reason && (
+                              <div className="text-[10px] font-normal text-amber-700 mt-0.5">
+                                사유: {t.change_reason}
+                              </div>
+                            )}
+                            {isDivertedOut && (
+                              <div className="text-[10px] font-normal text-rose-600 mt-0.5">
+                                {t.changed_drop_off?.name ? `→ [${t.changed_drop_off.name}] (으)로 변경 이탈됨` : "타 사토장으로 경로 변경됨"}
+                              </div>
+                            )}
                           </td>
                           <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
                             {carPlate} <span className="text-[10px] font-semibold text-slate-400">({carTonnage})</span>
@@ -457,7 +511,7 @@ export default function DropoffDispatchManagement({
                                   type="button"
                                   onClick={() => {
                                     setInspectionModalTicket(t);
-                                    setInspectedSoilType(selectedReq?.soilType || "GOOD_SOIL");
+                                    setInspectedSoilType(t.actual_material_type || selectedReq?.soilType || "GOOD_SOIL");
                                     setRejectionReason("");
                                   }}
                                   className="px-2.5 py-1.5 text-xs font-black rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 transition-all shadow-sm flex items-center gap-1"
@@ -466,12 +520,17 @@ export default function DropoffDispatchManagement({
                                   반입 자재 검수
                                 </button>
                               )}
-                              {t.status === "APPROVED" && (
+                              {isDivertedOut && (
+                                <span className="px-2 py-1 text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-md">
+                                  타 사토장 검수
+                                </span>
+                              )}
+                              {t.status === "APPROVED" && !isDivertedOut && (
                                 <span className="px-2 py-1 text-[11px] font-extrabold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md">
                                   검수합격 완료
                                 </span>
                               )}
-                              {t.status === "REJECTED" && (
+                              {t.status === "REJECTED" && !isDivertedOut && (
                                 <span className="px-2 py-1 text-[11px] font-extrabold text-rose-600 bg-rose-50 border border-rose-200 rounded-md">
                                   반입 반려됨
                                 </span>
@@ -480,8 +539,8 @@ export default function DropoffDispatchManagement({
                           </td>
                         </tr>
                       );
-                    })
-                  )}
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -497,9 +556,9 @@ export default function DropoffDispatchManagement({
       )}
 
       {/* 하차지 반입 자재 육안 검수 및 승인/반려 팝업 모달 */}
-      {inspectionModalTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-scaleUp p-6 space-y-4">
+      {mounted && inspectionModalTicket && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-scaleUp p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-black">
@@ -611,13 +670,14 @@ export default function DropoffDispatchManagement({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 하차지 고정 QR 모달 */}
-      {isDropoffQrModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-sm overflow-hidden animate-scaleUp p-6 space-y-4 text-center">
+      {mounted && isDropoffQrModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-sm overflow-hidden animate-scaleUp p-6 space-y-4 text-center my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
                 <QrCode className="w-4 h-4 text-emerald-600" />
@@ -740,7 +800,8 @@ export default function DropoffDispatchManagement({
               })()}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

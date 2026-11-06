@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Search, Building, Calendar, RefreshCw, Truck, FileText, CheckCircle2, X, AlertTriangle } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 
@@ -12,6 +13,10 @@ interface SiteDumpExpensesManagementProps {
 export default function SiteDumpExpensesManagement({
   registeredSiteList = [],
 }: SiteDumpExpensesManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [activeTab, setActiveTab] = useState<"SITE" | "DRIVER">("SITE");
   const [selectedSiteId, setSelectedSiteId] = useState<number | "">("");
   const [startDateFilter, setStartDateFilter] = useState<string>("");
@@ -262,10 +267,12 @@ export default function SiteDumpExpensesManagement({
 
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
-          <span className="text-[11px] font-bold text-slate-400 block uppercase">정산 누적 총액</span>
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
+          <span className="text-[11px] font-bold text-slate-400 block uppercase">정산 누적 공급가액 (VAT별도)</span>
           <div className="text-2xl font-black text-slate-900">₩ {(summaryData.totalAmount || 0).toLocaleString()}</div>
-          <p className="text-[10px] text-emerald-600 font-bold">운행 완료 티켓 기준</p>
+          <p className="text-[10px] text-slate-500 font-bold">
+            VAT(10%): ₩ {Math.floor((summaryData.totalAmount || 0) * 0.1).toLocaleString()} 별도
+          </p>
         </div>
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
           <span className="text-[11px] font-bold text-slate-400 block uppercase">운행 완료 횟수</span>
@@ -403,7 +410,7 @@ export default function SiteDumpExpensesManagement({
       {/* Main Table Section */}
       <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xl space-y-4">
         {/* Navigation Tabs */}
-        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex gap-2">
             <button
               type="button"
@@ -471,20 +478,20 @@ export default function SiteDumpExpensesManagement({
         {/* 1. Tab: Site Summary (현장별 정산 정보) */}
         {activeTab === "SITE" && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[960px]">
               <thead>
-                <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-4 w-16 text-center">No.</th>
-                  <th className="py-3 px-4">현장명</th>
-                  <th className="py-3 px-4">시공사/업체명</th>
-                  <th className="py-3 px-4 text-center">운행 기간</th>
-                  <th className="py-3 px-4 text-center">완료 운행 횟수</th>
-                  <th className="py-3 px-4 text-center">투입 기사 수</th>
-                  <th className="py-3 px-4 text-right">총 발생 덤프비</th>
-                  <th className="py-3 px-4 text-center">상세 내역</th>
+                <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                  <th className="py-3 px-4 w-14 text-center">No.</th>
+                  <th className="py-3 px-4 min-w-[150px]">현장명</th>
+                  <th className="py-3 px-4 min-w-[140px]">시공사/업체명</th>
+                  <th className="py-3 px-4 text-center min-w-[120px]">운행 기간</th>
+                  <th className="py-3 px-4 text-center min-w-[90px]">완료 운행 횟수</th>
+                  <th className="py-3 px-4 text-center min-w-[80px]">투입 기사 수</th>
+                  <th className="py-3 px-4 text-right min-w-[120px]">총 발생 덤프비 (공급가액)</th>
+                  <th className="py-3 px-4 text-center min-w-[100px]">상세 내역</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+              <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700 whitespace-nowrap">
                 {siteSummaries.map((site, idx) => (
                   <tr key={site.siteId} className="hover:bg-slate-50/80 transition-all">
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-400 text-center">{idx + 1}</td>
@@ -511,7 +518,6 @@ export default function SiteDumpExpensesManagement({
                       <button
                         type="button"
                         onClick={() => {
-                          // 상단 '현장 선택' 검색 조건을 마음대로 변경하지 않고, 모달 팝업으로 해당 현장의 기사별 상세 내역을 즉시 표시
                           setModalSite(site);
                         }}
                         className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all active:scale-95"
@@ -536,9 +542,9 @@ export default function SiteDumpExpensesManagement({
         {/* 2. Tab: Driver-Based Table (개별 기사별 정산) */}
         {activeTab === "DRIVER" && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[1080px]">
               <thead>
-                <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   <th className="py-3 px-3 w-10 text-center">
                     <input
                       type="checkbox"
@@ -562,18 +568,18 @@ export default function SiteDumpExpensesManagement({
                     />
                   </th>
                   <th className="py-3 px-3 w-12 text-center">No.</th>
-                  <th className="py-3 px-3">티켓 번호</th>
-                  <th className="py-3 px-3">운행 일자</th>
-                  <th className="py-3 px-3">현장명</th>
-                  <th className="py-3 px-3">기사명 / 연락처</th>
-                  <th className="py-3 px-3">차량번호 (톤수)</th>
-                  <th className="py-3 px-3">정산 수령처 (개인/운송사)</th>
-                  <th className="py-3 px-3 text-right">정산 덤프비</th>
-                  <th className="py-3 px-3 text-center">정산 진행 상태</th>
-                  <th className="py-3 px-3 text-center">처리 작업</th>
+                  <th className="py-3 px-3 min-w-[100px]">티켓 번호</th>
+                  <th className="py-3 px-3 min-w-[95px]">운행 일자</th>
+                  <th className="py-3 px-3 min-w-[120px]">현장명</th>
+                  <th className="py-3 px-3 min-w-[120px]">기사명 / 연락처</th>
+                  <th className="py-3 px-3 min-w-[110px]">차량번호 (톤수)</th>
+                  <th className="py-3 px-3 min-w-[130px]">정산 수령처</th>
+                  <th className="py-3 px-3 text-right min-w-[115px]">덤프비 (VAT별도)</th>
+                  <th className="py-3 px-3 text-center min-w-[100px]">정산 상태</th>
+                  <th className="py-3 px-3 text-center min-w-[120px]">처리 작업</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+              <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700 whitespace-nowrap">
                 {filteredDriverData.map((row, idx) => {
                   const isCancelled = row.rawStatus === "CANCELLED" || row.rawStatus === "REJECTED";
                   const isChecked = selectedTicketIds.includes(row.rawTicketId);
@@ -791,9 +797,9 @@ export default function SiteDumpExpensesManagement({
         )}
       </div>
       {/* 모달 팝업: 특정 현장의 기사별 상세 정산 내역 (검색 조건 훼손 방지) */}
-      {modalSite && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden">
+      {mounted && modalSite && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden my-auto animate-scaleUp">
             {/* 모달 헤더 */}
             <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
               <div className="flex items-center gap-2.5">
@@ -823,22 +829,22 @@ export default function SiteDumpExpensesManagement({
             </div>
 
             {/* 모달 본문 (테이블) */}
-            <div className="p-6 overflow-y-auto flex-1">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="p-6 overflow-y-auto flex-1 overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse min-w-[760px]">
                 <thead>
-                  <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                  <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                     <th className="py-3 px-3 w-12 text-center">No.</th>
                     <th className="py-3 px-3">티켓 번호</th>
                     <th className="py-3 px-3">운행 일자</th>
                     <th className="py-3 px-3">기사명 / 연락처</th>
                     <th className="py-3 px-3">차량번호 (톤수)</th>
                     <th className="py-3 px-3">정산 수령처</th>
-                    <th className="py-3 px-3 text-right">정산 덤프비</th>
+                    <th className="py-3 px-3 text-right">정산 덤프비 (VAT별도)</th>
                     <th className="py-3 px-3 text-center">정산 상태</th>
                     <th className="py-3 px-3 text-center">처리 작업</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+                <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700 whitespace-nowrap">
                   {driverExpenses
                     .filter((item) => item.siteId === modalSite.siteId)
                     .map((row, idx) => {
@@ -995,13 +1001,14 @@ export default function SiteDumpExpensesManagement({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 정산 분쟁 / 이의제기 확인 및 접수 모달 */}
-      {disputeModalTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-lg overflow-hidden animate-scaleUp">
+      {mounted && disputeModalTicket && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-lg overflow-hidden animate-scaleUp my-auto">
             {/* 모달 헤더 */}
             <div className="p-5 border-b border-rose-100 bg-rose-50/50 flex justify-between items-center">
               <div className="flex items-center gap-2 text-rose-700 font-extrabold text-base">
@@ -1213,7 +1220,8 @@ export default function SiteDumpExpensesManagement({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -1819,9 +1819,28 @@ async def get_site_tax_invoice_consignment(
                 "invoice_nts_code": None,
                 "invoice_issued_at": None,
                 "work_dates": set(),
+                "soil_type": None,
             }
 
         d_grp = dropoff_group_map[group_key]
+        if not d_grp["soil_type"]:
+            raw_soil = t.actual_material_type
+            if not raw_soil and job:
+                raw_soil = getattr(job, "material_type", None) or getattr(job, "soil_type", None)
+                if not raw_soil and getattr(job, "drop_off_request", None):
+                    raw_soil = getattr(job.drop_off_request, "material_type", None)
+            SOIL_MAP = {
+                "GOOD_SOIL": "양질토",
+                "MUD_SOIL": "뻘흙",
+                "ROCK": "암버럭",
+                "MIXED": "혼합토",
+                "SAND": "모래",
+                "NORMAL_SOIL": "일반토",
+                "NORMAL": "일반토",
+                "CLAY": "점토",
+                "WEATHERED_SOIL": "풍화토",
+            }
+            d_grp["soil_type"] = SOIL_MAP.get(raw_soil, raw_soil or "토사")
         d_grp["site_departure_count"] += 1
         d_grp["dropoff_arrived_count"] += 1
         d_grp["ticket_ids"].append(t.id)
@@ -1872,6 +1891,10 @@ async def get_site_tax_invoice_consignment(
     }
 
 
+@router.get(
+    "/tax-invoices/dropoff",
+    summary="[하차지 관리자용] 하차지별 운행/정산 대장 조회"
+)
 @router.get(
     "/tax-invoices/dropoff-summary",
     summary="[하차지 관리자용] 하차지별 상차지(공사현장) B2B 전자세금계산서 및 반입 물량 정산 대장 조회"
@@ -1951,13 +1974,19 @@ async def get_dropoff_tax_invoice_summary(
             }
         }
 
-    # 4. 배차 티켓 조회
+    # 4. 배차 티켓 조회 (원래 하차지 오더 티켓 + 타 오더에서 이 하차지로 변경 유입된 티켓)
     ticket_query = (
         select(DispatchTicket)
-        .where(DispatchTicket.job_post_id.in_(job_ids))
+        .where(
+            or_(
+                DispatchTicket.job_post_id.in_(job_ids) if job_ids else False,
+                DispatchTicket.changed_drop_off_id.in_(dropoff_ids)
+            )
+        )
         .options(
             selectinload(DispatchTicket.driver),
             selectinload(DispatchTicket.car),
+            selectinload(DispatchTicket.changed_drop_off),
             selectinload(DispatchTicket.job_post).selectinload(JobPost.site),
             selectinload(DispatchTicket.job_post).selectinload(JobPost.matched_drop_off),
             selectinload(DispatchTicket.job_post).selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
@@ -1980,7 +2009,7 @@ async def get_dropoff_tax_invoice_summary(
     # 그룹 키: (site_id, dropoff_id, payer_type)
     group_map = {}
     for t in all_tickets:
-        if t.status in ["CANCELLED", "REJECTED"]:
+        if t.status in ["CANCELLED"]:
             continue
 
         job = t.job_post
@@ -1994,20 +2023,33 @@ async def get_dropoff_tax_invoice_summary(
         business_number = site_obj.business_number if site_obj else "000-00-0000"
         billing_email = site_obj.billing_email if site_obj else ""
 
-        # 하차지 확인
-        drop_off = None
+        # 원천 하차지 확인
+        orig_drop_off = None
         if job.drop_off_request and job.drop_off_request.drop_off:
-            drop_off = job.drop_off_request.drop_off
+            orig_drop_off = job.drop_off_request.drop_off
         elif job.matched_drop_off:
-            drop_off = job.matched_drop_off
+            orig_drop_off = job.matched_drop_off
 
-        dropoff_id_val = drop_off.id if drop_off else 0
-        dropoff_name_val = drop_off.name if drop_off else "하차지 미지정"
+        orig_dropoff_id = orig_drop_off.id if orig_drop_off else 0
+        orig_dropoff_name = orig_drop_off.name if orig_drop_off else "하차지 미지정"
+
+        # 최종 목적 하차지 확인 (경로 변경 여부 검사)
+        if t.changed_drop_off_id and t.changed_drop_off:
+            final_drop_obj = t.changed_drop_off
+            final_drop_id = t.changed_drop_off_id
+            is_route_changed = True
+        else:
+            final_drop_obj = orig_drop_off
+            final_drop_id = orig_dropoff_id
+            is_route_changed = False
+
+        # 🚨 중요: 타 사토장으로 변경되어 나간 티켓은 우리 사토장 세금계산서/운행집계에서 완전 제외!
+        if final_drop_id not in dropoff_ids:
+            continue
+
+        final_dropoff_name = final_drop_obj.name if final_drop_obj else "하차지 미지정"
 
         payer_type = job.payer_type or "SITE_PAYS"
-        # 하차지 관점 명칭:
-        # SITE_PAYS: 현장에서 하차지에 토사 처리비 지급 -> 하차지 입장에서는 [매출세금계산서]
-        # DROPOFF_PAYS: 하차지가 현장에서 골재/양질토 구매 -> 하차지 입장에서는 [매입세금계산서]
         if payer_type == "SITE_PAYS":
             tax_type = "SALES"
             tax_type_label = "매출"
@@ -2023,14 +2065,14 @@ async def get_dropoff_tax_invoice_summary(
         elif job.offered_unit_price:
             unit_price = job.offered_unit_price
 
-        group_key = f"drop_{dropoff_id_val}_site_{site_id}_{payer_type}"
+        group_key = f"drop_{final_drop_id}_site_{site_id}_{payer_type}"
         if group_key not in group_map:
             group_map[group_key] = {
                 "group_key": group_key,
-                "dropoff_id": dropoff_id_val,
-                "dropoff_name": dropoff_name_val,
-                "dropoff_address": drop_off.address if drop_off else "-",
-                "permit_number": drop_off.permit_number if drop_off else "-",
+                "dropoff_id": final_drop_id,
+                "dropoff_name": final_dropoff_name,
+                "dropoff_address": final_drop_obj.address if final_drop_obj else "-",
+                "permit_number": final_drop_obj.permit_number if final_drop_obj else "-",
                 "site_id": site_id,
                 "site_name": site_name,
                 "site_address": getattr(site_obj, "site_address", "-") if site_obj else "-",
@@ -2071,13 +2113,57 @@ async def get_dropoff_tax_invoice_summary(
             if getattr(t, "dropoff_invoice_issued_at", None):
                 grp["invoice_issued_at"] = to_kst_str(t.dropoff_invoice_issued_at, "%Y-%m-%d %H:%M")
 
+        driver_obj = t.driver
+        car_obj = t.car
+
+        driver_name_val = driver_obj.name if driver_obj and driver_obj.name else "배차 기사"
+        driver_phone_val = driver_obj.phone_number if driver_obj and driver_obj.phone_number else "-"
+        car_number_val = car_obj.car_number if car_obj and car_obj.car_number else "-"
+        tonnage_val = car_obj.tonnage if car_obj and car_obj.tonnage else 25.5
+
+        t_time = t.completed_at or t.arrived_at or t.driving_started_at or t.accepted_at
+        time_str = to_kst_str(t_time, "%H:%M") if t_time else "-"
+        signed_at_str = to_kst_str(t.completed_at or t.arrived_at, "%Y-%m-%d %H:%M") if (t.completed_at or t.arrived_at) else "-"
+
+        # 실제 토질 결정 (우선순위: 티켓 실제 검수 성상 > JobPost material_type > DropOffRequest material_type)
+        raw_soil = t.actual_material_type
+        if not raw_soil and job:
+            raw_soil = getattr(job, "material_type", None) or getattr(job, "soil_type", None)
+            if not raw_soil and getattr(job, "drop_off_request", None):
+                raw_soil = getattr(job.drop_off_request, "material_type", None)
+
+        SOIL_MAP = {
+            "GOOD_SOIL": "양질토",
+            "MUD_SOIL": "뻘흙",
+            "ROCK": "암버럭",
+            "MIXED": "혼합토",
+            "SAND": "모래",
+            "NORMAL_SOIL": "일반토",
+            "NORMAL": "일반토",
+            "SOIL": "일반토사",
+            "CLAY": "점토",
+            "WEATHERED_SOIL": "풍화토",
+        }
+        actual_soil_raw = SOIL_MAP.get(raw_soil, raw_soil or "일반토사")
+
         grp["tickets_detail"].append({
             "ticket_id": t.id,
             "status": t.status,
             "is_arrived": is_arrived,
-            "date": to_kst_str(t.completed_at or t.driving_started_at or t.accepted_at),
-            "soil_type": job.soil_type if job and getattr(job, "soil_type", None) else "일반 토사",
+            "date": to_kst_str(t.completed_at or t.driving_started_at or t.accepted_at, "%Y-%m-%d"),
+            "time": time_str,
+            "driver_name": driver_name_val,
+            "driver_phone": driver_phone_val,
+            "car_number": car_number_val,
+            "tonnage": tonnage_val,
+            "soil_type": actual_soil_raw,
+            "actual_material_type": t.actual_material_type,
             "unit_price": unit_price,
+            "is_changed": is_route_changed,
+            "change_reason": t.change_reason,
+            "original_dropoff_name": orig_dropoff_name if is_route_changed else None,
+            "signed_at": signed_at_str,
+            "proof_photo": t.proof_photo,
             "invoice_issued": bool(getattr(t, "dropoff_invoice_issued", False)),
             "nts_code": getattr(t, "dropoff_invoice_nts_code", None)
         })

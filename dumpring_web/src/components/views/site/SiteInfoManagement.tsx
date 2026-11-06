@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { PlusCircle, Search, AlertCircle, MapPin, Building2, Phone, FileText, ExternalLink, ShieldCheck, CheckCircle2, X, QrCode } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 import { MockMap } from "@/components/views/common/MockMap";
@@ -38,6 +39,10 @@ export default function SiteInfoManagement({
   handleUpdateSite,
   handleDeleteSite,
 }: SiteInfoManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -660,8 +665,8 @@ export default function SiteInfoManagement({
       </div>
 
       {/* ==================== CREATE/EDIT MODAL POPUP ==================== */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+      {mounted && isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden animate-scaleUp max-h-[90vh] flex flex-col my-auto">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
@@ -894,13 +899,14 @@ export default function SiteInfoManagement({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 현장 고정 QR 코드 인쇄/보기 모달 */}
-      {isSiteQrModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-sm overflow-hidden animate-scaleUp p-6 space-y-4 text-center">
+      {mounted && isSiteQrModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-sm overflow-hidden animate-scaleUp p-6 space-y-4 text-center my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
                 <QrCode className="w-4 h-4 text-blue-600" />
@@ -1023,7 +1029,8 @@ export default function SiteInfoManagement({
               })()}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 통합 서류 열람 뷰어 모달 */}

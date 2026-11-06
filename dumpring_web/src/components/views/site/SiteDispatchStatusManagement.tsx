@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock, CheckCircle2, RotateCcw } from "lucide-react";
 import { MockMap } from "@/components/views/common/MockMap";
 import { getApiBaseUrl } from "@/utils/api";
@@ -49,6 +50,10 @@ export default function SiteDispatchStatusManagement({
   fetchDispatchRequests,
   handleRejectMatchJobPost,
 }: SiteDispatchStatusManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
 
   // Rejection Modal States
@@ -820,9 +825,9 @@ export default function SiteDispatchStatusManagement({
       )}
 
       {/* 매칭 반려 사유 입력 레이어 팝업 */}
-      {isRejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleUp p-6 space-y-4">
+      {mounted && isRejectModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleUp p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-extrabold text-sm text-slate-900">하차지 매칭 반려 사유 입력</h3>
               <button
@@ -887,13 +892,14 @@ export default function SiteDispatchStatusManagement({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 상차 자재 적재 확인 및 출발 승인 모달 (PC 웹 육안 승인) */}
-      {approvalModalTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-scaleUp p-6 space-y-4">
+      {mounted && approvalModalTicket && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-scaleUp p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-black">
@@ -1014,12 +1020,13 @@ export default function SiteDispatchStatusManagement({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 🚨 하차지(사토장) 및 토사 성상 긴급 변경 모달 */}
-      {changeDropoffModalTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+      {mounted && changeDropoffModalTicket && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto animate-scaleUp p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -1443,7 +1450,8 @@ export default function SiteDispatchStatusManagement({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

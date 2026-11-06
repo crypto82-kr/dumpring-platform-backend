@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
 from app.core.db import get_db
-from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode, SiteUserMapping, SiteUserStatus, SiteEmployee
+from app.models import User, DropOff, DropOffRequest, JobPost, ConstructionSite, CommonCode, SiteUserMapping, SiteUserStatus, SiteEmployee, DispatchTicket
 from app.api.auth import get_current_user
 from app.schemas.jobs import (
     DropOffRequestCreate, DropOffRequestResponse,
@@ -21,7 +21,8 @@ async def get_job_with_relations(job_id: int, db: AsyncSession) -> Optional[JobP
     query = select(JobPost).options(
         selectinload(JobPost.site),
         selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
-        selectinload(JobPost.matched_drop_off)
+        selectinload(JobPost.matched_drop_off),
+        selectinload(JobPost.tickets)
     ).where(JobPost.id == job_id)
     result = await db.execute(query)
     return result.scalars().first()
@@ -1091,20 +1092,21 @@ async def get_my_job_posts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not current_user.is_site_manager and not current_user.is_site_worker and not current_user.is_admin:
+    if not current_user.is_site_manager and not current_user.is_site_worker and not current_user.is_admin and not current_user.is_drop_off:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자 또는 현장담당자 권한이 필요합니다."
+            detail="현장관리자, 하차지관리자 또는 시스템관리자 권한이 필요합니다."
         )
 
     if current_user.is_admin:
         query = select(JobPost).options(
             selectinload(JobPost.site),
             selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
-            selectinload(JobPost.matched_drop_off)
+            selectinload(JobPost.matched_drop_off),
+            selectinload(JobPost.tickets)
         ).order_by(JobPost.id.desc())
     else:
-        # 본인이 작성자(author_id)이거나 본인 소유/승인 매핑 현장의 공고만 필터링
+        # 본인이 작성자(author_id)이거나 본인 소유/승인 매핑 현장의 공고 필터링
         own_sites_query = select(ConstructionSite.id).where(ConstructionSite.user_id == current_user.id)
         own_site_res = await db.execute(own_sites_query)
         own_site_ids = own_site_res.scalars().all()
@@ -1133,21 +1135,37 @@ async def get_my_job_posts(
 
         allowed_site_ids = list(set(own_site_ids + mapped_site_ids + emp_site_ids))
 
+        # 하차지 관리자의 경우 본인 하차지 매칭 공고 및 티켓 하차지 변경 유입 공고 조회
+        own_drop_ids = []
+        if current_user.is_drop_off:
+            drop_q = select(DropOff.id).where(DropOff.owner_id == current_user.id, DropOff.status != "DELETED")
+            drop_res = await db.execute(drop_q)
+            own_drop_ids = drop_res.scalars().all()
+
+        changed_job_ids = []
+        if own_drop_ids:
+            changed_q = select(DispatchTicket.job_post_id).where(
+                DispatchTicket.changed_drop_off_id.in_(own_drop_ids)
+            )
+            changed_res = await db.execute(changed_q)
+            changed_job_ids = [jid for jid in changed_res.scalars().all() if jid is not None]
+
+        filter_conditions = [JobPost.author_id == current_user.id]
         if allowed_site_ids:
-            query = select(JobPost).options(
-                selectinload(JobPost.site),
-                selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
-                selectinload(JobPost.matched_drop_off)
-            ).where(
-                (JobPost.author_id == current_user.id) |
-                (JobPost.site_id.in_(allowed_site_ids))
-            ).order_by(JobPost.id.desc())
-        else:
-            query = select(JobPost).options(
-                selectinload(JobPost.site),
-                selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
-                selectinload(JobPost.matched_drop_off)
-            ).where(JobPost.author_id == current_user.id).order_by(JobPost.id.desc())
+            filter_conditions.append(JobPost.site_id.in_(allowed_site_ids))
+        if own_drop_ids:
+            filter_conditions.append(JobPost.matched_drop_off_id.in_(own_drop_ids))
+        if changed_job_ids:
+            filter_conditions.append(JobPost.id.in_(changed_job_ids))
+
+        query = select(JobPost).options(
+            selectinload(JobPost.site),
+            selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
+            selectinload(JobPost.matched_drop_off),
+            selectinload(JobPost.tickets)
+        ).where(
+            or_(*filter_conditions)
+        ).order_by(JobPost.id.desc())
 
     result = await db.execute(query)
     return result.scalars().all()

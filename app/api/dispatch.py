@@ -1067,24 +1067,20 @@ async def inspect_and_confirm(
     job = job_result.scalars().first()
 
     if current_user.is_drop_off:
-        # 1) 공고에 matched_drop_off_id가 있으면 확인
+        # 하차지가 변경된 티켓인 경우 변경된 하차지(changed_drop_off_id) 우선 검증
+        target_drop_id = ticket.changed_drop_off_id or (job.matched_drop_off_id if job else None)
+        if not target_drop_id and job and job.drop_off_request_id:
+            dr_query = select(DropOffRequest.drop_off_id).where(DropOffRequest.id == job.drop_off_request_id)
+            dr_res = await db.execute(dr_query)
+            target_drop_id = dr_res.scalars().first()
+
         dropoff = None
-        if job and job.matched_drop_off_id:
-            drop_off_query = select(DropOff).where(DropOff.id == job.matched_drop_off_id)
+        if target_drop_id:
+            drop_off_query = select(DropOff).where(DropOff.id == target_drop_id)
             drop_off_result = await db.execute(drop_off_query)
             dropoff = drop_off_result.scalars().first()
 
-        # 2) 공고에 drop_off_request_id가 있으면 해당 수용공고의 사토장(DropOff) 확인
-        if not dropoff and job and job.drop_off_request_id:
-            dr_query = select(DropOffRequest).where(DropOffRequest.id == job.drop_off_request_id)
-            dr_res = await db.execute(dr_query)
-            dr_obj = dr_res.scalars().first()
-            if dr_obj and dr_obj.drop_off_id:
-                drop_off_query = select(DropOff).where(DropOff.id == dr_obj.drop_off_id)
-                drop_off_result = await db.execute(drop_off_query)
-                dropoff = drop_off_result.scalars().first()
-
-        # 3) 사토장 소유주(owner_id)가 현재 로그인한 하차지 관리자인지 확인
+        # 사토장 소유주(owner_id)가 현재 로그인한 하차지 관리자인지 확인
         if dropoff:
             if dropoff.owner_id != current_user.id:
                 raise HTTPException(
@@ -1119,8 +1115,15 @@ async def inspect_and_confirm(
 
     await validate_dispatch_status(decision_status, db)
     ticket.status = decision_status
+    if data.soil_type:
+        ticket.actual_material_type = data.soil_type
+
     if decision_status == "REJECTED":
-        ticket.dropoff_rejection_reason = data.reason or "토질 부적합 또는 현장 사정으로 반입 금지 처리됨"
+        ticket.dropoff_rejection_reason = (
+            getattr(data, "rejection_reason", None)
+            or getattr(data, "reason", None)
+            or "토질 부적합 또는 현장 사정으로 반입 금지 처리됨"
+        )
     else:
         ticket.completed_at = datetime.now()
 
@@ -1139,12 +1142,13 @@ async def inspect_and_confirm(
         job.status = "COMPLETED"
 
     await db.commit()
-    await db.refresh(ticket)
+    loaded_ticket = await fetch_loaded_ticket(ticket.id, db)
+    target_return_ticket = loaded_ticket or ticket
     try:
-        return await attach_pricing_policy(ticket, db)
+        return await attach_pricing_policy(target_return_ticket, db)
     except Exception as e:
         logger.warning(f"Inspection attach_pricing_policy fallback: {e}")
-        return ticket
+        return target_return_ticket
 
 
 
@@ -1381,6 +1385,18 @@ async def get_job_tickets(
             dropoff = await db.get(DropOff, req_obj.drop_off_id)
             if dropoff and dropoff.owner_id == current_user.id:
                 is_authorized = True
+
+    if not is_authorized:
+        # 하차지 변경으로 인해 현재 사용자가 소유한 하차지로 배정된 티켓이 있는지 확인
+        changed_ticket_q = select(DispatchTicket.id).join(
+            DropOff, DispatchTicket.changed_drop_off_id == DropOff.id
+        ).where(
+            DispatchTicket.job_post_id == job_id,
+            DropOff.owner_id == current_user.id
+        )
+        changed_ticket_res = await db.execute(changed_ticket_q)
+        if changed_ticket_res.scalars().first():
+            is_authorized = True
 
     if not is_authorized:
         raise HTTPException(
@@ -1986,6 +2002,17 @@ async def get_site_soil_expenses(
             elif payer_type == "SITE_RECEIVES":
                 total_income += b_total_amount
 
+            # 상태 라벨 매핑
+            status_map = {
+                "COMPLETED": "운행 완료 (정산 확정)",
+                "CLOSED": "운행 진행 중 (마감)",
+                "OPEN": "기사 모집 중",
+                "WAITING_MATCH": "매칭 대기",
+                "WAITING_APPROVAL": "승인 대기"
+            }
+            status_desc = status_map.get(j.status, "운행 완료")
+            disputed_at_str = j.disputed_at.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M") if getattr(j, "disputed_at", None) else None
+
             soil_items.append({
                 "id": j.id,
                 "splitId": f"{j.id}-{idx}",
@@ -2083,15 +2110,13 @@ async def get_dropoff_soil_settlements(
     ]
 
     job_query = (
-        select(
-            JobPost,
-            func.count(DispatchTicket.id).filter(DispatchTicket.status.in_(arrived_ticket_statuses)).label("arrived_count")
-        )
+        select(JobPost)
         .outerjoin(DispatchTicket, JobPost.id == DispatchTicket.job_post_id)
         .where(
             or_(
                 JobPost.drop_off_request_id.in_(d_req_ids) if d_req_ids else False,
-                JobPost.matched_drop_off_id.in_(drop_ids)
+                JobPost.matched_drop_off_id.in_(drop_ids),
+                DispatchTicket.changed_drop_off_id.in_(drop_ids)
             )
         )
         .group_by(JobPost.id)
@@ -2106,7 +2131,7 @@ async def get_dropoff_soil_settlements(
         .order_by(JobPost.work_date.desc(), JobPost.id.desc())
     )
     jobs_res = await db.execute(job_query)
-    jobs_rows = jobs_res.all()
+    jobs = jobs_res.scalars().all()
 
     # 4. 데이터 가공
     material_type_map = {
@@ -2125,7 +2150,7 @@ async def get_dropoff_soil_settlements(
     total_income = 0
     total_expense = 0
 
-    for j, arrived_count in jobs_rows:
+    for j in jobs:
         # KST 타임존 변환
         if j.work_date:
             dt = j.work_date if j.work_date.tzinfo else j.work_date.replace(tzinfo=timezone.utc)
@@ -2144,22 +2169,17 @@ async def get_dropoff_soil_settlements(
         site_obj = j.site
         site_name_val = (site_obj.site_name or site_obj.company_name) if site_obj else "현장"
 
-        # drop_off_id 및 dropoff_name 파악
-        matched_d_id = None
-        resolved_dropoff_name = None
+        # 기본 하차지 파악
+        default_d_id = None
+        default_drop_name = None
         if j.matched_drop_off:
-            matched_d_id = j.matched_drop_off.id
-            resolved_dropoff_name = j.matched_drop_off.name
+            default_d_id = j.matched_drop_off.id
+            default_drop_name = j.matched_drop_off.name
         elif j.drop_off_request and j.drop_off_request.drop_off:
-            matched_d_id = j.drop_off_request.drop_off.id
-            resolved_dropoff_name = j.drop_off_request.drop_off.name
+            default_d_id = j.drop_off_request.drop_off.id
+            default_drop_name = j.drop_off_request.drop_off.name
         elif j.drop_off_name:
-            resolved_dropoff_name = j.drop_off_name
-
-        if not resolved_dropoff_name:
-            continue
-
-        dropoff_name = resolved_dropoff_name
+            default_drop_name = j.drop_off_name
 
         # payer_type 판별
         raw_payer = j.payer_type
@@ -2179,24 +2199,56 @@ async def get_dropoff_soil_settlements(
         if unit_price == 0 and j.drop_off_request:
             unit_price = j.drop_off_request.unit_price or 0
 
-        truck_count = arrived_count if arrived_count > 0 else (j.required_trucks or 0)
-        total_amount = unit_price * truck_count if payer_type != "FREE" else 0
+        # 티켓별로 실제 도착한 하차지 확인
+        ticket_query = (
+            select(DispatchTicket)
+            .where(
+                DispatchTicket.job_post_id == j.id,
+                DispatchTicket.status.in_(arrived_ticket_statuses)
+            )
+            .options(
+                selectinload(DispatchTicket.changed_drop_off)
+            )
+        )
+        t_res = await db.execute(ticket_query)
+        completed_tickets = t_res.scalars().all()
 
-        # 하차지 관점: SITE_PAYS는 하차지의 수입, SITE_RECEIVES는 하차지의 지출
-        if payer_type == "SITE_PAYS":
-            total_income += total_amount
-        elif payer_type == "SITE_RECEIVES":
-            total_expense += total_amount
+        # 티켓 중 최종 하차지가 현재 사토장(drop_ids)인 건만 필터링하여 그룹화
+        breakdowns = {}
+        for t in completed_tickets:
+            final_d_id = t.changed_drop_off_id if t.changed_drop_off_id else default_d_id
+            # 타 사토장으로 변경되어 나간 티켓은 우리 사토장 흙값 정산에서 완전 배제!
+            if final_d_id not in drop_ids:
+                continue
 
-        soil_type_raw = j.material_type or (j.drop_off_request.material_type if j.drop_off_request else "") or "일반토사"
-        soil_type_name = material_type_map.get(soil_type_raw, soil_type_raw)
+            if t.changed_drop_off and t.changed_drop_off.name:
+                t_drop_name = t.changed_drop_off.name
+            else:
+                t_drop_name = default_drop_name or "사토장"
 
-        # 흙값 정산 상태 판정:
-        # - SETTLEMENT_CLOSED: 관리자/담당자가 최종 마감 확정한 건만 "정산 마감"
-        # - SETTLEMENT_CONFIRMED: 수취처 입금 수령 확인 완료 (마감 대기)
-        # - SETTLEMENT_PAID: 지급처 송금 완료 (수령 확인 대기)
-        # - SETTLEMENT_DISPUTED: 이의제기 / 정산 보류
-        # - COMPLETED 또는 운행완료(APPROVED 등) 직후: 아직 정산 처리 전이므로 "정산 검토"
+            t_soil_raw = t.actual_material_type or j.material_type or (j.drop_off_request.material_type if j.drop_off_request else "") or "GOOD_SOIL"
+            t_soil_name = material_type_map.get(t_soil_raw, t_soil_raw)
+            is_changed = bool(t.changed_drop_off_id or t.actual_material_type)
+
+            group_key = (final_d_id, t_drop_name, t_soil_name, is_changed)
+            if group_key not in breakdowns:
+                breakdowns[group_key] = {
+                    "drop_off_id": final_d_id,
+                    "dropoff_name": t_drop_name,
+                    "soil_type": t_soil_name,
+                    "is_changed": is_changed,
+                    "change_reason": t.change_reason or "",
+                    "truck_count": 0,
+                    "ticket_ids": []
+                }
+            breakdowns[group_key]["truck_count"] += 1
+            breakdowns[group_key]["ticket_ids"].append(t.id)
+
+        # 현재 사토장으로 실제 반입된 티켓이 없으면 건너뜀 (전량 타 사토장으로 회차된 경우)
+        if not breakdowns:
+            continue
+
+        # 정산 상태 판정
         if j.status == "SETTLEMENT_CLOSED":
             status_desc = "정산 마감"
         elif j.status == "SETTLEMENT_CONFIRMED":
@@ -2213,26 +2265,39 @@ async def get_dropoff_soil_settlements(
             d_dt = j.disputed_at if j.disputed_at.tzinfo else j.disputed_at.replace(tzinfo=timezone.utc)
             disputed_at_str = d_dt.astimezone(kst_tz).strftime("%Y-%m-%d %H:%M")
 
-        settlement_items.append({
-            "id": j.id,
-            "jobPostId": f"JOB-#{j.id:04d}",
-            "workDate": work_date_str,
-            "dropOffId": matched_d_id,
-            "siteId": j.site_id,
-            "siteName": site_name_val,
-            "dropoffName": dropoff_name,
-            "soilType": soil_type_name,
-            "payerType": payer_type,
-            "unitPrice": unit_price,
-            "truckCount": truck_count,
-            "totalAmount": total_amount,
-            "rawStatus": j.status,
-            "status": status_desc,
-            "disputeType": j.dispute_type,
-            "disputeReason": j.dispute_reason,
-            "disputeAmount": j.dispute_amount,
-            "disputedAt": disputed_at_str,
-        })
+        for idx, ((g_drop_id, g_drop_name, g_soil_name, g_is_changed), b_data) in enumerate(breakdowns.items()):
+            b_truck_count = b_data["truck_count"]
+            b_total_amount = unit_price * b_truck_count if payer_type != "FREE" else 0
+
+            if payer_type == "SITE_PAYS":
+                total_income += b_total_amount
+            elif payer_type == "SITE_RECEIVES":
+                total_expense += b_total_amount
+
+            settlement_items.append({
+                "id": j.id,
+                "splitId": f"{j.id}-{idx}",
+                "jobPostId": f"JOB-#{j.id:04d}" if len(breakdowns) == 1 else f"JOB-#{j.id:04d}-{idx+1}",
+                "workDate": work_date_str,
+                "dropOffId": g_drop_id,
+                "siteId": j.site_id,
+                "siteName": site_name_val,
+                "dropoffName": g_drop_name,
+                "soilType": g_soil_name,
+                "isChanged": g_is_changed,
+                "changeReason": b_data["change_reason"],
+                "payerType": payer_type,
+                "unitPrice": unit_price,
+                "truckCount": b_truck_count,
+                "totalAmount": b_total_amount,
+                "rawStatus": j.status,
+                "status": status_desc,
+                "disputeType": j.dispute_type,
+                "disputeReason": j.dispute_reason,
+                "disputeAmount": j.dispute_amount,
+                "disputedAt": disputed_at_str,
+                "isSplit": len(breakdowns) > 1,
+            })
 
     return {
         "summary": {

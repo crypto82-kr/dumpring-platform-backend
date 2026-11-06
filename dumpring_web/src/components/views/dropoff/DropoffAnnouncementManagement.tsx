@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Search, Calendar } from "lucide-react";
 import { MockMap } from "@/components/views/common/MockMap";
 import { MatchStatusCard } from "@/components/views/common/MatchStatusCard";
@@ -36,6 +37,10 @@ export function DropoffAnnouncementManagement({
   fetchOpenDropOffRequests,
   handleResetMatchJobPost,
 }: DropoffAnnouncementManagementProps) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
   const [editingRequest, setEditingRequest] = React.useState<any | null>(null);
   const [selectedReqId, setSelectedReqId] = React.useState<number | null>(null);
 
@@ -801,9 +806,9 @@ export function DropoffAnnouncementManagement({
       </div>
 
       {/* Create announcement request Modal */}
-      {isReqModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-100 max-w-xl w-full p-8 shadow-2xl space-y-6 animate-scaleUp max-h-[90vh] overflow-y-auto">
+      {mounted && isReqModalOpen && createPortal(
+        <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-100 max-w-xl w-full p-8 shadow-2xl space-y-6 animate-scaleUp max-h-[90vh] overflow-y-auto my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
                 <h3 className="font-black text-base text-slate-900">{editingRequest ? "토사 반입 수용 공고 수정" : "신규 토사 반입 수용 공고 등록"}</h3>
@@ -1247,13 +1252,14 @@ export function DropoffAnnouncementManagement({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 매칭 반려 사유 입력 중앙 레이어 팝업 모달 */}
-      {isRejectModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-scaleUp">
+      {mounted && isRejectModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-scaleUp my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🚫</span>
@@ -1324,7 +1330,8 @@ export function DropoffAnnouncementManagement({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

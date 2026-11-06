@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Search, Printer, X, CheckCircle2, Truck, Calendar, MapPin, Building, FileText, ArrowRight } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 
@@ -13,6 +14,10 @@ export default function SiteHistoryManagement({
   dispatchRequestList = [],
   dbCommonCodes = [],
 }: SiteHistoryManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSiteId, setSelectedSiteId] = useState<number | "">("");
   const [startDateFilter, setStartDateFilter] = useState<string>("");
@@ -77,8 +82,12 @@ export default function SiteHistoryManagement({
       DROPOFF_PAYS: "하차지 지급",
       OPEN: "배차 진행중",
       COMPLETED: "운행 완료",
-      CLOSED: "운행 마감",
+      CLOSED: "배차 완료 (모집 마감)",
       CANCELLED: "취소됨",
+      SETTLEMENT_CLOSED: "정산 마감",
+      SETTLEMENT_PAID: "정산 완료",
+      SETTLEMENT_PENDING: "정산 대기",
+      SETTLEMENT_DISPUTED: "정산 이의제기",
     };
     return fallbackMap[code] || code;
   };
@@ -96,12 +105,79 @@ export default function SiteHistoryManagement({
       REJECTED: "반입 반려",
       CANCELLED: "배차 취소",
       COMPLETED: "운행 완료",
-      CLOSED: "운행 마감",
-      OPEN: "배차 진행중",
+      CLOSED: "배차 완료 (모집 마감)",
+      OPEN: "기사 모집 중",
       WAITING_APPROVAL: "승인 대기",
       WAITING_MATCH: "매칭 대기",
+      SETTLEMENT_CLOSED: "정산 마감",
+      SETTLEMENT_PAID: "정산 완료",
+      SETTLEMENT_PENDING: "정산 대기",
+      SETTLEMENT_DISPUTED: "정산 이의제기",
     };
     return statusMap[status] || status;
+  };
+
+  // 운행 상태별 실무 라벨 및 뱃지 스타일 매핑 함수
+  const getStatusBadgeInfo = (status: string | null | undefined) => {
+    const raw = status || "";
+    if (raw === "SETTLEMENT_PAID" || raw === "정산 완료" || raw === "정산완료") {
+      return {
+        label: "정산 완료",
+        className: "bg-emerald-100 text-emerald-800 border-emerald-300 font-black",
+      };
+    }
+    if (raw === "SETTLEMENT_CLOSED" || raw === "정산 마감" || raw === "정산마감") {
+      return {
+        label: "정산 마감",
+        className: "bg-teal-50 text-teal-800 border-teal-300 font-black",
+      };
+    }
+    if (raw === "SETTLEMENT_PENDING" || raw === "정산 대기" || raw === "정산대기") {
+      return {
+        label: "정산 대기",
+        className: "bg-cyan-50 text-cyan-800 border-cyan-300",
+      };
+    }
+    if (raw === "SETTLEMENT_DISPUTED" || raw === "정산 이의제기") {
+      return {
+        label: "정산 이의제기",
+        className: "bg-rose-50 text-rose-800 border-rose-300 font-black",
+      };
+    }
+    if (raw === "COMPLETED" || raw === "운행완료" || raw === "운행 완료") {
+      return {
+        label: "운행 완료",
+        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      };
+    }
+    if (raw === "CLOSED" || raw === "마감" || raw === "운행 마감" || raw === "배차 완료 (모집 마감)") {
+      return {
+        label: "배차 완료 (모집 마감)",
+        className: "bg-slate-100 text-slate-700 border-slate-300",
+      };
+    }
+    if (raw === "CANCELLED" || raw === "매칭반려" || raw === "배차 취소" || raw === "REJECTED" || raw === "반입 반려") {
+      return {
+        label: "배차 취소/반려",
+        className: "bg-rose-50 text-rose-700 border-rose-200",
+      };
+    }
+    if (raw === "DRIVING" || raw === "LOADING_APPROVED" || raw === "하차지 이동 중" || raw === "상차 승인완료") {
+      return {
+        label: "운행 진행 중",
+        className: "bg-indigo-50 text-indigo-700 border-indigo-200",
+      };
+    }
+    if (raw === "WAITING_APPROVAL" || raw === "승인대기" || raw === "승인 대기") {
+      return {
+        label: "매칭 승인 대기",
+        className: "bg-amber-50 text-amber-700 border-amber-200",
+      };
+    }
+    return {
+      label: getStatusKorean(raw),
+      className: "bg-blue-50 text-blue-700 border-blue-200",
+    };
   };
 
   // 일시 포맷팅 함수 (YYYY-MM-DD HH:mm:ss 또는 HH:mm)
@@ -313,7 +389,7 @@ export default function SiteHistoryManagement({
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 border-y border-slate-200 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                <th className="py-3 px-4 w-16 text-center">No.</th>
+                <th className="py-3 px-4 w-16 text-center">연번</th>
                 <th className="py-3 px-4">운행일자</th>
                 <th className="py-3 px-4">현장명</th>
                 <th className="py-3 px-4">반출 토사 / 톤수</th>
@@ -342,11 +418,34 @@ export default function SiteHistoryManagement({
                     <td className="py-3.5 px-4 text-blue-600 font-bold">
                       {soilDisplayName} ({truckTonnageNames} / {item.truckCount}대)
                     </td>
-                    <td className="py-3.5 px-4 text-slate-700">{item.dropoffName || "지정 사토장"}</td>
+                    <td className="py-3.5 px-4 text-slate-700">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold">{item.dropoffName || "지정 사토장"}</span>
+                        {(item.isChanged || item.hasChangedDropoff) && (
+                          <span 
+                            className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap"
+                            title={`원래 배정: ${item.originalDropoffName || "최초 배정 사토장"} | 사유: ${item.changeReason || "현장 변경"}`}
+                          >
+                            경로 변경
+                          </span>
+                        )}
+                      </div>
+                      {(item.isChanged || item.hasChangedDropoff) && (item.changeReason || item.originalDropoffName) && (
+                        <div className="text-[10px] text-amber-700 font-semibold mt-0.5 truncate max-w-[200px]">
+                          {item.originalDropoffName ? `원래: ${item.originalDropoffName} ` : ""}
+                          {item.changeReason ? `(사유: ${item.changeReason})` : ""}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 text-[10px] font-extrabold rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
-                        {getStatusKorean(item.status || item.rawStatus)}
-                      </span>
+                      {(() => {
+                        const badgeInfo = getStatusBadgeInfo(item.rawStatus || item.status);
+                        return (
+                          <span className={`px-2.5 py-1 text-[10px] font-extrabold rounded border whitespace-nowrap ${badgeInfo.className}`}>
+                            {badgeInfo.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button
@@ -402,9 +501,9 @@ export default function SiteHistoryManagement({
       </div>
 
       {/* 전자 송장 / 반출 증빙서 팝업 모달 */}
-      {selectedInvoiceItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 animate-scaleUp">
+      {mounted && selectedInvoiceItem && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 animate-scaleUp my-auto">
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 rounded-t-2xl">
               <div className="flex items-center gap-3">
@@ -413,10 +512,15 @@ export default function SiteHistoryManagement({
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                    덤프 운송 전자 송장 (e-Ticket)
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                      운행 완료 검증
-                    </span>
+                    덤프 운송 전자 송장 (전자 전표)
+                    {(() => {
+                      const badgeInfo = getStatusBadgeInfo(selectedInvoiceItem.rawStatus || selectedInvoiceItem.status);
+                      return (
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${badgeInfo.className}`}>
+                          {badgeInfo.label}
+                        </span>
+                      );
+                    })()}
                   </h3>
                   <p className="text-xs text-slate-500 font-mono mt-0.5">
                     배차 오더: #{selectedInvoiceItem.id} | 작업일자: {selectedInvoiceItem.startDate || selectedInvoiceItem.endDate}
@@ -455,7 +559,14 @@ export default function SiteHistoryManagement({
                 </div>
 
                 <div className="flex-1 text-right">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">하차지 (사토장)</span>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">하차지 (사토장)</span>
+                    {(selectedInvoiceItem.isChanged || invoiceTickets.some((t: any) => Boolean(t.changed_drop_off_id || t.changed_drop_off))) && (
+                      <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                        경로 변경 있음
+                      </span>
+                    )}
+                  </div>
                   <div className="font-extrabold text-sm text-slate-900 mt-1 flex items-center justify-end gap-1.5">
                     <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
                     {selectedInvoiceItem.dropoffName || "지정 사토장"}
@@ -487,10 +598,11 @@ export default function SiteHistoryManagement({
                   </span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 block">정산 단가</span>
+                  <span className="text-[10px] font-bold text-slate-400 block">운반비 단가 (대당)</span>
                   <span className="font-extrabold text-sm text-emerald-600 mt-0.5 block">
                     {selectedInvoiceItem.offeredUnitPrice ? `${selectedInvoiceItem.offeredUnitPrice.toLocaleString()}원` : "0원"}
                   </span>
+                  <span className="text-[9px] text-slate-400 block mt-0.5 font-medium">* 사토비(흙값) 별도 정산</span>
                 </div>
               </div>
 
@@ -503,27 +615,28 @@ export default function SiteHistoryManagement({
                   </span>
                 </h4>
 
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase">
+                <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[700px]">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">
                       <tr>
-                        <th className="py-2.5 px-3">기사명 / 연락처</th>
-                        <th className="py-2.5 px-3">차량번호 / 톤수</th>
-                        <th className="py-2.5 px-3">상차 승인 일시</th>
-                        <th className="py-2.5 px-3">하차 반입 일시</th>
-                        <th className="py-2.5 px-3 text-right">운행 상태</th>
+                        <th className="py-2.5 px-3 min-w-[120px]">기사명 / 연락처</th>
+                        <th className="py-2.5 px-3 min-w-[110px]">차량번호 / 톤수</th>
+                        <th className="py-2.5 px-3 min-w-[130px]">상차 승인 일시</th>
+                        <th className="py-2.5 px-3 min-w-[160px]">도착 하차지</th>
+                        <th className="py-2.5 px-3 min-w-[130px]">하차 반입 일시</th>
+                        <th className="py-2.5 px-3 text-right min-w-[90px]">운행 상태</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                       {isLoadingTickets ? (
                         <tr>
-                          <td colSpan={5} className="py-6 text-center text-slate-400">
+                          <td colSpan={6} className="py-6 text-center text-slate-400">
                             운행 전표 증빙을 불러오는 중입니다...
                           </td>
                         </tr>
                       ) : invoiceTickets.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-6 text-center text-slate-400">
+                          <td colSpan={6} className="py-6 text-center text-slate-400">
                             연동된 기사 운행 티켓 데이터가 없습니다. (직접 배차 또는 완료 전표)
                           </td>
                         </tr>
@@ -540,6 +653,10 @@ export default function SiteHistoryManagement({
                           // 2. 하차 반입 일시 계산 (취소되지 않고 실제로 승인/완료된 경우에만)
                           const hasUnloadingTime = !isCancelled && Boolean(t.completed_at || (t.status === "APPROVED" && t.arrived_at));
                           const unloadingTime = hasUnloadingTime ? formatDateTime(t.completed_at || t.arrived_at, true) : "-";
+
+                          // 3. 하차지 변경 여부 및 최종 하차지명 계산
+                          const isTicketChanged = Boolean(t.changed_drop_off_id || t.changed_drop_off);
+                          const finalDropoffName = t.changed_drop_off?.name || t.changed_drop_off_name || selectedInvoiceItem.dropoffName || "지정 사토장";
 
                           return (
                             <tr key={t.id || idx} className={`hover:bg-slate-50 ${isCancelled ? "bg-rose-50/30 opacity-75" : ""}`}>
@@ -577,6 +694,34 @@ export default function SiteHistoryManagement({
                                   <span className="text-slate-400 text-xs font-normal">
                                     {t.status === "ARRIVED_LOADING" ? "상차지 도착 (적재중)" : "- (상차 전)"}
                                   </span>
+                                )}
+                              </td>
+
+                              {/* 도착 하차지 (사토장) 및 경로 변경 표시 */}
+                              <td className="py-2.5 px-3">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="font-bold text-slate-800">{finalDropoffName}</span>
+                                  {isTicketChanged && (
+                                    <span 
+                                      className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap"
+                                      title={t.change_reason ? `사유: ${t.change_reason}` : "운행 도중 하차지 변경됨"}
+                                    >
+                                      경로 변경
+                                    </span>
+                                  )}
+                                </div>
+                                {isTicketChanged && (
+                                  <div className="mt-1 p-1.5 bg-amber-50/80 rounded-lg border border-amber-200 text-[10px] text-amber-800 leading-snug">
+                                    <div className="font-bold flex items-center gap-1">
+                                      <span className="text-[9px] px-1 py-0.2 bg-amber-200/60 rounded text-amber-900 font-extrabold">원래 배정</span>
+                                      <span>{t.original_dropoff_name || selectedInvoiceItem.dropoffName || "최초 지정 사토장"}</span>
+                                    </div>
+                                    {t.change_reason && (
+                                      <div className="text-[9.5px] text-amber-700 mt-0.5">
+                                        <span className="font-semibold">변경 사유:</span> {t.change_reason}
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </td>
 
@@ -659,7 +804,8 @@ export default function SiteHistoryManagement({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

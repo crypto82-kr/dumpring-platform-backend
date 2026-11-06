@@ -55,6 +55,21 @@ export function MockMap({
     lat && lng ? { lat, lng } : null
   );
 
+  const onLocationSelectRef = useRef(onLocationSelect);
+  useEffect(() => {
+    onLocationSelectRef.current = onLocationSelect;
+  }, [onLocationSelect]);
+
+  const addressRef = useRef(address);
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
+
+  const onPinClickRef = useRef(onPinClick);
+  useEffect(() => {
+    onPinClickRef.current = onPinClick;
+  }, [onPinClick]);
+
   const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY || "7acd38e59f0935b4ba4dfb9eb5936bdd";
 
   // 카카오 지도 SDK 스크립트 동적 로드
@@ -141,19 +156,24 @@ export function MockMap({
         marker.setPosition(latlng);
         setCurrentCoords({ lat: clickedLat, lng: clickedLng });
 
+        // 우선 위도/경도를 즉시 상위 컴포넌트에 반영
+        if (onLocationSelectRef.current) {
+          onLocationSelectRef.current(clickedLat, clickedLng, addressRef.current || "");
+        }
+
         // 좌표로 주소 검색 (Reverse Geocoding)
         const geocoder = new window.kakao.maps.services.Geocoder();
         geocoder.coord2Address(clickedLng, clickedLat, (result: any, status: any) => {
-          if (status === window.kakao.maps.services.Status.OK) {
-            const newAddress = result[0]?.address?.address_name || address;
-            if (onLocationSelect) {
-              onLocationSelect(clickedLat, clickedLng, newAddress);
+          if (status === window.kakao.maps.services.Status.OK && result[0]) {
+            const newAddress = result[0]?.address?.address_name || addressRef.current;
+            if (onLocationSelectRef.current) {
+              onLocationSelectRef.current(clickedLat, clickedLng, newAddress);
             }
           }
         });
 
-        if (onPinClick) {
-          onPinClick();
+        if (onPinClickRef.current) {
+          onPinClickRef.current();
         }
       });
 
@@ -165,12 +185,17 @@ export function MockMap({
 
         setCurrentCoords({ lat: dragLat, lng: dragLng });
 
+        // 마커 드래그 완료 시 즉시 상위 컴포넌트에 좌표 반영
+        if (onLocationSelectRef.current) {
+          onLocationSelectRef.current(dragLat, dragLng, addressRef.current || "");
+        }
+
         const geocoder = new window.kakao.maps.services.Geocoder();
         geocoder.coord2Address(dragLng, dragLat, (result: any, status: any) => {
-          if (status === window.kakao.maps.services.Status.OK) {
-            const newAddress = result[0]?.address?.address_name || address;
-            if (onLocationSelect) {
-              onLocationSelect(dragLat, dragLng, newAddress);
+          if (status === window.kakao.maps.services.Status.OK && result[0]) {
+            const newAddress = result[0]?.address?.address_name || addressRef.current;
+            if (onLocationSelectRef.current) {
+              onLocationSelectRef.current(dragLat, dragLng, newAddress);
             }
           }
         });
@@ -248,9 +273,23 @@ export function MockMap({
     };
   }, [isRouteMode, mapInstance, siteAddress, dropoffAddress, address, siteName, dropoffName]);
 
-  // 주소(address)가 변경되면 Geocoder로 좌표 변환하여 지도 중심 및 마커 이동 (Single Marker mode)
+  // 명시적 위도(lat)와 경도(lng)가 주어졌을 때 지도 중심 및 마커 위치 정확히 이동
+  useEffect(() => {
+    if (isRouteMode || !mapInstance || !markerInstance || !window.kakao || !window.kakao.maps) return;
+    if (typeof lat === "number" && typeof lng === "number" && lat > 0 && lng > 0) {
+      const coords = new window.kakao.maps.LatLng(lat, lng);
+      mapInstance.setCenter(coords);
+      markerInstance.setPosition(coords);
+      markerInstance.setMap(mapInstance);
+      setCurrentCoords({ lat, lng });
+    }
+  }, [lat, lng, mapInstance, markerInstance, isRouteMode]);
+
+  // 주소(address)가 변경되고 명시적인 lat/lng가 없을 때만 Geocoder로 주소 기반 중심/마커 이동
   useEffect(() => {
     if (isRouteMode || !mapInstance || !markerInstance || !address || !window.kakao || !window.kakao.maps) return;
+    // 이미 유효한 lat/lng가 props로 전달된 경우 주소 Geocoder가 덮어쓰지 않음
+    if (typeof lat === "number" && typeof lng === "number" && lat > 0 && lng > 0) return;
 
     // Clear route overlays when in single marker mode
     activeOverlaysRef.current.forEach((ol) => ol.setMap(null));
@@ -264,10 +303,15 @@ export function MockMap({
         mapInstance.setCenter(coords);
         markerInstance.setPosition(coords);
         markerInstance.setMap(mapInstance);
-        setCurrentCoords({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x) });
+        const parsedLat = parseFloat(result[0].y);
+        const parsedLng = parseFloat(result[0].x);
+        setCurrentCoords({ lat: parsedLat, lng: parsedLng });
+        if (onLocationSelectRef.current) {
+          onLocationSelectRef.current(parsedLat, parsedLng, address);
+        }
       }
     });
-  }, [address, mapInstance, markerInstance, interactive, isRouteMode]);
+  }, [address, lat, lng, mapInstance, markerInstance, interactive, isRouteMode]);
 
   return (
     <div className={`rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-xl ${className}`}>
@@ -305,7 +349,7 @@ export function MockMap({
 
       {interactive && (
         <p className="text-[9.5px] text-slate-400">
-          * 지도를 직접 클릭하거나 마커를 드래그하면 정확한 덤프트럭 진입로 좌표(위경도)를 지정하실 수 있습니다.
+          * 지도를 직접 클릭하거나 마커를 드래그하여 정확한 덤프트럭 진입 위치를 지정하실 수 있습니다.
         </p>
       )}
     </div>

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from app.schemas import KstDateTime
 
@@ -110,6 +110,7 @@ class JobPostResponse(BaseModel):
     distance: Optional[float] = None
     estimated_time: Optional[int] = None
     rejection_reason: Optional[str] = None
+    changed_drop_off_ids: Optional[List[int]] = None
 
     class Config:
         from_attributes = True

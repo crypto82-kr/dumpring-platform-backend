@@ -523,6 +523,18 @@ class JobPost(Base):
     drop_off_request = relationship("DropOffRequest", back_populates="job_posts")
     author = relationship("User")
     matched_drop_off = relationship("DropOff")
+    tickets = relationship("DispatchTicket", back_populates="job_post")
+
+    @property
+    def changed_drop_off_ids(self):
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "tickets" in state.dict:
+            tickets = state.dict["tickets"]
+            if not tickets:
+                return []
+            return list(set([t.changed_drop_off_id for t in tickets if getattr(t, "changed_drop_off_id", None) is not None]))
+        return []
 
     @property
     def site_name(self):
@@ -636,7 +648,7 @@ class DispatchTicket(Base):
     changed_at = Column(DateTime(timezone=True), nullable=True)   # 변경 일시
 
     # Relationships
-    job_post = relationship("JobPost")
+    job_post = relationship("JobPost", back_populates="tickets")
     driver = relationship("User", foreign_keys=[driver_id])
     changed_drop_off = relationship("DropOff", foreign_keys=[changed_drop_off_id])
     car = relationship("Car")

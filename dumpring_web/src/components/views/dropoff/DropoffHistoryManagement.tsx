@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Search,
   Printer,
@@ -33,11 +34,16 @@ export default function DropoffHistoryManagement({
   dispatchRequestList = [],
   dbCommonCodes = [],
 }: DropoffHistoryManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDropoffId, setSelectedDropoffId] = useState<number | "">("");
   const [startDateFilter, setStartDateFilter] = useState<string>("");
   const [endDateFilter, setEndDateFilter] = useState<string>("");
   const [quickRange, setQuickRange] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "COMPLETED" | "IN_PROGRESS" | "REJECTED">("ALL");
 
   // 전자송장 상세 모달 상태
   const [selectedInvoiceTicket, setSelectedInvoiceTicket] = useState<any | null>(null);
@@ -84,21 +90,84 @@ export default function DropoffHistoryManagement({
     }
   };
 
-  // 공통코드 한글 변환 함수
+  // 공통코드 한글 변환 함수 (토사 종류)
   const getMaterialName = (code: string | undefined | null) => {
-    if (!code) return "일반 토사";
-    const found = dbCommonCodes.find(
-      (c) => c.code === code && (c.group_code === "MATERIAL_TYPE" || c.category === "MATERIAL_TYPE")
-    );
-    if (found?.code_name || found?.name) return found.code_name || found.name;
+    if (!code || code === "-" || code === "null" || code === "undefined") return "토종 미등록";
+    // 이미 한글 명칭으로 변환되어 들어온 경우 그대로 유지
+    if (["양질토", "뻘흙", "암버럭", "혼합토", "모래", "일반토", "일반토사", "점토", "풍화토"].includes(code)) {
+      return code;
+    }
     const map: Record<string, string> = {
       GOOD_SOIL: "양질토",
       MUD_SOIL: "뻘흙",
       ROCK: "암버럭",
       MIXED: "혼합토",
       SAND: "모래",
+      NORMAL_SOIL: "일반토",
+      NORMAL: "일반토",
+      SOIL: "일반토사",
+      CLAY: "점토",
+      WEATHERED_SOIL: "풍화토",
     };
-    return map[code] || code;
+    if (map[code]) return map[code];
+
+    const found = dbCommonCodes.find(
+      (c) => c.code === code && (c.group_code === "MATERIAL_TYPE" || c.category === "MATERIAL_TYPE")
+    );
+    if (found?.code_name || found?.name) return found.code_name || found.name;
+    return code;
+  };
+
+  // 실무 검수 및 운행 상태 한글 뱃지 포매터
+  const getStatusBadgeInfo = (status: string | undefined | null) => {
+    const s = (status || "").toUpperCase();
+    if (["APPROVED", "COMPLETED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"].includes(s)) {
+      return {
+        label: "반입 확정",
+        className: "bg-emerald-100 text-emerald-800 border-emerald-300",
+        isCompleted: true,
+      };
+    }
+    if (s === "REJECTED" || s.includes("REJECT") || s.includes("반려") || s.includes("회차")) {
+      return {
+        label: "반입 거부(회차)",
+        className: "bg-rose-100 text-rose-800 border-rose-300",
+        isCompleted: false,
+      };
+    }
+    if (["DRIVING", "IN_PROGRESS", "DEPARTED"].includes(s)) {
+      return {
+        label: "운행중 (현장 이동)",
+        className: "bg-blue-100 text-blue-800 border-blue-300",
+        isCompleted: false,
+      };
+    }
+    if (["LOADING", "ARRIVED_LOADING"].includes(s)) {
+      return {
+        label: "상차중 (적재 대기)",
+        className: "bg-amber-100 text-amber-800 border-amber-300",
+        isCompleted: false,
+      };
+    }
+    if (["ARRIVED", "ARRIVED_DROPOFF", "WAITING_INSPECTION"].includes(s)) {
+      return {
+        label: "하차 도착 (검수 대기)",
+        className: "bg-indigo-100 text-indigo-800 border-indigo-300",
+        isCompleted: false,
+      };
+    }
+    if (s === "CANCELLED" || s.includes("취소")) {
+      return {
+        label: "배차 취소",
+        className: "bg-slate-100 text-slate-600 border-slate-300",
+        isCompleted: false,
+      };
+    }
+    return {
+      label: s || "확인 대기",
+      className: "bg-slate-100 text-slate-700 border-slate-300",
+      isCompleted: false,
+    };
   };
 
   // 사토장 소유의 완료된 배차 티켓/전자송장 데이터 로드
@@ -113,7 +182,7 @@ export default function DropoffHistoryManagement({
       }
 
       // 1. 하차지 관리자의 거래명세서 집계 API 활용 (모든 개별 반입 티켓이 포함됨)
-      const res = await fetch(`${baseUrl}/api/fleet/tax-invoices/dropoff`, {
+      const res = await fetch(`${baseUrl}/api/fleet/tax-invoices/dropoff-summary`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -136,17 +205,21 @@ export default function DropoffHistoryManagement({
                   status: t.status,
                   isArrived: t.is_arrived,
                   inboundDate: t.date || "-",
-                  time: t.time || "10:30",
+                  time: t.time || "-",
                   siteName: siteName,
                   dropoffId: dropoffId,
                   dropoffName: dropoffName,
-                  driverName: t.driver_name || "운행 기사",
-                  driverPhone: t.driver_phone || "010-0000-0000",
-                  carNumber: t.car_number || "서울00바0000",
-                  tonnage: t.tonnage ? `${t.tonnage}톤` : "25.5톤",
-                  soilType: t.soil_type || "GOOD_SOIL",
+                  driverName: t.driver_name || "배차 기사",
+                  driverPhone: t.driver_phone || "-",
+                  carNumber: t.car_number || "차량 미등록",
+                  tonnage: t.tonnage ? `${t.tonnage}톤` : "-",
+                  soilType: t.soil_type || getMaterialName(t.actual_material_type) || "일반토사",
                   unitPrice: t.unit_price || inv.unit_price || 0,
                   businessNumber: businessNumber,
+                  isChanged: Boolean(t.is_changed),
+                  originalDropoffName: t.original_dropoff_name || null,
+                  changeReason: t.change_reason || "",
+                  actualMaterialType: t.actual_material_type || "",
                   signedAt: t.signed_at || t.date || "-",
                   inspectorName: "사토장 검수원",
                   memo: "정상 반입 검수 완료",
@@ -197,9 +270,22 @@ export default function DropoffHistoryManagement({
           t.ticketNumber.toLowerCase().includes(q);
         if (!match) return false;
       }
+      // 운행/검수 상태 필터
+      if (statusFilter !== "ALL") {
+        const badgeInfo = getStatusBadgeInfo(t.status);
+        if (statusFilter === "COMPLETED" && !badgeInfo.isCompleted) {
+          return false;
+        }
+        if (statusFilter === "IN_PROGRESS" && (badgeInfo.isCompleted || (t.status || "").toUpperCase() === "REJECTED")) {
+          return false;
+        }
+        if (statusFilter === "REJECTED" && (t.status || "").toUpperCase() !== "REJECTED") {
+          return false;
+        }
+      }
       return true;
     });
-  }, [inboundTickets, selectedDropoffId, startDateFilter, endDateFilter, searchQuery]);
+  }, [inboundTickets, selectedDropoffId, startDateFilter, endDateFilter, searchQuery, statusFilter]);
 
   // 상단 집계 수치
   const stats = useMemo(() => {
@@ -426,11 +512,10 @@ export default function DropoffHistoryManagement({
                 key={mode}
                 type="button"
                 onClick={() => handleQuickRangeChange(mode)}
-                className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition-all ${
-                  quickRange === mode
-                    ? "bg-slate-800 text-white shadow-sm"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-                }`}
+                className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition-all ${quickRange === mode
+                  ? "bg-slate-800 text-white shadow-sm"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                  }`}
               >
                 {mode === "ALL" ? "전체" : mode === "TODAY" ? "오늘" : mode === "WEEK" ? "최근 7일" : "최근 1개월"}
               </button>
@@ -441,12 +526,38 @@ export default function DropoffHistoryManagement({
 
       {/* 4. 반입 운행 이력 테이블 목록 */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-emerald-600" />
-            <h3 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
-              토사 반입 완료 목록 ({filteredTickets.length}건)
-            </h3>
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-emerald-600" />
+              <h3 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
+                토사 반입 운행 이력 ({filteredTickets.length}건)
+              </h3>
+            </div>
+
+            {/* 운행/검수 상태별 빠른 필터 탭 */}
+            <div className="flex items-center bg-slate-200/60 p-0.5 rounded-lg text-[11px] font-bold">
+              {(
+                [
+                  { key: "ALL", label: "전체" },
+                  { key: "COMPLETED", label: "반입확정(완료)" },
+                  { key: "IN_PROGRESS", label: "운행/상차중" },
+                  { key: "REJECTED", label: "반입거부(회차)" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === tab.key
+                    ? "bg-white text-slate-900 shadow-sm font-extrabold"
+                    : "text-slate-600 hover:text-slate-900"
+                    }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
           <span className="text-[11px] text-slate-400 font-medium">
             * 각 행을 클릭하면 상차/하차 전자 수기서명이 날인된 전자송장 원본을 열람할 수 있습니다.
@@ -473,7 +584,7 @@ export default function DropoffHistoryManagement({
                   <th className="py-3 px-3">도착 사토장</th>
                   <th className="py-3 px-3">운행 기사</th>
                   <th className="py-3 px-3">차량 번호</th>
-                  <th className="py-3 px-3">반입 토종</th>
+                  <th className="py-3 px-3">반입토사</th>
                   <th className="py-3 px-3 text-right">반입 단가</th>
                   <th className="py-3 px-3 text-center">검수 상태</th>
                   <th className="py-3 px-3 text-center w-24">전자송장</th>
@@ -499,8 +610,20 @@ export default function DropoffHistoryManagement({
                     <td className="py-3.5 px-3 font-extrabold text-slate-900">
                       {item.siteName}
                     </td>
-                    <td className="py-3.5 px-3 font-bold text-emerald-800">
-                      {item.dropoffName}
+                    <td className="py-3.5 px-3">
+                      <div className="font-bold text-emerald-800 flex items-center gap-1.5 flex-wrap">
+                        <span>{item.dropoffName}</span>
+                        {item.isChanged && (
+                          <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap" title={`원래 배정: ${item.originalDropoffName || "타 사토장"} | 사유: ${item.changeReason || "현장 변경"}`}>
+                            경로 변경 유입
+                          </span>
+                        )}
+                      </div>
+                      {item.isChanged && item.changeReason && (
+                        <div className="text-[10px] text-amber-700 font-semibold mt-0.5 truncate max-w-[180px]">
+                          사유: {item.changeReason}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3.5 px-3 font-bold text-slate-800">
                       {item.driverName}
@@ -510,17 +633,24 @@ export default function DropoffHistoryManagement({
                     </td>
                     <td className="py-3.5 px-3">
                       <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
-                        {getMaterialName(item.soilType)}
+                        {item.soilType}
                       </span>
                     </td>
                     <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900">
                       ₩ {item.unitPrice ? item.unitPrice.toLocaleString() : "0"}
                     </td>
                     <td className="py-3.5 px-3 text-center">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        반입 확정
-                      </span>
+                      {(() => {
+                        const badge = getStatusBadgeInfo(item.status);
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black border ${badge.className}`}
+                          >
+                            {badge.isCompleted && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-3.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                       <button
@@ -541,9 +671,9 @@ export default function DropoffHistoryManagement({
       </div>
 
       {/* 5. 전자송장 (Digital Consignment Note) 상세 팝업 모달 */}
-      {selectedInvoiceTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden animate-scaleUp">
+      {mounted && selectedInvoiceTicket && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto animate-scaleUp my-auto flex flex-col">
             {/* Modal Header */}
             <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
               <div className="flex items-center gap-2.5">
@@ -552,10 +682,15 @@ export default function DropoffHistoryManagement({
                 </div>
                 <div>
                   <h3 className="font-black text-sm tracking-tight flex items-center gap-2">
-                    디지털 전자송장 (e-Consignment Note)
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-400/30">
-                      반입 검수 인증 완료
-                    </span>
+                    디지털 전자송장 (토사 반입 증빙 전표)
+                    {(() => {
+                      const badge = getStatusBadgeInfo(selectedInvoiceTicket.status);
+                      return (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
                   </h3>
                   <p className="text-[11px] text-slate-400 font-mono">
                     송장 고유번호: {selectedInvoiceTicket.ticketNumber}
@@ -584,12 +719,36 @@ export default function DropoffHistoryManagement({
                   </div>
                 </div>
                 <div className="border-l border-slate-100 pl-4">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">도착 하차지 (사토장)</span>
-                  <div className="font-black text-sm text-emerald-800 mt-0.5">{selectedInvoiceTicket.dropoffName}</div>
-                  <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    사토장 게이트 계근 및 반입 완료
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">도착 하차지 (사토장)</span>
+                    {selectedInvoiceTicket.isChanged && (
+                      <span className="px-2 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                        경로 변경 유입
+                      </span>
+                    )}
                   </div>
+                  <div className="font-black text-sm text-emerald-800 mt-0.5">{selectedInvoiceTicket.dropoffName}</div>
+                  {selectedInvoiceTicket.isChanged ? (
+                    <div className="text-[10px] text-amber-700 bg-amber-50 p-1.5 rounded-lg border border-amber-200 mt-1">
+                      <p className="font-bold">원래 배정: {selectedInvoiceTicket.originalDropoffName || "타 사토장"}</p>
+                      <p className="mt-0.5">변경 사유: {selectedInvoiceTicket.changeReason || "현장 상황에 따른 하차지 변경"}</p>
+                    </div>
+                  ) : selectedInvoiceTicket.status === "COMPLETED" ? (
+                    <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-semibold text-emerald-700">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      사토장 게이트 계근 및 반입 검수 완료
+                    </div>
+                  ) : selectedInvoiceTicket.status === "REJECTED" ? (
+                    <div className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-semibold">
+                      <Clock className="w-3.5 h-3.5 text-rose-500" />
+                      사토장 반입 거부 (회차 조치)
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-amber-700 mt-1 flex items-center gap-1 font-semibold">
+                      <Clock className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+                      사토장 도착 및 반입 검수 대기 중
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -612,12 +771,22 @@ export default function DropoffHistoryManagement({
                     <span className="font-black text-slate-800 text-xs">{selectedInvoiceTicket.tonnage}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block font-bold">반입 토종(자재):</span>
-                    <span className="font-bold text-emerald-700 text-xs">{getMaterialName(selectedInvoiceTicket.soilType)}</span>
+                    <span className="text-slate-400 block font-bold">반입토사:</span>
+                    <span className="font-bold text-emerald-700 text-xs">
+                      {selectedInvoiceTicket.soilType}
+                    </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block font-bold">반입 완료 일시:</span>
-                    <span className="font-mono font-bold text-slate-800">{selectedInvoiceTicket.inboundDate} {selectedInvoiceTicket.time}</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      {selectedInvoiceTicket.status === "COMPLETED" ? (
+                        `${selectedInvoiceTicket.inboundDate} ${selectedInvoiceTicket.time}`
+                      ) : selectedInvoiceTicket.status === "REJECTED" ? (
+                        <span className="text-rose-600 font-bold">반입 거부 (회차)</span>
+                      ) : (
+                        <span className="text-amber-600 font-bold">미완료 (검수 대기)</span>
+                      )}
+                    </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block font-bold">적용 흙값 단가:</span>
@@ -642,12 +811,40 @@ export default function DropoffHistoryManagement({
                 {/* 하차지 서명 */}
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm text-center">
                   <div className="text-[10px] font-extrabold text-slate-400 mb-1">하차지 사토장 반입 검수 서명</div>
-                  <div className="h-20 bg-emerald-50/50 border border-dashed border-emerald-200 rounded-xl flex items-center justify-center overflow-hidden">
-                    <span className="font-serif italic font-black text-lg text-emerald-800 transform rotate-2 select-none">
-                      사토장 검수원 (인)
-                    </span>
-                  </div>
-                  <span className="text-[9px] text-slate-400 block mt-1 font-mono">인증일시: {selectedInvoiceTicket.inboundDate} {selectedInvoiceTicket.time}</span>
+                  {selectedInvoiceTicket.status === "COMPLETED" ? (
+                    <>
+                      <div className="h-20 bg-emerald-50/50 border border-dashed border-emerald-200 rounded-xl flex items-center justify-center overflow-hidden">
+                        <span className="font-serif italic font-black text-lg text-emerald-800 transform rotate-2 select-none">
+                          사토장 검수원 (인)
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-emerald-700 block mt-1 font-mono font-semibold">
+                        인증일시: {selectedInvoiceTicket.inboundDate} {selectedInvoiceTicket.time}
+                      </span>
+                    </>
+                  ) : selectedInvoiceTicket.status === "REJECTED" ? (
+                    <>
+                      <div className="h-20 bg-rose-50/60 border border-dashed border-rose-200 rounded-xl flex items-center justify-center overflow-hidden">
+                        <span className="font-sans font-black text-sm text-rose-700 select-none">
+                          반입 거부 (서명 불가)
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-rose-600 block mt-1 font-semibold">
+                        검수 결과: 반입 불가 (회차 조치)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-20 bg-slate-50 border border-dashed border-slate-200 rounded-xl flex items-center justify-center overflow-hidden">
+                        <span className="font-sans font-bold text-xs text-slate-400 select-none">
+                          반입 검수 전 (미서명)
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-slate-400 block mt-1 font-mono">
+                        인증일시: - (하차지 반입 승인 대기)
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -676,7 +873,8 @@ export default function DropoffHistoryManagement({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

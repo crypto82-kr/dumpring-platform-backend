@@ -427,7 +427,9 @@ export default function Home() {
               case "WAITING_MATCH": return "매칭대기";
               case "CANCELLED": return "매칭반려";
               case "COMPLETED": return "운행완료";
-              case "CLOSED": return "마감";
+              case "CLOSED": return "배차완료(모집마감)";
+              case "SETTLEMENT_CLOSED": return "정산마감";
+              case "SETTLEMENT_PAID": return "정산완료";
               default: return "대기중";
             }
           })(),
@@ -440,7 +442,12 @@ export default function Home() {
           matchedDropOffId: job.matched_drop_off_id,
           payerType: job.payer_type || "SITE_PAYS",
           authorId: job.author_id,
-          rejectionReason: job.rejection_reason || ""
+          rejectionReason: job.rejection_reason || "",
+          isChanged: Boolean(job.is_changed || job.changed_drop_off_id),
+          hasChangedDropoff: Boolean(job.is_changed || job.changed_drop_off_id),
+          changedDropOffIds: Array.isArray(job.changed_drop_off_ids) ? job.changed_drop_off_ids : [],
+          originalDropoffName: job.original_drop_off_name || job.original_dropoff_name || null,
+          changeReason: job.change_reason || ""
         }));
         setDispatchRequestList(mapped);
       } else {
@@ -551,6 +558,7 @@ export default function Home() {
         estimatedTime: job.estimated_time,
         dropOffRequestId: job.drop_off_request_id,
         matchedDropOffId: job.matched_drop_off_id,
+        changedDropOffIds: Array.isArray(job.changed_drop_off_ids) ? job.changed_drop_off_ids : [],
         authorId: job.author_id,
         rejectionReason: job.rejection_reason || ""
       }));
@@ -574,6 +582,8 @@ export default function Home() {
           id: drop.id,
           name: drop.name,
           address: drop.address,
+          latitude: drop.latitude,
+          longitude: drop.longitude,
           capacity: 100000, // 마스터 하차지의 화면용 기본 가상 계약 용량
           soilDealType: "sell", // 기본 거래 방식
           managers: [drop.permit_number || "미지정"],
@@ -601,8 +611,8 @@ export default function Home() {
         body: JSON.stringify({
           name: payload.name,
           address: payload.address,
-          latitude: 37.5665, // 가상 위치
-          longitude: 126.9780,
+          latitude: typeof payload.latitude === "number" ? payload.latitude : 37.5665,
+          longitude: typeof payload.longitude === "number" ? payload.longitude : 126.9780,
           radius_meter: 200,
           permit_number: payload.managers || "PERMIT-TEMP"
         })
@@ -622,17 +632,25 @@ export default function Home() {
   const handleUpdateDropoff = async (id: number, payload: any): Promise<boolean> => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const updateData: any = {
+        name: payload.name,
+        address: payload.address,
+        permit_number: payload.managers
+      };
+      if (typeof payload.latitude === "number") {
+        updateData.latitude = payload.latitude;
+      }
+      if (typeof payload.longitude === "number") {
+        updateData.longitude = payload.longitude;
+      }
+
       const res = await fetch(`${API_BASE_URL}/api/drop-offs/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name: payload.name,
-          address: payload.address,
-          permit_number: payload.managers
-        })
+        body: JSON.stringify(updateData)
       });
       if (res.ok) {
         await fetchMyDropOffs();
@@ -1169,6 +1187,7 @@ export default function Home() {
       fetchRegisteredSites(); // 현장 검색 탭에서 현장 목록 제공용
       fetchOpenDropOffRequests(); // 하차지 수용 공고 목록 갱신용
       fetchDropoffJobs(); // 매칭 대기 / 승인 대기 오더 조회
+      fetchDispatchRequests(); // 매칭 완료 및 하차지 변경 유입 배차 오더 조회
     }
   }, [activePath]);
 

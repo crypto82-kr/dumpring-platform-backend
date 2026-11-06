@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { UserCheck, ShieldCheck, UserX, Clock, Search, Plus, User, Phone, Briefcase, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 
@@ -22,6 +23,10 @@ interface SiteWorkerManagementProps {
 }
 
 export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWorkerManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [workerList, setWorkerList] = useState<SiteWorkerItem[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -438,8 +443,8 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
       </div>
 
       {/* ==================== CREATE / EDIT MODAL POPUP ==================== */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+      {mounted && isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleUp max-h-[90vh] flex flex-col my-auto">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
@@ -531,7 +536,8 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

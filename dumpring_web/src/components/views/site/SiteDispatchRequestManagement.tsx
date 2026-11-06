@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock, Calendar } from "lucide-react";
 import { MockMap } from "@/components/views/common/MockMap";
 import { MatchStatusCard } from "@/components/views/common/MatchStatusCard";
@@ -60,6 +61,10 @@ export default function SiteDispatchRequestManagement({
   handleRejectMatchJobPost,
   handleResetMatchJobPost,
 }: SiteDispatchRequestManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [dispatchRequestSearchQuery, setDispatchRequestSearchQuery] = useState("");
@@ -699,9 +704,9 @@ export default function SiteDispatchRequestManagement({
       </div>
 
       {/* 매칭 반려 사유 입력 레이어 팝업 */}
-      {isRejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleUp p-6 space-y-4">
+      {mounted && isRejectModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleUp p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-extrabold text-sm text-slate-900">하차지 매칭 반려 사유 입력</h3>
               <button
@@ -766,12 +771,13 @@ export default function SiteDispatchRequestManagement({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 신규 배차 요청 등록 / 수정 모달 */}
-      {isDispatchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
+      {mounted && isDispatchModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/65 backdrop-blur-sm animate-fadeIn p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden animate-scaleUp max-h-[90vh] flex flex-col my-auto">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
               <div>
@@ -1236,7 +1242,8 @@ export default function SiteDispatchRequestManagement({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

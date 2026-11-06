@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Search,
   MapPin,
@@ -29,6 +30,11 @@ interface DropoffSoilSettlementManagementProps {
 export default function DropoffSoilSettlementManagement({
   registeredDropoffList = [],
 }: DropoffSoilSettlementManagementProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // 메인 상단 탭: "PROCESS"(흙값 정산 처리 워크스페이스 - 메인) vs "HISTORY"(정산 마감 이력 조회 - 순수 이력)
   const [activeMainTab, setActiveMainTab] = useState<"PROCESS" | "HISTORY">("PROCESS");
 
@@ -364,9 +370,9 @@ export default function DropoffSoilSettlementManagement({
       r.payerType === "SITE_PAYS" ? "사토수수료(수입)" : r.payerType === "SITE_RECEIVES" ? "토사매입비(지출)" : "무상",
       r.unitPrice,
       r.truckCount,
-      Math.floor(r.totalAmount / 1.1),
-      Math.floor(r.totalAmount - Math.floor(r.totalAmount / 1.1)),
-      r.totalAmount,
+      r.totalAmount, // 공급가액 (부가세 미포함)
+      Math.floor(r.totalAmount * 0.1), // 부가세 (10%)
+      r.totalAmount + Math.floor(r.totalAmount * 0.1), // 총 정산 합계액 (VAT 포함)
       `"${r.status}"`
     ]);
 
@@ -1035,7 +1041,7 @@ export default function DropoffSoilSettlementManagement({
                             <th className="py-2.5 px-3 text-left">거래 구분</th>
                             <th className="py-2.5 px-3 text-right">계약 단가</th>
                             <th className="py-2.5 px-3 text-right">반입 대수</th>
-                            <th className="py-2.5 px-3 text-right">정산 합계액</th>
+                            <th className="py-2.5 px-3 text-right">공급가액 (VAT별도)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
@@ -1061,24 +1067,24 @@ export default function DropoffSoilSettlementManagement({
 
                   {/* 3. 공급가액 및 세액 명세서 */}
                   <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-200 space-y-2">
-                    <h4 className="text-xs font-black text-emerald-900">정산 금액 회계 명세 (원단위 절사)</h4>
+                    <h4 className="text-xs font-black text-emerald-900">정산 금액 회계 명세 (거래명세서 연동 기준)</h4>
                     <div className="space-y-1.5 text-xs font-bold pt-1">
                       <div className="flex justify-between text-slate-600">
-                        <span>공급가액:</span>
+                        <span>순수 흙값 공급가액 (부가세 미포함):</span>
                         <span className="font-mono font-black text-slate-800">
-                          ₩ {Math.floor(selectedJobItem.totalAmount / 1.1).toLocaleString()}
+                          ₩ {selectedJobItem.totalAmount.toLocaleString()}원
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-600">
-                        <span>부가가치세 (VAT 10%):</span>
+                        <span>부가가치세 (VAT 10% 별도):</span>
                         <span className="font-mono font-black text-slate-800">
-                          ₩ {(selectedJobItem.totalAmount - Math.floor(selectedJobItem.totalAmount / 1.1)).toLocaleString()}
+                          ₩ {Math.floor(selectedJobItem.totalAmount * 0.1).toLocaleString()}원
                         </span>
                       </div>
                       <div className="pt-2 border-t border-emerald-200 flex justify-between items-center text-sm font-black text-emerald-950">
-                        <span>총 정산 합계액:</span>
+                        <span>총 정산 합계액 (VAT 포함):</span>
                         <span className="text-lg text-emerald-700 font-mono">
-                          ₩ {selectedJobItem.totalAmount.toLocaleString()}
+                          ₩ {(selectedJobItem.totalAmount + Math.floor(selectedJobItem.totalAmount * 0.1)).toLocaleString()}원
                         </span>
                       </div>
                     </div>
@@ -1232,7 +1238,7 @@ export default function DropoffSoilSettlementManagement({
                   <th className="py-3 px-3 w-20">토사 종류</th>
                   <th className="py-3 px-3 min-w-[120px] text-center">거래 구분</th>
                   <th className="py-3 px-3 w-28 text-right whitespace-nowrap">단가 / 수량</th>
-                  <th className="py-3 px-3 text-right w-28 whitespace-nowrap">총 흙값 정산액</th>
+                  <th className="py-3 px-3 text-right w-36 whitespace-nowrap">총 흙값 공급가액 (VAT별도)</th>
                   <th className="py-3 px-3 text-center w-24 whitespace-nowrap">최종 상태</th>
                 </tr>
               </thead>
@@ -1309,9 +1315,9 @@ export default function DropoffSoilSettlementManagement({
       {/* ========================================================================= */}
       {/* [ 이력 전용 상세 모달 (HISTORY 탭에서 클릭 시) ] */}
       {/* ========================================================================= */}
-      {historyDetailModalItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border-2 border-slate-300 shadow-2xl max-w-lg w-full overflow-hidden animate-fadeIn">
+      {mounted && historyDetailModalItem && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border-2 border-slate-300 shadow-2xl max-w-lg w-full overflow-hidden animate-scaleUp my-auto">
             <div className="p-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 text-xs font-black rounded bg-emerald-100 text-emerald-800">
@@ -1358,21 +1364,21 @@ export default function DropoffSoilSettlementManagement({
                   </span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-slate-500">공급가액:</span>
+                  <span className="text-slate-500">순수 흙값 공급가액 (부가세 미포함):</span>
                   <span className="font-mono font-bold text-slate-800">
-                    ₩ {Math.floor(historyDetailModalItem.totalAmount / 1.1).toLocaleString()}
+                    ₩ {historyDetailModalItem.totalAmount.toLocaleString()}원
                   </span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-slate-500">부가가치세 (10%):</span>
+                  <span className="text-slate-500">부가가치세 (VAT 10% 별도):</span>
                   <span className="font-mono font-bold text-slate-800">
-                    ₩ {(historyDetailModalItem.totalAmount - Math.floor(historyDetailModalItem.totalAmount / 1.1)).toLocaleString()}
+                    ₩ {Math.floor(historyDetailModalItem.totalAmount * 0.1).toLocaleString()}원
                   </span>
                 </div>
                 <div className="flex justify-between py-2 text-sm font-black text-slate-900">
-                  <span>최종 마감 확정액:</span>
+                  <span>최종 마감 확정액 (VAT 포함):</span>
                   <span className="text-emerald-600 font-mono text-base">
-                    ₩ {historyDetailModalItem.totalAmount.toLocaleString()}
+                    ₩ {(historyDetailModalItem.totalAmount + Math.floor(historyDetailModalItem.totalAmount * 0.1)).toLocaleString()}원
                   </span>
                 </div>
               </div>
@@ -1388,15 +1394,16 @@ export default function DropoffSoilSettlementManagement({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* [ 이의제기 및 보류 관리 모달 ] */}
       {/* ========================================================================= */}
-      {disputeModalItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border-2 border-slate-300 shadow-2xl max-w-lg w-full overflow-hidden animate-fadeIn">
+      {mounted && disputeModalItem && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border-2 border-slate-300 shadow-2xl max-w-lg w-full overflow-hidden animate-scaleUp my-auto">
             <div className="p-5 bg-rose-50 border-b border-rose-200 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-rose-600" />
@@ -1547,7 +1554,8 @@ export default function DropoffSoilSettlementManagement({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

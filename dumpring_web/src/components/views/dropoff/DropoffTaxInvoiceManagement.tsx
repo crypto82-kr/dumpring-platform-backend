@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Receipt,
   Search,
@@ -19,6 +20,7 @@ import {
   Printer
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import CommonPortalModal from "@/components/views/common/CommonPortalModal";
 
 export interface DropoffTaxInvoiceItem {
   group_key: string;
@@ -66,7 +68,34 @@ interface DropoffTaxInvoiceManagementProps {
 
 export default function DropoffTaxInvoiceManagement({
   registeredDropoffList = [],
+  dbCommonCodes = [],
 }: DropoffTaxInvoiceManagementProps) {
+  const [mounted, setMounted] = useState<boolean>(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 토사 종류 공통코드 한글 변환
+  const getMaterialName = (code: string | undefined | null) => {
+    if (!code) return "양질토";
+    const found = dbCommonCodes.find(
+      (c) => c.code === code && (c.group_code === "MATERIAL_TYPE" || c.category === "MATERIAL_TYPE")
+    );
+    if (found?.code_name || found?.name) return found.code_name || found.name;
+    const map: Record<string, string> = {
+      GOOD_SOIL: "양질토",
+      MUD_SOIL: "뻘흙",
+      ROCK: "암버럭",
+      MIXED: "혼합토",
+      SAND: "모래",
+      NORMAL_SOIL: "일반토",
+      NORMAL: "일반토",
+      CLAY: "점토",
+      WEATHERED_SOIL: "풍화토",
+    };
+    return map[code] || code;
+  };
+
   // 상단 탭: "ALL"(전체 내역) vs "PENDING"(발행/승인 대기) vs "ISSUED"(국세청 전송완료)
   const [activeTab, setActiveTab] = useState<"ALL" | "PENDING" | "ISSUED">("ALL");
 
@@ -493,10 +522,10 @@ export default function DropoffTaxInvoiceManagement({
       </div>
 
       {/* 5. 개별 반입 티켓 상세 명세 팝업 모달 */}
-      {detailModalItem && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border-2 border-slate-400 animate-fadeIn space-y-0">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-100">
+      {mounted && detailModalItem && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-3xl w-full overflow-hidden shadow-2xl border border-slate-200 animate-scaleUp space-y-0 text-slate-800 my-auto flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 sm:py-5 border-b border-slate-200 bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-600" />
                 <div>
@@ -511,9 +540,9 @@ export default function DropoffTaxInvoiceManagement({
               <button
                 type="button"
                 onClick={() => setDetailModalItem(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+                className="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-300 text-slate-600 flex items-center justify-center font-bold text-xs active:scale-90 transition-all"
               >
-                <X className="w-5 h-5" />
+                ✕
               </button>
             </div>
 
@@ -570,9 +599,14 @@ export default function DropoffTaxInvoiceManagement({
                   <span className="font-semibold text-slate-800">{detailModalItem.dropoff_address || "-"}</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
-                  <span>상·하차 대사 실적:</span>
+                  <span>상·하차 반입 실적 대조:</span>
                   <span className="font-mono font-bold text-slate-800">
-                    출발 {detailModalItem.site_departure_count}건 / 도착 {detailModalItem.dropoff_arrived_count}건 (오차 {detailModalItem.discrepancy_count}건)
+                    상차 출발 {detailModalItem.site_departure_count}대 / 반입 검수 {detailModalItem.dropoff_arrived_count}대
+                    {detailModalItem.discrepancy_count !== 0 ? (
+                      <span className="ml-1 text-rose-600 font-semibold">(미반입 {Math.abs(detailModalItem.discrepancy_count)}대 정산 제외)</span>
+                    ) : (
+                      <span className="ml-1 text-emerald-600 font-semibold">(전량 반입 확인)</span>
+                    )}
                   </span>
                 </div>
               </div>
@@ -630,18 +664,23 @@ export default function DropoffTaxInvoiceManagement({
 
               {/* 4. 개별 운행/반입 티켓 목록 */}
               <div className="space-y-1.5">
-                <span className="text-xs font-black text-slate-800 block">
-                  개별 반입 티켓 대사 목록 ({detailModalItem.tickets_detail.length}건)
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-800">
+                    개별 반입 전표 목록 ({detailModalItem.tickets_detail.length}건)
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    ※ '반입 검수 완료'된 전표만 정산 금액에 합산됩니다.
+                  </span>
+                </div>
                 <div className="border border-slate-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 bg-slate-100 z-10">
                       <tr className="text-slate-600 font-bold border-b border-slate-200">
-                        <th className="py-2 px-3">티켓 ID</th>
+                        <th className="py-2 px-3">전표 번호</th>
                         <th className="py-2 px-3">반입 일자</th>
                         <th className="py-2 px-3">토사 종류</th>
                         <th className="py-2 px-3 text-right">단가</th>
-                        <th className="py-2 px-3 text-center">반입 검수 및 도착 상태</th>
+                        <th className="py-2 px-3 text-center">반입 검수 상태</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
@@ -649,18 +688,18 @@ export default function DropoffTaxInvoiceManagement({
                         <tr key={t.ticket_id} className="hover:bg-slate-50">
                           <td className="py-2 px-3 font-mono font-bold text-slate-900">#{t.ticket_id}</td>
                           <td className="py-2 px-3 font-mono">{t.date || "-"}</td>
-                          <td className="py-2 px-3 font-bold text-slate-700">{t.soil_type || "일반 토사"}</td>
+                          <td className="py-2 px-3 font-bold text-slate-700">{getMaterialName(t.soil_type)}</td>
                           <td className="py-2 px-3 text-right font-mono font-bold text-slate-800">
                             {((t.unit_price ?? detailModalItem.unit_price) || 0).toLocaleString()}원
                           </td>
                           <td className="py-2 px-3 text-center">
                             {t.is_arrived !== false ? (
                               <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
-                                ✓ 도착 승인 완료 (실거래 검증)
+                                ✓ 반입 검수 완료 (정산 산입)
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
-                                미도착 (물량 오차)
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                                ⚠ 반입 미확인 (미도착·정산 제외)
                               </span>
                             )}
                           </td>
@@ -700,7 +739,8 @@ export default function DropoffTaxInvoiceManagement({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
