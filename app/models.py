@@ -539,45 +539,107 @@ class JobPost(Base):
 
     @property
     def site_name(self):
-        if not self.site:
-            return None
-        return self.site.site_name or self.site.company_name
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "site" in state.dict:
+            site = state.dict["site"]
+            if site:
+                return site.site_name or site.company_name
+        return None
 
     @property
     def site_address(self):
-        return self.site.site_address if self.site else None
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "site" in state.dict:
+            site = state.dict["site"]
+            if site:
+                return site.site_address
+        return None
 
     @property
     def site_latitude(self):
-        return self.site.latitude if self.site else None
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "site" in state.dict:
+            site = state.dict["site"]
+            if site:
+                return site.latitude
+        return None
 
     @property
     def site_longitude(self):
-        return self.site.longitude if self.site else None
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "site" in state.dict:
+            site = state.dict["site"]
+            if site:
+                return site.longitude
+        return None
 
     @property
     def drop_off_name(self):
-        if self.drop_off_request and self.drop_off_request.drop_off:
-            return self.drop_off_request.drop_off.name
-        return self.matched_drop_off.name if self.matched_drop_off else None
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "drop_off_request" in state.dict:
+            dor = state.dict["drop_off_request"]
+            if dor:
+                dor_state = attributes.instance_state(dor)
+                if "drop_off" in dor_state.dict and dor_state.dict["drop_off"]:
+                    return dor_state.dict["drop_off"].name
+        if "matched_drop_off" in state.dict:
+            mdo = state.dict["matched_drop_off"]
+            if mdo:
+                return mdo.name
+        return None
 
     @property
     def drop_off_address(self):
-        if self.drop_off_request and self.drop_off_request.drop_off:
-            return self.drop_off_request.drop_off.address
-        return self.matched_drop_off.address if self.matched_drop_off else None
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "drop_off_request" in state.dict:
+            dor = state.dict["drop_off_request"]
+            if dor:
+                dor_state = attributes.instance_state(dor)
+                if "drop_off" in dor_state.dict and dor_state.dict["drop_off"]:
+                    return dor_state.dict["drop_off"].address
+        if "matched_drop_off" in state.dict:
+            mdo = state.dict["matched_drop_off"]
+            if mdo:
+                return mdo.address
+        return None
 
     @property
     def drop_off_latitude(self):
-        if self.drop_off_request and self.drop_off_request.drop_off:
-            return self.drop_off_request.drop_off.latitude
-        return self.matched_drop_off.latitude if self.matched_drop_off else None
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "drop_off_request" in state.dict:
+            dor = state.dict["drop_off_request"]
+            if dor:
+                dor_state = attributes.instance_state(dor)
+                if "drop_off" in dor_state.dict and dor_state.dict["drop_off"]:
+                    return dor_state.dict["drop_off"].latitude
+        if "matched_drop_off" in state.dict:
+            mdo = state.dict["matched_drop_off"]
+            if mdo:
+                return mdo.latitude
+        return None
 
     @property
     def drop_off_longitude(self):
-        if self.drop_off_request and self.drop_off_request.drop_off:
-            return self.drop_off_request.drop_off.longitude
-        return self.matched_drop_off.longitude if self.matched_drop_off else None
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        if "drop_off_request" in state.dict:
+            dor = state.dict["drop_off_request"]
+            if dor:
+                dor_state = attributes.instance_state(dor)
+                if "drop_off" in dor_state.dict and dor_state.dict["drop_off"]:
+                    return dor_state.dict["drop_off"].longitude
+        if "matched_drop_off" in state.dict:
+            mdo = state.dict["matched_drop_off"]
+            if mdo:
+                return mdo.longitude
+        return None
 
 
 class DriverFavoriteRegion(Base):

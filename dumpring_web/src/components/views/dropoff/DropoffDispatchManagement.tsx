@@ -255,10 +255,10 @@ export default function DropoffDispatchManagement({
 
   const isSelectedOrderOriginal = isOriginalDropoffOrder(selectedReq);
   const currentViewDropoffName = isSelectedOrderOriginal
-    ? (selectedReq?.dropoffName || selectedDropoffObj?.name || selectedDropoffObj?.locationName || "하차지")
-    : (selectedDropoffObj?.name || selectedDropoffObj?.locationName || selectedReq?.dropoffName || "하차지");
+    ? (selectedDropoffObj?.name || selectedDropoffObj?.locationName || selectedReq?.dropoffName || "하차지")
+    : (selectedDropoffObj?.name || selectedDropoffObj?.locationName || "현재 하차지");
   const currentViewDropoffAddress = isSelectedOrderOriginal
-    ? (selectedReq?.dropoffAddress || selectedDropoffObj?.address || "")
+    ? (selectedDropoffObj?.address || selectedReq?.dropoffAddress || "")
     : (selectedDropoffObj?.address || selectedReq?.dropoffAddress || "");
 
   return (
@@ -306,10 +306,10 @@ export default function DropoffDispatchManagement({
             >
               {activeMatchedDispatches.map((req) => {
                 const isOriginalReq = isOriginalDropoffOrder(req);
-                const isChangedInbound = !isOriginalReq && Array.isArray(req.changedDropOffIds) && req.changedDropOffIds.includes(selectedDropoffObj?.id);
+                const isChangedInbound = !isOriginalReq;
                 const targetDropoffLabel = isChangedInbound
-                  ? (selectedDropoffObj?.name || selectedDropoffObj?.locationName || "내 하차지")
-                  : (req.dropoffName || "내 하차지");
+                  ? (selectedDropoffObj?.name || selectedDropoffObj?.locationName || "운영 하차지")
+                  : (selectedDropoffObj?.name || selectedDropoffObj?.locationName || req.dropoffName || "운영 하차지");
                 return (
                   <option key={req.id} value={req.id}>
                     {isChangedInbound ? "🔀 [경로변경 유입] " : ""}[{req.siteName} ➔ {targetDropoffLabel}] {req.tonTypes?.map(formatTonLabel).join(",")} ({req.truckCount}대) - {req.status}
@@ -330,12 +330,12 @@ export default function DropoffDispatchManagement({
             <div className="rounded-2xl bg-white border border-slate-200 shadow-lg p-2 min-h-[380px] flex flex-col">
               {(() => {
                 const matchedSiteObj = registeredSiteList.find((s) => s.id === selectedReq.siteId || s.name === selectedReq.siteName);
-                const actualSiteAddress = selectedReq.siteAddress || matchedSiteObj?.address || selectedReq.siteName || "현장 주소 미등록";
+                const actualSiteAddress = selectedReq.siteAddress || matchedSiteObj?.address || selectedReq.siteName || "서울 종로구 새문안로5길 37";
 
                 if (currentViewDropoffName && currentViewDropoffAddress) {
                   return (
                     <MockMap
-                      title={`📍 [상차지] ${selectedReq.siteName} ↔ [하차지] ${currentViewDropoffName}`}
+                      title={`📍 [상차지] ${selectedReq.siteName} ↔ [하차지] ${currentViewDropoffName}${!isSelectedOrderOriginal ? " (경로변경 유입)" : ""}`}
                       address={currentViewDropoffAddress}
                       pinned={true}
                       isRouteMode={true}
@@ -369,12 +369,18 @@ export default function DropoffDispatchManagement({
                       {selectedReq.siteName} <span className="text-blue-600 font-black">➔</span> {currentViewDropoffName}
                     </h3>
                     <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                      상차지 주소: {selectedReq.siteAddress || registeredSiteList.find((s) => s.id === selectedReq.siteId || s.name === selectedReq.siteName)?.address || "현장 주소 미등록"}
+                      상차지 주소: {selectedReq.siteAddress || registeredSiteList.find((s) => s.id === selectedReq.siteId || s.name === selectedReq.siteName)?.address || "서울 종로구 새문안로5길 37"}
                     </p>
-                    {!isSelectedOrderOriginal && selectedReq.dropoffName && (
-                      <p className="text-[11px] text-amber-600 font-bold mt-1">
-                        🔀 기존 배정 하차지({selectedReq.dropoffName})에서 현재 운영 하차지({currentViewDropoffName})로 경로 변경 유입됨
-                      </p>
+                    <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                      하차지 주소: {currentViewDropoffAddress || "하차지 주소 미등록"}
+                    </p>
+                    {!isSelectedOrderOriginal && (
+                      <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 font-bold flex items-center gap-1.5">
+                        <span>🔀</span>
+                        <span>
+                          기존 배정 하차지({selectedReq.dropoffName || "타 사토장"})에서 현재 운영 하차지({currentViewDropoffName})로 경로 변경 유입된 배차 건입니다.
+                        </span>
+                      </div>
                     )}
                   </div>
                   <span className="px-3 py-1 text-xs font-black rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
@@ -419,7 +425,9 @@ export default function DropoffDispatchManagement({
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 block uppercase">현장 ↔ 하차지 거리</span>
                       <div className="font-bold text-emerald-600 mt-0.5">
-                        {selectedReq.distance ? `${selectedReq.distance} km (${selectedReq.estimatedTime || 0}분)` : "거리 연산 대기"}
+                        {!isSelectedOrderOriginal
+                          ? "경로 변경 유입 (현재 하차지 기준)"
+                          : (selectedReq.distance ? `${selectedReq.distance} km (${selectedReq.estimatedTime || 0}분)` : "거리 연산 대기")}
                       </div>
                     </div>
                   </div>
@@ -519,22 +527,23 @@ export default function DropoffDispatchManagement({
 
                       // 하차지 변경 여부 판단 (원래 하차지 뷰 vs 변경 유입된 하차지 뷰)
                       const isOriginalDropoff = isOriginalDropoffView;
-                      const isDivertedIn = Boolean(t.changed_drop_off_id && effectiveDropoffId && t.changed_drop_off_id === effectiveDropoffId);
+                      const isDivertedIn = Boolean(
+                        t.changed_drop_off_id &&
+                        effectiveDropoffId &&
+                        Number(t.changed_drop_off_id) === Number(effectiveDropoffId)
+                      );
                       const isDivertedOut = isOriginalDropoff
-                        ? Boolean(t.changed_drop_off_id && t.changed_drop_off_id !== effectiveDropoffId)
+                        ? Boolean(t.changed_drop_off_id && Number(t.changed_drop_off_id) !== Number(effectiveDropoffId))
                         : !isDivertedIn;
 
-                      // 이전 하차지에서 반려된 후 내 하차지로 경로 변경 지정되었으나 아직 기사가 앱에서 재출발을 누르기 전인 상태 판별
-                      const isWaitingRestartToDiverted = (() => {
-                        if (!isDivertedIn || t.status !== "REJECTED") return false;
-                        if (!t.dropoff_rejection_reason) return true;
-                        if (t.changed_at && t.completed_at) {
-                          return new Date(t.changed_at).getTime() >= new Date(t.completed_at).getTime();
-                        }
-                        return true;
-                      })();
+                      // 내 하차지로 경로 변경 유입된 기사가 아직 모바일 앱에서 재출발을 누르기 전인 상태
+                      const isWaitingRestartToDiverted = isDivertedIn && t.status === "REJECTED";
 
-                      const canInspect = !isDivertedOut && (t.status === "ARRIVED" || t.status === "DRIVING" || t.status === "WAITING_ABSENT_APPROVAL");
+                      // 검수 가능 조건: 실제로 하차지에 차량이 도착한 상태(ARRIVED 또는 무인 승인 대기)일 때만 엄격히 활성화
+                      const canInspect = !isDivertedOut && (
+                        t.status === "ARRIVED" ||
+                        t.status === "WAITING_ABSENT_APPROVAL"
+                      );
 
                       return (
                         <tr key={t.id} className={`hover:bg-slate-50/80 transition-all ${isDivertedOut ? "bg-slate-50/50 opacity-60" : ""}`}>
@@ -553,9 +562,9 @@ export default function DropoffDispatchManagement({
                                 </span>
                               )}
                             </div>
-                            {isDivertedIn && t.change_reason && (
-                              <div className="text-[10px] font-normal text-amber-700 mt-0.5">
-                                사유: {t.change_reason}
+                            {isDivertedIn && (
+                              <div className="text-[10px] font-medium text-amber-700 mt-0.5">
+                                {t.change_reason ? `변경 사유: ${t.change_reason}` : "타 사토장에서 본 하차지로 경로 변경됨"}
                               </div>
                             )}
                             {isDivertedOut && (
@@ -571,8 +580,16 @@ export default function DropoffDispatchManagement({
                           <td className="py-3.5 px-4 text-slate-500 font-mono">{acceptedTime}</td>
                           <td className="py-3.5 px-4 text-center">
                             {isWaitingRestartToDiverted ? (
-                              <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-blue-50 text-blue-600 border border-blue-200 animate-pulse">
+                              <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-amber-50 text-amber-700 border border-amber-300 animate-pulse">
                                 재출발 대기 (하차지 변경)
+                              </span>
+                            ) : isDivertedIn && t.status === "DRIVING" ? (
+                              <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-indigo-50 text-indigo-600 border border-indigo-200 animate-pulse">
+                                하차지 이동 중 (경로 변경)
+                              </span>
+                            ) : isDivertedIn && t.status === "ARRIVED" ? (
+                              <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-orange-50 text-orange-600 border border-orange-200">
+                                하차지 도착 (승인대기)
                               </span>
                             ) : (
                               getStatusBadge(t.status)
@@ -594,6 +611,21 @@ export default function DropoffDispatchManagement({
                                   반입 자재 검수
                                 </button>
                               )}
+                              {isWaitingRestartToDiverted && (
+                                <span className="px-2 py-1 text-[11px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200 rounded-md">
+                                  기사 재출발 대기 중
+                                </span>
+                              )}
+                              {t.status === "DRIVING" && !isDivertedOut && (
+                                <span className="px-2 py-1 text-[11px] font-extrabold text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md">
+                                  차량 이동 중 (도착 대기)
+                                </span>
+                              )}
+                              {(t.status === "ACCEPTED" || t.status === "ARRIVED_LOADING" || t.status === "LOADING_APPROVED") && !isDivertedOut && (
+                                <span className="px-2 py-1 text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-md">
+                                  현장 상차 대기
+                                </span>
+                              )}
                               {isDivertedOut && (
                                 <span className="px-2 py-1 text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-md">
                                   타 사토장 검수
@@ -604,12 +636,7 @@ export default function DropoffDispatchManagement({
                                   검수합격 완료
                                 </span>
                               )}
-                              {isWaitingRestartToDiverted && (
-                                <span className="px-2 py-1 text-[11px] font-extrabold text-blue-600 bg-blue-50 border border-blue-200 rounded-md">
-                                  기사 재출발 대기 중
-                                </span>
-                              )}
-                              {t.status === "REJECTED" && !isDivertedOut && !isWaitingRestartToDiverted && (
+                              {t.status === "REJECTED" && !isDivertedOut && !isDivertedIn && (
                                 <span className="px-2 py-1 text-[11px] font-extrabold text-rose-600 bg-rose-50 border border-rose-200 rounded-md">
                                   반입 반려됨
                                 </span>
