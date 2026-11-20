@@ -88,6 +88,9 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   double? _dropOffLng;
   String? _dropOffName;
   String? _dropOffAddress;
+  double? _previousDropOffLat;
+  double? _previousDropOffLng;
+  String? _previousDropOffName;
   String? _actualMaterialType;
   String? _materialChangeReason;
   bool _isDropOffChanged = false;
@@ -747,9 +750,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         }
       }
 
-      // 공고의 단가(offered_unit_price)가 있으면 그대로 기본 운임으로 채택하고, 없으면 톤수별 표준 운임 적용
-      final int rawPrice = jp['offered_unit_price'] ?? 0;
-      _baseTariff = (rawPrice > 0) ? rawPrice : defaultFareByTon;
+      // 주의: jp['offered_unit_price']는 하차지 토사 반입단가(흙값)이므로 기사 기본 운임으로 사용하지 않고 톤수별 표준 운임 적용
+      _baseTariff = defaultFareByTon;
 
       _plannedDistanceKm = (jp['distance'] as num?)?.toDouble() ?? 10.0;
       _plannedTimeMinutes = jp['estimated_time'] ?? 20;
@@ -763,6 +765,9 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
       _dropOffLng = (jp['drop_off_longitude'] as num?)?.toDouble();
       _dropOffName = jp['drop_off_name'] as String?;
       _dropOffAddress = jp['drop_off_address'] as String?;
+      _previousDropOffLat = _dropOffLat;
+      _previousDropOffLng = _dropOffLng;
+      _previousDropOffName = _dropOffName;
 
       if ((_dropOffLat == null || _dropOffLat == 37.5665 || _dropOffLat == 0.0) && _dropOffAddress != null) {
         _geocodeAddress(_dropOffAddress).then((resolved) {
@@ -770,6 +775,8 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
             setState(() {
               _dropOffLat = resolved["lat"];
               _dropOffLng = resolved["lng"];
+              _previousDropOffLat ??= resolved["lat"];
+              _previousDropOffLng ??= resolved["lng"];
             });
             debugPrint("📌 [_applyTicketState] 하차지 도로명 주소로부터 정밀 위경도 자동 복원: $_dropOffName ($_dropOffLat, $_dropOffLng)");
           }
@@ -783,20 +790,29 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
 
     if (ticket['changed_drop_off'] != null) {
       final cd = ticket['changed_drop_off'];
+      final newId = cd['id'] as int?;
       final newLat = (cd['latitude'] as num?)?.toDouble();
       final newLng = (cd['longitude'] as num?)?.toDouble();
       final newName = cd['name'] as String?;
       final newAddr = cd['address'] as String?;
 
-      if (newLat != null && newLng != null && (_dropOffLat != newLat || _dropOffLng != newLng)) {
-        _isDropOffChanged = true;
-        _dropOffLat = newLat;
-        _dropOffLng = newLng;
-        _dropOffName = newName ?? _dropOffName;
-        _dropOffAddress = newAddr ?? _dropOffAddress;
-        _isAutoArrivedTriggered = false; // 새 하차지 기준 200m 지오펜싱 재감지 가능하도록 리셋
-        debugPrint("★ [하차지 변경 감지] 새로운 하차지로 목적지 좌표 및 지오펜싱 갱신: $_dropOffName ($newLat, $newLng)");
+      // 하차지 도착(arrived_at) 이후에 변경(changed_at)되었거나 반입 반려(REJECTED) 상태에서 대체 하차지가 지정된 경우 재출발 버튼 활성화
+      bool changedAfterArrival = true;
+      if (ticket['arrived_at'] != null && ticket['changed_at'] != null) {
+        try {
+          final arrDt = DateTime.parse(ticket['arrived_at'].toString());
+          final chgDt = DateTime.parse(ticket['changed_at'].toString());
+          changedAfterArrival = chgDt.isAfter(arrDt);
+        } catch (_) {}
       }
+      _isDropOffChanged = changedAfterArrival || status == "REJECTED";
+      if (newId != null) _dropOffId = newId;
+      if (newLat != null) _dropOffLat = newLat;
+      if (newLng != null) _dropOffLng = newLng;
+      if (newName != null && newName.isNotEmpty) _dropOffName = newName;
+      if (newAddr != null && newAddr.isNotEmpty) _dropOffAddress = newAddr;
+      _isAutoArrivedTriggered = false; // 새 하차지 기준 200m 지오펜싱 재감지 가능하도록 리셋
+      debugPrint("★ [하차지 변경 감지] 새로운 하차지로 목적지 좌표 및 지오펜싱 갱신: $_dropOffName ($newLat, $newLng)");
     }
 
     _loadingRejectionReason = ticket['loading_rejection_reason'];
@@ -929,6 +945,69 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
             _driveStep = 5;
           });
           _statusPollTimer?.cancel();
+        } else if (_driveStep == 4) {
+          // 1. 반입 반려 사유 실시간 반영
+          if (newStatus == "REJECTED") {
+            final String? rejectMsg = ticket['dropoff_rejection_reason'] ?? "토질 검사 부적격 판정";
+            if (_dropoffRejectionReason != rejectMsg) {
+              setState(() {
+                _dropoffRejectionReason = rejectMsg;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("⚠️ 하차지 반입이 반려되었습니다 ($rejectMsg). 현장관리자의 대체 하차지 지정을 대기합니다."),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          }
+
+          // 2. 현장에서 대체 하차지를 지정했는지 실시간 감지 (기사가 직접 [운행 시작] 버튼을 누를 수 있도록 버튼 활성화)
+          if (ticket['changed_drop_off'] != null) {
+            final cd = ticket['changed_drop_off'];
+            final int? newId = cd['id'] as int?;
+            final String? newName = cd['name'] as String?;
+            final String? newAddr = cd['address'] as String?;
+            final double? newLat = (cd['latitude'] as num?)?.toDouble();
+            final double? newLng = (cd['longitude'] as num?)?.toDouble();
+
+            bool isNewChange = (newId != null && _dropOffId != newId) || (newName != null && _dropOffName != newName);
+            if (!isNewChange && !_isDropOffChanged) {
+              if (ticket['arrived_at'] != null && ticket['changed_at'] != null) {
+                try {
+                  final arrDt = DateTime.parse(ticket['arrived_at'].toString());
+                  final chgDt = DateTime.parse(ticket['changed_at'].toString());
+                  isNewChange = chgDt.isAfter(arrDt);
+                } catch (_) {}
+              } else {
+                isNewChange = true;
+              }
+            }
+            if (isNewChange) {
+              setState(() {
+                if (_dropOffLat != null && _dropOffLng != null) {
+                  _previousDropOffLat = _dropOffLat;
+                  _previousDropOffLng = _dropOffLng;
+                  _previousDropOffName = _dropOffName;
+                }
+                _isDropOffChanged = true;
+                if (newId != null) _dropOffId = newId;
+                if (newName != null && newName.isNotEmpty) _dropOffName = newName;
+                if (newAddr != null && newAddr.isNotEmpty) _dropOffAddress = newAddr;
+                if (newLat != null) _dropOffLat = newLat;
+                if (newLng != null) _dropOffLng = newLng;
+                _materialChangeReason = ticket['change_reason'] as String?;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("🔄 새로운 하차지(${_dropOffName ?? '대체 하차지'})가 지정되었습니다. [새 하차지로 운행 시작] 버튼을 눌러 출발하세요!"),
+                  backgroundColor: Colors.blue,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          }
         }
       }
     } catch (_) {}
@@ -1399,6 +1478,133 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
     });
   }
 
+  // 대체 하차지 지정 후 기사가 직접 [새 하차지로 운행 시작] 버튼을 눌렀을 때 주행 재개
+  Future<void> _restartDrivingToNewDropOff() async {
+    // 반려된 직전 하차지(현재 출발지)로부터 반경 1km 이상 벌어진 경우 재출발 차단 검증 수행
+    if (_previousDropOffLat != null &&
+        _previousDropOffLng != null &&
+        _previousDropOffLat != 0.0 &&
+        _previousDropOffLng != 0.0) {
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 5),
+        );
+        final double distanceInMeters = Geolocator.distanceBetween(
+          position.latitude,
+          position.longitude,
+          _previousDropOffLat!,
+          _previousDropOffLng!,
+        );
+
+        if (distanceInMeters > 1000.0) { // 1km 초과 시 차단
+          final double distanceInKm = distanceInMeters / 1000.0;
+          if (!_isTestLocationBypass) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text("하차지 이탈 경고", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: Text(
+                    "반입 반려된 직전 하차지(${_previousDropOffName ?? '하차지'})로부터 너무 멀리 떨어져 있어 재운행을 시작할 수 없습니다.\n"
+                    "직전 하차지 부근에서 미터기를 켜고 새 하차지로 출발해 주세요.\n\n"
+                    "• 직전 하차지와의 거리: ${distanceInKm.toStringAsFixed(2)} km\n"
+                    "• 부정 요금 부과 규정에 따라 운행 재개가 제한됩니다."
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("확인", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return; // [운영] 재출발 차단
+          } else {
+            debugPrint("🧪 [테스트 모드] 직전 하차지 거리(${distanceInKm.toStringAsFixed(2)}km) 예외 허용 및 재출발 허용");
+          }
+        }
+      } catch (e) {
+        debugPrint("위치 확인 실패로 인한 무시 및 재출발 허용: $e");
+      }
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse("$_baseUrl/api/dispatch/tickets/${widget.ticketId}/start-driving"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        _statusPollTimer?.cancel();
+        final ticket = jsonDecode(utf8.decode(response.bodyBytes));
+        await _applyTicketState(ticket);
+        if (mounted) {
+          setState(() {
+            _driveStep = 3;
+            _speedKmh = 0;
+            _isDropOffChanged = false;
+            _dropoffRejectionReason = null;
+            _isLandownerAbsent = false;
+            _isAutoArrivedTriggered = false;
+          });
+
+          LiveActivityService.startLiveActivity(
+            currentFare: _currentFare,
+            distanceKm: _distanceKm,
+            elapsedSeconds: _elapsedSeconds,
+            originName: _siteName ?? "상차지",
+            destinationName: _dropOffName ?? "대체 하차지",
+            vehicleNumber: widget.user['vehicle_number']?.toString() ?? widget.user['truck_no']?.toString() ?? "덤프트럭",
+            statusText: "대체 하차지 이동 중",
+          );
+
+          _startMeterTracking();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("🚚 새로운 하차지(${_dropOffName ?? '대체 하차지'})로 운행을 시작합니다!"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        String errMsg = "운행 재개에 실패했습니다.";
+        try {
+          final err = jsonDecode(utf8.decode(response.bodyBytes));
+          errMsg = err['detail'] ?? errMsg;
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("⚠️ $errMsg"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("대체 하차지 운행 재개 실패: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("⚠️ 네트워크 연결 오류가 발생했습니다."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _arrivedAtUnloadingSite({bool isAutoDetected = false}) async {
     _stopMeterTracking();
     DriverOverlayMeter.closeMeter();
@@ -1433,6 +1639,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
         setState(() {
           _driveStep = 4;
           _speedKmh = 0;
+          _isDropOffChanged = false;
         });
 
         // 3. 지주 실시간 반입 승인을 실시간으로 감지하기 위한 Polling 타이머 가동 (WOW 🚨)
@@ -1467,25 +1674,69 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("🟢 지주가 반입을 최종 승인하였습니다. 전표가 발행됩니다.")),
           );
-        } else if (status == "REJECTED") {
-          _statusPollTimer?.cancel();
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              title: Text("⚠️ 반입 반려 회차 통보"),
-              content: Text("하차지 지주가 토질 검사 부적격 판정(뻘흙 등)을 내려 반입이 반려되었습니다. 차량을 회차 후 분쟁 조정 센터로 연동됩니다."),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.pop(context); // 홈화면으로 즉시 복원 복귀
-                  },
-                  child: Text("확인 및 홈 복귀"),
-                )
-              ],
-            ),
-          );
+        } else {
+          // 1. 반입 반려 시 화면을 닫지 않고 4단계에 머물며 반려 사유 배너를 띄움
+          if (status == "REJECTED") {
+            final String rejectMsg = ticket['dropoff_rejection_reason'] ?? "토질 검사 부적격 판정";
+            if (_dropoffRejectionReason != rejectMsg) {
+              setState(() {
+                _dropoffRejectionReason = rejectMsg;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("⚠️ 하차지 반입이 반려되었습니다 ($rejectMsg). 현장관리자의 대체 하차지 지정을 대기합니다."),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          }
+
+          // 2. 현장에서 대체 하차지를 지정했는지 실시간 감지 (기사가 직접 [새 하차지로 운행 시작] 버튼을 누를 수 있도록 버튼 활성화)
+          if (ticket['changed_drop_off'] != null) {
+            final cd = ticket['changed_drop_off'];
+            final int? newId = cd['id'] as int?;
+            final String? newName = cd['name'] as String?;
+            final String? newAddr = cd['address'] as String?;
+            final double? newLat = (cd['latitude'] as num?)?.toDouble();
+            final double? newLng = (cd['longitude'] as num?)?.toDouble();
+
+            bool isNewChange = (newId != null && _dropOffId != newId) || (newName != null && _dropOffName != newName);
+            if (!isNewChange && !_isDropOffChanged) {
+              if (ticket['arrived_at'] != null && ticket['changed_at'] != null) {
+                try {
+                  final arrDt = DateTime.parse(ticket['arrived_at'].toString());
+                  final chgDt = DateTime.parse(ticket['changed_at'].toString());
+                  isNewChange = chgDt.isAfter(arrDt);
+                } catch (_) {}
+              } else {
+                isNewChange = true;
+              }
+            }
+            if (isNewChange) {
+              setState(() {
+                if (_dropOffLat != null && _dropOffLng != null) {
+                  _previousDropOffLat = _dropOffLat;
+                  _previousDropOffLng = _dropOffLng;
+                  _previousDropOffName = _dropOffName;
+                }
+                _isDropOffChanged = true;
+                if (newId != null) _dropOffId = newId;
+                if (newName != null && newName.isNotEmpty) _dropOffName = newName;
+                if (newAddr != null && newAddr.isNotEmpty) _dropOffAddress = newAddr;
+                if (newLat != null) _dropOffLat = newLat;
+                if (newLng != null) _dropOffLng = newLng;
+                _materialChangeReason = ticket['change_reason'] as String?;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("🔄 새로운 하차지(${_dropOffName ?? '대체 하차지'})가 지정되었습니다. [새 하차지로 운행 시작] 버튼을 눌러 출발하세요!"),
+                  backgroundColor: Colors.blue,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          }
         }
       }
     } catch (e) {
@@ -2480,8 +2731,72 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  "• 상차지 현장관리자가 대체 사토장(제2 하차지)을 지정하면 화면이 자동으로 갱신되며 미터기가 재가동됩니다.\n• 추가 주행거리와 시간 요금은 기존 금액에 누적되어 온전히 정산됩니다.",
+                  "• 상차지 현장관리자가 대체 사토장(제2 하차지)을 지정하면 아래에 [새 하차지로 운행 시작] 버튼이 활성화됩니다.\n• 출발 시 운행 시작을 누르면 기존 금액에 추가 주행거리와 시간 요금이 이어서 누적 정산됩니다.",
                   style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        // 🔄 [현장에서 대체 하차지를 지정한 경우: 기사가 직접 운행 시작 버튼을 눌러 재출발]
+        if (_isDropOffChanged) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.withAlpha(25),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primary, width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.alt_route_rounded, color: AppColors.primary, size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "대체 하차지 지정 완료: ${_dropOffName ?? '새 하차지'}",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_dropOffAddress != null && _dropOffAddress!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    "변경 주소: $_dropOffAddress",
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ],
+                if (_materialChangeReason != null && _materialChangeReason!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    "변경 사유: $_materialChangeReason",
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                ElevatedButton.icon(
+                  onPressed: _restartDrivingToNewDropOff,
+                  icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                  label: Text(
+                    "[${_dropOffName ?? '새 하차지'}]로 운행 시작 (재출발)",
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
                 ),
               ],
             ),

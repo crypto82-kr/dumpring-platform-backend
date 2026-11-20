@@ -1161,9 +1161,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     final String statusLabel = dispatchStatusMap[ticket['status']] ?? (ticket['status'] ?? '진행 중');
     final Color statusColor = ticket['status'] == 'DRIVING'
         ? AppColors.primary
-        : ticket['status'] == 'ARRIVED'
-            ? AppColors.warning
-            : Colors.green;
+        : ticket['status'] == 'REJECTED'
+            ? Colors.redAccent
+            : ticket['status'] == 'ARRIVED'
+                ? AppColors.warning
+                : Colors.green;
 
     // 공고 작업 예정일 정보 포맷팅 추가
     String workDateStr = "날짜 미정";
@@ -1206,7 +1208,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
             if (!context.mounted) return;
 
-            if (status == 'DRIVING' || status == 'ARRIVED' || status == 'APPROVED' || status == 'WAITING_ABSENT_APPROVAL') {
+            if (status == 'DRIVING' || status == 'ARRIVED' || status == 'APPROVED' || status == 'WAITING_ABSENT_APPROVAL' || status == 'REJECTED') {
               final confirmRoute = MaterialPageRoute<dynamic>(
                 builder: (context) => DriverDispatchConfirmScreen(
                   user: widget.user,

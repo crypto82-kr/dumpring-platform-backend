@@ -18,6 +18,8 @@ export default function ApprovalRequestScreen() {
   const [longitude, setLongitude] = useState("");
   const [permitNumber, setPermitNumber] = useState("");
   const [isDirectDriver, setIsDirectDriver] = useState(false);
+  const [isWorkerMatched, setIsWorkerMatched] = useState(false);
+  const [workerRoleLabel, setWorkerRoleLabel] = useState("현장통제/도장");
 
   // 필수 서류 관리 상태
   const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
@@ -112,6 +114,12 @@ export default function ApprovalRequestScreen() {
           if (info.location_name) setLocationName(info.location_name);
           if (info.permit_number) setPermitNumber(info.permit_number);
           if (info.is_direct_driver !== undefined) setIsDirectDriver(info.is_direct_driver);
+          if (info.is_pre_registered !== undefined) setIsWorkerMatched(Boolean(info.is_pre_registered));
+          if (info.employee_role) setWorkerRoleLabel(info.employee_role);
+        }
+
+        if (user?.role === "site_worker") {
+          setIsSubmitted(true);
         }
       } else {
         const errData = await res.json().catch(() => null);
@@ -227,7 +235,7 @@ export default function ApprovalRequestScreen() {
 
     // Daum 우편번호 검색 스크립트 동적 로드
     const script = document.createElement("script");
-    script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.src = "//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
     script.async = true;
     document.head.appendChild(script);
     return () => {
@@ -365,13 +373,17 @@ export default function ApprovalRequestScreen() {
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-5 mb-6">
         <div>
           <span className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-full border border-blue-100 dark:border-blue-900/35">
-            {user?.roleName} 가가입 상태
+            {user?.roleName} {user?.role === "site_worker" ? "승인 대기" : "가가입 상태"}
           </span>
           <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mt-2">
-            {isSubmitted ? "승인 심사 대기 중" : "승인 요청 및 상세 정보 제출"}
+            {user?.role === "site_worker"
+              ? (isWorkerMatched ? "관리자 승인 대기 중" : "현장관리자 등록 대기 중")
+              : (isSubmitted ? "승인 심사 대기 중" : "승인 요청 및 상세 정보 제출")}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            정식 플랫폼 대시보드 사용을 위해 필수 상세 정보를 입력하고 승인을 요청해야 합니다.
+            {user?.role === "site_worker"
+              ? "현장관리자 인원 매칭 및 플랫폼 관리자 승인 후 현장담당자 업무를 이용하실 수 있습니다."
+              : "정식 서비스 이용을 위해 필수 상세 정보를 입력하고 승인을 요청해 주세요."}
           </p>
         </div>
 
@@ -409,19 +421,53 @@ export default function ApprovalRequestScreen() {
         </div>
       )}
 
-      {isSubmitted ? (
+      {isSubmitted || user?.role === "site_worker" ? (
         /* ------------------ Submitted / Pending View ------------------ */
         <div className="text-center py-10 space-y-6">
           <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center mx-auto text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/35">
             <RefreshCw className="w-8 h-8 animate-spin-slow" />
           </div>
 
-          <div className="space-y-2 max-w-md mx-auto">
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">어드민 승인을 기다리는 중입니다</h3>
-            <p className="text-xs text-slate-550 leading-relaxed dark:text-slate-450">
-              제출하신 정보와 필수 제출 서류를 심사역이 실시간으로 확인하고 있습니다. 승인이 완료되면 자동으로 대시보드로 진입 가능합니다.
-            </p>
-          </div>
+          {user?.role === "site_worker" ? (
+            <div className="space-y-4 max-w-md mx-auto">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+                {isWorkerMatched
+                  ? "현장관리자 매칭 완료 · 승인 대기 중"
+                  : "현장관리자의 인원 등록을 기다리는 중입니다"}
+              </h3>
+              <p className="text-xs text-slate-550 leading-relaxed dark:text-slate-450">
+                {isWorkerMatched
+                  ? "플랫폼 관리자의 승인이 완료되면 바로 현장담당자 업무를 이용하실 수 있습니다."
+                  : "현장관리자가 인원 등록을 완료하면 관리자 승인 후 현장담당자 업무를 이용하실 수 있습니다."}
+              </p>
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-left space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-bold">성명 / 연락처</span>
+                  <span className="font-extrabold text-slate-800 dark:text-slate-200">{user?.name} ({user?.phone_number})</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-bold">진행 상태</span>
+                  <span className={`font-extrabold px-2 py-0.5 rounded-full text-[11px] ${isWorkerMatched ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-amber-50 text-amber-600 border border-amber-200"}`}>
+                    {isWorkerMatched ? "매칭 완료 (승인 대기)" : "현장관리자 등록 대기"}
+                  </span>
+                </div>
+                {isWorkerMatched && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 font-bold">소속 현장</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{siteName || "소속 현장 미지정"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2 max-w-md mx-auto">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">어드민 승인을 기다리는 중입니다</h3>
+              <p className="text-xs text-slate-550 leading-relaxed dark:text-slate-450">
+                제출하신 정보와 필수 제출 서류를 심사역이 실시간으로 확인하고 있습니다. 승인이 완료되면 자동으로 대시보드로 진입 가능합니다.
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-center items-center gap-3 pt-4">
             <button
@@ -429,14 +475,16 @@ export default function ApprovalRequestScreen() {
               className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/10 flex items-center gap-2 active:scale-95 transition-all"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>새로고침 (승인 상태 확인)</span>
+              <span>새로고침 (매칭 및 승인 상태 확인)</span>
             </button>
-            <button
-              onClick={() => setIsSubmitted(false)}
-              className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all"
-            >
-              제출 서류 / 정보 수정하기
-            </button>
+            {user?.role !== "site_worker" && (
+              <button
+                onClick={() => setIsSubmitted(false)}
+                className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all"
+              >
+                제출 서류 / 정보 수정하기
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -689,8 +737,8 @@ export default function ApprovalRequestScreen() {
                     <div
                       key={docCode}
                       className={`p-3 rounded-xl text-xs shadow-sm transition-all border ${docError
-                          ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/50 ring-1 ring-rose-500/20"
-                          : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800"
+                        ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/50 ring-1 ring-rose-500/20"
+                        : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800"
                         }`}
                     >
                       <div className="flex items-center justify-between">
@@ -733,8 +781,8 @@ export default function ApprovalRequestScreen() {
 
                           {/* 서류 교체 / 재업로드 버튼 */}
                           <label className={`px-2.5 py-1 text-[10px] font-bold rounded-lg cursor-pointer active:scale-95 transition-all shrink-0 flex items-center gap-1 border ${docError
-                              ? "bg-rose-600 hover:bg-rose-700 text-white border-rose-600 shadow-sm"
-                              : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
+                            ? "bg-rose-600 hover:bg-rose-700 text-white border-rose-600 shadow-sm"
+                            : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
                             }`}>
                             {uploadingDocCode === docCode ? (
                               <>
@@ -777,8 +825,8 @@ export default function ApprovalRequestScreen() {
                     <div
                       key={doc.code}
                       className={`p-3 rounded-xl text-xs shadow-sm transition-all border ${docError
-                          ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/50 ring-1 ring-rose-500/20"
-                          : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800"
+                        ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/50 ring-1 ring-rose-500/20"
+                        : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800"
                         }`}
                     >
                       <div className="flex items-center justify-between">

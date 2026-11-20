@@ -564,42 +564,60 @@ async def signup_site_worker(
 
         new_profile = SiteProfile(
             user_id=new_user.id,
-            company_name=data.company_name,
-            site_name=data.site_name,
-            business_number=data.business_number
+            company_name=data.company_name or "미지정",
+            site_name=data.site_name or "미지정",
+            business_number=getattr(data, "business_number", None) or "000-00-00000"
         )
         db.add(new_profile)
 
-        # ConstructionSite 조회 (site_key 기반)
-        site_query = select(ConstructionSite).where(
-            ConstructionSite.site_key == data.site_key
-        )
-        site_result = await db.execute(site_query)
-        site = site_result.scalars().first()
-
-        if not site:
-            logger.warning(f"현장담당자 가입 실패: 유효하지 않은 현장 키 ({data.site_key})")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="올바르지 않은 현장 키입니다. 현장관리자(소장님)에게 문의하여 올바른 현장 키를 입력해 주세요."
+        # ConstructionSite 조회 (실제 site_key가 전달된 경우에만 조회)
+        if data.site_key and data.site_key != "SITE-DEFAULT":
+            site_query = select(ConstructionSite).where(
+                ConstructionSite.site_key == data.site_key
             )
+            site_result = await db.execute(site_query)
+            site = site_result.scalars().first()
 
-        # SiteUserMapping 생성 (담당자는 PENDING으로 시작)
-        mapping = SiteUserMapping(
-            site_id=site.id,
-            user_id=new_user.id,
-            status=SiteUserStatus.PENDING
+            if not site:
+                logger.warning(f"현장담당자 가입 실패: 유효하지 않은 현장 키 ({data.site_key})")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="올바르지 않은 현장 키입니다. 현장관리자(소장님)에게 문의하여 올바른 현장 키를 입력해 주세요."
+                )
+
+            # SiteUserMapping 생성 (담당자는 PENDING으로 시작)
+            mapping = SiteUserMapping(
+                site_id=site.id,
+                user_id=new_user.id,
+                status=SiteUserStatus.PENDING
+            )
+            db.add(mapping)
+
+        # SiteEmployee 선등록 매칭 로직 작동 (성명과 휴대폰 번호 일치 확인 - 단, 최종 승인은 본인 로그인 및 관리자 승인 시 완료)
+        clean_name = (data.name or "").strip()
+        employee_query = select(SiteEmployee).where(
+            (SiteEmployee.registered_phone == normalized_phone) &
+            (SiteEmployee.name == clean_name)
         )
-        db.add(mapping)
-
-        # SiteEmployee 선등록 매칭 로직 작동
-        employee_query = select(SiteEmployee).where(SiteEmployee.registered_phone == normalized_phone)
         employee_result = await db.execute(employee_query)
         pre_registered_employees = employee_result.scalars().all()
         
         for emp in pre_registered_employees:
             emp.user_id = new_user.id
-            logger.info(f"★ [매칭 성공] 선등록 현장 직원 데이터 발견 및 매칭 연동 완료 (Employee ID: {emp.id} -> User ID: {new_user.id})")
+            if emp.site_id:
+                map_chk = await db.execute(
+                    select(SiteUserMapping).where(
+                        SiteUserMapping.site_id == emp.site_id,
+                        SiteUserMapping.user_id == new_user.id
+                    )
+                )
+                if not map_chk.scalars().first():
+                    db.add(SiteUserMapping(
+                        site_id=emp.site_id,
+                        user_id=new_user.id,
+                        status=SiteUserStatus.PENDING
+                    ))
+            logger.info(f"★ [본인 가입 매칭 연결] 선등록 현장 직원 데이터 발견 및 계정 연결 완료 (승인 대기 상태 유지, Employee ID: {emp.id} -> User ID: {new_user.id})")
         
         await db.commit()
         await db.refresh(new_user)
@@ -702,16 +720,21 @@ async def login(
 ):
     normalized_phone = normalize_phone(data.phone_number)
     raw_phone = data.phone_number.strip() if isinstance(data.phone_number, str) else data.phone_number
-    # 1. 사용자 조회 (DB 상에 하이픈이 있든 없든 하이픈 제거 후 비교 및 원본 비교)
-    query = select(User).where(
-        (func.replace(User.phone_number, "-", "") == normalized_phone) |
-        (User.phone_number == raw_phone)
-    )
+    formatted_phone = f"{normalized_phone[:3]}-{normalized_phone[3:7]}-{normalized_phone[7:]}" if len(normalized_phone) == 11 else normalized_phone
+    # 1. 사용자 조회 (phone_number 인덱스를 즉시 타도록 IN 조건 우선 조회 후, 미발견 시에만 replace fallback)
+    candidate_phones = list({p for p in [normalized_phone, raw_phone, formatted_phone] if p})
+    query = select(User).where(User.phone_number.in_(candidate_phones))
     result = await db.execute(query)
     user = result.scalars().first()
+    if not user:
+        fallback_query = select(User).where(func.replace(User.phone_number, "-", "") == normalized_phone)
+        fallback_res = await db.execute(fallback_query)
+        user = fallback_res.scalars().first()
     
-    # 2. 로그인 예외 처리
-    if not user or not verify_password(data.password, user.password):
+    # 2. 로그인 예외 처리 (bcrypt 연산을 비동기 스레드로 분리하여 이벤트 루프 블로킹 방지)
+    import asyncio
+    is_valid_pw = await asyncio.to_thread(verify_password, data.password, user.password) if user else False
+    if not user or not is_valid_pw:
         logger.warning(f"로그인 인증 실패: 번호 {normalized_phone} 또는 패스워드 불일치")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -719,24 +742,16 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 3. 현장담당자(is_site_worker) 소속 현장 존재 여부 검증
-    # 현장담당자는 반드시 소속된 공사현장(승인된 매핑 또는 직원 등록)이 1개 이상 존재해야만 대시보드 로그인 가능
+    # 3. 현장담당자(is_site_worker) 로그인 시 선등록된 인원(SiteEmployee)이 있으면 자동 매칭 연결
+    # (로그인 자체를 차단하지 않고 로그인 후 승인/매칭 대기 화면에서 상태를 안내함)
     if user.is_site_worker and not user.is_site_manager and not user.is_admin:
-        # A. 승인된 현장 매핑 조회
-        map_query = select(SiteUserMapping).where(
-            SiteUserMapping.user_id == user.id,
-            SiteUserMapping.status == SiteUserStatus.APPROVED
-        )
-        map_res = await db.execute(map_query)
-        has_approved_mapping = map_res.scalars().first() is not None
-
-        # B. 소속 현장 직원(SiteEmployee) 연동 조회
         raw_p = user.phone_number or ""
         digits_p = re.sub(r"\D", "", raw_p)
         fmt_p = f"{digits_p[:3]}-{digits_p[3:7]}-{digits_p[7:]}" if len(digits_p) == 11 else raw_p
+        clean_u_name = (user.name or "").strip()
 
         emp_query = select(SiteEmployee).where(
-            (SiteEmployee.site_id.isnot(None)) & (
+            (SiteEmployee.name == clean_u_name) & (
                 (SiteEmployee.user_id == user.id) |
                 (SiteEmployee.registered_phone == raw_p) |
                 (SiteEmployee.registered_phone == fmt_p) |
@@ -744,14 +759,14 @@ async def login(
             )
         )
         emp_res = await db.execute(emp_query)
-        has_employee_site = emp_res.scalars().first() is not None
-
-        if not has_approved_mapping and not has_employee_site:
-            logger.warning(f"현장담당자 로그인 거부: 소속 현장 없음 (User ID {user.id}, {user.name})")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="현재 소속된 공사현장이 없습니다. 현장 총괄관리자(소장님)의 현장담당자 등록 및 승인을 먼저 받아주세요."
-            )
+        matched_emps = emp_res.scalars().all()
+        updated_emp = False
+        for emp in matched_emps:
+            if emp.user_id != user.id:
+                emp.user_id = user.id
+                updated_emp = True
+        if updated_emp:
+            await db.commit()
     
     # 4. JWT 발급
     access_token = create_access_token(subject=user.id)
@@ -1181,6 +1196,9 @@ async def get_member_status(
     if current_user.is_site_manager:
         role = "site_manager"
         group_codes = ["REQUIRED_DOC_SITE"]
+    elif current_user.is_site_worker:
+        role = "site_worker"
+        group_codes = []
     elif current_user.is_drop_off:
         role = "drop_off"
         group_codes = ["REQUIRED_DOC_DROPOFF"]
@@ -1263,6 +1281,41 @@ async def get_member_status(
             "latitude": cs.latitude if cs else 37.5665,
             "longitude": cs.longitude if cs else 126.9780
         }
+    elif role == "site_worker":
+        is_approved = current_user.is_approved
+        reject_reason = current_user.reject_reason
+
+        # 선등록된 SiteEmployee 매칭 여부 확인 (본인 로그인 시 이름 + 전화번호 일치 건 자동 연결)
+        norm_phone = normalize_phone(current_user.phone_number)
+        clean_user_name = (current_user.name or "").strip()
+        emp_res = await db.execute(
+            select(SiteEmployee).where(
+                ((SiteEmployee.user_id == current_user.id) |
+                 ((SiteEmployee.registered_phone == norm_phone) & (SiteEmployee.name == clean_user_name)))
+            )
+        )
+        matched_emp = emp_res.scalars().first()
+        matched_site_name = ""
+        matched_company_name = ""
+        matched_role = "현장통제/도장"
+        if matched_emp:
+            if matched_emp.user_id != current_user.id:
+                matched_emp.user_id = current_user.id
+                await db.commit()
+            matched_role = matched_emp.employee_role or "현장통제/도장"
+            if matched_emp.site_id:
+                cs_res = await db.execute(select(ConstructionSite).where(ConstructionSite.id == matched_emp.site_id))
+                cs_obj = cs_res.scalars().first()
+                if cs_obj:
+                    matched_site_name = cs_obj.site_name or ""
+                    matched_company_name = cs_obj.company_name or ""
+
+        submitted_info = {
+            "company_name": matched_company_name,
+            "site_name": matched_site_name or "현장 배정 대기",
+            "employee_role": matched_role,
+            "is_pre_registered": bool(matched_emp)
+        }
     elif role == "drop_off":
         is_approved = current_user.is_approved
         reject_reason = current_user.reject_reason
@@ -1307,6 +1360,8 @@ async def submit_approval(
     group_codes = []
     if current_user.is_site_manager:
         group_codes = ["REQUIRED_DOC_SITE"]
+    elif current_user.is_site_worker:
+        group_codes = []
     elif current_user.is_drop_off:
         group_codes = ["REQUIRED_DOC_DROPOFF"]
     elif current_user.is_owner:
@@ -1605,6 +1660,8 @@ async def get_pending_members(
         response_list.append({
             "id": sm.id,
             "type": "현장관리자 가입",
+            "role": "site_manager",
+            "is_site_worker": False,
             "name": sm.name,
             "phone_number": sm.phone_number,
             "docs": doc_summary or "미제출",
@@ -1615,6 +1672,65 @@ async def get_pending_members(
             "business_number": biz_no,
             "address": address_val,
             "reject_reason": sm.reject_reason
+        })
+
+    # 현장담당자(is_site_worker) 중 현장관리자 인원 등록(SiteEmployee)과 매칭 완료되었으나 아직 플랫폼 관리자 미승인 상태인 건 검색
+    worker_query = select(User).where(User.is_site_worker == True, User.is_approved == False)
+    worker_res = await db.execute(worker_query)
+    site_workers = worker_res.scalars().all()
+
+    for sw in site_workers:
+        if sw.is_admin:
+            continue
+
+        norm_sw_phone = normalize_phone(sw.phone_number)
+        clean_sw_name = (sw.name or "").strip()
+        emp_q = select(SiteEmployee).where(
+            (SiteEmployee.user_id == sw.id) |
+            ((SiteEmployee.registered_phone == norm_sw_phone) & (SiteEmployee.name == clean_sw_name))
+        )
+        emp_r = await db.execute(emp_q)
+        matched_emp = emp_r.scalars().first()
+
+        # 현장관리자가 등록한 정보와 정확히 매칭된 경우에만 매칭 연결 후 플랫폼 관리자 승인 대기 목록에 노출
+        if not matched_emp:
+            continue
+
+        if matched_emp.user_id != sw.id:
+            matched_emp.user_id = sw.id
+            await db.commit()
+
+        sw_company = "소속 시공사"
+        sw_site_name = "소속 현장 미지정"
+        sw_biz_no = "-"
+        sw_address = "현장 주소 미지정"
+
+        if matched_emp.site_id:
+            cs_q = select(ConstructionSite).where(ConstructionSite.id == matched_emp.site_id)
+            cs_r = await db.execute(cs_q)
+            cs_obj = cs_r.scalars().first()
+            if cs_obj:
+                sw_site_name = cs_obj.site_name or sw_site_name
+                sw_company = cs_obj.company_name or sw_company
+                sw_biz_no = cs_obj.business_number or sw_biz_no
+                sw_address = cs_obj.site_address or sw_address
+
+        response_list.append({
+            "id": sw.id,
+            "type": "현장담당자 가입",
+            "role": "site_worker",
+            "is_site_worker": True,
+            "employee_role": matched_emp.employee_role or "현장통제/도장",
+            "name": sw.name,
+            "phone_number": sw.phone_number,
+            "docs": f"현장관리자 인원 매칭 완료 ({matched_emp.employee_role or '현장통제/도장'})",
+            "uploaded_files": {},
+            "created_at": sw.created_at,
+            "company_name": sw_company,
+            "site_name": sw_site_name,
+            "business_number": sw_biz_no,
+            "address": sw_address,
+            "reject_reason": sw.reject_reason or matched_emp.reject_reason
         })
         
     return response_list
@@ -1639,6 +1755,41 @@ async def approve_member(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 유저를 찾을 수 없습니다."
         )
+
+    # 현장담당자(is_site_worker)인 경우 반드시 현장관리자의 인원 등록(SiteEmployee)과 매칭되어 있어야만 승인 가능
+    if user.is_site_worker and not user.is_site_manager:
+        norm_p = normalize_phone(user.phone_number)
+        clean_n = (user.name or "").strip()
+        emp_q = select(SiteEmployee).where(
+            (SiteEmployee.user_id == user.id) |
+            ((SiteEmployee.registered_phone == norm_p) & (SiteEmployee.name == clean_n))
+        )
+        emp_res = await db.execute(emp_q)
+        matched_emps = emp_res.scalars().all()
+        if not matched_emps:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="아직 현장관리자가 해당 현장담당자를 인원 등록하지 않아 매칭되지 않았습니다. 현장관리자 등록(매칭) 후 승인할 수 있습니다."
+            )
+        for emp in matched_emps:
+            emp.user_id = user.id
+            emp.is_approved = True
+            emp.reject_reason = None
+            if emp.site_id:
+                map_q = select(SiteUserMapping).where(
+                    SiteUserMapping.site_id == emp.site_id,
+                    SiteUserMapping.user_id == user.id
+                )
+                map_r = await db.execute(map_q)
+                exist_map = map_r.scalars().first()
+                if exist_map:
+                    exist_map.status = SiteUserStatus.APPROVED
+                else:
+                    db.add(SiteUserMapping(
+                        site_id=emp.site_id,
+                        user_id=user.id,
+                        status=SiteUserStatus.APPROVED
+                    ))
         
     # 역할에 따라 승인 처리
     user.is_approved = True
@@ -1681,6 +1832,13 @@ async def reject_member(
     user.is_approved = False
     user.reject_reason = reject_reason
 
+    if user.is_site_worker:
+        emp_q = select(SiteEmployee).where(SiteEmployee.user_id == user.id)
+        emp_r = await db.execute(emp_q)
+        for emp in emp_r.scalars().all():
+            emp.is_approved = False
+            emp.reject_reason = reject_reason
+
     if user.is_driver:
         d_query = select(Driver).where(Driver.user_id == user_id)
         d_res = await db.execute(d_query)
@@ -1715,6 +1873,11 @@ async def cancel_reject_member(
         
     # 반려 사유 초기화 및 미승인 유지 (심사 대기 상태로 원복)
     user.reject_reason = None
+    if user.is_site_worker:
+        emp_q = select(SiteEmployee).where(SiteEmployee.user_id == user.id)
+        emp_r = await db.execute(emp_q)
+        for emp in emp_r.scalars().all():
+            emp.reject_reason = None
     if user.is_driver:
         d_query = select(Driver).where(Driver.user_id == user_id)
         d_res = await db.execute(d_query)

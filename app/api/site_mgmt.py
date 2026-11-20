@@ -65,6 +65,7 @@ class CreateSiteRequest(BaseModel):
     longitude: Optional[float] = Field(None, description="경도")
     geofencing_radius: float = Field(200.0, description="지오펜싱 반경 (기본 200m)")
     managers: Optional[str] = Field(None, description="담당자 성명/연락처")
+    worker_id: Optional[int] = Field(None, description="배정할 현장담당자(SiteEmployee) ID")
     biz_license_url: Optional[str] = Field(None, description="사업자등록증 서류 첨부 URL")
     dust_report_url: Optional[str] = Field(None, description="비산먼지 배출신고 필증 첨부 서류 URL")
 
@@ -101,27 +102,96 @@ class PendingWorkerResponse(BaseModel):
 
 
 # --- Helper function for parsing managers ---
-def parse_managers_string(managers_str: Optional[str]):
-    if not managers_str:
+def _parse_single_person(person_str: Optional[str]):
+    if not person_str:
         return None, None
     import re
-    # Look for phone pattern like 010-xxxx-xxxx or 010xxxxxxxx or 02-xxx-xxxx
-    phone_match = re.search(r'(0\d{1,2}-?\d{3,4}-?\d{4})', managers_str)
+    phone_match = re.search(r'(0\d{1,2}-?\d{3,4}-?\d{4})', person_str)
     phone = phone_match.group(1) if phone_match else None
     if phone:
         from app.core.security import normalize_phone
         phone = normalize_phone(phone)
-    
-    # The name is whatever is not the phone or parentheses
-    name = managers_str
+
+    name = person_str
+    if phone_match:
+        name = name.replace(phone_match.group(1), "")
     if phone:
         name = name.replace(phone, "")
-    # Remove role prefixes like '현장관리자:' or '현장담당자:'
     name = re.sub(r'^(현장관리자|현장담당자)\s*:\s*', '', name.strip())
     name = re.sub(r'[\(\)\-\s,]+', ' ', name).strip()
     if not name:
         name = None
     return name, phone
+
+
+def parse_managers_string(managers_str: Optional[str]):
+    if not managers_str:
+        return None, None
+    # 콤마(,)로 구분된 경우 첫 번째 항목만 현장 관리자로 파싱
+    parts = [p.strip() for p in managers_str.split(",") if p.strip()]
+    first_part = parts[0] if parts else managers_str
+    m_name, m_phone = _parse_single_person(first_part)
+    # 만약 두 번째 항목(현장 담당자)이 함께 전달된 경우 구분자(|)로 보관하여 다중 현장 배정 시에도 유실 방지
+    if len(parts) > 1:
+        w_name, w_phone = _parse_single_person(parts[1])
+        if w_name:
+            stored_name = f"{m_name or ''}|{w_name}:{w_phone or ''}"
+            return stored_name, m_phone
+    return m_name, m_phone
+
+
+def parse_worker_from_managers_string(managers_str: Optional[str]):
+    if not managers_str:
+        return None, None
+    parts = [p.strip() for p in managers_str.split(",") if p.strip()]
+    if len(parts) > 1:
+        return _parse_single_person(parts[1])
+    return None, None
+
+
+def extract_site_personnel(site: ConstructionSite, emp_obj=None):
+    """ConstructionSite와 SiteEmployee에서 현장관리자(manager)와 현장담당자(worker)를 분리 추출합니다."""
+    import re
+    raw_mgr = (site.manager_name or "").strip()
+    mgr_name = None
+    embedded_w_name = None
+    embedded_w_phone = None
+
+    if "|" in raw_mgr:
+        mgr_part, worker_part = raw_mgr.split("|", 1)
+        mgr_name = mgr_part.strip() or None
+        if ":" in worker_part:
+            ew_n, ew_p = worker_part.split(":", 1)
+            embedded_w_name = ew_n.strip() or None
+            embedded_w_phone = ew_p.strip() or None
+        else:
+            embedded_w_name = worker_part.strip() or None
+    else:
+        # 과거 버그로 "이태우 임꺽정 01057055705" 형태로 합쳐진 경우 자동 분리
+        m = re.match(r'^(\S+)\s+(\S+)\s+(0\d{1,2}-?\d{3,4}-?\d{4})$', raw_mgr)
+        if m:
+            mgr_name = m.group(1)
+            embedded_w_name = m.group(2)
+            embedded_w_phone = m.group(3)
+        else:
+            mgr_name = raw_mgr or None
+
+    creator = getattr(site, "creator", None)
+    final_mgr_name = mgr_name or (creator.name if creator else None)
+    final_mgr_phone = site.manager_phone or (creator.phone_number if creator else None)
+
+    w_name = None
+    w_phone = None
+    if emp_obj:
+        emp_user = getattr(emp_obj, "user", None)
+        w_name = emp_user.name if emp_user else emp_obj.name
+        w_phone = emp_obj.registered_phone
+
+    if not w_name and embedded_w_name:
+        w_name = embedded_w_name
+        w_phone = embedded_w_phone
+
+    return final_mgr_name, final_mgr_phone, w_name, w_phone
 
 
 # --- Endpoints ---
@@ -330,8 +400,7 @@ async def get_my_mappings(
         emp_res = await db.execute(emp_q)
         emp_obj = emp_res.scalars().first()
 
-        w_name = emp_obj.user.name if (emp_obj and emp_obj.user) else (emp_obj.name if emp_obj else None)
-        w_phone = emp_obj.registered_phone if emp_obj else None
+        m_name, m_phone, w_name, w_phone = extract_site_personnel(site, emp_obj)
 
         response_list.append(
             UserMappingResponse(
@@ -347,8 +416,8 @@ async def get_my_mappings(
                 geofencing_radius=site.geofencing_radius or 200.0,
                 status="APPROVED",
                 created_at=site.created_at.strftime("%Y-%m-%d %H:%M:%S") if site.created_at else "",
-                manager_name=site.manager_name or (site.creator.name if site.creator else None),
-                manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+                manager_name=m_name,
+                manager_phone=m_phone,
                 worker_name=w_name,
                 worker_phone=w_phone,
                 biz_license_url=site.biz_license_url,
@@ -370,8 +439,7 @@ async def get_my_mappings(
             emp_res = await db.execute(emp_q)
             emp_obj = emp_res.scalars().first()
 
-            w_name = emp_obj.user.name if (emp_obj and emp_obj.user) else (emp_obj.name if emp_obj else None)
-            w_phone = emp_obj.registered_phone if emp_obj else None
+            m_name, m_phone, w_name, w_phone = extract_site_personnel(site, emp_obj)
 
             response_list.append(
                 UserMappingResponse(
@@ -387,8 +455,8 @@ async def get_my_mappings(
                     geofencing_radius=site.geofencing_radius or 200.0,
                     status=m.status.value,
                     created_at=m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else "",
-                    manager_name=site.manager_name or (site.creator.name if site.creator else None),
-                    manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+                    manager_name=m_name,
+                    manager_phone=m_phone,
                     worker_name=w_name,
                     worker_phone=w_phone,
                     biz_license_url=site.biz_license_url,
@@ -396,18 +464,23 @@ async def get_my_mappings(
                 )
             )
 
-    # 3. 현장담당자의 경우 SiteEmployee 선등록 매칭 현장 자동 포함
-    if current_user.is_site_worker or True:
+    # 3. 현장담당자의 경우 본인 가입 매칭 및 최종 승인(is_approved=True)된 SiteEmployee 현장만 포함
+    if current_user.is_site_worker and current_user.is_approved:
         import re
         raw_phone = current_user.phone_number or ""
         digits = re.sub(r"\D", "", raw_phone)
         formatted_phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}" if len(digits) == 11 else raw_phone
+        clean_u_name = (current_user.name or "").strip()
 
         emp_q = select(SiteEmployee).options(selectinload(SiteEmployee.site).selectinload(ConstructionSite.creator), selectinload(SiteEmployee.user)).where(
-            (SiteEmployee.user_id == current_user.id) |
-            (SiteEmployee.registered_phone == raw_phone) |
-            (SiteEmployee.registered_phone == formatted_phone) |
-            (SiteEmployee.registered_phone == digits)
+            (SiteEmployee.is_approved == True) &
+            (SiteEmployee.name == clean_u_name) &
+            (
+                (SiteEmployee.user_id == current_user.id) |
+                (SiteEmployee.registered_phone == raw_phone) |
+                (SiteEmployee.registered_phone == formatted_phone) |
+                (SiteEmployee.registered_phone == digits)
+            )
         )
         emp_res = await db.execute(emp_q)
         matched_emps = emp_res.scalars().all()
@@ -434,7 +507,7 @@ async def get_my_mappings(
                         created_at=emp.created_at.strftime("%Y-%m-%d %H:%M:%S") if emp.created_at else "",
                         manager_name=site.manager_name or (site.creator.name if site.creator else None),
                         manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
-                        worker_name=w_name or "임꺽정",
+                        worker_name=w_name,
                         worker_phone=w_phone,
                         biz_license_url=site.biz_license_url,
                         dust_report_url=site.dust_report_url
@@ -622,6 +695,8 @@ class ConstructionSiteDetailResponse(BaseModel):
     geofencing_radius: float
     manager_name: Optional[str] = None
     manager_phone: Optional[str] = None
+    worker_name: Optional[str] = None
+    worker_phone: Optional[str] = None
     biz_license_url: Optional[str] = None
     dust_report_url: Optional[str] = None
 
@@ -639,8 +714,46 @@ class UpdateSiteRequest(BaseModel):
     longitude: Optional[float] = None
     geofencing_radius: Optional[float] = None
     managers: Optional[str] = None
+    worker_id: Optional[int] = None
     biz_license_url: Optional[str] = None
     dust_report_url: Optional[str] = None
+
+
+async def _assign_site_worker(db: AsyncSession, site_id: int, worker_id: Optional[int], managers_str: Optional[str]):
+    """현장 등록/수정 시 선택된 현장 담당자(SiteEmployee)를 해당 현장에 연결하거나 해제합니다.
+    (단, 다른 현장에 이미 배정된 담당자인 경우 기존 현장의 배정을 끊지 않고 유지합니다.)
+    """
+    from app.models import SiteEmployee
+    if worker_id is not None:
+        if worker_id <= 0:
+            # 담당자 선택 안 함: 이 현장에 직접 소속되어 있던 직원만 해제
+            prev_q = select(SiteEmployee).where(SiteEmployee.site_id == site_id)
+            prev_res = await db.execute(prev_q)
+            for emp in prev_res.scalars().all():
+                emp.site_id = None
+        else:
+            target_q = select(SiteEmployee).where(SiteEmployee.id == worker_id)
+            target_res = await db.execute(target_q)
+            target_emp = target_res.scalars().first()
+            if target_emp and target_emp.site_id is None:
+                target_emp.site_id = site_id
+        return
+
+    w_name, w_phone = parse_worker_from_managers_string(managers_str)
+    if w_phone:
+        emp_q = select(SiteEmployee).where(SiteEmployee.registered_phone == w_phone)
+        emp_res = await db.execute(emp_q)
+        emp_obj = emp_res.scalars().first()
+        if emp_obj and emp_obj.site_id is None:
+            emp_obj.site_id = site_id
+
+
+async def _get_site_personnel_info(db: AsyncSession, site: ConstructionSite):
+    from app.models import SiteEmployee
+    emp_q = select(SiteEmployee).options(selectinload(SiteEmployee.user)).where(SiteEmployee.site_id == site.id)
+    emp_res = await db.execute(emp_q)
+    emp_obj = emp_res.scalars().first()
+    return extract_site_personnel(site, emp_obj)
 
 
 @router.get(
@@ -672,25 +785,31 @@ async def list_all_sites(
         result = await db.execute(query)
         sites = result.scalars().all()
 
-    return [
-        ConstructionSiteDetailResponse(
-            id=s.id,
-            user_id=s.user_id,
-            company_name=s.company_name,
-            site_name=s.site_name,
-            business_number=s.business_number,
-            billing_email=s.billing_email,
-            site_key=s.site_key,
-            site_address=s.site_address,
-            latitude=s.latitude,
-            longitude=s.longitude,
-            geofencing_radius=s.geofencing_radius,
-            manager_name=s.manager_name or (s.creator.name if s.creator else None),
-            manager_phone=s.manager_phone or (s.creator.phone_number if s.creator else None),
-            biz_license_url=s.biz_license_url,
-            dust_report_url=s.dust_report_url
-        ) for s in sites
-    ]
+    response_items = []
+    for s in sites:
+        m_name, m_phone, w_name, w_phone = await _get_site_personnel_info(db, s)
+        response_items.append(
+            ConstructionSiteDetailResponse(
+                id=s.id,
+                user_id=s.user_id,
+                company_name=s.company_name,
+                site_name=s.site_name,
+                business_number=s.business_number,
+                billing_email=s.billing_email,
+                site_key=s.site_key,
+                site_address=s.site_address,
+                latitude=s.latitude,
+                longitude=s.longitude,
+                geofencing_radius=s.geofencing_radius,
+                manager_name=m_name,
+                manager_phone=m_phone,
+                worker_name=w_name,
+                worker_phone=w_phone,
+                biz_license_url=s.biz_license_url,
+                dust_report_url=s.dust_report_url
+            )
+        )
+    return response_items
 
 
 @router.post(
@@ -722,12 +841,16 @@ async def admin_create_site(
         dust_report_url=data.dust_report_url
     )
     db.add(site)
+    await db.flush()
+
+    await _assign_site_worker(db, site.id, data.worker_id, data.managers)
     await db.commit()
     
     # Query with creator loaded
     query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(ConstructionSite.id == site.id)
     result = await db.execute(query)
     site = result.scalars().first()
+    final_m_name, final_m_phone, w_name, w_phone = await _get_site_personnel_info(db, site)
 
     return ConstructionSiteDetailResponse(
         id=site.id,
@@ -741,8 +864,10 @@ async def admin_create_site(
         latitude=site.latitude,
         longitude=site.longitude,
         geofencing_radius=site.geofencing_radius,
-        manager_name=site.manager_name or (site.creator.name if site.creator else None),
-        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+        manager_name=final_m_name,
+        manager_phone=final_m_phone,
+        worker_name=w_name,
+        worker_phone=w_phone,
         biz_license_url=site.biz_license_url,
         dust_report_url=site.dust_report_url
     )
@@ -803,12 +928,14 @@ async def update_site_detail(
     if data.dust_report_url is not None:
         site.dust_report_url = data.dust_report_url
 
+    await _assign_site_worker(db, site_id, data.worker_id, data.managers)
     await db.commit()
     
     # Query with creator loaded
     query = select(ConstructionSite).options(selectinload(ConstructionSite.creator)).where(ConstructionSite.id == site_id)
     result = await db.execute(query)
     site = result.scalars().first()
+    final_m_name, final_m_phone, w_name, w_phone = await _get_site_personnel_info(db, site)
 
     return ConstructionSiteDetailResponse(
         id=site.id,
@@ -822,8 +949,10 @@ async def update_site_detail(
         latitude=site.latitude,
         longitude=site.longitude,
         geofencing_radius=site.geofencing_radius,
-        manager_name=site.manager_name or (site.creator.name if site.creator else None),
-        manager_phone=site.manager_phone or (site.creator.phone_number if site.creator else None),
+        manager_name=final_m_name,
+        manager_phone=final_m_phone,
+        worker_name=w_name,
+        worker_phone=w_phone,
         biz_license_url=site.biz_license_url,
         dust_report_url=site.dust_report_url
     )
@@ -1015,6 +1144,7 @@ async def register_site_employee(
 
     new_emp = SiteEmployee(
         site_id=site_id,
+        manager_id=current_user.id,
         user_id=target_user_id,
         registered_phone=normalized_phone,
         employee_role=data.employee_role
@@ -1111,6 +1241,8 @@ class StandaloneEmployeeResponse(BaseModel):
     employee_role: str
     site_id: Optional[int] = None
     site_name: Optional[str] = None
+    user_id: Optional[int] = None
+    is_matched: bool = False
     is_approved: bool
     status: str
     reject_reason: Optional[str] = None
@@ -1145,10 +1277,11 @@ async def list_all_standalone_employees(
         allowed_site_ids = list(set(own_site_ids + mapped_site_ids))
 
         if allowed_site_ids:
-            query = select(SiteEmployee).where(SiteEmployee.site_id.in_(allowed_site_ids)).order_by(SiteEmployee.id.desc())
+            query = select(SiteEmployee).where(
+                (SiteEmployee.site_id.in_(allowed_site_ids)) | (SiteEmployee.manager_id == current_user.id)
+            ).order_by(SiteEmployee.id.desc())
         else:
-            # 매핑되거나 소유한 현장이 없는 경우 빈 목록 리턴
-            return []
+            query = select(SiteEmployee).where(SiteEmployee.manager_id == current_user.id).order_by(SiteEmployee.id.desc())
 
     res = await db.execute(query)
     employees = res.scalars().all()
@@ -1163,25 +1296,40 @@ async def list_all_standalone_employees(
             if site_obj:
                 site_name = site_obj.site_name
 
-        # User 테이블과 SiteEmployee 테이블 중 하나라도 승인(is_approved)되었으면 APPROVED로 판단 (ee859ab 로직 복구)
+        # User 테이블과 SiteEmployee 테이블 연동 시 반드시 '현장담당자 권한(is_site_worker)', '성명(name)', '휴대폰번호(phone_number)' 3가지가 모두 일치할 때만 동일인으로 매칭 인정
         is_approved_flag = emp.is_approved
-        if not is_approved_flag and emp.user_id:
+        emp_clean_name = (emp.name or "").strip()
+        if emp.user_id:
             u_query = select(User).where(User.id == emp.user_id)
             u_res = await db.execute(u_query)
             u_obj = u_res.scalars().first()
-            if u_obj and u_obj.is_approved:
-                is_approved_flag = True
-        elif not is_approved_flag and emp.registered_phone:
+            if u_obj and u_obj.is_site_worker and (u_obj.name or "").strip() == emp_clean_name:
+                if u_obj.is_approved and not is_approved_flag:
+                    is_approved_flag = True
+                    emp.is_approved = True
+                    await db.commit()
+            else:
+                # 권한 또는 성명이 일치하지 않는 잘못된 user_id 연결은 즉시 해제
+                emp.user_id = None
+                is_approved_flag = False
+                emp.is_approved = False
+                await db.commit()
+        elif emp.registered_phone:
             from app.core.security import normalize_phone
             norm_p = normalize_phone(emp.registered_phone)
             u_query = select(User).where(
-                (User.phone_number == emp.registered_phone) | (User.phone_number == norm_p)
+                ((User.phone_number == emp.registered_phone) | (User.phone_number == norm_p)) &
+                (User.name == emp_clean_name) &
+                (User.is_site_worker == True)
             )
             u_res = await db.execute(u_query)
             u_obj = u_res.scalars().first()
-            if u_obj and u_obj.is_approved:
-                is_approved_flag = True
+            if u_obj:
+                # 성명+전화번호+권한 일치 시 매칭(user_id) 연결 (단, 승인은 플랫폼 관리자가 최종 승인했을 때만 True)
                 emp.user_id = u_obj.id
+                if u_obj.is_approved:
+                    is_approved_flag = True
+                    emp.is_approved = True
                 await db.commit()
 
         status_str = "APPROVED" if is_approved_flag else ("REJECTED" if emp.reject_reason else "PENDING")
@@ -1193,12 +1341,52 @@ async def list_all_standalone_employees(
             employee_role=emp.employee_role or "현장통제/도장",
             site_id=emp.site_id,
             site_name=site_name or "소속 현장 미지정",
+            user_id=emp.user_id,
+            is_matched=bool(emp.user_id),
             is_approved=is_approved_flag,
             status=status_str,
             reject_reason=emp.reject_reason,
             created_at=created_str
         ))
     return result
+
+
+async def _validate_site_worker_user(db: AsyncSession, clean_name: str, raw_phone: str, normalized_phone: str):
+    """입력된 휴대폰 번호가 기 가입 회원(User)인 경우, 현장담당자 권한(is_site_worker) 및 성명 일치 여부를 검증합니다."""
+    u_query = select(User).where(
+        (User.phone_number == normalized_phone) | (User.phone_number == raw_phone)
+    )
+    u_res = await db.execute(u_query)
+    matched_user = u_res.scalars().first()
+    if not matched_user:
+        return None
+
+    if not matched_user.is_site_worker:
+        role_labels = []
+        if matched_user.is_driver:
+            role_labels.append("운전기사")
+        if matched_user.is_owner:
+            role_labels.append("차주")
+        if matched_user.is_site_manager:
+            role_labels.append("현장관리자")
+        if matched_user.is_drop_off:
+            role_labels.append("하차지 관리자")
+        if matched_user.is_admin:
+            role_labels.append("플랫폼 관리자")
+        role_text = ", ".join(role_labels) if role_labels else "타 역할"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"입력하신 휴대폰 번호는 현장담당자가 아닌 다른 권한({role_text})으로 가입된 회원 번호입니다. 번호를 다시 확인해 주세요."
+        )
+
+    if (matched_user.name or "").strip() != clean_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="입력하신 휴대폰 번호로 가입된 현장담당자 회원의 성명과 일치하지 않습니다. 담당자 성명과 휴대폰 번호를 다시 확인해 주세요."
+        )
+
+    return matched_user
+
 
 @router.post(
     "/all-employees",
@@ -1212,12 +1400,33 @@ async def create_standalone_employee(
 ):
     from app.core.security import normalize_phone
     normalized_phone = normalize_phone(data.phone_number)
+    clean_name = data.name.strip()
+
+    # 동일 번호 중복 등록 확인
+    dup_q = select(SiteEmployee).where(
+        (SiteEmployee.registered_phone == normalized_phone) &
+        ((SiteEmployee.manager_id == current_user.id) | (SiteEmployee.site_id == data.site_id))
+    )
+    dup_res = await db.execute(dup_q)
+    if dup_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 등록되어 있는 현장담당자 휴대폰 번호입니다."
+        )
+
+    matched_user = await _validate_site_worker_user(db, clean_name, data.phone_number, normalized_phone)
+    matched_user_id = matched_user.id if matched_user else None
+    # 현장관리자가 등록하더라도 즉시 승인되지 않고 매칭만 해둔 뒤 플랫폼 관리자가 최종 승인하도록 대기 상태(False)로 시작 (단, 이미 플랫폼 관리자에게 승인받은 계정이면 True)
+    matched_approved = bool(matched_user and matched_user.is_approved)
+
     new_emp = SiteEmployee(
-        name=data.name,
+        name=clean_name,
         registered_phone=normalized_phone,
         employee_role=data.employee_role,
         site_id=data.site_id,
-        is_approved=False
+        manager_id=current_user.id,
+        user_id=matched_user_id,
+        is_approved=matched_approved
     )
     db.add(new_emp)
     await db.commit()
@@ -1239,8 +1448,10 @@ async def create_standalone_employee(
         employee_role=new_emp.employee_role,
         site_id=new_emp.site_id,
         site_name=site_name or "소속 현장 미지정",
+        user_id=new_emp.user_id,
+        is_matched=bool(new_emp.user_id),
         is_approved=new_emp.is_approved,
-        status="PENDING",
+        status="APPROVED" if new_emp.is_approved else "PENDING",
         reject_reason=None,
         created_at=created_str
     )
@@ -1262,15 +1473,30 @@ async def update_standalone_employee(
     if not emp:
         raise HTTPException(status_code=404, detail="해당 현장담당자 인원을 찾을 수 없습니다.")
 
+    from app.core.security import normalize_phone
+    target_name = data.name.strip() if data.name is not None else (emp.name or "").strip()
+    target_raw_phone = data.phone_number if data.phone_number is not None else emp.registered_phone
+    target_norm_phone = normalize_phone(target_raw_phone)
+
+    matched_user = await _validate_site_worker_user(db, target_name, target_raw_phone, target_norm_phone)
+
     if data.name is not None:
-        emp.name = data.name
+        emp.name = target_name
     if data.phone_number is not None:
-        from app.core.security import normalize_phone
-        emp.registered_phone = normalize_phone(data.phone_number)
+        emp.registered_phone = target_norm_phone
+    if matched_user:
+        emp.user_id = matched_user.id
+        if matched_user.is_approved:
+            emp.is_approved = True
+    else:
+        emp.user_id = None
     if data.employee_role is not None:
         emp.employee_role = data.employee_role
-    if data.site_id is not None:
-        emp.site_id = data.site_id
+    fields_set = getattr(data, "model_fields_set", getattr(data, "__fields_set__", set()))
+    if "site_id" in fields_set:
+        emp.site_id = data.site_id if (data.site_id and data.site_id > 0) else None
+    elif data.site_id is not None:
+        emp.site_id = data.site_id if data.site_id > 0 else None
 
     await db.commit()
     await db.refresh(emp)
@@ -1292,6 +1518,8 @@ async def update_standalone_employee(
         employee_role=emp.employee_role,
         site_id=emp.site_id,
         site_name=site_name or "소속 현장 미지정",
+        user_id=emp.user_id,
+        is_matched=bool(emp.user_id),
         is_approved=emp.is_approved,
         status=status_str,
         reject_reason=emp.reject_reason,
@@ -1334,12 +1562,58 @@ async def approve_standalone_employee(
     if not emp:
         raise HTTPException(status_code=404, detail="해당 현장담당자를 찾을 수 없습니다.")
 
+    # 본인 가입 매칭 여부 확인
+    from app.core.security import normalize_phone
+    norm_p = normalize_phone(emp.registered_phone)
+    clean_n = (emp.name or "").strip()
+    matched_user = None
+    if emp.user_id:
+        u_res = await db.execute(select(User).where(User.id == emp.user_id))
+        u_obj = u_res.scalars().first()
+        if u_obj and u_obj.is_site_worker and (u_obj.name or "").strip() == clean_n:
+            matched_user = u_obj
+    if not matched_user:
+        u_res = await db.execute(
+            select(User).where(
+                ((User.phone_number == emp.registered_phone) | (User.phone_number == norm_p)) &
+                (User.name == clean_n) &
+                (User.is_site_worker == True)
+            )
+        )
+        matched_user = u_res.scalars().first()
+
     if approve:
+        if not matched_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="아직 현장담당자 본인이 회원가입을 하지 않아 매칭되지 않았습니다. 담당자 본인 가입 및 매칭 완료 후 승인할 수 있습니다."
+            )
+        emp.user_id = matched_user.id
         emp.is_approved = True
         emp.reject_reason = None
+        matched_user.is_approved = True
+        matched_user.reject_reason = None
+        if emp.site_id:
+            map_q = select(SiteUserMapping).where(
+                SiteUserMapping.site_id == emp.site_id,
+                SiteUserMapping.user_id == matched_user.id
+            )
+            map_r = await db.execute(map_q)
+            exist_map = map_r.scalars().first()
+            if exist_map:
+                exist_map.status = SiteUserStatus.APPROVED
+            else:
+                db.add(SiteUserMapping(
+                    site_id=emp.site_id,
+                    user_id=matched_user.id,
+                    status=SiteUserStatus.APPROVED
+                ))
     else:
         emp.is_approved = False
         emp.reject_reason = reason or "플랫폼 관리자 반려"
+        if matched_user:
+            matched_user.is_approved = False
+            matched_user.reject_reason = reason or "플랫폼 관리자 반려"
 
     await db.commit()
     return {"message": f"현장담당자 승인 처리 완료 (승인여부: {approve})"}

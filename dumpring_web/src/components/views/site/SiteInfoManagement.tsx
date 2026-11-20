@@ -122,7 +122,7 @@ export default function SiteInfoManagement({
   useEffect(() => {
     if (typeof window !== "undefined") {
       const script = document.createElement("script");
-      script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+      script.src = "//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
       script.async = true;
       document.head.appendChild(script);
       return () => {
@@ -233,6 +233,7 @@ export default function SiteInfoManagement({
       longitude: siteFormLng,
       roadDesc: siteFormRoadDesc,
       managers: managersList.join(", "),
+      worker_id: selectedWorkerId === "" ? 0 : Number(selectedWorkerId),
       bizRegNo: siteFormBizRegNo || activeSite?.bizRegNo || "120-81-45678",
       biz_license_url: siteFormBizLicenseUrl,
       dust_report_url: siteFormDustReportUrl,
@@ -745,10 +746,9 @@ export default function SiteInfoManagement({
                       <label className="text-slate-700 font-bold block">소속 건설사 <span className="text-slate-400 font-normal">(고정)</span></label>
                       <input
                         type="text"
-                        value={siteFormCompanyName}
-                        onChange={(e) => setSiteFormCompanyName(e.target.value)}
-                        placeholder="예: 현대건설(주)"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                        value={siteFormCompanyName || activeSite?.companyName || ""}
+                        readOnly
+                        className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-slate-600 font-bold cursor-not-allowed focus:outline-none select-none"
                       />
                     </div>
                   </div>
@@ -917,9 +917,6 @@ export default function SiteInfoManagement({
                     className="flex-1 flex flex-col"
                     mapHeightClass="flex-1 min-h-[350px]"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
-                    💡 주소 검색 후 지도를 클릭하거나 핀을 드래그하여 정확한 진입로/현장 위치를 지정할 수 있습니다.
-                  </p>
                 </div>
               </div>
 

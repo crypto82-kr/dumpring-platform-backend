@@ -25,11 +25,11 @@ if "pgbouncer=" in db_url:
 engine = create_async_engine(
     db_url,
     connect_args={"statement_cache_size": 0},  # PgBouncer (Transaction Mode) 호환을 위한 설정
-    # 커넥션 풀 튜닝 설정
-    pool_size=20,          # 풀에 유지할 영구적인 커넥션 수
+    # 커넥션 풀 튜닝 설정 (Supabase 6543 Transaction Pooler 최적화)
+    pool_size=5,           # 풀에 유지할 기본 커넥션 수 (과도한 세션 점유 방지)
     max_overflow=10,       # 풀 크기를 초과하여 생성할 수 있는 임시 커넥션 한도
-    pool_recycle=3600,     # 1시간(3600초)이 지난 유휴 커넥션은 폐기 후 재연결 (Supabase 타임아웃 방지)
-    pool_pre_ping=True,    # 커넥션 사용 전 'ping'을 날려 유효성을 자동 검사 (유휴/끊김 커넥션 에러 사전 예방)
+    pool_recycle=300,      # 5분(300초)이 지난 유휴 커넥션은 자동 교체 (Supabase 타임아웃 방지)
+    pool_pre_ping=False,   # 매 쿼리 전 추가 SELECT 1 왕복 제거 (응답 속도 2배 단축)
     echo=False,            # SQL 로그 출력 여부 (상용 배포 시 False)
 )
 

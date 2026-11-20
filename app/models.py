@@ -42,7 +42,7 @@ class User(Base):
 
     # Relationships
     construction_sites = relationship("ConstructionSite", back_populates="creator")
-    site_employees = relationship("SiteEmployee", back_populates="user")
+    site_employees = relationship("SiteEmployee", back_populates="user", foreign_keys="[SiteEmployee.user_id]")
     unloading_sites = relationship("UnloadingSite", back_populates="owner")
     drivers = relationship("Driver", back_populates="user", foreign_keys="[Driver.user_id]")
     owned_cars = relationship("Car", back_populates="owner")
@@ -95,6 +95,7 @@ class SiteEmployee(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     site_id = Column(Integer, ForeignKey("construction_sites.id", ondelete="SET NULL"), nullable=True)  # 현장 관리에서 별도 매핑
+    manager_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # 인원을 등록한 현장관리자(소장님) ID
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # 가입 완료 시 연동
     name = Column(String, nullable=False, default="현장담당자")  # 담당자 성명
     registered_phone = Column(String, nullable=False, index=True)  # 등록 휴대폰 번호
@@ -107,7 +108,7 @@ class SiteEmployee(Base):
 
     # Relationships
     site = relationship("ConstructionSite", back_populates="employees")
-    user = relationship("User", back_populates="site_employees")
+    user = relationship("User", back_populates="site_employees", foreign_keys=[user_id])
 
 
 class UnloadingSite(Base):

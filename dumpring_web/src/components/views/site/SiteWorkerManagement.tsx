@@ -12,6 +12,8 @@ export interface SiteWorkerItem {
   employee_role: string;
   site_id?: number | null;
   site_name?: string | null;
+  user_id?: number | null;
+  is_matched?: boolean;
   is_approved: boolean;
   status: "APPROVED" | "PENDING" | "REJECTED";
   reject_reason?: string | null;
@@ -54,7 +56,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
         const mapped = data.map((item: any) => ({
           id: item.id,
           name: item.site_name || item.name || "공사 현장",
-          address: item.address || "주소 미등록",
+          address: item.site_address || item.address || "주소 미등록",
         }));
         if (mapped.length > 0) {
           setSiteOptions(mapped);
@@ -116,13 +118,14 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
     }
 
     try {
+      const baseUrl = getApiBaseUrl();
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       const authHeaders: Record<string, string> = { "Content-Type": "application/json" };
       if (token) authHeaders["Authorization"] = `Bearer ${token}`;
 
       if (editingWorkerId !== null) {
         // Edit Mode
-        const res = await fetch(`http://127.0.0.1:8000/api/sites/all-employees/${editingWorkerId}`, {
+        const res = await fetch(`${baseUrl}/api/sites/all-employees/${editingWorkerId}`, {
           method: "PUT",
           headers: authHeaders,
           body: JSON.stringify({
@@ -136,27 +139,13 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
           alert("현장담당자 정보가 성공적으로 수정되었습니다.");
           fetchWorkers();
         } else {
-          // Local State Fallback
-          const selectedSiteObj = registeredSiteList.find((s) => s.id === formSiteId);
-          setWorkerList((prev) =>
-            prev.map((w) =>
-              w.id === editingWorkerId
-                ? {
-                    ...w,
-                    name: formName,
-                    phone_number: formPhone,
-                    employee_role: formRole,
-                    site_id: formSiteId !== "" ? Number(formSiteId) : null,
-                    site_name: selectedSiteObj?.name || "소속 현장 미지정",
-                  }
-                : w
-            )
-          );
-          alert("현장담당자 정보가 수정되었습니다.");
+          const errData = await res.json().catch(() => null);
+          alert(errData?.detail || "현장담당자 정보 수정에 실패했습니다.");
+          return;
         }
       } else {
         // Create Mode
-        const res = await fetch("http://127.0.0.1:8000/api/sites/all-employees", {
+        const res = await fetch(`${baseUrl}/api/sites/all-employees`, {
           method: "POST",
           headers: authHeaders,
           body: JSON.stringify({
@@ -167,25 +156,19 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
           }),
         });
         if (res.ok) {
-          alert("신규 현장담당자 인원이 등록되었습니다. (플랫폼 관리자 승인 대기)");
+          const created = await res.json();
+          if (created?.status === "APPROVED") {
+            alert("신규 현장담당자 인원이 등록되었으며, 기존 승인된 본인 계정과 확인되어 즉시 승인 완료 처리되었습니다.");
+          } else if (created?.is_matched || created?.user_id) {
+            alert("신규 현장담당자 인원이 등록되었으며, 본인 가입 계정과 매칭 완료되었습니다. (플랫폼 관리자 최종 승인 대기)");
+          } else {
+            alert("신규 현장담당자 인원이 선등록되었습니다. (담당자 본인 회원가입 매칭 및 플랫폼 관리자 승인 대기)");
+          }
           fetchWorkers();
         } else {
-          // Local State Fallback
-          const selectedSiteObj = registeredSiteList.find((s) => s.id === formSiteId);
-          const newWorker: SiteWorkerItem = {
-            id: Date.now(),
-            name: formName,
-            phone_number: formPhone,
-            employee_role: formRole,
-            site_id: formSiteId !== "" ? Number(formSiteId) : null,
-            site_name: selectedSiteObj?.name || "소속 현장 미지정",
-            is_approved: false,
-            status: "PENDING",
-            created_at: new Date().toISOString().split("T")[0],
-          };
-          setWorkerList((prev) => [newWorker, ...prev]);
-          setSelectedWorkerId(newWorker.id);
-          alert("신규 현장담당자 인원이 등록되었습니다. (플랫폼 관리자 승인 대기)");
+          const errData = await res.json().catch(() => null);
+          alert(errData?.detail || "현장담당자 등록에 실패했습니다.");
+          return;
         }
       }
 
@@ -225,6 +208,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
     setFormName("");
     setFormPhone("");
     setFormRole("현장통제/도장");
+    setFormSiteId("");
     setEditingWorkerId(null);
   };
 
@@ -293,10 +277,18 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                           ? "bg-emerald-50 text-emerald-600 border-emerald-200"
                           : worker.status === "REJECTED"
                           ? "bg-rose-50 text-rose-600 border-rose-200"
+                          : (worker.is_matched || worker.user_id)
+                          ? "bg-blue-50 text-blue-600 border-blue-200"
                           : "bg-amber-50 text-amber-600 border-amber-200"
                       }`}
                     >
-                      {worker.status === "APPROVED" ? "승인완료" : worker.status === "REJECTED" ? "반려" : "승인대기"}
+                      {worker.status === "APPROVED"
+                        ? "승인완료"
+                        : worker.status === "REJECTED"
+                        ? "반려"
+                        : (worker.is_matched || worker.user_id)
+                        ? "매칭완료 (승인대기)"
+                        : "가입대기 (미매칭)"}
                     </span>
                   </div>
 
@@ -338,6 +330,7 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                       setFormName(selectedWorker.name);
                       setFormPhone(selectedWorker.phone_number);
                       setFormRole(selectedWorker.employee_role);
+                      setFormSiteId(selectedWorker.site_id ?? "");
                       setIsModalOpen(true);
                     }}
                     className="px-3 py-1.5 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-black rounded-lg border border-blue-200 active:scale-95 transition-all"
@@ -394,7 +387,19 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                     <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">플랫폼 승인 및 관리 상태</span>
                     <div className="space-y-2.5 text-xs font-semibold">
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-600">어드민 최종 승인 상태</span>
+                        <span className="text-slate-600">본인 회원가입 매칭 상태</span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            selectedWorker.is_matched || selectedWorker.user_id
+                              ? "bg-blue-50 text-blue-600 border-blue-200"
+                              : "bg-slate-100 text-slate-600 border-slate-300"
+                          }`}
+                        >
+                          {selectedWorker.is_matched || selectedWorker.user_id ? "본인 가입 매칭 완료" : "본인 회원가입 대기 중"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600">플랫폼 관리자 승인 상태</span>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                             selectedWorker.status === "APPROVED"
@@ -404,7 +409,13 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
                               : "bg-amber-50 text-amber-600 border-amber-200"
                           }`}
                         >
-                          {selectedWorker.status === "APPROVED" ? "최종 승인 완료" : selectedWorker.status === "REJECTED" ? "승인 반려" : "승인 대기 중"}
+                          {selectedWorker.status === "APPROVED"
+                            ? "최종 승인 완료"
+                            : selectedWorker.status === "REJECTED"
+                            ? "승인 반려"
+                            : (selectedWorker.is_matched || selectedWorker.user_id)
+                            ? "매칭 완료 · 승인 대기 중"
+                            : "매칭 후 승인 가능"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
@@ -469,14 +480,15 @@ export default function SiteWorkerManagement({ registeredSiteList = [] }: SiteWo
             {/* Modal Form (Personnel info + Site selection) */}
             <form onSubmit={handleSaveWorker} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div className="space-y-1.5">
-                <label className="text-slate-700 font-bold block">소속 공사 현장 선택 <span className="text-rose-500">*</span></label>
+                <label className="text-slate-700 font-bold block">
+                  소속 공사 현장 선택 <span className="text-slate-400 font-normal">(선택 사항 · 추후 지정 가능)</span>
+                </label>
                 <select
                   value={formSiteId}
                   onChange={(e) => setFormSiteId(e.target.value ? Number(e.target.value) : "")}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                  required
                 >
-                  <option value="">담당 현장을 선택해 주세요</option>
+                  <option value="">선택 안 함 (미지정 · 추후 현장 관리에서 지정 가능)</option>
                   {siteOptions.map((site: any) => (
                     <option key={site.id} value={site.id}>
                       {site.name} ({site.address})

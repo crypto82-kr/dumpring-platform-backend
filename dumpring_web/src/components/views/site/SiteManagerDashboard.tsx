@@ -222,7 +222,7 @@ export function SiteManagerDashboard({
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       const script = document.createElement("script");
-      script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+      script.src = "//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
       script.async = true;
       document.head.appendChild(script);
       return () => {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../shared/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'role_selection_screen.dart'; // 회원가입 선택 화면 임포트
 import 'drop_off_home_screen.dart';
 import 'owner_home_screen.dart';
@@ -173,26 +174,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    if (user['is_drop_off'] == true ||
-        user['is_site_manager'] == true ||
-        user['is_site_worker'] == true) {
-      if (!mounted) return;
-      if (user['is_drop_off'] == true) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => DropOffHomeScreen(user: user, token: token),
-          ),
-        );
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => MainHomeFrame(user: user, token: token),
-          ),
-        );
-      }
-      return;
-    }
-
     // 기사인 경우 승인확인 로딩 팝업 오버레이만 노출하지 않고, 실제 승인 상태 조회(API)는 그대로 진행합니다.
     final bool showOverlay = user['is_driver'] != true;
 
@@ -225,6 +206,37 @@ class _LoginScreenState extends State<LoginScreen> {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         debugPrint("★ [_redirectAfterLogin] 응답 바디: $decoded");
         final bool isApproved = decoded['is_approved'] ?? false;
+
+        if (user['is_drop_off'] == true ||
+            user['is_site_manager'] == true ||
+            user['is_site_worker'] == true) {
+          if (isApproved) {
+            if (user['is_drop_off'] == true) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => DropOffHomeScreen(user: user, token: token),
+                ),
+              );
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => MainHomeFrame(user: user, token: token, isApproved: true),
+                ),
+              );
+            }
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => SiteDropoffPendingScreen(
+                  user: user,
+                  token: token,
+                  initialStatusData: decoded,
+                ),
+              ),
+            );
+          }
+          return;
+        }
 
         if (isApproved) {
           if (user['is_owner'] == true) {
@@ -267,9 +279,17 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         debugPrint(
-          "★ [_redirectAfterLogin] 통신 실패 (200 아님) -> 미승인 상태로 홈 화면 강제 이동",
+          "★ [_redirectAfterLogin] 통신 실패 (200 아님) -> 미승인 상태로 이동",
         );
-        if (user['is_owner'] == true) {
+        if (user['is_drop_off'] == true ||
+            user['is_site_manager'] == true ||
+            user['is_site_worker'] == true) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => SiteDropoffPendingScreen(user: user, token: token),
+            ),
+          );
+        } else if (user['is_owner'] == true) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (context) =>
@@ -292,7 +312,15 @@ class _LoginScreenState extends State<LoginScreen> {
         _isStatusChecking = false;
       });
 
-      if (user['is_owner'] == true) {
+      if (user['is_drop_off'] == true ||
+          user['is_site_manager'] == true ||
+          user['is_site_worker'] == true) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => SiteDropoffPendingScreen(user: user, token: token),
+          ),
+        );
+      } else if (user['is_owner'] == true) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) =>
@@ -741,6 +769,348 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class SiteDropoffPendingScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final String token;
+  final Map<String, dynamic>? initialStatusData;
+
+  const SiteDropoffPendingScreen({
+    super.key,
+    required this.user,
+    required this.token,
+    this.initialStatusData,
+  });
+
+  @override
+  State<SiteDropoffPendingScreen> createState() => _SiteDropoffPendingScreenState();
+}
+
+class _SiteDropoffPendingScreenState extends State<SiteDropoffPendingScreen> {
+  String get _baseUrl => AppConfig.baseUrl;
+
+  bool _isApproved = false;
+  bool _isWorkerMatched = false;
+  String _siteName = "소속 현장 미지정";
+  String? _rejectReason;
+  Timer? _pollingTimer;
+
+  bool get _isSiteWorker =>
+      widget.user['is_site_worker'] == true && widget.user['is_site_manager'] != true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialStatusData != null) {
+      _applyStatusData(widget.initialStatusData!);
+    }
+    _checkStatus();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _checkStatus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
+  }
+
+  void _applyStatusData(Map<String, dynamic> decoded) {
+    final bool isApproved = decoded['is_approved'] ?? false;
+    final String? rejectReason = decoded['reject_reason'];
+    final Map<String, dynamic>? info =
+        decoded['submitted_info'] is Map<String, dynamic> ? decoded['submitted_info'] : null;
+
+    setState(() {
+      _isApproved = isApproved;
+      _rejectReason = rejectReason;
+      if (info != null) {
+        _isWorkerMatched = info['is_pre_registered'] == true;
+        if (info['site_name'] != null && info['site_name'].toString().isNotEmpty) {
+          _siteName = info['site_name'].toString();
+        }
+      }
+    });
+  }
+
+  Future<void> _checkStatus() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$_baseUrl/api/auth/member-status"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200 && mounted) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        _applyStatusData(decoded);
+        if (_isApproved) {
+          _pollingTimer?.cancel();
+          if (widget.user['is_drop_off'] == true) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => DropOffHomeScreen(user: widget.user, token: widget.token),
+              ),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => MainHomeFrame(
+                  user: widget.user,
+                  token: widget.token,
+                  isApproved: true,
+                ),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("승인 상태 확인 실패: $e");
+    }
+  }
+
+  Future<void> _logout() async {
+    _pollingTimer?.cancel();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
+      await prefs.remove('access_token');
+      await prefs.remove('user_data');
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String roleLabel = _isSiteWorker
+        ? "현장 담당자"
+        : (widget.user['is_site_manager'] == true ? "현장 관리자" : "하차지 관리자");
+    final String titleText = _isSiteWorker
+        ? (_isWorkerMatched
+            ? "현장관리자 매칭 완료 · 승인 대기 중"
+            : "현장관리자의 인원 등록을 기다리는 중입니다")
+        : "승인 심사 대기 중";
+    final String descText = _isSiteWorker
+        ? (_isWorkerMatched
+            ? "플랫폼 관리자의 승인이 완료되면 바로 현장담당자 업무를 이용하실 수 있습니다."
+            : "현장관리자가 인원 등록을 완료하면 관리자 승인 후 현장담당자 업무를 이용하실 수 있습니다.")
+        : "플랫폼 관리자가 제출된 가입 정보를 확인 중입니다. 승인이 완료되면 바로 업무 화면으로 전환됩니다.";
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        title: Text(
+          "$roleLabel 승인 대기",
+          style: const TextStyle(
+            color: Color(0xFF1A202C),
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          TextButton(
+            onPressed: _logout,
+            child: const Text(
+              "로그아웃",
+              style: TextStyle(
+                color: Color(0xFFE53E3E),
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEFF6FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.hourglass_top_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    titleText,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    descText,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                      height: 1.5,
+                    ),
+                  ),
+                  if (_rejectReason != null && _rejectReason!.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Text(
+                        "반려 사유: $_rejectReason",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "성명 / 연락처",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                            Text(
+                              "${widget.user['name'] ?? ''} (${widget.user['phone_number'] ?? ''})",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "진행 상태",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                            Text(
+                              _isSiteWorker
+                                  ? (_isWorkerMatched ? "매칭 완료 (승인 대기)" : "현장관리자 등록 대기")
+                                  : "관리자 승인 대기",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _isWorkerMatched
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFD97706),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_isSiteWorker && _isWorkerMatched) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                "소속 현장",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                              Text(
+                                _siteName,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _checkStatus,
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text(
+                        "새로고침 (매칭 및 승인 상태 확인)",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

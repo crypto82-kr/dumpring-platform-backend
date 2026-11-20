@@ -119,9 +119,10 @@ class SiteWorkerRegister(BaseModel):
     password: str = Field(..., description="비밀번호", min_length=4)
     name: str = Field(..., description="현장담당자 실명")
     ci: Optional[str] = Field(None, description="본인인증 고유 키(CI)")
-    company_name: str = Field(..., description="건설사/상호명")
-    site_name: str = Field(..., description="현장명")
-    site_key: str = Field(..., description="현장관리자가 부여한 현장 키 (예: SITE-A1B2C3)")
+    company_name: Optional[str] = Field("미지정", description="건설사/상호명")
+    site_name: Optional[str] = Field("미지정", description="현장명")
+    business_number: Optional[str] = Field("000-00-00000", description="사업자등록번호")
+    site_key: Optional[str] = Field("SITE-DEFAULT", description="현장관리자가 부여한 현장 키 (예: SITE-A1B2C3)")
 
 
 class DropOffRegister(BaseModel):

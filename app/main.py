@@ -43,85 +43,63 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     logger.info("덤프링 플랫폼 백엔드 구동 시동 및 테이블 생성...")
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # PostgreSQL/SQLite 컬럼 동적 추가 마이그레이션 (Auto-migration)
-        columns = [
-            "machinery_reg_file", "machinery_reg_url",
-            "biz_license_file", "biz_license_url",
-            "insurance_file", "insurance_url"
+        # PostgreSQL/SQLite 컬럼 동적 추가 마이그레이션 (테이블별 일괄 실행으로 DB 왕복 최소화)
+        batch_alter_statements = [
+            """ALTER TABLE cars
+               ADD COLUMN IF NOT EXISTS machinery_reg_file VARCHAR,
+               ADD COLUMN IF NOT EXISTS machinery_reg_url VARCHAR,
+               ADD COLUMN IF NOT EXISTS biz_license_file VARCHAR,
+               ADD COLUMN IF NOT EXISTS biz_license_url VARCHAR,
+               ADD COLUMN IF NOT EXISTS insurance_file VARCHAR,
+               ADD COLUMN IF NOT EXISTS insurance_url VARCHAR;""",
+            """ALTER TABLE users
+               ADD COLUMN IF NOT EXISTS device_token VARCHAR,
+               ADD COLUMN IF NOT EXISTS push_enabled BOOLEAN DEFAULT TRUE;""",
+            """ALTER TABLE construction_sites
+               ADD COLUMN IF NOT EXISTS biz_license_url VARCHAR,
+               ADD COLUMN IF NOT EXISTS dust_report_url VARCHAR;""",
+            """ALTER TABLE site_employees
+               ALTER COLUMN site_id DROP NOT NULL,
+               ADD COLUMN IF NOT EXISTS manager_id INTEGER,
+               ADD COLUMN IF NOT EXISTS name VARCHAR DEFAULT '현장담당자',
+               ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT FALSE,
+               ADD COLUMN IF NOT EXISTS reject_reason VARCHAR;""",
+            """ALTER TABLE drivers
+               ADD COLUMN IF NOT EXISTS owner_id INTEGER;""",
+            """ALTER TABLE dispatch_tickets
+               ADD COLUMN IF NOT EXISTS loading_approval_type VARCHAR,
+               ADD COLUMN IF NOT EXISTS loading_rejection_reason VARCHAR,
+               ADD COLUMN IF NOT EXISTS proof_photo VARCHAR,
+               ADD COLUMN IF NOT EXISTS dispute_type VARCHAR,
+               ADD COLUMN IF NOT EXISTS dispute_reason VARCHAR,
+               ADD COLUMN IF NOT EXISTS dispute_amount INTEGER,
+               ADD COLUMN IF NOT EXISTS disputed_at TIMESTAMP WITH TIME ZONE,
+               ADD COLUMN IF NOT EXISTS tax_invoice_issued BOOLEAN DEFAULT FALSE,
+               ADD COLUMN IF NOT EXISTS tax_invoice_issued_at TIMESTAMP WITH TIME ZONE,
+               ADD COLUMN IF NOT EXISTS tax_invoice_confirmed_by_driver BOOLEAN DEFAULT FALSE,
+               ADD COLUMN IF NOT EXISTS tax_invoice_confirmed_at TIMESTAMP WITH TIME ZONE,
+               ADD COLUMN IF NOT EXISTS tax_invoice_nts_code VARCHAR,
+               ADD COLUMN IF NOT EXISTS dropoff_invoice_issued BOOLEAN DEFAULT FALSE,
+               ADD COLUMN IF NOT EXISTS dropoff_invoice_issued_at TIMESTAMP WITH TIME ZONE,
+               ADD COLUMN IF NOT EXISTS dropoff_invoice_nts_code VARCHAR,
+               ADD COLUMN IF NOT EXISTS soil_settlement_status VARCHAR(50),
+               ADD COLUMN IF NOT EXISTS soil_dispute_type VARCHAR(50),
+               ADD COLUMN IF NOT EXISTS soil_dispute_reason VARCHAR(500),
+               ADD COLUMN IF NOT EXISTS soil_dispute_amount INTEGER,
+               ADD COLUMN IF NOT EXISTS soil_disputed_at TIMESTAMP WITH TIME ZONE;"""
         ]
-        for col in columns:
+        for stmt in batch_alter_statements:
             try:
-                from sqlalchemy import text
-                await conn.execute(text(f"ALTER TABLE cars ADD COLUMN IF NOT EXISTS {col} VARCHAR;"))
+                await conn.execute(text(stmt))
             except Exception as e:
-                logger.warning(f"컬럼 동적 추가 무시: {col} -> {e}")
+                logger.warning(f"컬럼 일괄 동적 추가 무시 -> {e}")
 
-        # users 테이블 device_token 동적 추가
-        user_cols = [("device_token", "VARCHAR"), ("push_enabled", "BOOLEAN DEFAULT TRUE")]
-        for col, col_type in user_cols:
-            try:
-                from sqlalchemy import text
-                await conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type};"))
-            except Exception as e:
-                logger.warning(f"users {col} 동적 추가 무시 -> {e}")
-
-        site_cols = ["biz_license_url", "dust_report_url"]
-        for col in site_cols:
-            try:
-                from sqlalchemy import text
-                await conn.execute(text(f"ALTER TABLE construction_sites ADD COLUMN IF NOT EXISTS {col} VARCHAR;"))
-            except Exception as e:
-                logger.warning(f"현장 동적 컬럼 추가 무시: {col} -> {e}")
-
-        emp_cols = [("name", "VARCHAR DEFAULT '현장담당자'"), ("is_approved", "BOOLEAN DEFAULT FALSE"), ("reject_reason", "VARCHAR")]
-        for col, col_type in emp_cols:
-            try:
-                from sqlalchemy import text
-                await conn.execute(text(f"ALTER TABLE site_employees ADD COLUMN IF NOT EXISTS {col} {col_type};"))
-            except Exception as e:
-                logger.warning(f"직원 동적 컬럼 추가 무시: {col} -> {e}")
-
-        try:
-            from sqlalchemy import text
-            await conn.execute(text("ALTER TABLE drivers ADD COLUMN IF NOT EXISTS owner_id INTEGER;"))
-        except Exception as e:
-            logger.warning(f"드라이버 owner_id 동적 컬럼 추가 무시 -> {e}")
-
-        # dispatch_tickets 누락 컬럼 자동 동기화 (Auto-migration)
-        ticket_cols = [
-            ("loading_approval_type", "VARCHAR"),
-            ("loading_rejection_reason", "VARCHAR"),
-            ("proof_photo", "VARCHAR"),
-            ("dispute_type", "VARCHAR"),
-            ("dispute_reason", "VARCHAR"),
-            ("dispute_amount", "INTEGER"),
-            ("disputed_at", "TIMESTAMP WITH TIME ZONE"),
-            ("tax_invoice_issued", "BOOLEAN DEFAULT FALSE"),
-            ("tax_invoice_issued_at", "TIMESTAMP WITH TIME ZONE"),
-            ("tax_invoice_confirmed_by_driver", "BOOLEAN DEFAULT FALSE"),
-            ("tax_invoice_confirmed_at", "TIMESTAMP WITH TIME ZONE"),
-            ("tax_invoice_nts_code", "VARCHAR"),
-            ("dropoff_invoice_issued", "BOOLEAN DEFAULT FALSE"),
-            ("dropoff_invoice_issued_at", "TIMESTAMP WITH TIME ZONE"),
-            ("dropoff_invoice_nts_code", "VARCHAR"),
-            ("soil_settlement_status", "VARCHAR(50)"),
-            ("soil_dispute_type", "VARCHAR(50)"),
-            ("soil_dispute_reason", "VARCHAR(500)"),
-            ("soil_dispute_amount", "INTEGER"),
-            ("soil_disputed_at", "TIMESTAMP WITH TIME ZONE"),
-        ]
-        for col, col_type in ticket_cols:
-            try:
-                from sqlalchemy import text
-                await conn.execute(text(f"ALTER TABLE dispatch_tickets ADD COLUMN IF NOT EXISTS {col} {col_type};"))
-            except Exception as e:
-                logger.warning(f"dispatch_tickets {col} 동적 컬럼 추가 무시 -> {e}")
-        
-    logger.info("덤프 기사 및 차주 필수 서류 마스터 공통코드 시딩(Seeding)...")
+    logger.info("공통코드 및 SDUI 기본 테마 일괄 시딩(Seeding) 점검...")
     async with SessionLocal() as db:
-        required_codes = [
+        all_seed_codes = [
             # 기사 필수서류
             {"group_code": "REQUIRED_DOC_DRIVER", "code": "LICENSE", "code_name": "운전면허증 (대형/1종)", "display_order": 1},
             {"group_code": "REQUIRED_DOC_DRIVER", "code": "SAFETY_TRAINING", "code_name": "건설업 기초안전교육 이수증", "display_order": 2},
@@ -137,29 +115,7 @@ async def startup_event():
             # 하차지 지주 필수서류
             {"group_code": "REQUIRED_DOC_DROPOFF", "code": "DEVELOPMENT_PERMIT", "code_name": "개발행위 허가증", "display_order": 1},
             {"group_code": "REQUIRED_DOC_DROPOFF", "code": "LAND_USE_AGREEMENT", "code_name": "토지 사용 승낙서 / 토지 대장", "display_order": 2},
-        ]
-        for rc in required_codes:
-            query = select(CommonCode).where(
-                CommonCode.group_code == rc["group_code"],
-                CommonCode.code == rc["code"]
-            )
-            res = await db.execute(query)
-            existing = res.scalars().first()
-            if not existing:
-                new_code = CommonCode(
-                    group_code=rc["group_code"],
-                    code=rc["code"],
-                    code_name=rc["code_name"],
-                    display_order=rc["display_order"],
-                    is_active=True
-                )
-                db.add(new_code)
-        await db.commit()
-    logger.info("마스터 공통코드 동적 설정 시딩 완료.")
-
-    logger.info("배차 상태 공통코드 시딩(Seeding)...")
-    async with SessionLocal() as db:
-        dispatch_statuses = [
+            # 배차 상태 공통코드
             {"group_code": "DISPATCH_STATUS", "code": "ACCEPTED", "code_name": "배차 수락", "display_order": 1},
             {"group_code": "DISPATCH_STATUS", "code": "ARRIVED_LOADING", "code_name": "상차지 도착", "display_order": 2},
             {"group_code": "DISPATCH_STATUS", "code": "LOADING_APPROVED", "code_name": "상차 승인 완료", "display_order": 3},
@@ -170,28 +126,21 @@ async def startup_event():
             {"group_code": "DISPATCH_STATUS", "code": "REJECTED", "code_name": "반입 반려", "display_order": 8},
             {"group_code": "DISPATCH_STATUS", "code": "CANCELLED", "code_name": "운행 취소", "display_order": 9},
         ]
-        for ds in dispatch_statuses:
-            query = select(CommonCode).where(
-                CommonCode.group_code == ds["group_code"],
-                CommonCode.code == ds["code"]
-            )
-            res = await db.execute(query)
-            existing = res.scalars().first()
-            if not existing:
-                new_code = CommonCode(
-                    group_code=ds["group_code"],
-                    code=ds["code"],
-                    code_name=ds["code_name"],
-                    display_order=ds["display_order"],
-                    is_active=True
-                )
-                db.add(new_code)
-        await db.commit()
-    logger.info("배차 상태 공통코드 시딩 완료.")
+        existing_codes_res = await db.execute(select(CommonCode.group_code, CommonCode.code))
+        existing_code_pairs = set(existing_codes_res.all())
 
-    # SDUI 기본 테마 시딩
-    logger.info("SDUI 기본 테마 시딩...")
-    async with SessionLocal() as db:
+        added_any = False
+        for item in all_seed_codes:
+            if (item["group_code"], item["code"]) not in existing_code_pairs:
+                db.add(CommonCode(
+                    group_code=item["group_code"],
+                    code=item["code"],
+                    code_name=item["code_name"],
+                    display_order=item["display_order"],
+                    is_active=True
+                ))
+                added_any = True
+
         default_themes = [
             {
                 "theme_key": "dark_gold",
@@ -249,12 +198,16 @@ async def startup_event():
                 "is_active": False,
             },
         ]
+        existing_themes_res = await db.execute(select(SduiTheme.theme_key))
+        existing_theme_keys = set(existing_themes_res.scalars().all())
         for t in default_themes:
-            res = await db.execute(select(SduiTheme).where(SduiTheme.theme_key == t["theme_key"]))
-            if not res.scalars().first():
+            if t["theme_key"] not in existing_theme_keys:
                 db.add(SduiTheme(**t))
-        await db.commit()
-    logger.info("SDUI 기본 테마 시딩 완료.")
+                added_any = True
+
+        if added_any:
+            await db.commit()
+    logger.info("공통코드 및 SDUI 기본 테마 시딩 완료.")
 
 app.include_router(auth_router, prefix="/api/auth", tags=["인증/회원가입"])
 app.include_router(owner_router, prefix="/api/owner", tags=["차주 전용 관리"])

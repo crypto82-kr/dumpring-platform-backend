@@ -74,6 +74,32 @@ async def get_active_pricing_policy(db: AsyncSession):
             
     return MeterPricingPolicy(**policy)
 
+
+async def get_base_tariff_for_truck(truck_type: Optional[str], db: AsyncSession) -> int:
+    """하차지 토사 반입단가(offered_unit_price=흙값)가 아닌, 차량 톤수별 표준 기본 운임(TONNAGE_TARIFF) 조회"""
+    import json
+    target_code = truck_type or "T_25"
+    res = await db.execute(
+        select(CommonCode).where(
+            CommonCode.group_code == "TONNAGE_TARIFF",
+            CommonCode.code == target_code,
+            CommonCode.is_active == True
+        )
+    )
+    tc = res.scalars().first()
+    if tc and tc.code_name:
+        try:
+            parsed = json.loads(tc.code_name)
+            if "base_tariff" in parsed:
+                return int(parsed["base_tariff"])
+        except Exception:
+            pass
+    if target_code == "T_15":
+        return 180000
+    if target_code == "T_27":
+        return 250000
+    return 230000
+
 def get_ticket_eager_options():
     """DispatchTicketResponse 직렬화 시 MissingGreenlet 500 에러를 방지하기 위한 연관 데이터 eager loading 옵션 목록"""
     from sqlalchemy.orm import selectinload
@@ -408,17 +434,17 @@ async def get_active_tickets(
 
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL", "REJECTED"])
     ).options(*get_ticket_eager_options())
     
     result = await db.execute(query)
     tickets = result.scalars().all()
 
-    # 운행 우선순위 결정: DRIVING -> ARRIVED/WAITING_ABSENT_APPROVAL -> LOADING_APPROVED -> ARRIVED_LOADING -> ACCEPTED 순
+    # 운행 우선순위 결정: DRIVING -> ARRIVED/WAITING_ABSENT_APPROVAL/REJECTED -> LOADING_APPROVED -> ARRIVED_LOADING -> ACCEPTED 순
     def get_priority(t):
         if t.status == "DRIVING":
             return 0
-        elif t.status in ["ARRIVED", "WAITING_ABSENT_APPROVAL"]:
+        elif t.status in ["ARRIVED", "WAITING_ABSENT_APPROVAL", "REJECTED"]:
             return 1
         elif t.status == "LOADING_APPROVED":
             return 2
@@ -464,7 +490,7 @@ async def get_active_ticket(
 
     query = select(DispatchTicket).where(
         DispatchTicket.driver_id == current_user.id,
-        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL", "REJECTED"])
     ).options(*get_ticket_eager_options())
     
     result = await db.execute(query)
@@ -472,9 +498,9 @@ async def get_active_ticket(
     
     ticket = None
     if tickets:
-        # DRIVING 우선 -> ARRIVED/WAITING_ABSENT_APPROVAL 우선 -> ACCEPTED/ARRIVED_LOADING/LOADING_APPROVED 중에는 accepted_at 최신순
+        # DRIVING 우선 -> ARRIVED/WAITING_ABSENT_APPROVAL/REJECTED 우선 -> ACCEPTED/ARRIVED_LOADING/LOADING_APPROVED 중에는 accepted_at 최신순
         driving_tickets = [t for t in tickets if t.status == "DRIVING"]
-        arrived_tickets = [t for t in tickets if t.status in ["ARRIVED", "WAITING_ABSENT_APPROVAL"]]
+        arrived_tickets = [t for t in tickets if t.status in ["ARRIVED", "WAITING_ABSENT_APPROVAL", "REJECTED"]]
         accepted_tickets = [t for t in tickets if t.status in ["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED"]]
         if driving_tickets:
             ticket = driving_tickets[0]
@@ -785,15 +811,27 @@ async def start_driving(
             detail="해당 운행 티켓을 찾을 수 없습니다."
         )
 
-    if ticket.status != "LOADING_APPROVED":
+    is_restarting_to_new_dropoff = (
+        ticket.status in ["REJECTED", "ARRIVED", "WAITING_ABSENT_APPROVAL"]
+        and ticket.changed_drop_off_id is not None
+    )
+
+    if ticket.status != "LOADING_APPROVED" and not is_restarting_to_new_dropoff:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="상차 승인(QR 촬영 또는 원격 승인)이 완료되어야 운행을 시작할 수 있습니다."
+            detail="상차 승인 완료 또는 대체 하차지 지정이 완료되어야 운행을 시작할 수 있습니다."
         )
 
     await validate_dispatch_status("DRIVING", db)
     ticket.status = "DRIVING"
-    ticket.driving_started_at = datetime.now()
+    if is_restarting_to_new_dropoff:
+        # 대체 하차지로 재출발하는 경우: 기존 누적 거리/시간/요금은 보존하고 이전 하차지 도착/반려 상태만 초기화
+        ticket.dropoff_rejection_reason = None
+        ticket.arrived_at = None
+        ticket.completed_at = None
+        ticket.proof_photo = None
+    else:
+        ticket.driving_started_at = datetime.now()
 
     await db.commit()
     await db.refresh(ticket)
@@ -917,9 +955,10 @@ async def arrive_at_dropoff(
     ticket.arrived_at = datetime.now()
 
     if is_exception_triggered or not data.accumulated_fare:
-        # 비정상 꺼짐/네트워크 오류로 예외 판정되거나 데이터 누락 시 공고의 기본 단가 및 거리/시간으로 대체
+        # 비정상 꺼짐/네트워크 오류로 예외 판정되거나 데이터 누락 시 차량 톤수별 표준 기본 운임 및 계획 거리/시간으로 대체 (흙값인 offered_unit_price 사용 금지)
         job = ticket.job_post
-        ticket.accumulated_fare = job.offered_unit_price if (job and job.offered_unit_price) else 75000
+        if not ticket.accumulated_fare or ticket.accumulated_fare <= 0:
+            ticket.accumulated_fare = await get_base_tariff_for_truck(job.truck_type if job else None, db)
         ticket.drive_distance_km = job.distance if (job and job.distance) else 18.5
         ticket.drive_time_seconds = (job.estimated_time * 60) if (job and job.estimated_time) else 1450
     else:
@@ -1016,7 +1055,8 @@ async def upload_proof_photo(
     if ticket.status == "WAITING_ABSENT_APPROVAL" and not ticket.arrived_at:
         ticket.arrived_at = datetime.now()
         job = ticket.job_post
-        ticket.accumulated_fare = job.offered_unit_price if (job and job.offered_unit_price) else 75000
+        if not ticket.accumulated_fare or ticket.accumulated_fare <= 0:
+            ticket.accumulated_fare = await get_base_tariff_for_truck(job.truck_type if job else None, db)
         ticket.drive_distance_km = job.distance if (job and job.distance) else 18.5
         ticket.drive_time_seconds = (job.estimated_time * 60) if (job and job.estimated_time) else 1450
     
@@ -1109,8 +1149,9 @@ async def inspect_and_confirm(
     # DRIVING 상태에서 지주가 직접 승인한 경우 (기사 폰 꺼짐 등 GPS 유실 상황)
     if ticket.status == "DRIVING":
         ticket.arrived_at = datetime.now()
-        # 공고의 기본 계획 정산 정보를 적용하여 예외 정산 처리 (기본 요금)
-        ticket.accumulated_fare = job.offered_unit_price if (job and job.offered_unit_price) else 75000
+        # 차량 톤수별 표준 기본 운임 및 계획 거리/시간을 적용하여 예외 정산 처리 (흙값인 offered_unit_price 사용 금지)
+        if not ticket.accumulated_fare or ticket.accumulated_fare <= 0:
+            ticket.accumulated_fare = await get_base_tariff_for_truck(job.truck_type if job else None, db)
         ticket.drive_distance_km = job.distance if (job and job.distance) else 18.5
         ticket.drive_time_seconds = (job.estimated_time * 60) if (job and job.estimated_time) else 1450
 
@@ -2684,12 +2725,8 @@ async def change_ticket_material_and_dropoff(
     ticket.change_reason = data.reason
     ticket.changed_at = now
 
-    # 🚨 [반입 금지/반려 후 새 하차지 지정 시 운행 자동 재개]
-    # 기사가 반입 거부(REJECTED)된 상태에서 현장관리자가 새 하차지를 지정하면,
-    # 미터기 및 티켓 상태를 다시 운행 중('DRIVING')으로 자동 복구하여 추가 거리/시간 요금 누적을 이어가도록 처리
-    if ticket.status == "REJECTED" and data.new_drop_off_id:
-        ticket.status = "DRIVING"
-        ticket.completed_at = None
+    # 주의: 현장에서 새 하차지를 지정하더라도 서버가 임의로 DRIVING으로 바꾸지 않고,
+    # 기사가 앱에서 변경된 하차지를 확인한 뒤 직접 [새 하차지로 운행 시작] 버튼을 눌렀을 때(/start-driving) DRIVING으로 전환됨
 
     await db.commit()
     await db.refresh(ticket)

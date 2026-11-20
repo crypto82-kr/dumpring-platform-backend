@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 Days
 
     # Database
-    DATABASE_URL: Optional[str] = "postgresql+asyncpg://postgres.vvdydhxmwdrrazwyjvvu:crypto.co.kr@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres"
+    DATABASE_URL: Optional[str] = "postgresql+asyncpg://postgres.vvdydhxmwdrrazwyjvvu:crypto.co.kr@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres"
 
     # Supabase Storage Configuration
     SUPABASE_URL: str = "https://vvdydhxmwdrrazwyjvvu.supabase.co"

@@ -194,22 +194,30 @@ export default function Home() {
 
         const backendSites = data
           .filter((item: any) => item.type && item.type.includes("현장"))
-          .map((item: any) => ({
-            id: item.id,
-            name: item.site_name || `${item.name || "미지정"}의 현장`,
-            siteName: item.site_name || `${item.name || "미지정"}의 현장`,
-            company: item.company_name || "협력 도급사",
-            companyName: item.company_name || "협력 도급사",
-            code: `GD-${item.id}-DUMP`,
-            status: item.reject_reason ? "반려됨" : "대기",
-            rejectReason: item.reject_reason || null,
-            phone: item.phone_number,
-            managerName: item.name || "미지정",
-            bizRegNo: item.business_number || "미등록",
-            address: item.address || "현장 주소 미등록",
-            uploadedFiles: item.uploaded_files || {},
-            registeredSites: [item.site_name || `${item.name || "미지정"}의 현장`]
-          }));
+          .map((item: any) => {
+            const isWorker = item.role === "site_worker" || item.is_site_worker === true || (item.type && item.type.includes("현장담당자"));
+            return {
+              id: item.id,
+              role: isWorker ? "site_worker" : "site_manager",
+              is_site_worker: isWorker,
+              employee_role: item.employee_role,
+              name: isWorker ? (item.name || "담당자 미지정") : (item.site_name || `${item.name || "미지정"}의 현장`),
+              workerName: isWorker ? item.name : undefined,
+              workerPhone: isWorker ? item.phone_number : undefined,
+              siteName: item.site_name || (isWorker ? "소속 현장 미지정" : `${item.name || "미지정"}의 현장`),
+              company: item.company_name || "협력 도급사",
+              companyName: item.company_name || "협력 도급사",
+              code: `GD-${item.id}-DUMP`,
+              status: item.reject_reason ? "반려됨" : "대기",
+              rejectReason: item.reject_reason || null,
+              phone: item.phone_number,
+              managerName: item.name || "미지정",
+              bizRegNo: item.business_number || "미등록",
+              address: item.address || "현장 주소 미등록",
+              uploadedFiles: item.uploaded_files || {},
+              registeredSites: [item.site_name || `${item.name || "미지정"}의 현장`]
+            };
+          });
 
         const backendDropoffs = data
           .filter((item: any) => item.type && item.type.includes("하차지"))
@@ -258,15 +266,30 @@ export default function Home() {
           const mapped = data.map((site: any) => {
             const managerList: string[] = [];
 
-            // 1. site.manager_name (현장관리자)
-            if (site.manager_name) {
-              managerList.push(`${site.manager_name}${site.manager_phone ? ` (${site.manager_phone})` : ""}`);
+            let cleanManagerName = site.manager_name ? String(site.manager_name).trim() : "";
+            let extractedWorkerName = site.worker_name ? String(site.worker_name).trim() : "";
+            let extractedWorkerPhone = site.worker_phone ? String(site.worker_phone).trim() : "";
+
+            // 만약 기존 DB의 manager_name에 "이태우 임꺽정 01057055705"처럼 담당자 이름과 번호가 합쳐져 있는 경우 분리
+            const embeddedWorkerMatch = cleanManagerName.match(/^(\S+)\s+(\S+)\s+(0\d{1,2}-?\d{3,4}-?\d{4})$/);
+            if (embeddedWorkerMatch) {
+              cleanManagerName = embeddedWorkerMatch[1];
+              if (!extractedWorkerName) {
+                extractedWorkerName = embeddedWorkerMatch[2];
+              }
+              if (!extractedWorkerPhone) {
+                extractedWorkerPhone = embeddedWorkerMatch[3];
+              }
             }
 
-            // 2. site.worker_name or worker_phone (현장담당자)
-            const workerNameVal = site.worker_name;
-            if (workerNameVal) {
-              managerList.push(`${workerNameVal}${site.worker_phone ? ` (${site.worker_phone})` : ""}`);
+            // 1. 현장관리자
+            if (cleanManagerName) {
+              managerList.push(`현장관리자: ${cleanManagerName}${site.manager_phone ? ` (${site.manager_phone})` : ""}`);
+            }
+
+            // 2. 현장담당자
+            if (extractedWorkerName) {
+              managerList.push(`현장담당자: ${extractedWorkerName}${extractedWorkerPhone ? ` (${extractedWorkerPhone})` : ""}`);
             }
 
             // 3. 만약 site.managers 문자열/배열이 별도로 있다면 파싱
@@ -274,7 +297,12 @@ export default function Home() {
               if (Array.isArray(site.managers)) {
                 managerList.push(...site.managers);
               } else if (typeof site.managers === "string") {
-                managerList.push(site.managers);
+                managerList.push(
+                  ...site.managers
+                    .split(",")
+                    .map((s: string) => s.trim())
+                    .filter(Boolean)
+                );
               }
             }
 
@@ -289,10 +317,10 @@ export default function Home() {
               address: site.site_address || "현장 주소 미등록",
               roadDesc: site.road_desc || "정문 차단기 통과 후 진입",
               managers: managerList,
-              managerName: site.manager_name,
+              managerName: cleanManagerName || site.manager_name,
               managerPhone: site.manager_phone,
-              workerName: site.worker_name,
-              workerPhone: site.worker_phone,
+              workerName: extractedWorkerName || site.worker_name,
+              workerPhone: extractedWorkerPhone || site.worker_phone,
               bizRegNo: site.business_number || "",
               siteKey: site.site_key || `SG-${site.id || site.site_id}-DUMP`,
               bizLicenseUrl: site.biz_license_url || "",
@@ -309,7 +337,7 @@ export default function Home() {
     }
   };
 
-  const handleCreateSite = async (siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string; latitude?: number; longitude?: number }) => {
+  const handleCreateSite = async (siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; worker_id?: number; bizRegNo: string; biz_license_url?: string; dust_report_url?: string; latitude?: number; longitude?: number }) => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       const res = await fetch(`${API_BASE_URL}/api/sites/admin-sites`, {
@@ -327,6 +355,7 @@ export default function Home() {
           longitude: typeof siteData.longitude === "number" ? siteData.longitude : 126.9780,
           geofencing_radius: 200.0,
           managers: siteData.managers,
+          worker_id: siteData.worker_id,
           biz_license_url: siteData.biz_license_url,
           dust_report_url: siteData.dust_report_url
         })
@@ -342,7 +371,7 @@ export default function Home() {
     }
   };
 
-  const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; bizRegNo: string; biz_license_url?: string; dust_report_url?: string; latitude?: number; longitude?: number }): Promise<{ success: boolean; message?: string }> => {
+  const handleUpdateSite = async (id: number, siteData: { name: string; companyName: string; address: string; roadDesc: string; managers: string; worker_id?: number; bizRegNo: string; biz_license_url?: string; dust_report_url?: string; latitude?: number; longitude?: number }): Promise<{ success: boolean; message?: string }> => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       const updateBody: any = {
@@ -351,6 +380,7 @@ export default function Home() {
         business_number: siteData.bizRegNo,
         site_address: siteData.address,
         managers: siteData.managers,
+        worker_id: siteData.worker_id,
         biz_license_url: siteData.biz_license_url,
         dust_report_url: siteData.dust_report_url
       };
