@@ -430,8 +430,23 @@ export default function DropoffDispatchManagement({
                       </td>
                     </tr>
                   ) : (() => {
-                    // 변경 유입된 하차지 뷰에서는 내 하차지로 변경되어 들어온 기사만 필터링 노출
-                    const isOriginalDropoffView = Boolean(selectedReq?.matchedDropOffId && selectedReq.matchedDropOffId === effectiveDropoffId);
+                    // 원래 이 하차지에 매칭된 오더인지 판별 (흐름B matchedDropOffId 일치, 흐름A dropOffRequestId의 dropOffId 일치, 또는 하차지명 일치)
+                    const matchedByDropoffId = Boolean(selectedReq?.matchedDropOffId && selectedReq.matchedDropOffId === effectiveDropoffId);
+                    const matchedByRequestId = Boolean(
+                      selectedReq?.dropOffRequestId &&
+                      effectiveDropoffId &&
+                      dropoffRequestList.some((dr) => dr.id === selectedReq.dropOffRequestId && Number(dr.dropOffId) === Number(effectiveDropoffId))
+                    );
+                    const matchedByName = Boolean(
+                      selectedReq?.dropoffName &&
+                      selectedDropoffObj &&
+                      (
+                        selectedReq.dropoffName.toLowerCase() === (selectedDropoffObj.name || "").toLowerCase() ||
+                        selectedReq.dropoffName.toLowerCase() === (selectedDropoffObj.locationName || "").toLowerCase()
+                      )
+                    );
+                    const isOriginalDropoffView = matchedByDropoffId || matchedByRequestId || matchedByName;
+
                     const displayTickets = assignedTickets.filter((t) => {
                       if (isOriginalDropoffView) {
                         return true;
@@ -460,7 +475,7 @@ export default function DropoffDispatchManagement({
                       const acceptedTime = t.accepted_at ? new Date(t.accepted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-";
 
                       // 하차지 변경 여부 판단 (원래 하차지 뷰 vs 변경 유입된 하차지 뷰)
-                      const isOriginalDropoff = Boolean(selectedReq?.matchedDropOffId && selectedReq.matchedDropOffId === effectiveDropoffId);
+                      const isOriginalDropoff = isOriginalDropoffView;
                       const isDivertedIn = Boolean(t.changed_drop_off_id && effectiveDropoffId && t.changed_drop_off_id === effectiveDropoffId);
                       const isDivertedOut = isOriginalDropoff
                         ? Boolean(t.changed_drop_off_id && t.changed_drop_off_id !== effectiveDropoffId)
@@ -583,7 +598,7 @@ export default function DropoffDispatchManagement({
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500 font-bold">운행 기사:</span>
                 <span className="font-extrabold text-slate-900">
-                  {inspectionModalTicket.driver?.name || "기사"} ({inspectionModalTicket.driver?.phone || "-"})
+                  {inspectionModalTicket.driver?.name || "기사"} ({inspectionModalTicket.driver?.phone_number || inspectionModalTicket.driver?.phone || "-"})
                 </span>
               </div>
               <div className="flex justify-between items-center text-xs">

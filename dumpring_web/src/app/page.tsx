@@ -545,29 +545,32 @@ export default function Home() {
     }
   };
 
-  /** 하차지 지주가 보는 매칭 대기 현장 및 수신된 승인 대기 요청 목록 조회 */
+  /** 하차지 지주가 보는 수신된 매칭/승인/변경유입 오더(/api/jobs/pending) 및 매칭 대기 현장(/api/jobs/waiting-match) 조회 */
   const fetchDropoffJobs = async () => {
     try {
       const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       if (!token) return;
 
-      const pendingRes = await fetch(`${API_BASE_URL}/api/jobs/pending`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      let pendingJobs: any[] = [];
-      if (pendingRes.ok) {
-        pendingJobs = await pendingRes.json();
-      }
+      const [pendingRes, waitingRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/jobs/pending`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        }),
+        fetch(`${API_BASE_URL}/api/jobs/waiting-match`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        })
+      ]);
 
-      const waitingRes = await fetch(`${API_BASE_URL}/api/jobs/waiting-match`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      let waitingJobs: any[] = [];
-      if (waitingRes.ok) {
-        waitingJobs = await waitingRes.json();
-      }
+      const pendingJobs: any[] = pendingRes.ok ? await pendingRes.json() : [];
+      const waitingJobs: any[] = waitingRes.ok ? await waitingRes.json() : [];
 
-      const allJobs = [...pendingJobs, ...waitingJobs];
+      const jobMap = new Map<number, any>();
+      for (const j of [...waitingJobs, ...pendingJobs]) {
+        if (j && j.id != null) {
+          jobMap.set(j.id, j);
+        }
+      }
+      const allJobs = Array.from(jobMap.values()).sort((a, b) => (b.id || 0) - (a.id || 0));
+
       const mapped = allJobs.map((job: any) => ({
         id: job.id,
         siteId: job.site_id,
@@ -586,8 +589,10 @@ export default function Home() {
             case "WAITING_APPROVAL": return "승인대기";
             case "WAITING_MATCH": return "매칭대기";
             case "COMPLETED": return "운행완료";
-            case "CLOSED": return "마감";
-            case "CANCELLED": return "취소됨";
+            case "CLOSED": return "배차완료(모집마감)";
+            case "SETTLEMENT_CLOSED": return "정산마감";
+            case "SETTLEMENT_PAID": return "정산완료";
+            case "CANCELLED": return "매칭반려";
             default: return "대기중";
           }
         })(),
@@ -598,7 +603,12 @@ export default function Home() {
         estimatedTime: job.estimated_time,
         dropOffRequestId: job.drop_off_request_id,
         matchedDropOffId: job.matched_drop_off_id,
+        payerType: job.payer_type || "SITE_PAYS",
+        isChanged: Boolean(job.is_changed || job.changed_drop_off_id),
+        hasChangedDropoff: Boolean(job.is_changed || job.changed_drop_off_id),
         changedDropOffIds: Array.isArray(job.changed_drop_off_ids) ? job.changed_drop_off_ids : [],
+        originalDropoffName: job.original_drop_off_name || job.original_dropoff_name || null,
+        changeReason: job.change_reason || "",
         authorId: job.author_id,
         rejectionReason: job.rejection_reason || ""
       }));
@@ -1226,8 +1236,7 @@ export default function Home() {
       fetchMyDropOffs();
       fetchRegisteredSites(); // 현장 검색 탭에서 현장 목록 제공용
       fetchOpenDropOffRequests(); // 하차지 수용 공고 목록 갱신용
-      fetchDropoffJobs(); // 매칭 대기 / 승인 대기 오더 조회
-      fetchDispatchRequests(); // 매칭 완료 및 하차지 변경 유입 배차 오더 조회
+      fetchDropoffJobs(); // 매칭 대기 / 승인 대기 / 매칭 완료 및 하차지 변경 유입 배차 오더 통합 조회
     }
   }, [activePath]);
 

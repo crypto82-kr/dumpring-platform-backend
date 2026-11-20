@@ -497,26 +497,33 @@ async def get_pending_jobs(
     if not dropoff_ids:
         return []
 
-    # 2. 이 하차지들의 수용 공고 ID 목록 조회
+    # 2. 이 하차지들의 수용 공고 ID 목록 및 하차지 변경 유입 오더 ID 목록 조회
     request_query = select(DropOffRequest.id).where(DropOffRequest.drop_off_id.in_(dropoff_ids))
     request_result = await db.execute(request_query)
     request_ids = request_result.scalars().all()
 
-    if not request_ids:
-        return []
+    changed_q = select(DispatchTicket.job_post_id).where(
+        DispatchTicket.changed_drop_off_id.in_(dropoff_ids)
+    )
+    changed_res = await db.execute(changed_q)
+    changed_job_ids = [jid for jid in changed_res.scalars().all() if jid is not None]
 
-    # 3. 이 공고/하차지를 대상으로 연결된 JobPost 조회 (흐름A + 흐름B, WAITING_APPROVAL, CANCELLED, OPEN 포함)
+    # 3. 이 공고/하차지를 대상으로 연결된 JobPost 조회 (흐름A + 흐름B + 하차지 변경 유입 통합)
+    conditions = [JobPost.matched_drop_off_id.in_(dropoff_ids)]
+    if request_ids:
+        conditions.append(JobPost.drop_off_request_id.in_(request_ids))
+    if changed_job_ids:
+        conditions.append(JobPost.id.in_(changed_job_ids))
+
     job_query = select(JobPost).options(
         selectinload(JobPost.site),
         selectinload(JobPost.drop_off_request).selectinload(DropOffRequest.drop_off),
-        selectinload(JobPost.matched_drop_off)
+        selectinload(JobPost.matched_drop_off),
+        selectinload(JobPost.tickets)
     ).where(
-        or_(
-            JobPost.drop_off_request_id.in_(request_ids) if request_ids else False,
-            JobPost.matched_drop_off_id.in_(dropoff_ids) if dropoff_ids else False
-        ),
-        JobPost.status.in_(["WAITING_APPROVAL", "CANCELLED", "OPEN", "COMPLETED", "CLOSED"])
-    )
+        or_(*conditions),
+        JobPost.status.in_(["WAITING_APPROVAL", "CANCELLED", "OPEN", "COMPLETED", "CLOSED", "SETTLEMENT_CLOSED", "SETTLEMENT_PAID"])
+    ).order_by(JobPost.id.desc())
     job_result = await db.execute(job_query)
     return job_result.scalars().all()
 
@@ -583,8 +590,9 @@ async def approve_job_post(
             detail=f"이 오더를 승인할 경우, 수용 공고의 목표 대수({dropoff_request.target_quantity}대)를 초과하게 됩니다. (현재 매칭: {dropoff_request.current_quantity}대, 추가 요청: {job.required_trucks}대)"
         )
 
-    # 4. 승인 처리: 상태 전환 및 현재 매칭 대수 누적 가산
+    # 4. 승인 처리: 상태 전환, 매칭 하차지 ID 기록 및 현재 매칭 대수 누적 가산
     job.status = "OPEN"
+    job.matched_drop_off_id = dropoff.id
     dropoff_request.current_quantity += job.required_trucks
 
     # 목표 대수에 도달한 경우 수용 공고를 자동으로 닫음(CLOSED) 처리
@@ -1135,12 +1143,17 @@ async def get_my_job_posts(
 
         allowed_site_ids = list(set(own_site_ids + mapped_site_ids + emp_site_ids))
 
-        # 하차지 관리자의 경우 본인 하차지 매칭 공고 및 티켓 하차지 변경 유입 공고 조회
+        # 하차지 관리자의 경우 본인 하차지 매칭 공고, 본인 하차지 수용 공고(DropOffRequest)에 들어온 매칭 신청 및 티켓 하차지 변경 유입 공고 조회
         own_drop_ids = []
+        own_req_ids = []
         if current_user.is_drop_off:
             drop_q = select(DropOff.id).where(DropOff.owner_id == current_user.id, DropOff.status != "DELETED")
             drop_res = await db.execute(drop_q)
             own_drop_ids = drop_res.scalars().all()
+            if own_drop_ids:
+                req_q = select(DropOffRequest.id).where(DropOffRequest.drop_off_id.in_(own_drop_ids))
+                req_res = await db.execute(req_q)
+                own_req_ids = req_res.scalars().all()
 
         changed_job_ids = []
         if own_drop_ids:
@@ -1155,6 +1168,8 @@ async def get_my_job_posts(
             filter_conditions.append(JobPost.site_id.in_(allowed_site_ids))
         if own_drop_ids:
             filter_conditions.append(JobPost.matched_drop_off_id.in_(own_drop_ids))
+        if own_req_ids:
+            filter_conditions.append(JobPost.drop_off_request_id.in_(own_req_ids))
         if changed_job_ids:
             filter_conditions.append(JobPost.id.in_(changed_job_ids))
 
@@ -1259,8 +1274,10 @@ async def update_job_post(
                 job.estimated_time = int(job.distance * 1.5 + 5)
                 
             job.drop_off_request_id = new_req_id
+            job.matched_drop_off_id = dropoff_request.drop_off_id
         else:
             job.drop_off_request_id = None
+            job.matched_drop_off_id = None
             if job.status == "WAITING_APPROVAL":
                 job.status = "WAITING_MATCH"
             job.distance = None
