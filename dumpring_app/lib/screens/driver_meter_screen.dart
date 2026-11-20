@@ -805,7 +805,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
           changedAfterArrival = chgDt.isAfter(arrDt);
         } catch (_) {}
       }
-      _isDropOffChanged = changedAfterArrival || status == "REJECTED";
+      _isDropOffChanged = (changedAfterArrival && status != "DRIVING" && status != "APPROVED" && status != "COMPLETED") || status == "REJECTED";
       if (newId != null) _dropOffId = newId;
       if (newLat != null) _dropOffLat = newLat;
       if (newLng != null) _dropOffLng = newLng;
@@ -1479,9 +1479,10 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   }
 
   // 대체 하차지 지정 후 기사가 직접 [새 하차지로 운행 시작] 버튼을 눌렀을 때 주행 재개
-  Future<void> _restartDrivingToNewDropOff() async {
+  Future<void> _restartDrivingToNewDropOff({bool bypassDistanceCheck = false}) async {
     // 반려된 직전 하차지(현재 출발지)로부터 반경 1km 이상 벌어진 경우 재출발 차단 검증 수행
-    if (_previousDropOffLat != null &&
+    if (!bypassDistanceCheck &&
+        _previousDropOffLat != null &&
         _previousDropOffLng != null &&
         _previousDropOffLat != 0.0 &&
         _previousDropOffLng != 0.0) {
@@ -2629,79 +2630,97 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
   }
 
   Widget _buildStep4UnloadingConfirm() {
+    final bool isRejectedOrDiverted = _dropoffRejectionReason != null || _isDropOffChanged;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(Icons.radar_rounded, size: 70, color: AppColors.primary),
+        Icon(
+          isRejectedOrDiverted ? Icons.alt_route_rounded : Icons.radar_rounded,
+          size: 70,
+          color: _dropoffRejectionReason != null && !_isDropOffChanged
+              ? Colors.redAccent
+              : AppColors.primary,
+        ),
         SizedBox(height: 20),
         Text(
-          "하차지 지오펜스 도착 감지 완료",
+          _isDropOffChanged
+              ? "대체 하차지 지정 완료 (재출발 대기)"
+              : _dropoffRejectionReason != null
+                  ? "하차지 반입 반려 (대체 하차지 지정 대기)"
+                  : "하차지 지오펜스 도착 감지 완료",
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
         SizedBox(height: 8),
         Text(
-          "지주(하차지 지주)가 반입 승인을 내릴 때까지 잠시 대기해 주세요.\n실시간 승인 판정 감지 타이머가 작동 중입니다.",
+          _isDropOffChanged
+              ? "현장관리자가 새로운 하차지를 지정했습니다.\n아래 [운행 시작 (재출발)] 버튼을 눌러 새 하차지로 출발해 주세요."
+              : _dropoffRejectionReason != null
+                  ? "상차지 현장관리자가 대체 하차지를 지정할 때까지 잠시 대기해 주세요.\n대체 하차지가 지정되면 재출발 버튼이 자동으로 활성화됩니다."
+                  : "지주(하차지 지주)가 반입 승인을 내릴 때까지 잠시 대기해 주세요.\n실시간 승인 판정 감지 타이머가 작동 중입니다.",
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.5),
         ),
         SizedBox(height: 28),
-        Card(
-          color: AppColors.surface,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: AppColors.divider),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                if (!_isLandownerAbsent) ...[
-                  CircularProgressIndicator(color: AppColors.warning),
-                  SizedBox(height: 18),
-                  Text(
-                    "지주 실시간 심사 승인 대기 중...",
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.warning),
-                  ),
-                ] else ...[
-                  Icon(Icons.photo_library_outlined, color: AppColors.primary, size: 40),
-                  const SizedBox(height: 12),
-                  Text(
-                    "지주 부재 대체 전표 모드 (증빙 제출완료)",
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_attachedPhoto != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        "$_baseUrl$_attachedPhoto",
-                        height: 160,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            height: 160,
-                            color: Colors.grey.withAlpha(50),
-                            child: const Center(
-                              child: Icon(Icons.broken_image_outlined, size: 40, color: Colors.grey),
-                            ),
-                          );
-                        },
-                      ),
+        if (!isRejectedOrDiverted) ...[
+          Card(
+            color: AppColors.surface,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: AppColors.divider),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                children: [
+                  if (!_isLandownerAbsent) ...[
+                    CircularProgressIndicator(color: AppColors.warning),
+                    SizedBox(height: 18),
+                    Text(
+                      "지주 실시간 심사 승인 대기 중...",
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.warning),
                     ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "지주 부재 승인 대기 중...",
-                    style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.bold),
-                  ),
+                  ] else ...[
+                    Icon(Icons.photo_library_outlined, color: AppColors.primary, size: 40),
+                    const SizedBox(height: 12),
+                    Text(
+                      "지주 부재 대체 전표 모드 (증빙 제출완료)",
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_attachedPhoto != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          "$_baseUrl$_attachedPhoto",
+                          height: 160,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              height: 160,
+                              color: Colors.grey.withAlpha(50),
+                              child: const Center(
+                                child: Icon(Icons.broken_image_outlined, size: 40, color: Colors.grey),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "지주 부재 승인 대기 중...",
+                      style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-        SizedBox(height: 28),
+          SizedBox(height: 28),
+        ],
         // 🚨 [하차지 반입 금지/반려 발생 시 긴급 안내 배너]
         if (_dropoffRejectionReason != null) ...[
           Container(
@@ -2784,7 +2803,7 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                 ],
                 const SizedBox(height: 14),
                 ElevatedButton.icon(
-                  onPressed: _restartDrivingToNewDropOff,
+                  onPressed: () => _restartDrivingToNewDropOff(bypassDistanceCheck: false),
                   icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
                   label: Text(
                     "[${_dropOffName ?? '새 하차지'}]로 운행 시작 (재출발)",
@@ -2798,99 +2817,119 @@ class _DriverMeterScreenState extends State<DriverMeterScreen> with WidgetsBindi
                     elevation: 0,
                   ),
                 ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () => _restartDrivingToNewDropOff(bypassDistanceCheck: true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.surface,
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: AppColors.divider),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    "⚙️ [테스트용] 거리 제한 없이 즉시 재출발",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 20),
         ],
 
-        if (!_isLandownerAbsent) ...[
-          // 1. 관리자가 기사를 스캔할 때 (내 QR 띄우기)
-          ElevatedButton.icon(
-            onPressed: _showDriverDropOffQrModal,
-            icon: const Icon(Icons.qr_code_2_rounded),
-            label: const Text("내 도착 반입 QR 코드 띄우기"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textPrimary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
-          ),
-          const SizedBox(height: 10),
-          // 2. 기사가 사토장 고정 QR을 직접 촬영 스캔할 때
-          OutlinedButton.icon(
-            onPressed: _scanSiteFixedQrWithCamera,
-            icon: const Icon(Icons.qr_code_scanner_rounded),
-            label: const Text("사토장 고정형 QR코드 촬영 인증"),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: BorderSide(color: AppColors.primary, width: 1.5),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "사토장 담당자가 내 QR을 스캔하거나,\n사토장 출입 게이트의 고정 QR을 직접 촬영하여 반입을 승인합니다.",
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: _landownerApproved,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.surface,
-              foregroundColor: AppColors.textPrimary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: AppColors.divider),
+        if (!isRejectedOrDiverted) ...[
+          if (!_isLandownerAbsent) ...[
+            // 1. 관리자가 기사를 스캔할 때 (내 QR 띄우기)
+            ElevatedButton.icon(
+              onPressed: _showDriverDropOffQrModal,
+              icon: const Icon(Icons.qr_code_2_rounded),
+              label: const Text("내 도착 반입 QR 코드 띄우기"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
               ),
-              elevation: 0,
             ),
-            child: const Text(
-              "⚙️ [테스트용] 지주 승인 강제 통과 (개발 테스트 전용)",
-              style: TextStyle(fontWeight: FontWeight.bold),
+            const SizedBox(height: 10),
+            // 2. 기사가 사토장 고정 QR을 직접 촬영 스캔할 때
+            OutlinedButton.icon(
+              onPressed: _scanSiteFixedQrWithCamera,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              label: const Text("사토장 고정형 QR코드 촬영 인증"),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _takeLandownerAbsentPhoto,
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text("지주 부재 시 사진 업로드 증빙"),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.warning,
-              side: BorderSide(color: AppColors.warning),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            const SizedBox(height: 8),
+            Text(
+              "사토장 담당자가 내 QR을 스캔하거나,\n사토장 출입 게이트의 고정 QR을 직접 촬영하여 반입을 승인합니다.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
             ),
-          ),
-        ] else ...[
-          ElevatedButton(
-            onPressed: _landownerApproved,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: AppColors.textPrimary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _landownerApproved,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.textPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: AppColors.divider),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                "⚙️ [테스트용] 지주 승인 강제 통과 (개발 테스트 전용)",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
-            child: Text("현장 사진 증빙서 제출 및 완료", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-          SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _takeLandownerAbsentPhoto,
-            icon: const Icon(Icons.photo_camera),
-            label: const Text("사진 수정 / 다시 등록하기"),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.warning,
-              side: BorderSide(color: AppColors.warning),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _takeLandownerAbsentPhoto,
+              icon: const Icon(Icons.camera_alt_outlined),
+              label: const Text("지주 부재 시 사진 업로드 증빙"),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.warning,
+                side: BorderSide(color: AppColors.warning),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
-          ),
+          ] else ...[
+            ElevatedButton(
+              onPressed: _landownerApproved,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                foregroundColor: AppColors.textPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: Text("현장 사진 증빙서 제출 및 완료", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _takeLandownerAbsentPhoto,
+              icon: const Icon(Icons.photo_camera),
+              label: const Text("사진 수정 / 다시 등록하기"),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.warning,
+                side: BorderSide(color: AppColors.warning),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
         ],
       ],
     );

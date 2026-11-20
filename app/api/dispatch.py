@@ -2721,6 +2721,10 @@ async def change_ticket_material_and_dropoff(
         if not new_drop:
             raise HTTPException(status_code=404, detail="지정한 새로운 하차지(사토장)를 찾을 수 없습니다.")
         ticket.changed_drop_off_id = data.new_drop_off_id
+        # 새로운 대체 하차지가 지정되었으므로 이전 1차 하차지의 반려 사유 및 도착 시각은 초기화 (기사가 재출발 버튼을 누르기 전까지 재출발 대기)
+        ticket.dropoff_rejection_reason = None
+        ticket.arrived_at = None
+        ticket.completed_at = None
 
     ticket.change_reason = data.reason
     ticket.changed_at = now

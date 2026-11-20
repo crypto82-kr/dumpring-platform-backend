@@ -227,6 +227,40 @@ export default function DropoffDispatchManagement({
     }
   };
 
+  const formatTonLabel = (t: string) => {
+    if (t === "T_15" || t === "TON_15") return "15톤";
+    if (t === "T_25" || t === "TON_25") return "25.5톤";
+    if (t === "T_27" || t === "TON_27") return "27톤";
+    if (t === "T_30" || t === "TON_30") return "30톤 초과";
+    return t;
+  };
+
+  // 현재 선택된 오더가 원래 이 하차지에 배정된 오더인지 vs 타 하차지에서 경로 변경되어 유입된 오더인지 판별
+  const isOriginalDropoffOrder = (req: any) => {
+    if (!req || !selectedDropoffObj) return true;
+    const matchedByDropoffId = Boolean(req.matchedDropOffId && Number(req.matchedDropOffId) === Number(selectedDropoffObj.id));
+    const matchedByRequestId = Boolean(
+      req.dropOffRequestId &&
+      dropoffRequestList.some((dr) => dr.id === req.dropOffRequestId && Number(dr.dropOffId) === Number(selectedDropoffObj.id))
+    );
+    const matchedByName = Boolean(
+      req.dropoffName &&
+      (
+        req.dropoffName.toLowerCase() === (selectedDropoffObj.name || "").toLowerCase() ||
+        req.dropoffName.toLowerCase() === (selectedDropoffObj.locationName || "").toLowerCase()
+      )
+    );
+    return matchedByDropoffId || matchedByRequestId || matchedByName;
+  };
+
+  const isSelectedOrderOriginal = isOriginalDropoffOrder(selectedReq);
+  const currentViewDropoffName = isSelectedOrderOriginal
+    ? (selectedReq?.dropoffName || selectedDropoffObj?.name || selectedDropoffObj?.locationName || "하차지")
+    : (selectedDropoffObj?.name || selectedDropoffObj?.locationName || selectedReq?.dropoffName || "하차지");
+  const currentViewDropoffAddress = isSelectedOrderOriginal
+    ? (selectedReq?.dropoffAddress || selectedDropoffObj?.address || "")
+    : (selectedDropoffObj?.address || selectedReq?.dropoffAddress || "");
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Top Title Bar */}
@@ -271,10 +305,14 @@ export default function DropoffDispatchManagement({
               className="w-full bg-blue-50/80 border border-blue-200 rounded-xl px-3 py-2 text-xs font-extrabold text-blue-900 focus:outline-none focus:border-blue-600 shadow-sm"
             >
               {activeMatchedDispatches.map((req) => {
-                const isChangedInbound = Array.isArray(req.changedDropOffIds) && req.changedDropOffIds.includes(selectedDropoffObj?.id);
+                const isOriginalReq = isOriginalDropoffOrder(req);
+                const isChangedInbound = !isOriginalReq && Array.isArray(req.changedDropOffIds) && req.changedDropOffIds.includes(selectedDropoffObj?.id);
+                const targetDropoffLabel = isChangedInbound
+                  ? (selectedDropoffObj?.name || selectedDropoffObj?.locationName || "내 하차지")
+                  : (req.dropoffName || "내 하차지");
                 return (
                   <option key={req.id} value={req.id}>
-                    {isChangedInbound ? "🔀 [경로변경 유입] " : ""}[{req.siteName} ➔ {req.dropoffName || "내 하차지"}] {req.tonTypes?.map((t: string) => t === "T_25" ? "25톤" : t).join(",")} ({req.truckCount}대) - {req.status}
+                    {isChangedInbound ? "🔀 [경로변경 유입] " : ""}[{req.siteName} ➔ {targetDropoffLabel}] {req.tonTypes?.map(formatTonLabel).join(",")} ({req.truckCount}대) - {req.status}
                   </option>
                 );
               })}
@@ -292,28 +330,28 @@ export default function DropoffDispatchManagement({
             <div className="rounded-2xl bg-white border border-slate-200 shadow-lg p-2 min-h-[380px] flex flex-col">
               {(() => {
                 const matchedSiteObj = registeredSiteList.find((s) => s.id === selectedReq.siteId || s.name === selectedReq.siteName);
-                const actualSiteAddress = matchedSiteObj?.address || selectedReq.siteName || "현장 주소 미등록";
+                const actualSiteAddress = selectedReq.siteAddress || matchedSiteObj?.address || selectedReq.siteName || "현장 주소 미등록";
 
-                if (selectedReq.dropoffName && selectedReq.dropoffAddress) {
+                if (currentViewDropoffName && currentViewDropoffAddress) {
                   return (
                     <MockMap
-                      title={`📍 [상차지] ${selectedReq.siteName} ↔ [하차지] ${selectedReq.dropoffName}`}
-                      address={selectedReq.dropoffAddress}
+                      title={`📍 [상차지] ${selectedReq.siteName} ↔ [하차지] ${currentViewDropoffName}`}
+                      address={currentViewDropoffAddress}
                       pinned={true}
                       isRouteMode={true}
                       siteName={selectedReq.siteName}
                       siteAddress={actualSiteAddress}
-                      dropoffName={selectedReq.dropoffName}
-                      dropoffAddress={selectedReq.dropoffAddress}
-                      distance={selectedReq.distance}
-                      estimatedTime={selectedReq.estimatedTime}
+                      dropoffName={currentViewDropoffName}
+                      dropoffAddress={currentViewDropoffAddress}
+                      distance={isSelectedOrderOriginal ? selectedReq.distance : undefined}
+                      estimatedTime={isSelectedOrderOriginal ? selectedReq.estimatedTime : undefined}
                     />
                   );
                 } else {
                   return (
                     <MockMap
-                      title={`📍 [하차지 위치] ${selectedReq.dropoffName || "하차지"}`}
-                      address={selectedReq.dropoffAddress || "주소 미등록"}
+                      title={`📍 [하차지 위치] ${currentViewDropoffName}`}
+                      address={currentViewDropoffAddress || "주소 미등록"}
                       pinned={true}
                       isRouteMode={false}
                     />
@@ -328,11 +366,16 @@ export default function DropoffDispatchManagement({
                 <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
                   <div>
                     <h3 className="font-black text-base text-slate-900">
-                      {selectedReq.siteName} <span className="text-blue-600 font-black">➔</span> {selectedReq.dropoffName || "하차지"}
+                      {selectedReq.siteName} <span className="text-blue-600 font-black">➔</span> {currentViewDropoffName}
                     </h3>
                     <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                      상차지 주소: {registeredSiteList.find((s) => s.name === selectedReq.siteName)?.address || "현장 주소 미등록"}
+                      상차지 주소: {selectedReq.siteAddress || registeredSiteList.find((s) => s.id === selectedReq.siteId || s.name === selectedReq.siteName)?.address || "현장 주소 미등록"}
                     </p>
+                    {!isSelectedOrderOriginal && selectedReq.dropoffName && (
+                      <p className="text-[11px] text-amber-600 font-bold mt-1">
+                        🔀 기존 배정 하차지({selectedReq.dropoffName})에서 현재 운영 하차지({currentViewDropoffName})로 경로 변경 유입됨
+                      </p>
+                    )}
                   </div>
                   <span className="px-3 py-1 text-xs font-black rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
                     {selectedReq.status || "운행 진행 중"}
@@ -345,7 +388,7 @@ export default function DropoffDispatchManagement({
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 block uppercase">차량 톤수 및 반입 대수</span>
                       <div className="font-black text-slate-900 mt-0.5 text-sm">
-                        {selectedReq.tonTypes?.map((t: string) => t === "T_25" ? "25톤" : t === "T_15" ? "15톤" : t).join(", ")} ({selectedReq.truckCount} 대)
+                        {selectedReq.tonTypes?.map(formatTonLabel).join(", ")} ({selectedReq.truckCount} 대)
                       </div>
                     </div>
                     <div>
@@ -481,6 +524,16 @@ export default function DropoffDispatchManagement({
                         ? Boolean(t.changed_drop_off_id && t.changed_drop_off_id !== effectiveDropoffId)
                         : !isDivertedIn;
 
+                      // 이전 하차지에서 반려된 후 내 하차지로 경로 변경 지정되었으나 아직 기사가 앱에서 재출발을 누르기 전인 상태 판별
+                      const isWaitingRestartToDiverted = (() => {
+                        if (!isDivertedIn || t.status !== "REJECTED") return false;
+                        if (!t.dropoff_rejection_reason) return true;
+                        if (t.changed_at && t.completed_at) {
+                          return new Date(t.changed_at).getTime() >= new Date(t.completed_at).getTime();
+                        }
+                        return true;
+                      })();
+
                       const canInspect = !isDivertedOut && (t.status === "ARRIVED" || t.status === "DRIVING" || t.status === "WAITING_ABSENT_APPROVAL");
 
                       return (
@@ -517,7 +570,13 @@ export default function DropoffDispatchManagement({
                           <td className="py-3.5 px-4 font-mono text-slate-600">{phone}</td>
                           <td className="py-3.5 px-4 text-slate-500 font-mono">{acceptedTime}</td>
                           <td className="py-3.5 px-4 text-center">
-                            {getStatusBadge(t.status)}
+                            {isWaitingRestartToDiverted ? (
+                              <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-blue-50 text-blue-600 border border-blue-200 animate-pulse">
+                                재출발 대기 (하차지 변경)
+                              </span>
+                            ) : (
+                              getStatusBadge(t.status)
+                            )}
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -545,7 +604,12 @@ export default function DropoffDispatchManagement({
                                   검수합격 완료
                                 </span>
                               )}
-                              {t.status === "REJECTED" && !isDivertedOut && (
+                              {isWaitingRestartToDiverted && (
+                                <span className="px-2 py-1 text-[11px] font-extrabold text-blue-600 bg-blue-50 border border-blue-200 rounded-md">
+                                  기사 재출발 대기 중
+                                </span>
+                              )}
+                              {t.status === "REJECTED" && !isDivertedOut && !isWaitingRestartToDiverted && (
                                 <span className="px-2 py-1 text-[11px] font-extrabold text-rose-600 bg-rose-50 border border-rose-200 rounded-md">
                                   반입 반려됨
                                 </span>

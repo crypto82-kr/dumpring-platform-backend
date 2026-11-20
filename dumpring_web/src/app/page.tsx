@@ -575,6 +575,7 @@ export default function Home() {
         id: job.id,
         siteId: job.site_id,
         siteName: job.site_name || `현장 #${job.site_id}`,
+        siteAddress: job.site_address || "",
         tonTypes: job.truck_type ? [job.truck_type] : [],
         truckCount: job.required_trucks || 1,
         soilType: job.material_type || "일반 토사",
