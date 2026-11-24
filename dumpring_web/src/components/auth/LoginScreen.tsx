@@ -306,48 +306,40 @@ export default function LoginScreen() {
             </p>
           </div>
 
-          {/* 개발용 권한 빠른 로그인 영역 (보고 시 숨김 처리)
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center" aria-hidden="true">
-              <div className="w-full border-t border-slate-100 dark:border-slate-800"></div>
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
-              <span className="bg-white dark:bg-slate-900 px-3 text-slate-400 dark:text-slate-500">
-                개발용 권한 빠른 로그인 (DB 연결)
+          {/* 권한별 빠른 로그인 영역 (슬림 컴팩트 버튼 디자인) */}
+          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center justify-between mb-2.5 px-0.5">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">
+                권한별 빠른 접속
+              </span>
+              <span className="text-[10px] font-medium text-slate-300 dark:text-slate-600">
+                클릭 시 즉시 로그인
               </span>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {quickLoginPresets.map((preset) => {
-              const PresetIcon = preset.icon;
-              return (
-                <button
-                  key={preset.role}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleLogin(preset.phone, preset.password)}
-                  className={`flex items-start gap-3 p-3 text-left rounded-2xl border ${preset.bgColor} ${preset.borderColor} hover:scale-[1.02] active:scale-[0.98] transition-all group`}
-                >
-                  <div className={`p-2 rounded-xl bg-gradient-to-tr ${preset.color} text-white shadow-sm flex-shrink-0 group-hover:rotate-6 transition-all`}>
-                    <PresetIcon className="w-4 h-4" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500">
-                      {preset.roleName}
-                    </div>
-                    <div className={`text-xs font-black ${preset.textColor}`}>
-                      {preset.name}
-                    </div>
-                    <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 leading-none">
-                      {preset.phone}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            <div className="flex items-center gap-2">
+              {quickLoginPresets
+                .filter((preset) => ["site_manager", "dropoff_manager", "owner"].includes(preset.role))
+                .map((preset) => {
+                  const PresetIcon = preset.icon;
+                  const shortLabel = preset.role === "owner" ? "차주" : preset.roleName;
+                  return (
+                    <button
+                      key={preset.role}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleLogin(preset.phone, preset.password)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl border ${preset.bgColor} ${preset.borderColor} hover:brightness-95 active:scale-[0.98] transition-all group whitespace-nowrap`}
+                    >
+                      <PresetIcon className={`w-3.5 h-3.5 ${preset.textColor} flex-shrink-0`} />
+                      <span className={`text-[11px] font-extrabold ${preset.textColor} whitespace-nowrap`}>
+                        {shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
           </div>
-          */}
         </div>
       </div>
     </div>
