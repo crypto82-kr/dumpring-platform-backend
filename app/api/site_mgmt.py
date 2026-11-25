@@ -1078,7 +1078,14 @@ async def register_site_employee(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 권한 검사
+    # 권한 검사 (SiteUserMapping APPROVED 또는 해당 현장의 개설자(ConstructionSite.user_id) 또는 관리자)
+    site_obj = await db.get(ConstructionSite, site_id)
+    if not site_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="존재하지 않는 공사현장입니다."
+        )
+
     check_query = select(SiteUserMapping).where(
         SiteUserMapping.site_id == site_id,
         SiteUserMapping.user_id == current_user.id,
@@ -1086,16 +1093,23 @@ async def register_site_employee(
     )
     check_result = await db.execute(check_query)
     is_manager = check_result.scalars().first()
+    is_site_owner = (site_obj.user_id == current_user.id)
 
-    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
+    if not (current_user.is_admin or is_site_owner or (is_manager and (current_user.is_site_manager or current_user.is_site_worker))):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 직원을 선등록할 수 있습니다."
         )
 
-    # 중복 등록 확인
+    # 휴대폰 번호 형식 검증 (10~11자리 숫자) & 중복 등록 확인
+    import re
     from app.core.security import normalize_phone
     normalized_phone = normalize_phone(data.phone_number)
+    if not re.match(r"^01[0-9]{8,9}$", normalized_phone):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="올바른 휴대폰 번호(010으로 시작하는 10~11자리)를 입력해 주세요."
+        )
     exist_query = select(SiteEmployee).where(
         SiteEmployee.site_id == site_id,
         SiteEmployee.registered_phone == normalized_phone

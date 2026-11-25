@@ -101,6 +101,12 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        data.sort((a, b) {
+          final aTime = a['completed_at']?.toString() ?? '';
+          final bTime = b['completed_at']?.toString() ?? '';
+          if (aTime != bTime) return bTime.compareTo(aTime);
+          return ((b['id'] ?? 0) as int).compareTo((a['id'] ?? 0) as int);
+        });
         setState(() {
           _completedImports.clear();
           for (var item in data) {
@@ -192,6 +198,12 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        data.sort((a, b) {
+          final aTime = a['completed_at']?.toString() ?? '';
+          final bTime = b['completed_at']?.toString() ?? '';
+          if (aTime != bTime) return bTime.compareTo(aTime);
+          return ((b['id'] ?? 0) as int).compareTo((a['id'] ?? 0) as int);
+        });
         setState(() {
           _pendingB2BJobs.clear();
           for (var item in data) {

@@ -1013,47 +1013,55 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
               ],
             ),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text("닫기", style: TextStyle(color: AppColors.textSecondary)),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _showJobVehiclesDialog(job);
+                  },
+                  icon: const Icon(Icons.local_shipping, size: 16, color: Colors.white),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
+                  label: const Text("배차 차량 관제", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+                if (job['status'] == 'WAITING_APPROVAL' && job['matched_drop_off_id'] != null)
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _approveMatch(job['id']);
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                    child: const Text("매칭 승인", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                if (job['status'] != 'OPEN' && job['status'] != 'CLOSED' && job['status'] != 'COMPLETED')
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _deleteJobPost(job['id']);
+                    },
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text("삭제하기", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                if (job['status'] == 'OPEN' || job['status'] == 'WAITING_MATCH' || job['status'] == 'WAITING_APPROVAL')
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _openJobDialog(existingJob: job);
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                    child: const Text("수정하기", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+              ],
             ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showJobVehiclesDialog(job);
-              },
-              icon: const Icon(Icons.local_shipping, size: 16, color: Colors.white),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
-              label: const Text("배차 차량 관제", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-            if (job['status'] == 'WAITING_APPROVAL' && job['matched_drop_off_id'] != null)
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _approveMatch(job['id']);
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-                child: const Text("매칭 승인", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            if (job['status'] != 'OPEN' && job['status'] != 'CLOSED' && job['status'] != 'COMPLETED')
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _deleteJobPost(job['id']);
-                },
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text("삭제하기", style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            if (job['status'] == 'OPEN' || job['status'] == 'WAITING_MATCH' || job['status'] == 'WAITING_APPROVAL')
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _openJobDialog(existingJob: job);
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                child: const Text("수정하기", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
           ],
         );
       },
@@ -1115,8 +1123,15 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       case 'WAITING_APPROVAL': return '승인대기';
       case 'WAITING_MATCH': return '매칭대기';
       case 'ACTIVE': return '운행중';
+      case 'CLOSED': return '배차완료(모집마감)';
       case 'COMPLETED': return '완료';
       case 'CANCELLED': return '취소';
+      case 'SETTLEMENT_CONFIRMED': return '정산확정';
+      case 'SETTLEMENT_PAID': return '정산완료';
+      case 'SETTLEMENT_CLOSED': return '정산마감';
+      case 'SETTLEMENT_REQUESTED': return '정산요청';
+      case 'SETTLEMENT_APPROVED': return '정산승인';
+      case 'SETTLEMENT_DISPUTED': return '이의제기';
       default: return val ?? '';
     }
   }
@@ -1126,8 +1141,15 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       case 'OPEN': return AppColors.success;
       case 'WAITING_APPROVAL': return AppColors.warning;
       case 'WAITING_MATCH': return AppColors.primary;
-      case 'COMPLETED': return AppColors.textSecondary;
-      case 'CANCELLED': return AppColors.danger;
+      case 'CLOSED':
+      case 'COMPLETED':
+      case 'SETTLEMENT_CONFIRMED':
+      case 'SETTLEMENT_PAID':
+      case 'SETTLEMENT_CLOSED':
+        return AppColors.textSecondary;
+      case 'CANCELLED':
+      case 'SETTLEMENT_DISPUTED':
+        return AppColors.danger;
       default: return AppColors.textPrimary;
     }
   }

@@ -12,12 +12,14 @@ class VehicleManagementScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final String token;
   final bool isReadOnly;
+  final int? carId;
 
   const VehicleManagementScreen({
     super.key,
     required this.user,
     required this.token,
     this.isReadOnly = false,
+    this.carId,
   });
 
   @override
@@ -122,12 +124,25 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           if (cars.isNotEmpty) {
             final String targetNum = _vehicleNumController.text.trim();
             var car = cars.first;
-            if (targetNum.isNotEmpty) {
+            if (widget.carId != null) {
+              for (var c in cars) {
+                if (c['id'] == widget.carId) {
+                  car = c;
+                  break;
+                }
+              }
+            } else if (targetNum.isNotEmpty) {
               for (var c in cars) {
                 if (c['car_number'] == targetNum) {
                   car = c;
                   break;
                 }
+              }
+            } else {
+              // QA9999 등 테스트 차량보다 실제 운영 차량을 우선 표시
+              final nonQa = cars.where((c) => !(c['car_number']?.toString() ?? '').startsWith('QA')).toList();
+              if (nonQa.isNotEmpty) {
+                car = nonQa.first;
               }
             }
             setState(() {

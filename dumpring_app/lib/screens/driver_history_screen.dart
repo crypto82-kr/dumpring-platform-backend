@@ -242,6 +242,19 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                                     ? jp['work_date'].toString().substring(0, 10) 
                                     : (item['completed_at'] != null ? item['completed_at'].toString().substring(0, 10) : "-");
 
+                                final int rawDurationMin = (item['drive_time_seconds'] ?? 0) ~/ 60;
+                                int displayDurationMin = rawDurationMin;
+                                if (item['driving_started_at'] != null && item['completed_at'] != null) {
+                                  try {
+                                    final startDt = DateTime.parse(item['driving_started_at']);
+                                    final endDt = DateTime.parse(item['completed_at']);
+                                    final diffMin = endDt.difference(startDt).inMinutes;
+                                    if (diffMin > 0 && rawDurationMin != diffMin) {
+                                      displayDurationMin = diffMin;
+                                    }
+                                  } catch (_) {}
+                                }
+
                                 final String startTime = item['driving_started_at'] != null 
                                     ? DateFormat('HH:mm').format(DateTime.parse(item['driving_started_at'])) 
                                     : "-";
@@ -322,7 +335,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
-                                          "$startTime ~ $endTime (${(item['drive_distance_km'] ?? 0.0).toStringAsFixed(1)}km / ${(item['drive_time_seconds'] ?? 0) ~/ 60}분)",
+                                          "$startTime ~ $endTime (${(item['drive_distance_km'] ?? 0.0).toStringAsFixed(1)}km / ${displayDurationMin}분)",
                                           style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                                         )
                                       ],

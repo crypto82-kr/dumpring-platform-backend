@@ -33,7 +33,7 @@ class CommonDrawer extends StatelessWidget {
     if (user['is_driver'] == true) roles.add("기사");
     if (user['is_site_manager'] == true) roles.add("현장관리자");
     if (user['is_site_worker'] == true) roles.add("현장담당자");
-    if (user['is_drop_off'] == true) roles.add("하차지지주");
+    if (user['is_drop_off'] == true) roles.add("하차지 지주");
     return roles.isNotEmpty ? roles.join(', ') : '일반 사용자';
   }
 
@@ -85,7 +85,7 @@ class CommonDrawer extends StatelessWidget {
         }),
         _tile(context, Icons.receipt_long, "운반비 및 정산 관리", () {
           Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(builder: (_) => OwnerHomeScreen(user: user, token: token, isApproved: true, initialTabIndex: 0)));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => OwnerHomeScreen(user: user, token: token, isApproved: true, initialTabIndex: 2)));
         }),
       ]);
     }

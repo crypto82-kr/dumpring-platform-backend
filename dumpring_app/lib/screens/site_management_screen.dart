@@ -2509,7 +2509,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              '건설사: \${site["company_name"]}',
+                                              '건설사: ${site["company_name"] ?? "미등록"}',
                                               style: AppTextStyles.caption,
                                             ),
                                             const SizedBox(height: 6),
@@ -2521,7 +2521,7 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                                 border: Border.all(color: AppColors.divider),
                                               ),
                                               child: Text(
-                                                '초대코드: \${site["site_key"]}',
+                                                '초대코드: ${site["site_key"] ?? "-"}',
                                                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
                                               ),
                                             ),
