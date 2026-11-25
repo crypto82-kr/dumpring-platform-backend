@@ -544,6 +544,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: Color(0xFF667085),
                                 ),
                                 suffixIcon: IconButton(
+                                  tooltip: _obscurePassword ? "비밀번호 표시" : "비밀번호 숨기기",
                                   icon: Icon(
                                     _obscurePassword
                                         ? Icons.visibility_off_outlined
@@ -640,17 +641,37 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // 회원가입 안내
+                    // 회원가입 및 아이디/비밀번호 찾기 안내
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          "아직 계정이 없으신가요?",
-                          style: TextStyle(
-                            color: Color(0xFF667085),
-                            fontSize: 12,
+                        TextButton(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text("아이디 / 비밀번호 찾기", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                content: const Text(
+                                  "• 아이디는 가입 시 등록한 휴대폰 번호(010-XXXX-XXXX)입니다.\n"
+                                  "• 비밀번호를 분실하신 경우, 소속 현장/운송사 관리자 또는 고객센터로 본인확인 후 초기화를 요청해 주세요.",
+                                  style: TextStyle(fontSize: 13, height: 1.5),
+                                ),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("확인")),
+                                ],
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            "아이디/비밀번호 찾기",
+                            style: TextStyle(
+                              color: Color(0xFF667085),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
+                        const Text("·", style: TextStyle(color: Color(0xFFD0D5DD))),
                         TextButton(
                           onPressed: () {
                             Navigator.push(

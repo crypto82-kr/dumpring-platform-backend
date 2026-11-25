@@ -136,6 +136,31 @@ class _DrQrScannerDialogState extends State<DrQrScannerDialog> {
                   MobileScanner(
                     controller: _controller,
                     onDetect: _onDetect,
+                    errorBuilder: (context, error) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.videocam_off_rounded, color: Colors.white70, size: 48),
+                              const SizedBox(height: 12),
+                              const Text(
+                                "카메라 QR 스캔을 사용할 수 없습니다",
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                "연결된 카메라가 없거나 브라우저/기기에서 지원되지 않습니다.\n모바일 앱에서 카메라 권한을 허용한 뒤 이용해 주세요.",
+                                style: TextStyle(color: Colors.white.withAlpha(180), fontSize: 12, height: 1.4),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   // 가이드라인 오버레이 (정중앙 사각 스캔 박스)
                   Center(

@@ -31,6 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true; // 비밀번호 숨김 여부
   bool _isLoading = false; // API 로딩 상태
   bool _isVerifying = false; // 본인인증 검증 중 상태
+  bool _agreedToTerms = false; // 이용약관 및 개인정보 수집·이용 동의
   bool _isVerified = false; // 본인인증 완료 여부
   String? _ci; // 본인인증으로 발급된 고유 CI
   String? _errorMessage; // 화면 에러 메시지
@@ -68,12 +69,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // 필수 항목 및 서류들이 누락 없이 채워졌는지 유효성 검사
   bool get _isFormValid {
-    if (!_isVerified || _ci == null) {
+    if (!_isVerified || _ci == null || !_agreedToTerms) {
       return false;
     }
     if (_nameController.text.trim().isEmpty ||
         _phoneController.text.trim().length < 10 ||
-        _passwordController.text.length < 4) {
+        _passwordController.text.length < 6) {
       return false;
     }
     if (_isDriverRole) {
@@ -834,7 +835,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           obscureText: _obscurePassword,
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
                           decoration: InputDecoration(
-                            hintText: "4자리 이상 입력해 주세요",
+                            hintText: "6자리 이상 입력해 주세요",
                             hintStyle: TextStyle(color: AppColors.textTertiary),
                             filled: true,
                             fillColor: AppColors.background,
@@ -860,7 +861,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                             ),
                           ),
-                          validator: (value) => (value == null || value.length < 4) ? "비밀번호는 4자리 이상이어야 합니다" : null,
+                          validator: (value) => (value == null || value.length < 6) ? "비밀번호는 6자리 이상이어야 합니다" : null,
                         ),
 
                         // 중복 가입 에러 경고문
@@ -963,7 +964,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              // 서비스 이용약관 및 개인정보 수집·이용 동의 (필수)
+              CheckboxListTile(
+                value: _agreedToTerms,
+                onChanged: (val) => setState(() => _agreedToTerms = val ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  "[필수] 서비스 이용약관 및 개인정보 수집·이용에 동의합니다.",
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 12),
 
               // 가입 완료 버튼
               ElevatedButton(

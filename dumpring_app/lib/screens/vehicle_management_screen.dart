@@ -140,7 +140,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               }
             } else {
               // QA9999 등 테스트 차량보다 실제 운영 차량을 우선 표시
-              final nonQa = cars.where((c) => !(c['car_number']?.toString() ?? '').startsWith('QA')).toList();
+              final nonQa = cars
+                  .where(
+                    (c) =>
+                        !(c['car_number']?.toString() ?? '').startsWith('QA'),
+                  )
+                  .toList();
               if (nonQa.isNotEmpty) {
                 car = nonQa.first;
               }
@@ -149,7 +154,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               _currentCarId = car['id'] as int?;
               _vehicleNumController.text = car['car_number'] ?? '';
               _tonnageController.text = (car['tonnage'] ?? '').toString();
-              _carModelController.text = car['car_model'] ?? '';
+              final String rawModel = (car['car_model'] ?? '').toString().trim();
+              _carModelController.text = rawModel.isNotEmpty
+                  ? rawModel
+                  : (car['truck_type_name']?.toString().isNotEmpty == true
+                      ? car['truck_type_name'].toString()
+                      : (car['tonnage'] != null ? '${car['tonnage']}톤 덤프트럭' : ''));
               _machineryRegFile =
                   car['machinery_reg_file'] ?? _machineryRegFile;
               _machineryRegUrl = car['machinery_reg_url'] ?? _machineryRegUrl;
@@ -202,18 +212,38 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         if (response.statusCode == 200) {
           final data = jsonDecode(utf8.decode(response.bodyBytes));
           final user = data['user'] ?? data;
+          final carObj = data['car'] ?? user['car'] ?? {};
+          String carNum = (user['vehicle_number'] ?? user['car_number'] ?? carObj['car_number'] ?? '').toString();
+          String tonStr = (user['tonnage'] ?? user['vehicle_capacity'] ?? carObj['tonnage'] ?? '').toString();
+          String modelStr = (user['car_model'] ?? carObj['car_model'] ?? '').toString();
+
+          if (carNum.isEmpty) {
+            try {
+              final histRes = await http.get(
+                Uri.parse("$_baseUrl/api/dispatch/tickets/history?limit=1"),
+                headers: {"Authorization": "Bearer ${widget.token}"},
+              );
+              if (histRes.statusCode == 200) {
+                final List<dynamic> hist = jsonDecode(utf8.decode(histRes.bodyBytes));
+                if (hist.isNotEmpty && hist.first['car'] != null) {
+                  carNum = (hist.first['car']['car_number'] ?? '').toString();
+                  tonStr = (hist.first['car']['tonnage'] ?? '').toString();
+                }
+              }
+            } catch (_) {}
+          }
+
           setState(() {
-            if (_vehicleNumController.text.isEmpty) {
-              _vehicleNumController.text =
-                  user['vehicle_number'] ?? user['car_number'] ?? '';
+            if (_vehicleNumController.text.isEmpty && carNum.isNotEmpty) {
+              _vehicleNumController.text = carNum;
             }
-            if (_tonnageController.text.isEmpty) {
-              _tonnageController.text =
-                  (user['tonnage'] ?? user['vehicle_capacity'] ?? '')
-                      .toString();
+            if (_tonnageController.text.isEmpty && tonStr.isNotEmpty) {
+              _tonnageController.text = tonStr;
             }
             if (_carModelController.text.isEmpty) {
-              _carModelController.text = user['car_model'] ?? '';
+              _carModelController.text = modelStr.isNotEmpty
+                  ? modelStr
+                  : (tonStr.isNotEmpty ? '${tonStr}톤 덤프트럭' : '');
             }
             _machineryRegFile =
                 user['machinery_reg_file'] ??
@@ -427,10 +457,18 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("차량 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text("[${_vehicleNumController.text.trim()}] 차량을 정말 삭제하시겠습니까?\n(운행 이력이 있는 차량은 삭제할 수 없습니다.)"),
+        title: const Text(
+          "차량 삭제",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          "[${_vehicleNumController.text.trim()}] 차량을 정말 삭제하시겠습니까?\n(운행 이력이 있는 차량은 삭제할 수 없습니다.)",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("취소"),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -449,20 +487,26 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       );
       if (!mounted) return;
       if (res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("차량이 삭제되었습니다.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("차량이 삭제되었습니다.")));
         Navigator.pop(context, true);
       } else {
         final decoded = jsonDecode(utf8.decode(res.bodyBytes));
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(decoded['detail'] ?? "차량 삭제에 실패했습니다."), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(decoded['detail'] ?? "차량 삭제에 실패했습니다."),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("차량 삭제 중 네트워크 오류가 발생했습니다."), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text("차량 삭제 중 네트워크 오류가 발생했습니다."),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -970,27 +1014,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  onPressed: () {
+                                  onPressed: () async {
                                     setState(() {
                                       _isReadOnlyState = true;
-                                      _vehicleNumController.text =
-                                          widget.user['vehicle_number'] ??
-                                          widget.user['car_number'] ??
-                                          '';
-                                      _tonnageController.text =
-                                          (widget.user['tonnage'] ??
-                                                  widget
-                                                      .user['vehicle_capacity'] ??
-                                                  '')
-                                              .toString();
-                                      _carModelController.text =
-                                          widget.user['car_model'] ?? '';
-                                      _inspectionDateController.text =
-                                          widget.user['inspection_date'] ??
-                                          '2026-12-31';
-                                      _selectedDriverId =
-                                          widget.user['driver_id'];
+                                      _errorMessage = null;
                                     });
+                                    await _fetchVehicleInfo();
                                   },
                                   child: Text(
                                     "변경 취소",

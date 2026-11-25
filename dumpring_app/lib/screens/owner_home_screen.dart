@@ -550,6 +550,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                             },
                             token: widget.token,
                             isReadOnly: true,
+                            carId: c['id'] as int?,
                           ),
                         ),
                       ).then((_) => _fetchCars());
@@ -601,9 +602,31 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
             child: ListTile(
               contentPadding: EdgeInsets.zero,
               leading: CircleAvatar(backgroundColor: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2638) : const Color(0xFFF3F4F6)), child: Icon(Icons.account_balance, color: Theme.of(context).colorScheme.primary)),
-              title: Text("정산 수령 법인계좌 설정", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: (Theme.of(context).brightness == Brightness.dark ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)) : const Color(0xFF1F2937)))),
+              title: Text("정산 수령 법인계좌 설정", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: (Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2937)))),
               subtitle: Text("신한은행 110-123-456789 (예금주: 주식회사 덤프운송)", style: TextStyle(fontSize: 12, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563)))),
               trailing: Icon(Icons.arrow_forward_ios, size: 14, color: (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF8F9BB3) : const Color(0xFF4B5563))),
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text("정산 수령 법인계좌 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    content: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("등록된 정산 계좌", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        SizedBox(height: 6),
+                        Text("• 은행: 신한은행\n• 계좌번호: 110-123-456789\n• 예금주: 주식회사 덤프운송"),
+                        SizedBox(height: 12),
+                        Text("계좌 변경은 세무 정산 보안상 본사 고객센터 또는 웹 관리자 페이지(통합 정산 관리)에서 서류 검수 후 변경할 수 있습니다.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("확인")),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],

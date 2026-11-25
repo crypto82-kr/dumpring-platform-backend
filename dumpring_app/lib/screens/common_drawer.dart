@@ -174,15 +174,18 @@ class CommonDrawer extends StatelessWidget {
               children: [
                 SwitchListTile(
                   value: true,
+                  contentPadding: EdgeInsets.zero,
                   onChanged: (val) {},
-                  title: Text("실시간 배차 푸시 알림", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+                  title: Text("실시간 배차 푸시 알림", maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
                   activeThumbColor: AppColors.primary,
                 ),
                 SwitchListTile(
                   value: false,
+                  contentPadding: EdgeInsets.zero,
                   onChanged: (val) {},
-                  title: Text("야간 자동 무음 모드", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+                  title: Text("야간 자동 무음 모드", maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
                   activeThumbColor: AppColors.primary,
+                  inactiveTrackColor: Colors.grey.shade300,
                 ),
                 ListTile(
                   title: Text("앱 버전 정보", style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),

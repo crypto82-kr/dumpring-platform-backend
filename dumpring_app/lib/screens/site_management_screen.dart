@@ -1010,7 +1010,9 @@ class _SiteManagementScreenState extends State<SiteManagementScreen> {
                                     title: Row(
                                       children: [
                                         Text(
-                                          emp['name'] ?? '가입 대기',
+                                          (emp['name'] == null || emp['name'] == '가입 대기')
+                                              ? '미가입 직원'
+                                              : emp['name'],
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: isJoined

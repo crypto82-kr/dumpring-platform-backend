@@ -916,19 +916,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   children: [
                     Text("관심지역", style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                     const SizedBox(width: 2),
-                    Checkbox(
-                      value: _useFavoritesFilter,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                      onChanged: (val) async {
-                        final newValue = val ?? false;
-                        setState(() {
-                          _useFavoritesFilter = newValue;
-                        });
-                        await _saveFavoritesFilterState(newValue);
-                        _loadOpenJobs();
-                      },
-                      activeColor: AppColors.primary,
+                    Semantics(
+                      label: "관심지역만 보기",
+                      child: Checkbox(
+                        value: _useFavoritesFilter,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        onChanged: (val) async {
+                          final newValue = val ?? false;
+                          setState(() {
+                            _useFavoritesFilter = newValue;
+                          });
+                          await _saveFavoritesFilterState(newValue);
+                          _loadOpenJobs();
+                        },
+                        activeColor: AppColors.primary,
+                      ),
                     ),
                     const SizedBox(width: 2),
                     TextButton.icon(
