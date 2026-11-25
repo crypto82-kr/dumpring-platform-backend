@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PlusCircle, Search, AlertCircle, Truck, MapPin, Clock } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
 import { MockMap } from "@/components/views/common/MockMap";
@@ -172,6 +172,76 @@ export function SiteManagerDashboard({
 
   // 서류 뷰어 모달 상태
   const [viewingDoc, setViewingDoc] = useState<{ title: string; url: string } | null>(null);
+
+  // 실 DB 정산 지표 동기화
+  const [dashboardStats, setDashboardStats] = useState({
+    dumpTotalAmount: 0,
+    dumpCompletedTrips: 0,
+    soilTotalAmount: 0,
+    soilTotalVolume: 0,
+  });
+
+  useEffect(() => {
+    if (activePath !== "/site") return;
+    const controller = new AbortController();
+    const loadStats = async () => {
+      try {
+        const baseUrl = getApiBaseUrl();
+        const token =
+          sessionStorage.getItem("dumpring_token") ||
+          localStorage.getItem("accessToken") ||
+          localStorage.getItem("token");
+        if (!token) return;
+
+        const [dumpRes, soilRes] = await Promise.all([
+          fetch(`${baseUrl}/api/dispatch/settlements/site-dump-expenses`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }),
+          fetch(`${baseUrl}/api/dispatch/settlements/site-soil-expenses`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }),
+        ]);
+
+        let dumpTotalAmount = 0;
+        let dumpCompletedTrips = 0;
+        if (dumpRes.ok) {
+          const d = await dumpRes.json();
+          dumpTotalAmount = Number(d?.summary?.totalAmount || 0);
+          dumpCompletedTrips = Number(d?.summary?.completedTrips || 0);
+        }
+
+        let soilTotalAmount = 0;
+        let soilTotalVolume = 0;
+        if (soilRes.ok) {
+          const s = await soilRes.json();
+          const list = Array.isArray(s?.soilExpenses) ? s.soilExpenses : [];
+          for (const item of list) {
+            const st = String(item.settlementStatus || "").toUpperCase();
+            if (["SETTLEMENT_CONFIRMED", "SETTLEMENT_PAID", "SETTLEMENT_APPROVED", "APPROVED", "COMPLETED"].includes(st)) {
+              soilTotalAmount += Number(item.totalAmount || 0);
+            }
+            soilTotalVolume += Number(item.totalVolume || item.volume || 0);
+          }
+          if (soilTotalAmount === 0 && list.length > 0) {
+            soilTotalAmount = list.reduce((acc: number, it: any) => acc + Number(it.totalAmount || 0), 0);
+          }
+        }
+
+        setDashboardStats({
+          dumpTotalAmount,
+          dumpCompletedTrips,
+          soilTotalAmount,
+          soilTotalVolume,
+        });
+      } catch (e: any) {
+        if (e?.name !== "AbortError") console.warn("SiteManagerDashboard stats load skipped:", e);
+      }
+    };
+    loadStats();
+    return () => controller.abort();
+  }, [activePath]);
 
   const uploadDocumentFile = async (file: File, docType: "biz_license" | "dust_report") => {
     const formData = new FormData();
@@ -1005,20 +1075,24 @@ export function SiteManagerDashboard({
               {/* Dump truck expenses */}
               <div className="p-4 rounded-xl bg-slate-100/60 border border-slate-200">
                 <span className="text-[10px] text-slate-505 font-bold uppercase tracking-wider block">덤프비 정산 확인 (운송료)</span>
-                <p className="text-2xl font-black text-slate-900 mt-1.5">₩12,450,000</p>
+                <p className="text-2xl font-black text-slate-900 mt-1.5">₩{dashboardStats.dumpTotalAmount.toLocaleString()}</p>
                 <div className="flex justify-between items-center text-[10px] text-slate-600 mt-3 pt-2.5 border-t border-slate-200/40">
-                  <span>총 운반 횟수: 69회</span>
-                  <span className="text-blue-600 font-bold">1회 평균 단가: 180,000원</span>
+                  <span>총 운반 횟수: {dashboardStats.dumpCompletedTrips}회</span>
+                  <span className="text-blue-600 font-bold">
+                    1회 평균 단가: {dashboardStats.dumpCompletedTrips > 0 ? Math.round(dashboardStats.dumpTotalAmount / dashboardStats.dumpCompletedTrips).toLocaleString() : 0}원
+                  </span>
                 </div>
               </div>
 
               {/* Soil / Earthwork expenses */}
               <div className="p-4 rounded-xl bg-slate-100/60 border border-slate-200">
                 <span className="text-[10px] text-slate-505 font-bold uppercase tracking-wider block">흙값 정산 관리 (토사비)</span>
-                <p className="text-2xl font-black text-blue-600 mt-1.5">₩4,800,000</p>
+                <p className="text-2xl font-black text-blue-600 mt-1.5">₩{dashboardStats.soilTotalAmount.toLocaleString()}</p>
                 <div className="flex justify-between items-center text-[10px] text-slate-650 mt-3 pt-2.5 border-t border-slate-200/40">
-                  <span>반출 흙 분량: 600 ㎥</span>
-                  <span className="text-emerald-650 font-bold">㎥당 단가: 8,000원</span>
+                  <span>반출 흙 분량: {dashboardStats.soilTotalVolume.toLocaleString()} ㎥</span>
+                  <span className="text-emerald-650 font-bold">
+                    ㎥당 단가: {dashboardStats.soilTotalVolume > 0 ? Math.round(dashboardStats.soilTotalAmount / dashboardStats.soilTotalVolume).toLocaleString() : 0}원
+                  </span>
                 </div>
               </div>
             </div>
@@ -1105,7 +1179,7 @@ export function SiteManagerDashboard({
         <div className="flex items-center justify-between mb-4 border-b border-slate-200 pb-3">
           <div>
             <h3 className="font-extrabold text-base text-slate-800">실시간 반출 차량 운행 이력</h3>
-            <p className="text-xs text-slate-505 mt-0.5">인천 검단 3공구 현장 출발 실시간 배차 목록</p>
+            <p className="text-xs text-slate-505 mt-0.5">{displaySiteName} 현장 출발 실시간 배차 목록</p>
           </div>
           <button type="button" className="text-xs font-bold text-blue-600 hover:underline">
             전체 운행 로그 파일(CSV) 다운로드 →

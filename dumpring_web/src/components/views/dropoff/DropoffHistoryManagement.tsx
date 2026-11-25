@@ -135,9 +135,9 @@ export default function DropoffHistoryManagement({
         isCompleted: false,
       };
     }
-    if (["LOADING", "ARRIVED_LOADING"].includes(s)) {
+    if (["LOADING", "ARRIVED_LOADING", "LOADING_APPROVED", "ACCEPTED"].includes(s)) {
       return {
-        label: "상차중 (적재 대기)",
+        label: s === "LOADING_APPROVED" ? "상차 승인완료" : s === "ACCEPTED" ? "배차 수락" : "상차중 (적재 대기)",
         className: "bg-amber-100 text-amber-800 border-amber-300",
         isCompleted: false,
       };
@@ -311,7 +311,7 @@ export default function DropoffHistoryManagement({
       "운행기사",
       "차량번호",
       "톤수",
-      "반입토종",
+      "반입토질",
       "단가",
       "검수현황"
     ];

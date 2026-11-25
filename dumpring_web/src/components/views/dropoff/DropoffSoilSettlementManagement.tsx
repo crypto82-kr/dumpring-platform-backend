@@ -1107,19 +1107,19 @@ export default function DropoffSoilSettlementManagement({
                       <div className="flex justify-between text-slate-600">
                         <span>순수 흙값 공급가액 (부가세 미포함):</span>
                         <span className="font-mono font-black text-slate-800">
-                          ₩ {selectedJobItem.totalAmount.toLocaleString()}원
+                          ₩ {selectedJobItem.totalAmount.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-600">
                         <span>부가가치세 (10% 별도):</span>
                         <span className="font-mono font-black text-slate-800">
-                          ₩ {Math.floor(selectedJobItem.totalAmount * 0.1).toLocaleString()}원
+                          ₩ {Math.floor(selectedJobItem.totalAmount * 0.1).toLocaleString()}
                         </span>
                       </div>
                       <div className="pt-2 border-t border-emerald-200 flex justify-between items-center text-sm font-black text-emerald-950">
                         <span>총 정산 합계액 (부가세 포함):</span>
                         <span className="text-lg text-emerald-700 font-mono">
-                          ₩ {(selectedJobItem.totalAmount + Math.floor(selectedJobItem.totalAmount * 0.1)).toLocaleString()}원
+                          ₩ {(selectedJobItem.totalAmount + Math.floor(selectedJobItem.totalAmount * 0.1)).toLocaleString()}
                         </span>
                       </div>
                     </div>

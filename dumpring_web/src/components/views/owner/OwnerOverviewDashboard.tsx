@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { getApiBaseUrl } from "@/utils/api";
 import {
   Truck,
   Calendar,
@@ -21,12 +22,99 @@ interface OwnerOverviewDashboardProps {
 }
 
 export function OwnerOverviewDashboard({ setActivePath }: OwnerOverviewDashboardProps) {
+  const [carCount, setCarCount] = useState(0);
+  const [driverCount, setDriverCount] = useState(0);
+  const [todayCount, setTodayCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
+  const [monthlyTrips, setMonthlyTrips] = useState(0);
+  const [todayDispatches, setTodayDispatches] = useState<any[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadOwnerStats = async () => {
+      try {
+        const baseUrl = getApiBaseUrl();
+        const token =
+          sessionStorage.getItem("dumpring_token") ||
+          localStorage.getItem("accessToken") ||
+          localStorage.getItem("token");
+        if (!token) return;
+
+        const [carsRes, driversRes, revRes] = await Promise.all([
+          fetch(`${baseUrl}/api/fleet/my-cars`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }),
+          fetch(`${baseUrl}/api/fleet/my-drivers`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }),
+          fetch(`${baseUrl}/api/fleet/settlements/revenues`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }),
+        ]);
+
+        if (carsRes.ok) {
+          const cars = await carsRes.json();
+          if (Array.isArray(cars)) setCarCount(cars.length);
+        }
+        if (driversRes.ok) {
+          const drvs = await driversRes.json();
+          if (Array.isArray(drvs)) setDriverCount(drvs.length);
+        }
+        if (revRes.ok) {
+          const rev = await revRes.json();
+          const records = Array.isArray(rev?.records) ? rev.records : Array.isArray(rev) ? rev : [];
+          const now = new Date();
+          const ymPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          const todayPrefix = `${ymPrefix}-${String(now.getDate()).padStart(2, "0")}`;
+
+          let mRev = 0;
+          let mTrips = 0;
+          let tCnt = 0;
+          let pCnt = 0;
+          const liveRows: any[] = [];
+
+          for (const r of records) {
+            const supply = Number(r.supply_amount ?? r.fare ?? r.accumulated_fare ?? 0);
+            const dateStr = String(r.work_date || r.completed_at || r.created_at || "");
+            const st = String(r.settlement_status || r.status || "").toUpperCase();
+
+            mRev += supply;
+            mTrips += 1;
+            if (dateStr.startsWith(todayPrefix)) tCnt += 1;
+            if (["SETTLEMENT_PAID", "SETTLEMENT_REVIEW", "SETTLEMENT_REQUESTED", "APPROVED"].includes(st)) {
+              pCnt += 1;
+            }
+            if (liveRows.length < 4) {
+              liveRows.push({
+                id: r.ticket_id || r.id || liveRows.length + 1,
+                carNumber: r.car_number || "미배정 차량",
+                driver: r.driver_name ? `${r.driver_name} 기사` : "미배정",
+                siteName: r.site_name || "현장",
+                dropoffName: r.drop_off_name || "하차지",
+                soil: r.material_type_name || r.material_type || "토사",
+                trips: `전표 #${r.ticket_id || r.id || "-"}`,
+                status: st === "SETTLEMENT_CONFIRMED" ? "정산 확정" : st === "SETTLEMENT_PAID" ? "입금 완료" : "반입 완료",
+                statusStyle: st === "SETTLEMENT_CONFIRMED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-blue-50 text-blue-700 border-blue-200",
+                time: dateStr ? dateStr.slice(0, 10) : "-",
+              });
+            }
+          }
+
+          setMonthlyRevenue(mRev);
+          setMonthlyTrips(mTrips);
+          setTodayCount(tCnt);
+          setPendingCount(pCnt);
+          setTodayDispatches(liveRows);
+        }
+      } catch (e: any) {
+        if (e?.name !== "AbortError") console.warn("OwnerOverviewDashboard load skipped:", e);
+      }
+    };
+    loadOwnerStats();
+    return () => controller.abort();
+  }, []);
+
   const kpiCards = [
     {
       label: "소속 등록 차량 / 기사",
-      value: "18 대",
-      sub: "15대 정상 가동 중 · 소속 기사 18명",
-      badge: "가동률 83.3%",
+      value: `${carCount} 대`,
+      sub: `등록 차량 ${carCount}대 · 소속 기사 ${driverCount}명`,
+      badge: carCount > 0 ? "실시간 연동" : "차량 없음",
       badgeColor: "text-emerald-700 bg-emerald-50 border-emerald-200",
       icon: Truck,
       iconBg: "bg-blue-50 text-blue-600 border-blue-200",
@@ -34,9 +122,9 @@ export function OwnerOverviewDashboard({ setActivePath }: OwnerOverviewDashboard
     },
     {
       label: "금일 배차 투입 / 운행",
-      value: "42 회",
-      sub: "투입 현장 3개소 · 평균 2.8회전",
-      badge: "실시간 운행 중",
+      value: `${todayCount} 회`,
+      sub: `누적 운행 ${monthlyTrips}건 기준`,
+      badge: "실시간 집계",
       badgeColor: "text-blue-700 bg-blue-50 border-blue-200",
       icon: Calendar,
       iconBg: "bg-indigo-50 text-indigo-600 border-indigo-200",
@@ -44,74 +132,23 @@ export function OwnerOverviewDashboard({ setActivePath }: OwnerOverviewDashboard
     },
     {
       label: "입금 수령확인 / 정산 대기",
-      value: "7 건",
-      sub: "입금확인 대기 3건 · 정산검토 4건",
-      badge: "확인 필요",
+      value: `${pendingCount} 건`,
+      sub: "정산 확인 및 수령 대기 건수",
+      badge: pendingCount > 0 ? "확인 필요" : "정산 완료",
       badgeColor: "text-amber-700 bg-amber-50 border-amber-200",
       icon: Receipt,
       iconBg: "bg-amber-50 text-amber-600 border-amber-200",
       targetPath: "/owner/revenues",
     },
     {
-      label: "이번 달 누적 운임 매출",
-      value: "₩18,240,000",
-      sub: "월간 누적 248회 운행 완료 (VAT 별도)",
-      badge: "+12.4% 전월 대비",
+      label: "누적 운임 매출 (공급가)",
+      value: `₩${monthlyRevenue.toLocaleString()}`,
+      sub: `총 ${monthlyTrips}회 운행 정산 합계 (VAT 별도)`,
+      badge: "실DB 합산",
       badgeColor: "text-emerald-700 bg-emerald-50 border-emerald-200",
       icon: TrendingUp,
       iconBg: "bg-emerald-50 text-emerald-600 border-emerald-200",
-      targetPath: "/owner/statistics",
-    },
-  ];
-
-  const todayDispatches = [
-    {
-      id: 1,
-      carNumber: "경기 82자 7732 (25.5톤)",
-      driver: "강감찬 기사",
-      siteName: "검단 3공구 택지개발 현장",
-      dropoffName: "김포 양촌 제1사토장",
-      soil: "양질토",
-      trips: "3회차 운행 중",
-      status: "하차지 이동 중",
-      statusStyle: "bg-indigo-50 text-indigo-700 border-indigo-200",
-      time: "14:25 상차승인",
-    },
-    {
-      id: 2,
-      carNumber: "경기 80바 4531 (25.5톤)",
-      driver: "김철수 기사",
-      siteName: "신길동 아파트 신축공사",
-      dropoffName: "파주 적성 매립지",
-      soil: "암버럭",
-      trips: "2회차 완료",
-      status: "반입 완료",
-      statusStyle: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      time: "14:10 하차완료",
-    },
-    {
-      id: 3,
-      carNumber: "인천 88아 1209 (25.5톤)",
-      driver: "박준형 기사",
-      siteName: "검단 3공구 택지개발 현장",
-      dropoffName: "강화 길상 사토장 (변경)",
-      soil: "뻘흙",
-      trips: "2회차 운행 중",
-      status: "하차지 변경됨",
-      statusStyle: "bg-amber-50 text-amber-700 border-amber-300",
-      time: "13:50 경로변경",
-    },
-    {
-      id: 4,
-      carNumber: "서울 85사 9081 (15톤)",
-      driver: "이정재 기사",
-      siteName: "영종도 물류센터 터파기",
-      dropoffName: "영종 제2매립장",
-      soil: "풍화암",
-      trips: "4회차 상차 대기",
-      status: "상차지 도착",
-      statusStyle: "bg-blue-50 text-blue-700 border-blue-200",
-      time: "14:32 게이트진입",
+      targetPath: "/owner/revenues",
     },
   ];
 

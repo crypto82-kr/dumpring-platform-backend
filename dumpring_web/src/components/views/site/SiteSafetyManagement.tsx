@@ -519,13 +519,13 @@ export default function SiteSafetyManagement({
                       {item.content}
                     </td>
                     <td className="py-3 px-3 font-mono text-slate-600">
-                      {item.contactPhone || "-"}
+                      {item.contactPhone || item.contact_phone || "-"}
                     </td>
                     <td className="py-3 px-3 text-center font-mono font-bold text-blue-600">
-                      {item.targetDriversCount}대
+                      {item.targetDriversCount ?? item.target_drivers_count ?? 0}대
                     </td>
                     <td className="py-3 px-3 font-mono text-slate-500 text-[11px]">
-                      {item.sentAt}
+                      {item.sentAt || item.sent_at || item.created_at || "-"}
                     </td>
                     <td className="py-3 px-3 text-center">
                       <button

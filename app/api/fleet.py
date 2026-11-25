@@ -378,6 +378,39 @@ async def create_my_car(
     )
 
 
+@router.delete(
+    "/my-cars/{car_id}",
+    summary="차주 사장님의 등록 차량 삭제"
+)
+async def delete_my_car(
+    car_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_owner: User = Depends(get_current_owner)
+):
+    car_res = await db.execute(select(Car).where(Car.id == car_id, Car.owner_id == current_owner.id))
+    car = car_res.scalars().first()
+    if not car:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 차량을 찾을 수 없거나 삭제 권한이 없습니다."
+        )
+
+    tickets_res = await db.execute(select(DispatchTicket.id).where(DispatchTicket.car_id == car.id).limit(1))
+    if tickets_res.scalars().first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="운행 이력이 존재하는 차량은 삭제할 수 없습니다."
+        )
+
+    drivers_res = await db.execute(select(Driver).where(Driver.current_car_id == car.id))
+    for drv in drivers_res.scalars().all():
+        drv.current_car_id = None
+
+    await db.delete(car)
+    await db.commit()
+    return {"message": "차량이 삭제되었습니다.", "deleted_car_id": car_id}
+
+
 class InviteDriverRequest(BaseModel):
     phone_number: str
     name: str

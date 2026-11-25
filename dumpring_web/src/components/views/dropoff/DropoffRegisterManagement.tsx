@@ -213,7 +213,7 @@ export function DropoffRegisterManagement({
             setDropoffFormAddress("");
             setDropoffFormLat(undefined);
             setDropoffFormLng(undefined);
-            setDropoffFormManagers(registeredDropoffList[0]?.managers?.[0] || "");
+            setDropoffFormManagers("");
             setDropoffFormCapacity("");
             setDropoffFormSoilDealType("sell");
             setEditingDropId(null);

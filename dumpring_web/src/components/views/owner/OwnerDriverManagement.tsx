@@ -617,7 +617,7 @@ export function OwnerDriverManagement({ setActivePath }: OwnerDriverManagementPr
                     <span>기사 필수 구비 서류</span>
                   </h4>
                   <span className="text-[10px] text-slate-400 font-bold">
-                    제출 완료 {driverDetail?.documents?.length || 0}종 / 총 5종
+                    제출 완료 {Math.min(new Set((driverDetail?.documents || []).map((d: any) => d.doc_type).filter(Boolean)).size, 5)}종 / 총 5종
                   </span>
                 </div>
 

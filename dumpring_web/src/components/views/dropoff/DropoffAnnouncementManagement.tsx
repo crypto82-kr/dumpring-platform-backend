@@ -449,7 +449,7 @@ export function DropoffAnnouncementManagement({
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-500 mt-2 font-semibold truncate">
-                    토종: {(() => {
+                    토질: {(() => {
                       switch (announce.soilType) {
                         case "GOOD_SOIL": return "양질토";
                         case "MUD_SOIL": return "뻘흙";

@@ -471,6 +471,10 @@ export default function Home() {
               case "CLOSED": return "배차완료(모집마감)";
               case "SETTLEMENT_CLOSED": return "정산마감";
               case "SETTLEMENT_PAID": return "정산완료";
+              case "SETTLEMENT_CONFIRMED": return "정산확정";
+              case "SETTLEMENT_REQUESTED": return "정산요청";
+              case "SETTLEMENT_APPROVED": return "정산승인";
+              case "SETTLEMENT_DISPUTED": return "정산이의제기";
               default: return "대기중";
             }
           })(),
@@ -594,6 +598,10 @@ export default function Home() {
             case "CLOSED": return "배차완료(모집마감)";
             case "SETTLEMENT_CLOSED": return "정산마감";
             case "SETTLEMENT_PAID": return "정산완료";
+            case "SETTLEMENT_CONFIRMED": return "정산확정";
+            case "SETTLEMENT_REQUESTED": return "정산요청";
+            case "SETTLEMENT_APPROVED": return "정산승인";
+            case "SETTLEMENT_DISPUTED": return "정산이의제기";
             case "CANCELLED": return "매칭반려";
             default: return "대기중";
           }
@@ -1192,11 +1200,28 @@ export default function Home() {
     }
   };
 
-  /** 배차 공고 삭제 (현재 백엔드에 DELETE 엔드포인트 없음 → 로컬 제거만 수행) */
+  /** 배차 공고 삭제 (백엔드 DELETE /api/jobs/{id} 호출 및 로컬 동기화) */
   const handleDeleteDispatch = async (id: number) => {
-    // 백엔드 DELETE /api/jobs/jobs/{id} 엔드포인트가 추가될 경우 아래에 API 호출 삽입
-    setDispatchRequestList(prev => prev.filter(r => r.id !== id));
-    return true;
+    try {
+      const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setDispatchRequestList(prev => prev.filter(r => r.id !== id));
+        return true;
+      }
+      const errData = await res.json().catch(() => null);
+      alert(errData?.detail || "배차 요청 삭제에 실패했습니다.");
+      return false;
+    } catch (e) {
+      console.error("handleDeleteDispatch error:", e);
+      alert("배차 요청 삭제 중 네트워크 오류가 발생했습니다.");
+      return false;
+    }
   };
 
   useEffect(() => {

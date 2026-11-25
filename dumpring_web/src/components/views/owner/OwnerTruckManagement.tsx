@@ -252,6 +252,32 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
     }
   };
 
+  // 차량 삭제
+  const handleDeleteCar = async (car: CarItem) => {
+    if (!confirm(`[${car.car_number}] 차량을 정말 삭제하시겠습니까?\n(운행 이력이 있는 차량은 삭제할 수 없습니다.)`)) {
+      return;
+    }
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/fleet/my-cars/${car.id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        alert("차량이 삭제되었습니다.");
+        setSelectedCarId(null);
+        await fetchCarsAndDrivers();
+      } else {
+        const errData = await res.json().catch(() => null);
+        alert(errData?.detail || "차량 삭제에 실패했습니다.");
+      }
+    } catch (e) {
+      console.error("차량 삭제 오류:", e);
+      alert("차량 삭제 중 네트워크 오류가 발생했습니다.");
+    }
+  };
+
   // 차량 등록 및 수정 저장
   const handleSaveCar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -518,6 +544,14 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
                   >
                     <Edit2 className="w-3.5 h-3.5 text-slate-500" />
                     <span>정보 수정 및 서류 등록</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCar(selectedCar)}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>차량 삭제</span>
                   </button>
                 </div>
               </div>

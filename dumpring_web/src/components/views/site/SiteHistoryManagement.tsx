@@ -298,7 +298,36 @@ export default function SiteHistoryManagement({
         </div>
         <button
           type="button"
-          onClick={() => alert("운행 이력 대장이 엑셀 파일로 출력되었습니다.")}
+          onClick={() => {
+            if (!filteredHistory || filteredHistory.length === 0) {
+              alert("다운로드할 운행 이력 데이터가 없습니다.");
+              return;
+            }
+            const headers = ["운행번호", "현장명", "하차지명", "토질", "운행일자", "차량대수", "상태"];
+            const rows = filteredHistory.map((item: any) => [
+              getRunNumber(item),
+              item.siteName || "-",
+              item.dropoffName || "-",
+              getCommonCodeName(item.soilType, "SOIL_TYPE"),
+              item.startDate || item.endDate || "-",
+              String(item.truckCount ?? "-"),
+              getCommonCodeName(item.rawStatus || item.status || "", "DISPATCH_STATUS"),
+            ]);
+            const csvContent =
+              "\uFEFF" +
+              [headers, ...rows]
+                .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+                .join("\n");
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `현장_운행이력_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }}
           className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md"
         >
           엑셀 대장 다운로드
