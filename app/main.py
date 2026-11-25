@@ -319,6 +319,11 @@ os.makedirs(os.path.join(uploads_dir, "documents"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
+# Flutter Web App Static Mount (/app)
+web_app_dir = os.path.join(os.path.dirname(__file__), "web_app")
+if os.path.exists(web_app_dir):
+    app.mount("/app", StaticFiles(directory=web_app_dir, html=True), name="web_app")
+
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     """
