@@ -235,6 +235,48 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     }
   }
 
+  // 모집 공고 삭제 API 호출 (DELETE /api/jobs/{job_id})
+  Future<void> _deleteJobPost(int jobId) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("배차 공고 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text("정말로 이 배차 공고를 삭제하시겠습니까?\n(운행·정산 이력이 있는 공고는 삭제할 수 없습니다.)"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("삭제", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.delete(
+        Uri.parse("$_baseUrl/api/jobs/$jobId"),
+        headers: {"Authorization": "Bearer ${widget.token}"},
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("🗑️ 배차 공고가 삭제되었습니다.")),
+        );
+        _fetchMyJobs();
+      } else {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        _showErrorDialog(decoded["detail"] ?? "공고 삭제에 실패했습니다.");
+      }
+    } catch (e) {
+      _showErrorDialog("서버 연결 실패. 네트워크 상태를 확인해 주세요.");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   // 기사 모집 공고(JobPost) 수정 API 호출 (PATCH)
   Future<void> _updateJobPost(int jobId) async {
     if (!_jobFormKey.currentState!.validate()) return;
@@ -993,6 +1035,15 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
                 child: const Text("매칭 승인", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            if (job['status'] != 'OPEN' && job['status'] != 'CLOSED' && job['status'] != 'COMPLETED')
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _deleteJobPost(job['id']);
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("삭제하기", style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             if (job['status'] == 'OPEN' || job['status'] == 'WAITING_MATCH' || job['status'] == 'WAITING_APPROVAL')
               ElevatedButton(

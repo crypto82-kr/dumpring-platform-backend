@@ -41,6 +41,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
   List<Map<String, dynamic>> _myDrivers = [];
   int? _selectedDriverId;
+  int? _currentCarId;
 
   // 서류 파일 상태 변수 및 미리보기 데이터
   String? _machineryRegFile;
@@ -130,6 +131,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               }
             }
             setState(() {
+              _currentCarId = car['id'] as int?;
               _vehicleNumController.text = car['car_number'] ?? '';
               _tonnageController.text = (car['tonnage'] ?? '').toString();
               _carModelController.text = car['car_model'] ?? '';
@@ -405,6 +407,54 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     }
   }
 
+  Future<void> _deleteCurrentCar() async {
+    if (_currentCarId == null) return;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("차량 삭제", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text("[${_vehicleNumController.text.trim()}] 차량을 정말 삭제하시겠습니까?\n(운행 이력이 있는 차량은 삭제할 수 없습니다.)"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("삭제", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final res = await http.delete(
+        Uri.parse("$_baseUrl/api/fleet/my-cars/$_currentCarId"),
+        headers: {"Authorization": "Bearer ${widget.token}"},
+      );
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("차량이 삭제되었습니다.")),
+        );
+        Navigator.pop(context, true);
+      } else {
+        final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(decoded['detail'] ?? "차량 삭제에 실패했습니다."), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("차량 삭제 중 네트워크 오류가 발생했습니다."), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -430,6 +480,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         ),
         centerTitle: true,
         actions: [
+          if (widget.user['is_owner'] == true && _currentCarId != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: "차량 삭제",
+              onPressed: _deleteCurrentCar,
+            ),
           if (_isReadOnlyState)
             TextButton(
               onPressed: () {
