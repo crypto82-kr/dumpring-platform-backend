@@ -673,10 +673,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
 
-                    /* 빠른 테스트 로그인 칩 (보고 시 숨김 처리)
                     const SizedBox(height: 14),
 
-                    // 정돈된 빠른 테스트 계정 칩
+                    // 정돈된 빠른 테스트 계정 칩 (관리자 페이지와 동일 계정)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -689,46 +688,40 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildQuickChip(
-                                label: "차주",
-                                phone: "010-1111-1111",
-                                password: "password123",
-                              ),
-                              const SizedBox(width: 6),
-                              _buildQuickChip(
-                                label: "기사",
-                                phone: "010-2222-1111",
-                                password: "password123",
-                              ),
-                              const SizedBox(width: 6),
-                              _buildQuickChip(
-                                label: "현장관리자",
-                                phone: "010-3333-1111",
-                                password: "password123",
-                              ),
-                              const SizedBox(width: 6),
-                              _buildQuickChip(
-                                label: "하차지",
-                                phone: "010-4444-1111",
-                                password: "password123",
-                              ),
-                              const SizedBox(width: 6),
-                              _buildQuickChip(
-                                label: "플랫폼관리자",
-                                phone: "010-0000-0000",
-                                password: "password123",
-                              ),
-                            ],
-                          ),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _buildQuickChip(
+                              label: "차주",
+                              phone: "010-9433-9433",
+                              password: "1234",
+                            ),
+                            _buildQuickChip(
+                              label: "기사",
+                              phone: "010-2222-1111",
+                              password: "password123",
+                            ),
+                            _buildQuickChip(
+                              label: "현장관리자",
+                              phone: "010-8888-5555",
+                              password: "1234",
+                            ),
+                            _buildQuickChip(
+                              label: "하차지",
+                              phone: "010-7777-8888",
+                              password: "1234",
+                            ),
+                            _buildQuickChip(
+                              label: "플랫폼관리자",
+                              phone: "010-0000-0000",
+                              password: "password123",
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    */
                   ],
                 ),
               ),
