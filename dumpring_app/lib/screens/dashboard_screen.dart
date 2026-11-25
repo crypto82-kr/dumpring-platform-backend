@@ -540,30 +540,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: TextFormField(
-                      controller: _siteLatController,
-                      style: TextStyle(color: AppColors.textPrimary),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: _buildInputDecoration("위도 (예: 37.56)", Icons.location_on_outlined),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("위도", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          controller: _siteLatController,
+                          style: TextStyle(color: AppColors.textPrimary),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: _buildInputDecoration("37.56", Icons.location_on_outlined),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: TextFormField(
-                      controller: _siteLngController,
-                      style: TextStyle(color: AppColors.textPrimary),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: _buildInputDecoration("경도 (예: 126.97)", Icons.location_on_outlined),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("경도", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          controller: _siteLngController,
+                          style: TextStyle(color: AppColors.textPrimary),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: _buildInputDecoration("126.97", Icons.location_on_outlined),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
+              Text("지오펜싱 반경 (m)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+              const SizedBox(height: 4),
               TextFormField(
                 controller: _siteRadiusController,
                 style: TextStyle(color: AppColors.textPrimary),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: _buildInputDecoration("지오펜싱 반경 (m 단위, 기본 200.0)", Icons.radar_outlined),
+                decoration: _buildInputDecoration("200.0", Icons.radar_outlined),
                 validator: (value) => value == null || value.trim().isEmpty ? "지오펜싱 반경을 입력해 주세요" : null,
               ),
               const SizedBox(height: 16),

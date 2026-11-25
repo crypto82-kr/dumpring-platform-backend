@@ -482,6 +482,7 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> with SingleTickerProv
                         user: const {'is_owner': true},
                         token: widget.token,
                         isReadOnly: false,
+                        isCreateMode: true,
                       ),
                     ),
                   ).then((_) => _fetchCars());

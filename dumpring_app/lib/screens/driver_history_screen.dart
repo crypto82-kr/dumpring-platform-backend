@@ -206,7 +206,7 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
 
     return DRScaffold(
       type: DRLayoutType.sub,
-      title: "운행 이력 및 정산 내역",
+      title: "운행 이력 및 영수증",
       body: SafeArea(
         child: Column(
           children: [
@@ -244,12 +244,12 @@ class _DriverHistoryScreenState extends State<DriverHistoryScreen> {
 
                                 final int rawDurationMin = (item['drive_time_seconds'] ?? 0) ~/ 60;
                                 int displayDurationMin = rawDurationMin;
-                                if (item['driving_started_at'] != null && item['completed_at'] != null) {
+                                if (displayDurationMin <= 0 && item['driving_started_at'] != null && item['completed_at'] != null) {
                                   try {
                                     final startDt = DateTime.parse(item['driving_started_at']);
                                     final endDt = DateTime.parse(item['completed_at']);
                                     final diffMin = endDt.difference(startDt).inMinutes;
-                                    if (diffMin > 0 && rawDurationMin != diffMin) {
+                                    if (diffMin > 0 && diffMin < 24 * 60) {
                                       displayDurationMin = diffMin;
                                     }
                                   } catch (_) {}

@@ -1380,7 +1380,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                   Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    "기본운임 ${_formatter(_getBaseFareForTruck(jobPost['truck_type']))}원",
+                    "기본운임 ${_formatter((jobPost['offered_unit_price'] != null && (jobPost['offered_unit_price'] as num) > 0) ? (jobPost['offered_unit_price'] as num).toInt() : _getBaseFareForTruck(jobPost['truck_type']))}원",
                     style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -1612,7 +1612,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
                 Icon(Icons.monetization_on_rounded, color: AppColors.primary, size: 14),
                 SizedBox(width: 4),
                 Text(
-                  "기본운임 ${_formatter(_getBaseFareForTruck(job['truck_type']))}원",
+                  "기본운임 ${_formatter((job['offered_unit_price'] != null && (job['offered_unit_price'] as num) > 0) ? (job['offered_unit_price'] as num).toInt() : _getBaseFareForTruck(job['truck_type']))}원",
                   style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],

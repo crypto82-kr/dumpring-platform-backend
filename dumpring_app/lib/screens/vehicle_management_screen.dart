@@ -13,6 +13,7 @@ class VehicleManagementScreen extends StatefulWidget {
   final String token;
   final bool isReadOnly;
   final int? carId;
+  final bool isCreateMode;
 
   const VehicleManagementScreen({
     super.key,
@@ -20,6 +21,7 @@ class VehicleManagementScreen extends StatefulWidget {
     required this.token,
     this.isReadOnly = false,
     this.carId,
+    this.isCreateMode = false,
   });
 
   @override
@@ -113,11 +115,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     setState(() => _isLoading = true);
     try {
       if (widget.user['is_owner'] == true) {
-        final carResponse = await http.get(
-          Uri.parse("$_baseUrl/api/fleet/my-cars"),
-          headers: {"Authorization": "Bearer ${widget.token}"},
-        );
-        if (carResponse.statusCode == 200) {
+        if (!widget.isCreateMode) {
+          final carResponse = await http.get(
+            Uri.parse("$_baseUrl/api/fleet/my-cars"),
+            headers: {"Authorization": "Bearer ${widget.token}"},
+          );
+          if (carResponse.statusCode == 200) {
           final List<dynamic> cars = jsonDecode(
             utf8.decode(carResponse.bodyBytes),
           );
@@ -154,12 +157,16 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               _currentCarId = car['id'] as int?;
               _vehicleNumController.text = car['car_number'] ?? '';
               _tonnageController.text = (car['tonnage'] ?? '').toString();
-              final String rawModel = (car['car_model'] ?? '').toString().trim();
+              final String rawModel = (car['car_model'] ?? '')
+                  .toString()
+                  .trim();
               _carModelController.text = rawModel.isNotEmpty
                   ? rawModel
                   : (car['truck_type_name']?.toString().isNotEmpty == true
-                      ? car['truck_type_name'].toString()
-                      : (car['tonnage'] != null ? '${car['tonnage']}톤 덤프트럭' : ''));
+                        ? car['truck_type_name'].toString()
+                        : (car['tonnage'] != null
+                              ? '${car['tonnage']}톤 덤프트럭'
+                              : ''));
               _machineryRegFile =
                   car['machinery_reg_file'] ?? _machineryRegFile;
               _machineryRegUrl = car['machinery_reg_url'] ?? _machineryRegUrl;
@@ -169,6 +176,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               _insuranceUrl = car['insurance_url'] ?? _insuranceUrl;
             });
           }
+        }
         }
 
         // Fetch drivers
@@ -213,9 +221,20 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           final data = jsonDecode(utf8.decode(response.bodyBytes));
           final user = data['user'] ?? data;
           final carObj = data['car'] ?? user['car'] ?? {};
-          String carNum = (user['vehicle_number'] ?? user['car_number'] ?? carObj['car_number'] ?? '').toString();
-          String tonStr = (user['tonnage'] ?? user['vehicle_capacity'] ?? carObj['tonnage'] ?? '').toString();
-          String modelStr = (user['car_model'] ?? carObj['car_model'] ?? '').toString();
+          String carNum =
+              (user['vehicle_number'] ??
+                      user['car_number'] ??
+                      carObj['car_number'] ??
+                      '')
+                  .toString();
+          String tonStr =
+              (user['tonnage'] ??
+                      user['vehicle_capacity'] ??
+                      carObj['tonnage'] ??
+                      '')
+                  .toString();
+          String modelStr = (user['car_model'] ?? carObj['car_model'] ?? '')
+              .toString();
 
           if (carNum.isEmpty) {
             try {
@@ -224,7 +243,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 headers: {"Authorization": "Bearer ${widget.token}"},
               );
               if (histRes.statusCode == 200) {
-                final List<dynamic> hist = jsonDecode(utf8.decode(histRes.bodyBytes));
+                final List<dynamic> hist = jsonDecode(
+                  utf8.decode(histRes.bodyBytes),
+                );
                 if (hist.isNotEmpty && hist.first['car'] != null) {
                   carNum = (hist.first['car']['car_number'] ?? '').toString();
                   tonStr = (hist.first['car']['tonnage'] ?? '').toString();
@@ -539,7 +560,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         ),
         centerTitle: true,
         actions: [
-          if (widget.user['is_owner'] == true && _currentCarId != null)
+          if (widget.user['is_owner'] == true && !widget.isCreateMode && _currentCarId != null)
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
               tooltip: "차량 삭제",

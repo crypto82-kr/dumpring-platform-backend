@@ -1801,7 +1801,7 @@ class _DropOffHomeScreenState extends State<DropOffHomeScreen> {
                             ),
                           ),
                           Text(
-                            "정산/정리: ${_translatePayer(req['payer_type'])} (${req['payment_method'] == 'MONTHLY' ? '월정산' : '일정산'})",
+                            "정산 방식: ${_translatePayer(req['payer_type'])} (${req['payment_method'] == 'MONTHLY' ? '월정산' : '일정산'})",
                             style: const TextStyle(
                               fontSize: 12,
                               color: Colors.grey,

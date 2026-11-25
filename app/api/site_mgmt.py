@@ -1019,7 +1019,14 @@ async def get_site_employees(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 권한 검사: 현재 사용자가 해당 현장에 승인된 관리자 또는 담당자/소장인지 확인
+    # 권한 검사: 현재 사용자가 해당 현장에 승인된 관리자/담당자 또는 현장 개설자/관리자인지 확인
+    site_obj = await db.get(ConstructionSite, site_id)
+    if not site_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="존재하지 않는 공사현장입니다."
+        )
+
     check_query = select(SiteUserMapping).where(
         SiteUserMapping.site_id == site_id,
         SiteUserMapping.user_id == current_user.id,
@@ -1027,8 +1034,9 @@ async def get_site_employees(
     )
     check_result = await db.execute(check_query)
     is_manager = check_result.scalars().first()
+    is_site_owner = (site_obj.user_id == current_user.id)
 
-    if not is_manager or (not current_user.is_site_manager and not current_user.is_site_worker):
+    if not (current_user.is_admin or is_site_owner or (is_manager and (current_user.is_site_manager or current_user.is_site_worker))):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="해당 현장의 승인 완료된 관리자(소장님) 또는 담당자만 직원 목록을 조회할 수 있습니다."

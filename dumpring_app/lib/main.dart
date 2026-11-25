@@ -66,7 +66,7 @@ class WebFrameWrapper extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: child,
+            child: ScaffoldMessenger(child: child),
           ),
         ),
       ),

@@ -192,7 +192,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
         ? {
             "site_id": _selectedSiteId,
             "drop_off_request_id": _selectedDropOffRequestId,
-            "work_date": _selectedWorkDate.toIso8601String(),
+            "work_date": "${_selectedWorkDate.year}-${_selectedWorkDate.month.toString().padLeft(2, '0')}-${_selectedWorkDate.day.toString().padLeft(2, '0')}T09:00:00+09:00",
             "required_trucks": int.tryParse(_jobRequiredTrucksController.text.trim()) ?? 10,
             "is_direct_match": true,
           }
@@ -200,7 +200,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
             "site_id": _selectedSiteId,
             "material_type": _selectedMaterialType,
             "truck_type": _selectedTruckType,
-            "work_date": _selectedWorkDate.toIso8601String(),
+            "work_date": "${_selectedWorkDate.year}-${_selectedWorkDate.month.toString().padLeft(2, '0')}-${_selectedWorkDate.day.toString().padLeft(2, '0')}T09:00:00+09:00",
             "required_trucks": int.tryParse(_jobRequiredTrucksController.text.trim()) ?? 10,
             "offered_unit_price": int.tryParse(_jobUnitPriceController.text.trim()) ?? 50000,
             "payer_type": _selectedPayerType,
@@ -286,7 +286,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
     final requestData = {
       "material_type": _selectedMaterialType,
       "truck_type": _selectedTruckType,
-      "work_date": _selectedWorkDate.toIso8601String(),
+      "work_date": "${_selectedWorkDate.year}-${_selectedWorkDate.month.toString().padLeft(2, '0')}-${_selectedWorkDate.day.toString().padLeft(2, '0')}T09:00:00+09:00",
       "required_trucks": int.tryParse(_jobRequiredTrucksController.text.trim()) ?? 10,
       "offered_unit_price": int.tryParse(_jobUnitPriceController.text.trim()) ?? 50000,
       "payer_type": _selectedPayerType,
@@ -600,7 +600,8 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
       _selectedMaterialType = existingJob['material_type'] ?? 'GOOD_SOIL';
       _selectedTruckType = existingJob['truck_type'] ?? 'T_25';
       _selectedPayerType = existingJob['payer_type'] ?? 'SITE_PAYS';
-      _selectedWorkDate = DateTime.parse(existingJob['work_date']);
+      final rawWd = existingJob['work_date']?.toString() ?? '';
+      _selectedWorkDate = rawWd.isNotEmpty ? DateTime.parse(rawWd).toLocal() : DateTime.now().add(const Duration(days: 1));
       _jobRequiredTrucksController.text = existingJob['required_trucks']?.toString() ?? '10';
       _jobUnitPriceController.text = existingJob['offered_unit_price']?.toString() ?? '50000';
       _jobMemoController.text = existingJob['memo'] ?? '';
@@ -1042,7 +1043,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
                     child: const Text("매칭 승인", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
-                if (job['status'] != 'OPEN' && job['status'] != 'CLOSED' && job['status'] != 'COMPLETED')
+                if (job['status'] != 'CLOSED' && job['status'] != 'COMPLETED')
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();

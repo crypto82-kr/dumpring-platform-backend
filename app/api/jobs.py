@@ -1324,10 +1324,10 @@ async def delete_job_post(
             detail="본인이 등록한 공고만 삭제할 수 있습니다."
         )
 
-    if job.status in ["CLOSED", "COMPLETED", "OPEN"]:
+    if job.status in ["CLOSED", "COMPLETED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="이미 기사 배차가 완료되었거나 모집/운행이 진행 중인 오더는 삭제할 수 없습니다."
+            detail="이미 기사 배차가 완료되었거나 운행 완료된 오더는 삭제할 수 없습니다."
         )
 
     tickets_res = await db.execute(select(DispatchTicket).where(DispatchTicket.job_post_id == job_id))

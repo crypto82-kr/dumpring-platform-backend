@@ -937,7 +937,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             currentFileName: _safetyTrainingFile,
                           ),
                           _buildDocUploadTile(
-                            title: "교육실시확인서 (특수형태근로자)",
+                            title: "교육실시확인서\n(특수형태근로자)",
                             docCode: "SPECIAL_LABOR_TRAINING",
                             currentFileName: _specialLaborTrainingFile,
                           ),
