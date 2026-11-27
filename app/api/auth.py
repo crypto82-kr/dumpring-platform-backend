@@ -1961,8 +1961,8 @@ async def get_all_users_for_admin(
     drivers = driver_res.scalars().all()
     driver_by_user_id = {d.user_id: d for d in drivers if d.user_id}
 
-    # 3. 차량 테이블 데이터 맵 구성
-    car_query = select(Car)
+    # 3. 차량 테이블 데이터 맵 구성 (활성 보유 차량만 매핑)
+    car_query = select(Car).where(Car.is_deleted == False)
     car_res = await db.execute(car_query)
     cars = car_res.scalars().all()
     car_by_id = {c.id: c for c in cars}

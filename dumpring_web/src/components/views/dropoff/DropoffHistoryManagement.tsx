@@ -22,6 +22,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import { downloadExcelFile } from "@/utils/excel";
 
 interface DropoffHistoryManagementProps {
   registeredDropoffList?: any[];
@@ -114,11 +115,18 @@ export default function DropoffHistoryManagement({
   // 실무 검수 및 운행 상태 한글 뱃지 포매터
   const getStatusBadgeInfo = (status: string | undefined | null) => {
     const s = (status || "").toUpperCase();
-    if (["APPROVED", "COMPLETED", "SETTLEMENT_REQUESTED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"].includes(s)) {
+    if (["APPROVED", "COMPLETED", "SETTLEMENT_REQUESTED", "SETTLEMENT_APPROVED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED", "SETTLEMENT_CLOSED", "SETTLEMENT_PENDING"].includes(s)) {
       return {
         label: "반입 확정",
         className: "bg-emerald-100 text-emerald-800 border-emerald-300",
         isCompleted: true,
+      };
+    }
+    if (s === "SETTLEMENT_DISPUTED") {
+      return {
+        label: "정산 보류(이의제기)",
+        className: "bg-amber-100 text-amber-800 border-amber-300",
+        isCompleted: false,
       };
     }
     if (s === "REJECTED" || s.includes("REJECT") || s.includes("반려") || s.includes("회차")) {
@@ -135,14 +143,28 @@ export default function DropoffHistoryManagement({
         isCompleted: false,
       };
     }
-    if (["LOADING", "ARRIVED_LOADING", "LOADING_APPROVED", "ACCEPTED"].includes(s)) {
+    if (s === "LOADING_APPROVED") {
       return {
-        label: s === "LOADING_APPROVED" ? "상차 승인완료" : s === "ACCEPTED" ? "배차 수락" : "상차중 (적재 대기)",
+        label: "상차 승인완료",
+        className: "bg-purple-100 text-purple-800 border-purple-300",
+        isCompleted: false,
+      };
+    }
+    if (["LOADING", "ARRIVED_LOADING"].includes(s)) {
+      return {
+        label: "상차중 (적재 대기)",
         className: "bg-amber-100 text-amber-800 border-amber-300",
         isCompleted: false,
       };
     }
-    if (["ARRIVED", "ARRIVED_DROPOFF", "WAITING_INSPECTION"].includes(s)) {
+    if (["ACCEPTED", "ASSIGNED"].includes(s)) {
+      return {
+        label: "배차 수락",
+        className: "bg-blue-50 text-blue-700 border-blue-200",
+        isCompleted: false,
+      };
+    }
+    if (["ARRIVED", "ARRIVED_DROPOFF", "WAITING_INSPECTION", "WAITING_ABSENT_APPROVAL"].includes(s)) {
       return {
         label: "하차 도착 (검수 대기)",
         className: "bg-indigo-100 text-indigo-800 border-indigo-300",
@@ -157,7 +179,7 @@ export default function DropoffHistoryManagement({
       };
     }
     return {
-      label: s || "확인 대기",
+      label: "확인 대기",
       className: "bg-slate-100 text-slate-700 border-slate-300",
       isCompleted: false,
     };
@@ -320,28 +342,47 @@ export default function DropoffHistoryManagement({
       t.ticketNumber,
       t.inboundDate,
       t.time,
-      `"${t.siteName}"`,
-      `"${t.dropoffName}"`,
+      t.siteName,
+      t.dropoffName,
       t.driverName,
       t.carNumber,
       t.tonnage,
       getMaterialName(t.soilType),
       t.unitPrice,
-      "반입완료(검수승인)"
+      getStatusBadgeInfo(t.status).label
     ]);
 
-    const csvContent =
-      "\uFEFF" +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const dropoffNameLabel = selectedDropoffId !== ""
+      ? (registeredDropoffList.find((d) => d.id === Number(selectedDropoffId))?.name || `사토장 #${selectedDropoffId}`)
+      : "전체 사토장";
+    const periodLabel =
+      startDateFilter || endDateFilter
+        ? `${startDateFilter || "전체"} ~ ${endDateFilter || "전체"}`
+        : "전체 기간";
+    const statusLabel =
+      statusFilter === "COMPLETED"
+        ? "반입 확정"
+        : statusFilter === "IN_PROGRESS"
+        ? "운행/검수 대기"
+        : statusFilter === "REJECTED"
+        ? "반입 거부(회차)"
+        : "전체 상태";
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `사토장_토사반입_운행이력_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadExcelFile(
+      `사토장_토사반입_운행이력_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      "토사반입운행이력",
+      headers,
+      rows,
+      {
+        title: "사토장(하차지) 토사 반입 운행 이력 대장",
+        criteria: [
+          `운영 사토장: ${dropoffNameLabel}`,
+          `반입 기간: ${periodLabel}`,
+          `검수 상태: ${statusLabel}`,
+          `검색어: ${searchQuery.trim() || "전체"}`,
+        ],
+      }
+    );
   };
 
   return (

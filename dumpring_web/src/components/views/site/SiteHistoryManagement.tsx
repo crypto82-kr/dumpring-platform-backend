@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Search, Printer, X, CheckCircle2, Truck, Calendar, MapPin, Building, FileText, ArrowRight } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import { downloadExcelFile } from "@/utils/excel";
 
 interface SiteHistoryManagementProps {
   registeredSiteList?: any[];
@@ -286,6 +287,61 @@ export default function SiteHistoryManagement({
       return (b.id || 0) - (a.id || 0);
     });
 
+  const handleExportExcel = () => {
+    if (filteredHistory.length === 0) {
+      alert("다운로드할 운행 이력 데이터가 없습니다.");
+      return;
+    }
+
+    const headers = [
+      "운행번호",
+      "운행일자",
+      "출발현장명",
+      "목적하차지",
+      "토사종류",
+      "차량규격",
+      "운행대수(대)",
+      "단가(원)",
+      "운행상태"
+    ];
+
+    const rows = filteredHistory.map((item) => {
+      const tonLabel = Array.isArray(item.tonTypes) && item.tonTypes.length > 0
+        ? item.tonTypes.map((t: string) => getCommonCodeName(t, "TRUCK_TYPE")).join(", ")
+        : "-";
+      const badge = getStatusBadgeInfo(item.rawStatus || item.status);
+      return [
+        getRunNumber(item),
+        item.startDate || item.endDate || "-",
+        item.siteName || "-",
+        item.dropoffName || "하차지 미지정",
+        getCommonCodeName(item.soilType, "SOIL_TYPE"),
+        tonLabel,
+        item.truckCount || 1,
+        item.offeredUnitPrice || 0,
+        badge.label
+      ];
+    });
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const siteNameLabel = selectedSiteId
+      ? (registeredSiteList.find((s) => s.id === Number(selectedSiteId))?.name || `현장 #${selectedSiteId}`)
+      : "전체 현장";
+    const periodLabel =
+      startDateFilter || endDateFilter
+        ? `${startDateFilter || "전체"} ~ ${endDateFilter || "전체"}`
+        : "전체 기간";
+
+    downloadExcelFile(`현장_덤프운행이력_${todayStr}.xlsx`, "운행이력대장", headers, rows, {
+      title: "현장 덤프 운행 이력 대장",
+      criteria: [
+        `대상 현장: ${siteNameLabel}`,
+        `운행 기간: ${periodLabel}`,
+        `검색어: ${searchQuery.trim() || "전체"}`,
+      ],
+    });
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header Bar */}
@@ -298,36 +354,7 @@ export default function SiteHistoryManagement({
         </div>
         <button
           type="button"
-          onClick={() => {
-            if (!filteredHistory || filteredHistory.length === 0) {
-              alert("다운로드할 운행 이력 데이터가 없습니다.");
-              return;
-            }
-            const headers = ["운행번호", "현장명", "하차지명", "토질", "운행일자", "차량대수", "상태"];
-            const rows = filteredHistory.map((item: any) => [
-              getRunNumber(item),
-              item.siteName || "-",
-              item.dropoffName || "-",
-              getCommonCodeName(item.soilType, "SOIL_TYPE"),
-              item.startDate || item.endDate || "-",
-              String(item.truckCount ?? "-"),
-              getCommonCodeName(item.rawStatus || item.status || "", "DISPATCH_STATUS"),
-            ]);
-            const csvContent =
-              "\uFEFF" +
-              [headers, ...rows]
-                .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-                .join("\n");
-            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `현장_운행이력_${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }}
+          onClick={handleExportExcel}
           className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md"
         >
           엑셀 대장 다운로드

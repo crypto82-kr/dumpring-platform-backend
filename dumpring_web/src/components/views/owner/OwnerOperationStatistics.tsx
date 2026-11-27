@@ -26,6 +26,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import { downloadExcelFile } from "@/utils/excel";
 
 // 운행 레코드 인터페이스
 interface OperationRecord {
@@ -365,7 +366,7 @@ export function OwnerOperationStatistics({ setActivePath }: OwnerOperationStatis
     }
   };
 
-  // 엑셀 다운로드 (CSV UTF-8 BOM)
+  // 엑셀 다운로드 (.xlsx)
   const handleExportExcel = () => {
     if (sortedRecords.length === 0) {
       alert("다운로드할 데이터가 없습니다.");
@@ -376,28 +377,32 @@ export function OwnerOperationStatistics({ setActivePath }: OwnerOperationStatis
     const rows = sortedRecords.map(r => [
       r.date,
       r.time,
-      `"${r.driver_name}"`,
-      `"${r.car_number}"`,
-      `"${r.site_name}"`,
-      `"${r.dropoff_name}"`,
-      `"${r.material_name}"`,
+      r.driver_name,
+      r.car_number,
+      r.site_name,
+      r.dropoff_name,
+      r.material_name,
       r.trips || 1,
       r.weight_ton || r.tonnage || 0,
       r.fare || 0,
       r.distance_km || 0,
-      `"${r.status_name}"`
+      r.status_name
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const filename = `운행통계_${analysisPerspective === "SITE" ? "상차지중심" : "하차지중심"}_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.setAttribute("href", url);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const perspectiveLabel = analysisPerspective === "SITE" ? "상차지(현장) 중심" : "하차지(사토장) 중심";
+    const siteFilterLabel = selectedSites.length > 0 ? selectedSites.join(", ") : "전체 상차지";
+    const dropoffFilterLabel = selectedDropoffs.length > 0 ? selectedDropoffs.join(", ") : "전체 하차지";
+    const filename = `운행통계_${analysisPerspective === "SITE" ? "상차지중심" : "하차지중심"}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    downloadExcelFile(filename, "운행통계", headers, rows, {
+      title: `운송사 덤프트럭 운행 실적 및 매출 통계 대장 (${perspectiveLabel})`,
+      criteria: [
+        `조회 기간: ${startDate || "전체"} ~ ${endDate || "전체"}`,
+        `상차지: ${siteFilterLabel}`,
+        `하차지: ${dropoffFilterLabel}`,
+        `품목: ${selectedMaterial === "ALL" ? "전체" : selectedMaterial}`,
+        `기사/차량: ${driverOrCarKeyword.trim() || "전체"}`,
+      ],
+    });
   };
 
   // 통계 리포트 인쇄

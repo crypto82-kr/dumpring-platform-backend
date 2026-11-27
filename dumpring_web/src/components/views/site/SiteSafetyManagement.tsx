@@ -519,13 +519,20 @@ export default function SiteSafetyManagement({
                       {item.content}
                     </td>
                     <td className="py-3 px-3 font-mono text-slate-600">
-                      {item.contactPhone || item.contact_phone || "-"}
+                      {item.contact_phone || item.contactPhone || "-"}
                     </td>
                     <td className="py-3 px-3 text-center font-mono font-bold text-blue-600">
-                      {item.targetDriversCount ?? item.target_drivers_count ?? 0}대
+                      {item.target_drivers_count ?? item.targetDriversCount ?? 0}대
                     </td>
                     <td className="py-3 px-3 font-mono text-slate-500 text-[11px]">
-                      {item.sentAt || item.sent_at || item.created_at || "-"}
+                      {(() => {
+                        const rawDate = item.sent_at || item.created_at || item.sentAt || item.createdAt;
+                        if (!rawDate) return "-";
+                        const d = new Date(rawDate);
+                        if (isNaN(d.getTime())) return String(rawDate);
+                        const pad = (n: number) => String(n).padStart(2, "0");
+                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                      })()}
                     </td>
                     <td className="py-3 px-3 text-center">
                       <button

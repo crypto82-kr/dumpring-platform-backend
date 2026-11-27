@@ -69,6 +69,12 @@ async def startup_event():
                ADD COLUMN IF NOT EXISTS reject_reason VARCHAR;""",
             """ALTER TABLE drivers
                ADD COLUMN IF NOT EXISTS owner_id INTEGER;""",
+            """ALTER TABLE cars
+               ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;""",
+            """ALTER TABLE cars
+               DROP CONSTRAINT IF EXISTS cars_car_number_key;""",
+            """DROP INDEX IF EXISTS ix_cars_car_number;""",
+            """CREATE INDEX IF NOT EXISTS ix_cars_car_number ON cars (car_number);""",
             """ALTER TABLE dispatch_tickets
                ADD COLUMN IF NOT EXISTS loading_approval_type VARCHAR,
                ADD COLUMN IF NOT EXISTS loading_rejection_reason VARCHAR,

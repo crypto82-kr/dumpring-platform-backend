@@ -1294,46 +1294,53 @@ async def update_job_post(
 
 @router.delete(
     "/jobs/{job_id}",
+    status_code=status.HTTP_200_OK,
     summary="내가 작성한 모집 공고 삭제 (상차지 관리자용)",
-    description="현장관리자(SITE_MANAGER)가 본인이 작성한 배차 요청(모집 공고)을 삭제합니다. 운행/정산 이력이 있는 오더는 삭제가 차단됩니다."
+    description="현장관리자(SITE_MANAGER) 또는 시스템관리자가 운행/정산 이력이 없는 배차 요청 공고를 삭제합니다."
 )
 async def delete_job_post(
     job_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not (current_user.is_site_manager or current_user.is_admin):
+    if not current_user.is_site_manager and not current_user.is_site_worker and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="현장관리자(SITE_MANAGER) 권한이 필요합니다."
+            detail="현장관리자 또는 시스템관리자 권한이 필요합니다."
         )
 
-    query = select(JobPost).where(JobPost.id == job_id)
+    query = select(JobPost).options(
+        selectinload(JobPost.site),
+        selectinload(JobPost.tickets)
+    ).where(JobPost.id == job_id)
     result = await db.execute(query)
     job = result.scalars().first()
 
     if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="모집 공고를 찾을 수 없습니다."
+            detail="삭제할 배차 요청 공고를 찾을 수 없습니다."
         )
 
-    if job.author_id != current_user.id and not current_user.is_admin:
+    is_site_owner = bool(job.site and job.site.user_id == current_user.id)
+    if not current_user.is_admin and job.author_id != current_user.id and not is_site_owner:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인이 등록한 공고만 삭제할 수 있습니다."
+            detail="본인이 등록하거나 관리하는 현장의 공고만 삭제할 수 있습니다."
         )
 
-    if job.status in ["CLOSED", "COMPLETED"]:
+    if not current_user.is_admin and job.status in [
+        "CLOSED", "COMPLETED",
+        "SETTLEMENT_CLOSED", "SETTLEMENT_PAID", "SETTLEMENT_CONFIRMED"
+    ]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="이미 기사 배차가 완료되었거나 운행 완료된 오더는 삭제할 수 없습니다."
+            detail="이미 기사 배차가 완료되었거나 운행/정산이 진행된 오더는 삭제할 수 없습니다."
         )
 
-    tickets_res = await db.execute(select(DispatchTicket).where(DispatchTicket.job_post_id == job_id))
-    tickets = tickets_res.scalars().all()
+    tickets = list(job.tickets or [])
     active_or_completed = [t for t in tickets if (t.status or "").upper() != "CANCELLED"]
-    if active_or_completed:
+    if not current_user.is_admin and active_or_completed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="운행 또는 정산 이력이 연결된 오더는 삭제할 수 없습니다."
@@ -1344,7 +1351,12 @@ async def delete_job_post(
 
     await db.delete(job)
     await db.commit()
-    return {"message": "배차 요청 공고가 삭제되었습니다.", "deleted_job_id": job_id}
+
+    return {
+        "message": "배차 요청 공고가 삭제되었습니다.",
+        "deleted_id": job_id,
+        "deleted_job_id": job_id,
+    }
 
 
 class AdminProxyMatchRequest(BaseModel):

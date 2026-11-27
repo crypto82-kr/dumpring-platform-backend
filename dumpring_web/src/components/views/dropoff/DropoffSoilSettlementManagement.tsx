@@ -21,6 +21,7 @@ import {
   X
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import { downloadExcelFile } from "@/utils/excel";
 
 interface DropoffSoilSettlementManagementProps {
   registeredDropoffList?: any[];
@@ -410,27 +411,49 @@ export default function DropoffSoilSettlementManagement({
     const rows = historyData.map((r) => [
       r.jobPostId || r.id,
       r.workDate,
-      `"${(r.dropoffName || "").replace(/"/g, '""')}"`,
-      `"${(r.siteName || "").replace(/"/g, '""')}"`,
-      `"${(r.soilType || "").replace(/"/g, '""')}"`,
+      r.dropoffName || "",
+      r.siteName || "",
+      r.soilType || "",
       r.payerType === "SITE_PAYS" ? "사토수수료(수입)" : r.payerType === "SITE_RECEIVES" ? "토사매입비(지출)" : "무상",
       r.unitPrice,
       r.truckCount,
       r.totalAmount, // 공급가액 (부가세 미포함)
       Math.floor(r.totalAmount * 0.1), // 부가세 (10%)
       r.totalAmount + Math.floor(r.totalAmount * 0.1), // 총 정산 합계액 (VAT 포함)
-      `"${r.status}"`
+      r.status
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `하차지_흙값정산_마감이력_${startDateFilter || "전체"}_${endDateFilter || "전체"}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const dropoffNameLabel = selectedDropoffId
+      ? (registeredDropoffList.find((d: any) => d.id === Number(selectedDropoffId))?.name || `사토장 #${selectedDropoffId}`)
+      : "전체 사토장";
+    const payerLabel =
+      payerTypeFilter === "SITE_PAYS"
+        ? "현장지급(수수료 수취)"
+        : payerTypeFilter === "SITE_RECEIVES"
+        ? "하차지지급(토사매입 지출)"
+        : payerTypeFilter === "FREE"
+        ? "무상 사토"
+        : "전체 거래";
+    const periodLabel =
+      startDateFilter || endDateFilter
+        ? `${startDateFilter || "전체"} ~ ${endDateFilter || "전체"}`
+        : "전체 기간";
+
+    downloadExcelFile(
+      `하차지_흙값정산_마감이력_${startDateFilter || "전체"}_${endDateFilter || "전체"}.xlsx`,
+      "흙값정산마감이력",
+      headers,
+      rows,
+      {
+        title: "하차지(사토장) 흙값 정산 마감 이력 대장",
+        criteria: [
+          `운영 사토장: ${dropoffNameLabel}`,
+          `거래 구분: ${payerLabel}`,
+          `작업 기간: ${periodLabel}`,
+          `검색어: ${searchQuery.trim() || "전체"}`,
+        ],
+      }
+    );
   };
 
   return (

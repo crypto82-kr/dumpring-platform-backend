@@ -252,37 +252,29 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
     }
   };
 
-  // 차량 삭제
-  const handleDeleteCar = async (car: CarItem) => {
-    if (!confirm(`[${car.car_number}] 차량을 정말 삭제하시겠습니까?\n(운행 이력이 있는 차량은 삭제할 수 없습니다.)`)) {
-      return;
-    }
-    try {
-      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
-      const baseUrl = getApiBaseUrl();
-      const res = await fetch(`${baseUrl}/api/fleet/my-cars/${car.id}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (res.ok) {
-        alert("차량이 삭제되었습니다.");
-        setSelectedCarId(null);
-        await fetchCarsAndDrivers();
-      } else {
-        const errData = await res.json().catch(() => null);
-        alert(errData?.detail || "차량 삭제에 실패했습니다.");
-      }
-    } catch (e) {
-      console.error("차량 삭제 오류:", e);
-      alert("차량 삭제 중 네트워크 오류가 발생했습니다.");
-    }
-  };
-
   // 차량 등록 및 수정 저장
   const handleSaveCar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formCarNumber.trim()) {
+    const trimmedCarNo = formCarNumber.trim();
+    if (!trimmedCarNo) {
       setErrorMsg("차량번호를 입력해 주세요.");
+      return;
+    }
+
+    // 1. 한국 차량/건설기계 번호판 형식 검증 (지역명 선택 + 숫자 2~3자리 + 한글 1자 + 숫자 4자리)
+    const plateRegex = /^([가-힣]{2}\s?)?\d{2,3}\s?[가-힣]\s?\d{4}$/;
+    if (!plateRegex.test(trimmedCarNo)) {
+      setErrorMsg("올바른 차량번호 형식이 아닙니다. (예: 12가3456, 254구9433, 경기80사1234)");
+      return;
+    }
+
+    // 2. 현재 활성 보유 차량 목록 내 중복 체크 (논리 삭제된 차량은 이미 목록에서 제외됨)
+    const normalizedInputNo = trimmedCarNo.replace(/\s+/g, "");
+    const isDuplicateInMyCars = cars.some(
+      (c) => c.id !== editingCarId && c.car_number.replace(/\s+/g, "") === normalizedInputNo
+    );
+    if (isDuplicateInMyCars) {
+      setErrorMsg(`'${trimmedCarNo}' 차량은 이미 보유 차량으로 등록되어 있습니다.`);
       return;
     }
 
@@ -364,6 +356,7 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
+          car_id: editingCarId || null,
           car_number: formCarNumber.trim(),
           truck_type: formTruckType,
           inspection_date: formInspectionDate.trim() || "2026-12-31",
@@ -407,6 +400,40 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
       setErrorMsg(e.message || "처리 도중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // 보유 차량 삭제 핸들러
+  const handleDeleteCar = async (car: CarItem) => {
+    const hasAssignedDriver = Boolean(car.driver_name && car.driver_name !== "미배정");
+    const confirmMsg = hasAssignedDriver
+      ? `'${car.car_number}' 차량을 삭제하시겠습니까?\n(현재 배정된 '${car.driver_name}' 기사의 차량 배정이 자동 해제됩니다.)`
+      : `'${car.car_number}' 차량을 보유 차량 목록에서 삭제하시겠습니까?`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/fleet/my-cars/${car.id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        alert(resData.message || `'${car.car_number}' 차량이 삭제되었습니다.`);
+        setCars((prev) => prev.filter((c) => c.id !== car.id));
+        if (selectedCarId === car.id) {
+          setSelectedCarId(null);
+        }
+        await fetchCarsAndDrivers();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "차량 삭제 처리에 실패했습니다.");
+      }
+    } catch (e) {
+      console.error("차량 삭제 오류:", e);
+      alert("차량 삭제 중 서버 통신 오류가 발생했습니다.");
     }
   };
 
@@ -546,9 +573,9 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
                     <span>정보 수정 및 서류 등록</span>
                   </button>
                   <button
-                    type="button"
                     onClick={() => handleDeleteCar(selectedCar)}
-                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5"
+                    className="px-3.5 py-2 bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-xs transition-all border border-rose-200 dark:border-rose-800 flex items-center gap-1.5"
+                    title="보유 차량 삭제"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>차량 삭제</span>
@@ -795,7 +822,7 @@ export function OwnerTruckManagement({ setActivePath }: OwnerTruckManagementProp
             </div>
           )}
 
-          <form id="owner-truck-form" onSubmit={handleSaveCar} className="space-y-4">
+          <form id="owner-truck-form" noValidate onSubmit={handleSaveCar} className="space-y-4">
             {/* 차량번호 */}
             <div>
               <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">

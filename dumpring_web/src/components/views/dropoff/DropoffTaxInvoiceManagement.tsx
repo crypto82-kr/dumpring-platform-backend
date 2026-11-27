@@ -718,7 +718,7 @@ export default function DropoffTaxInvoiceManagement({
 
             <div className="px-6 py-3.5 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500 font-mono">
-                출력 일자: {new Date().toISOString().slice(0, 10)}
+                출력 일자: {new Date().toISOString().split("T")[0]}
               </span>
               <div className="flex items-center gap-2">
                 <button

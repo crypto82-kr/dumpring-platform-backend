@@ -142,7 +142,7 @@ class Car(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # 소유 차주 사장님
-    car_number = Column(String, unique=True, nullable=False, index=True)  # 차량 번호 (예: 경기80사1234)
+    car_number = Column(String, nullable=False, index=True)  # 차량 번호 (논리삭제 차량과 공존 가능하도록 활성 차량 기준 중복 검증)
     tonnage = Column(Float, nullable=False, default=25.0)  # 덤프 톤수 (하위 호환성 유지)
     truck_type = Column(String, nullable=True, default="T_25")  # 공통코드 TRUCK_TYPE (T_15, T_25, T_27)
     inspection_date = Column(String, nullable=True, default="2026-12-31")  # 정기검사 유효기간 (YYYY-MM-DD)
@@ -154,6 +154,7 @@ class Car(Base):
     biz_license_url = Column(String, nullable=True)
     insurance_file = Column(String, nullable=True)
     insurance_url = Column(String, nullable=True)
+    is_deleted = Column(Boolean, default=False, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

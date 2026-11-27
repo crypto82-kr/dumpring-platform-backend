@@ -46,8 +46,11 @@ async def get_my_drivers(
     db: AsyncSession = Depends(get_db),
     current_owner: User = Depends(get_current_owner)
 ):
-    # 차주 소유의 차량들 조회
-    car_query = select(Car).where(Car.owner_id == current_owner.id)
+    # 차주 소유의 활성 차량들 조회 (논리 삭제 차량 제외)
+    car_query = select(Car).where(
+        Car.owner_id == current_owner.id,
+        Car.is_deleted == False
+    )
     car_result = await db.execute(car_query)
     cars = car_result.scalars().all()
     car_ids = [c.id for c in cars]
@@ -178,7 +181,10 @@ async def get_my_cars(
     db: AsyncSession = Depends(get_db),
     current_owner: User = Depends(get_current_owner)
 ):
-    car_query = select(Car).where(Car.owner_id == current_owner.id)
+    car_query = select(Car).where(
+        Car.owner_id == current_owner.id,
+        Car.is_deleted == False
+    )
     car_result = await db.execute(car_query)
     cars = car_result.scalars().all()
     
@@ -241,6 +247,7 @@ async def get_my_cars(
 
 
 class CreateCarRequest(BaseModel):
+    car_id: int | None = None
     car_number: str
     truck_type: str | None = "T_25"
     tonnage: float | None = None
@@ -302,14 +309,62 @@ async def create_my_car(
     c_item = code_r.scalars().first()
     t_name = c_item.code_name if c_item else f"{parsed_tonnage}톤"
 
-    # 중복 차량 번호 확인
-    query = select(Car).where(Car.car_number == data.car_number.strip())
-    result = await db.execute(query)
-    existing_car = result.scalars().first()
+    # 1. 차량번호 형식 밸리데이션 (한국 자동차/건설기계 번호판 규격: 지역명(선택) + 숫자2~3자리 + 한글1자 + 숫자4자리)
+    import re
+    from sqlalchemy import func
+    raw_car_no = (data.car_number or "").strip()
+    if not raw_car_no:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="차량번호를 입력해 주세요."
+        )
+    plate_pattern = re.compile(r"^([가-힣]{2}\s?)?\d{2,3}\s?[가-힣]\s?\d{4}$")
+    if not plate_pattern.match(raw_car_no):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="올바른 차량번호 형식이 아닙니다. (예: 12가3456, 254구9433, 경기80사1234)"
+        )
 
-    if existing_car:
-        # 이미 등록된 차량인 경우 소유권 및 정보 업데이트
-        existing_car.owner_id = current_owner.id
+    normalized_car_no = re.sub(r"\s+", "", raw_car_no)
+
+    # 2. 활성 차량(is_deleted == False)만 대상으로 DB 중복 여부 체크 (논리 삭제된 차량은 중복 체크에서 제외!)
+    dup_query = select(Car).where(
+        Car.is_deleted == False,
+        func.replace(Car.car_number, " ", "") == normalized_car_no
+    )
+    if data.car_id is not None:
+        dup_query = dup_query.where(Car.id != data.car_id)
+
+    dup_result = await db.execute(dup_query)
+    duplicate_active_car = dup_result.scalars().first()
+    if duplicate_active_car:
+        if duplicate_active_car.owner_id == current_owner.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"'{raw_car_no}' 차량은 이미 보유 차량으로 등록되어 있습니다."
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"'{raw_car_no}' 차량은 이미 다른 운송사(차주)에 등록되어 있는 차량번호입니다."
+            )
+
+    # 3. 기존 차량 정보 수정 모드 (car_id가 전달된 경우)
+    if data.car_id is not None:
+        edit_q = select(Car).where(
+            Car.id == data.car_id,
+            Car.owner_id == current_owner.id,
+            Car.is_deleted == False
+        )
+        edit_res = await db.execute(edit_q)
+        existing_car = edit_res.scalars().first()
+        if not existing_car:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="수정할 차량을 찾을 수 없거나 권한이 없습니다."
+            )
+
+        existing_car.car_number = raw_car_no
         existing_car.truck_type = truck_type_val
         existing_car.tonnage = parsed_tonnage
         if data.inspection_date:
@@ -326,7 +381,7 @@ async def create_my_car(
             existing_car.insurance_file = data.insurance_file
         if data.insurance_url:
             existing_car.insurance_url = data.insurance_url
-        
+
         await db.commit()
         return CarResponse(
             id=existing_car.id,
@@ -380,35 +435,67 @@ async def create_my_car(
 
 @router.delete(
     "/my-cars/{car_id}",
-    summary="차주 사장님의 등록 차량 삭제"
+    status_code=status.HTTP_200_OK,
+    summary="차주 보유 차량 삭제"
 )
 async def delete_my_car(
     car_id: int,
     db: AsyncSession = Depends(get_db),
     current_owner: User = Depends(get_current_owner)
 ):
-    car_res = await db.execute(select(Car).where(Car.id == car_id, Car.owner_id == current_owner.id))
+    from app.models import DispatchTicket
+    car_query = select(Car).where(Car.id == car_id, Car.owner_id == current_owner.id)
+    car_res = await db.execute(car_query)
     car = car_res.scalars().first()
     if not car:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="해당 차량을 찾을 수 없거나 삭제 권한이 없습니다."
+            detail="삭제할 차량을 찾을 수 없거나 소유 권한이 없습니다."
         )
 
-    tickets_res = await db.execute(select(DispatchTicket.id).where(DispatchTicket.car_id == car.id).limit(1))
-    if tickets_res.scalars().first() is not None:
+    # 현재 실시간 운행 중인 티켓이 있는 경우 삭제 방지
+    active_ticket_q = select(DispatchTicket).where(
+        DispatchTicket.car_id == car_id,
+        DispatchTicket.status.in_(["ACCEPTED", "ARRIVED_LOADING", "LOADING_APPROVED", "DRIVING", "ARRIVED", "WAITING_ABSENT_APPROVAL"])
+    )
+    active_ticket_res = await db.execute(active_ticket_q)
+    if active_ticket_res.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="운행 이력이 존재하는 차량은 삭제할 수 없습니다."
+            detail="현재 배차 운행이 진행 중인 차량은 삭제할 수 없습니다."
         )
 
-    drivers_res = await db.execute(select(Driver).where(Driver.current_car_id == car.id))
-    for drv in drivers_res.scalars().all():
+    # 배정된 기사가 있으면 차량 배정 해제
+    assigned_drivers_q = select(Driver).where(Driver.current_car_id == car_id)
+    assigned_drivers_res = await db.execute(assigned_drivers_q)
+    for drv in assigned_drivers_res.scalars().all():
         drv.current_car_id = None
 
-    await db.delete(car)
-    await db.commit()
-    return {"message": "차량이 삭제되었습니다.", "deleted_car_id": car_id}
+    # 과거 운행/정산 티켓(연결고리) 존재 여부 확인
+    past_tickets_q = select(DispatchTicket.id).where(DispatchTicket.car_id == car_id).limit(1)
+    past_tickets_res = await db.execute(past_tickets_q)
+    has_past_history = past_tickets_res.scalars().first() is not None
+
+    if has_past_history:
+        # [케이스 B] 과거 운행/정산 이력이 있는 차량: 연결고리 보존을 위해 논리 삭제(Soft Delete)
+        car.is_deleted = True
+        await db.commit()
+        return {
+            "message": f"'{car.car_number}' 차량이 보유 목록에서 삭제되었습니다. (과거 운행·정산 이력은 보존됩니다)",
+            "deleted_id": car_id,
+            "deleted_car_id": car_id,
+            "delete_mode": "SOFT_DELETE"
+        }
+    else:
+        # [케이스 A] 연결된 운행 이력이 0건인 차량: DB에 불필요한 데이터가 쌓이지 않도록 완전 물리 삭제(Hard Delete)
+        await db.delete(car)
+        await db.commit()
+        return {
+            "message": f"'{car.car_number}' 차량이 완전히 삭제되었습니다.",
+            "deleted_id": car_id,
+            "deleted_car_id": car_id,
+            "delete_mode": "HARD_DELETE"
+        }
 
 
 class InviteDriverRequest(BaseModel):
@@ -585,8 +672,12 @@ async def assign_driver(
     db: AsyncSession = Depends(get_db),
     current_owner: User = Depends(get_current_owner)
 ):
-    # 1. 차량 소유주 검증
-    car_query = select(Car).where(Car.id == data.car_id, Car.owner_id == current_owner.id)
+    # 1. 차량 소유주 검증 (활성 차량만 기사 배정 허용)
+    car_query = select(Car).where(
+        Car.id == data.car_id,
+        Car.owner_id == current_owner.id,
+        Car.is_deleted == False
+    )
     car_result = await db.execute(car_query)
     car = car_result.scalars().first()
     if not car:
@@ -967,7 +1058,7 @@ async def get_owner_monthly_schedule(
     month_total_trips = sum(d["total_count"] for d in days_list)
     month_completed_trips = sum(d["completed_count"] for d in days_list)
     active_drivers_count = len(driver_user_ids)
-    registered_trucks_count = len(cars)
+    registered_trucks_count = len([c for c in cars if not getattr(c, "is_deleted", False)])
 
     return {
         "year_month": year_month,

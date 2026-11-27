@@ -21,6 +21,7 @@ import {
   X
 } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import { downloadExcelFile } from "@/utils/excel";
 
 interface SiteSoilExpensesManagementProps {
   registeredSiteList?: any[];
@@ -409,27 +410,49 @@ export default function SiteSoilExpensesManagement({
     const rows = historyData.map((r) => [
       r.jobPostId || r.id,
       r.workDate,
-      `"${(r.siteName || "").replace(/"/g, '""')}"`,
-      `"${(r.dropoffName || "").replace(/"/g, '""')}"`,
-      `"${(r.soilType || "").replace(/"/g, '""')}"`,
+      r.siteName || "",
+      r.dropoffName || "",
+      r.soilType || "",
       r.payerType === "SITE_PAYS" ? "사토비(지출)" : r.payerType === "SITE_RECEIVES" ? "토사판매(수입)" : "무상",
       r.unitPrice,
       r.truckCount,
       r.totalAmount, // 공급가액 (부가세 미포함)
       Math.floor(r.totalAmount * 0.1), // 부가세 (10%)
       r.totalAmount + Math.floor(r.totalAmount * 0.1), // 총 정산 합계액 (VAT 포함)
-      `"${r.status}"`
+      r.status
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `현장_흙값정산_마감이력_${startDateFilter || "전체"}_${endDateFilter || "전체"}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const siteNameLabel = selectedSiteId
+      ? (registeredSiteList.find((s: any) => s.id === Number(selectedSiteId))?.name || `현장 #${selectedSiteId}`)
+      : "전체 현장";
+    const payerLabel =
+      payerTypeFilter === "SITE_PAYS"
+        ? "현장지급(사토비 지출)"
+        : payerTypeFilter === "SITE_RECEIVES"
+        ? "하차지지급(토사판매 수입)"
+        : payerTypeFilter === "FREE"
+        ? "무상 사토"
+        : "전체 거래";
+    const periodLabel =
+      startDateFilter || endDateFilter
+        ? `${startDateFilter || "전체"} ~ ${endDateFilter || "전체"}`
+        : "전체 기간";
+
+    downloadExcelFile(
+      `현장_흙값정산_마감이력_${startDateFilter || "전체"}_${endDateFilter || "전체"}.xlsx`,
+      "흙값정산마감이력",
+      headers,
+      rows,
+      {
+        title: "현장 흙값(토사대금) 정산 마감 이력 대장",
+        criteria: [
+          `발주 현장: ${siteNameLabel}`,
+          `거래 구분: ${payerLabel}`,
+          `작업 기간: ${periodLabel}`,
+          `검색어: ${searchQuery.trim() || "전체"}`,
+        ],
+      }
+    );
   };
 
   return (

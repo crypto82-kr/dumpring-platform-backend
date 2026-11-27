@@ -78,6 +78,32 @@ export const MatchStatusCard: React.FC<MatchStatusCardProps> = ({
         </span>
       );
     }
+    if (
+      rawStatus === "SETTLEMENT_CONFIRMED" ||
+      rawStatus === "SETTLEMENT_PAID" ||
+      rawStatus === "SETTLEMENT_CLOSED" ||
+      rawStatus === "SETTLEMENT_APPROVED"
+    ) {
+      return (
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm">
+          정산 마감 완료
+        </span>
+      );
+    }
+    if (rawStatus === "SETTLEMENT_REQUESTED" || rawStatus === "SETTLEMENT_PENDING") {
+      return (
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm">
+          정산 검토 중
+        </span>
+      );
+    }
+    if (rawStatus === "SETTLEMENT_DISPUTED") {
+      return (
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 shadow-sm">
+          정산 보류 (이의제기)
+        </span>
+      );
+    }
     if (rawStatus === "CLOSED") {
       return (
         <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-slate-100 text-slate-700 border-slate-300 shadow-sm">
@@ -102,8 +128,8 @@ export const MatchStatusCard: React.FC<MatchStatusCardProps> = ({
       );
     }
     return (
-      <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-slate-100 text-slate-500 border-slate-200">
-        {rawStatus}
+      <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-200">
+        운행 완료
       </span>
     );
   };

@@ -40,8 +40,9 @@ export function DropoffRegisterManagement({
   const [dropoffFormCapacity, setDropoffFormCapacity] = React.useState("");
   const [dropoffFormSoilDealType, setDropoffFormSoilDealType] = React.useState<"buy" | "sell">("sell");
 
-  // Document states
+  // Document states (우측 상세 패널용 vs 모달 등록/수정 폼용 분리)
   const [documentFiles, setDocumentFiles] = React.useState<Record<string, string>>({});
+  const [modalDocumentFiles, setModalDocumentFiles] = React.useState<Record<string, string>>({});
   const [uploadingDocCode, setUploadingDocCode] = React.useState<string | null>(null);
 
   // Load user's uploaded documents on mount
@@ -109,6 +110,7 @@ export function DropoffRegisterManagement({
 
       if (submitRes.ok) {
         setDocumentFiles(prev => ({ ...prev, [docCode]: uploadData.url }));
+        setModalDocumentFiles(prev => ({ ...prev, [docCode]: uploadData.url }));
         alert("필수 서류 파일이 정상 등록되었습니다.");
       } else {
         alert("필수 서류 DB 등록 실패");
@@ -216,6 +218,7 @@ export function DropoffRegisterManagement({
             setDropoffFormManagers("");
             setDropoffFormCapacity("");
             setDropoffFormSoilDealType("sell");
+            setModalDocumentFiles({});
             setEditingDropId(null);
             setIsModalOpen(true);
           }}
@@ -289,6 +292,7 @@ export function DropoffRegisterManagement({
                       setDropoffFormManagers(selectedDrop.managers?.join(", ") || "");
                       setDropoffFormCapacity(selectedDrop.capacity.toString());
                       setDropoffFormSoilDealType(selectedDrop.soilDealType);
+                      setModalDocumentFiles(documentFiles);
                       setIsModalOpen(true);
                     }}
                     className="px-3 py-1.5 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-black rounded-lg border border-blue-200 active:scale-95 transition-all"
@@ -527,7 +531,7 @@ export function DropoffRegisterManagement({
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                       {dbCommonCodes && dbCommonCodes.filter(c => c.group_code === "REQUIRED_DOC_DROPOFF").map(doc => {
-                        const fileUrl = documentFiles[doc.code];
+                        const fileUrl = modalDocumentFiles[doc.code];
                         return (
                           <div key={doc.code} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                             <div className="flex flex-col gap-0.5">

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Search, Building, Calendar, RefreshCw, Truck, FileText, CheckCircle2, X, AlertTriangle } from "lucide-react";
 import { getApiBaseUrl } from "@/utils/api";
+import { downloadExcelFile } from "@/utils/excel";
 
 interface SiteDumpExpensesManagementProps {
   registeredSiteList?: any[];
@@ -235,6 +236,123 @@ export default function SiteDumpExpensesManagement({
     );
   });
 
+  const handleExportDumpExpensesExcel = () => {
+    if (activeTab === "SITE") {
+      const targetSites = siteSummaries.filter((s) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+          (s.siteName && s.siteName.toLowerCase().includes(q)) ||
+          (s.companyName && s.companyName.toLowerCase().includes(q))
+        );
+      });
+      if (targetSites.length === 0 && filteredDriverData.length === 0) {
+        alert("다운로드할 덤프비 정산 데이터가 없습니다.");
+        return;
+      }
+      if (targetSites.length > 0) {
+        const headers = [
+          "현장명",
+          "시공사",
+          "투입기사수(명)",
+          "완료횟수(회)",
+          "진행건수(건)",
+          "정산공급가액(원)",
+          "부가세(10%)",
+          "합계금액(원)"
+        ];
+        const rows = targetSites.map((s) => {
+          const amt = Number(s.totalAmount || 0);
+          const vat = Math.floor(amt * 0.1);
+          return [
+            s.siteName || "-",
+            s.companyName || "-",
+            s.driverCount || 0,
+            s.completedTrips || 0,
+            s.pendingTrips || 0,
+            amt,
+            vat,
+            amt + vat
+          ];
+        });
+        const siteNameLabel = selectedSiteId
+          ? (registeredSiteList.find((s) => s.id === Number(selectedSiteId))?.name || `현장 #${selectedSiteId}`)
+          : "전체 현장";
+        const periodLabel =
+          startDateFilter || endDateFilter
+            ? `${startDateFilter || "전체"} ~ ${endDateFilter || "전체"}`
+            : "전체 기간";
+        downloadExcelFile(
+          `현장별_덤프비정산대장_${new Date().toISOString().slice(0, 10)}.xlsx`,
+          "현장별덤프비정산",
+          headers,
+          rows,
+          {
+            title: "현장별 덤프 운반비 정산 대장",
+            criteria: [
+              `대상 현장: ${siteNameLabel}`,
+              `정산 기간: ${periodLabel}`,
+              `검색어: ${searchQuery.trim() || "전체"}`,
+            ],
+          }
+        );
+        return;
+      }
+    }
+
+    if (filteredDriverData.length === 0) {
+      alert("다운로드할 덤프비 정산 데이터가 없습니다.");
+      return;
+    }
+    const headers = [
+      "기사명",
+      "차량번호",
+      "톤수",
+      "소속운송사",
+      "투입현장명",
+      "운행완료(회)",
+      "정산공급가액(원)",
+      "부가세(10%)",
+      "합계금액(원)"
+    ];
+    const rows = filteredDriverData.map((d) => {
+      const amt = Number(d.totalAmount || 0);
+      const vat = Math.floor(amt * 0.1);
+      return [
+        d.driverName || "-",
+        d.carPlate || "-",
+        d.tonnage || "-",
+        d.companyName || "-",
+        d.siteName || "-",
+        d.completedTrips || 0,
+        amt,
+        vat,
+        amt + vat
+      ];
+    });
+    const siteNameLabel = selectedSiteId
+      ? (registeredSiteList.find((s) => s.id === Number(selectedSiteId))?.name || `현장 #${selectedSiteId}`)
+      : "전체 현장";
+    const periodLabel =
+      startDateFilter || endDateFilter
+        ? `${startDateFilter || "전체"} ~ ${endDateFilter || "전체"}`
+        : "전체 기간";
+    downloadExcelFile(
+      `기사별_덤프비정산대장_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      "기사별덤프비정산",
+      headers,
+      rows,
+      {
+        title: "기사/차주별 덤프 운반비 정산 대장",
+        criteria: [
+          `대상 현장: ${siteNameLabel}`,
+          `정산 기간: ${periodLabel}`,
+          `검색어: ${searchQuery.trim() || "전체"}`,
+        ],
+      }
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header Bar */}
@@ -257,7 +375,7 @@ export default function SiteDumpExpensesManagement({
           </button>
           <button
             type="button"
-            onClick={() => alert("덤프비 정산 대장 엑셀 출력이 완료되었습니다.")}
+            onClick={handleExportDumpExpensesExcel}
             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-emerald-500/10"
           >
             덤프비 정산 대장 엑셀

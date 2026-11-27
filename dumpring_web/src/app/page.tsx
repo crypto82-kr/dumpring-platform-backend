@@ -12,7 +12,6 @@ import { PlatformAdminFeeManagement } from "@/components/views/admin/PlatformAdm
 import { PlatformAdminDispatchControl } from "@/components/views/admin/PlatformAdminDispatchControl";
 import { PlatformAdminSiteDropoffManagement } from "@/components/views/admin/PlatformAdminSiteDropoffManagement";
 import { PlatformAdminDisputeManagement } from "@/components/views/admin/PlatformAdminDisputeManagement";
-import { SiteManagerDashboard } from "@/components/views/site/SiteManagerDashboard";
 import SiteWorkerManagement from "@/components/views/site/SiteWorkerManagement";
 import SiteInfoManagement from "@/components/views/site/SiteInfoManagement";
 import SiteDispatchRequestManagement from "@/components/views/site/SiteDispatchRequestManagement";
@@ -472,9 +471,10 @@ export default function Home() {
               case "SETTLEMENT_CLOSED": return "정산마감";
               case "SETTLEMENT_PAID": return "정산완료";
               case "SETTLEMENT_CONFIRMED": return "정산확정";
-              case "SETTLEMENT_REQUESTED": return "정산요청";
               case "SETTLEMENT_APPROVED": return "정산승인";
-              case "SETTLEMENT_DISPUTED": return "정산이의제기";
+              case "SETTLEMENT_REQUESTED":
+              case "SETTLEMENT_PENDING": return "정산대기";
+              case "SETTLEMENT_DISPUTED": return "정산보류";
               default: return "대기중";
             }
           })(),
@@ -599,9 +599,10 @@ export default function Home() {
             case "SETTLEMENT_CLOSED": return "정산마감";
             case "SETTLEMENT_PAID": return "정산완료";
             case "SETTLEMENT_CONFIRMED": return "정산확정";
-            case "SETTLEMENT_REQUESTED": return "정산요청";
             case "SETTLEMENT_APPROVED": return "정산승인";
-            case "SETTLEMENT_DISPUTED": return "정산이의제기";
+            case "SETTLEMENT_REQUESTED":
+            case "SETTLEMENT_PENDING": return "정산대기";
+            case "SETTLEMENT_DISPUTED": return "정산보류";
             case "CANCELLED": return "매칭반려";
             default: return "대기중";
           }
@@ -1200,10 +1201,10 @@ export default function Home() {
     }
   };
 
-  /** 배차 공고 삭제 (백엔드 DELETE /api/jobs/{id} 호출 및 로컬 동기화) */
+  /** 배차 공고 삭제 (백엔드 DB 실제 삭제 연동) */
   const handleDeleteDispatch = async (id: number) => {
     try {
-      const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
+      const token = sessionStorage.getItem("dumpring_token") || localStorage.getItem("accessToken");
       const res = await fetch(`${API_BASE_URL}/api/jobs/${id}`, {
         method: "DELETE",
         headers: {
@@ -1212,14 +1213,16 @@ export default function Home() {
       });
       if (res.ok) {
         setDispatchRequestList(prev => prev.filter(r => r.id !== id));
+        await fetchDispatchRequests();
         return true;
       }
-      const errData = await res.json().catch(() => null);
-      alert(errData?.detail || "배차 요청 삭제에 실패했습니다.");
+      const errBody = await res.json().catch(() => ({}));
+      if (errBody.detail) {
+        alert(errBody.detail);
+      }
       return false;
     } catch (e) {
       console.error("handleDeleteDispatch error:", e);
-      alert("배차 요청 삭제 중 네트워크 오류가 발생했습니다.");
       return false;
     }
   };
@@ -1551,23 +1554,28 @@ export default function Home() {
     );
   };
 
-  return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      {/* Header with Title & breadcrumbs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-900 pb-6">
-        <div>
-          <div className="text-xs font-bold text-blue-600/80 tracking-widest uppercase mb-1">
-            DUMPRING ADMIN PORTAL
-          </div>
-          <h1 className="text-3xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
-            통합 관리 콘솔
-          </h1>
-          <p className="text-xs text-slate-500 mt-1.5">
-            접속 권한: <strong className="text-slate-700 font-bold">{user.roleName}</strong> 계정으로 제어 및 조회 중입니다.
-          </p>
-        </div>
+  const isSiteFullScreenWallboard =
+    (user.role === "site_manager" || user.role === "site_worker") &&
+    (activePath === "/site" || activePath === "");
 
-      </div>
+  return (
+    <div className={isSiteFullScreenWallboard ? "w-full h-screen overflow-hidden bg-[#060a12]" : "p-8 max-w-7xl mx-auto space-y-8"}>
+      {/* Header with Title & breadcrumbs (풀스크린 관제 대시보드일 때는 상단 메뉴명 헤더 완전히 숨김) */}
+      {!isSiteFullScreenWallboard && (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-900 pb-6">
+          <div>
+            <div className="text-xs font-bold text-blue-600/80 tracking-widest uppercase mb-1">
+              DUMPRING ADMIN PORTAL
+            </div>
+            <h1 className="text-3xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
+              통합 관리 콘솔
+            </h1>
+            <p className="text-xs text-slate-500 mt-1.5">
+              접속 권한: <strong className="text-slate-700 font-bold">{user.roleName}</strong> 계정으로 제어 및 조회 중입니다.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Dynamic Content based on User Role */}
       {user.role === "platform_admin" && (
@@ -1789,71 +1797,28 @@ export default function Home() {
             handleDeleteSite={handleDeleteSite}
           />
         ) : (
-          <SiteManagerDashboard
-            activePath={activePath}
-            setActivePath={setActivePath}
-            siteFormName={siteFormName}
-            setSiteFormName={setSiteFormName}
-            siteFormCompanyName={siteFormCompanyName}
-            setSiteFormCompanyName={setSiteFormCompanyName}
-            siteFormAddress={siteFormAddress}
-            setSiteFormAddress={setSiteFormAddress}
-            siteFormRoadDesc={siteFormRoadDesc}
-            setSiteFormRoadDesc={setSiteFormRoadDesc}
-            siteFormManagers={siteFormManagers}
-            setSiteFormManagers={setSiteFormManagers}
-            siteFormSearchQuery={siteFormSearchQuery}
-            setSiteFormSearchQuery={setSiteFormSearchQuery}
+          <SiteOverviewDashboard
             registeredSiteList={registeredSiteList}
-            setRegisteredSiteList={setRegisteredSiteList}
-            dispatchFormSiteId={dispatchFormSiteId}
-            setDispatchFormSiteId={setDispatchFormSiteId}
-            dispatchFormTonTypes={dispatchFormTonTypes}
-            setDispatchFormTonTypes={setDispatchFormTonTypes}
-            dispatchFormTruckCount={dispatchFormTruckCount}
-            setDispatchFormTruckCount={setDispatchFormTruckCount}
-            dispatchFormSoilType={dispatchFormSoilType}
-            setDispatchFormSoilType={setDispatchFormSoilType}
-            dispatchFormStartDate={dispatchFormStartDate}
-            setDispatchFormStartDate={setDispatchFormStartDate}
-            dispatchFormEndDate={dispatchFormEndDate}
-            setDispatchFormEndDate={setDispatchFormEndDate}
-            dispatchFormDropoffMode={dispatchFormDropoffMode}
-            setDispatchFormDropoffMode={setDispatchFormDropoffMode}
-            dispatchFormDropoffName={dispatchFormDropoffName}
-            setDispatchFormDropoffName={setDispatchFormDropoffName}
-            dispatchFormDropoffAddress={dispatchFormDropoffAddress}
-            setDispatchFormDropoffAddress={setDispatchFormDropoffAddress}
-            dispatchFormDropoffCapacity={dispatchFormDropoffCapacity}
-            setDispatchFormDropoffCapacity={setDispatchFormDropoffCapacity}
-            dispatchFormDropoffSoilType={dispatchFormDropoffSoilType}
-            setDispatchFormDropoffSoilType={setDispatchFormDropoffSoilType}
-            dispatchRequestMode={dispatchRequestMode}
-            setDispatchRequestMode={setDispatchRequestMode}
-            editingDispatchRequestId={editingDispatchRequestId}
-            setEditingDispatchRequestId={setEditingDispatchRequestId}
-            dispatchRequestSearchQuery={dispatchRequestSearchQuery}
-            setDispatchRequestSearchQuery={setDispatchRequestSearchQuery}
             dispatchRequestList={dispatchRequestList}
-            setDispatchRequestList={setDispatchRequestList}
-            registeredDropoffList={registeredDropoffList}
             dropoffRequestList={dropoffRequestList}
+            registeredDropoffList={registeredDropoffList}
             taxInvoiceApproved={taxInvoiceApproved}
             setTaxInvoiceApproved={setTaxInvoiceApproved}
-            handleCreateSite={handleCreateSite}
-            handleUpdateSite={handleUpdateSite}
-            handleDeleteSite={handleDeleteSite}
-            handleCreateDispatch={handleCreateDispatch}
-            handleUpdateDispatch={handleUpdateDispatch}
-            handleDeleteDispatch={handleDeleteDispatch}
-            fetchDispatchRequests={fetchDispatchRequests}
-            dispatchFormPayerType={dispatchFormPayerType}
-            setDispatchFormPayerType={setDispatchFormPayerType}
-            dispatchFormOfferedUnitPrice={dispatchFormOfferedUnitPrice}
-            setDispatchFormOfferedUnitPrice={setDispatchFormOfferedUnitPrice}
-            handleConfirmMatchJobPost={handleConfirmMatchJobPost}
-            handleRejectMatchJobPost={handleRejectMatchJobPost}
-            handleResetMatchJobPost={handleResetMatchJobPost}
+            setActivePath={setActivePath}
+            onOpenCreateDispatch={() => {
+              setDispatchFormSiteId("");
+              setDispatchFormTonTypes([]);
+              setDispatchFormTruckCount(1);
+              setDispatchFormSoilType("일반 토사");
+              setDispatchFormStartDate("");
+              setDispatchFormEndDate("");
+              setDispatchFormDropoffMode("none");
+              setDispatchFormDropoffName("");
+              setDispatchFormDropoffAddress("");
+              setEditingDispatchRequestId(null);
+              setDispatchRequestMode("create");
+              setActivePath("/site/dispatch-request");
+            }}
           />
         ))
       }

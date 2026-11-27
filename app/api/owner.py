@@ -26,8 +26,11 @@ async def register_fleet(
 ):
     logger.info(f"차주 [ID: {current_owner.id}, 이름: {current_owner.name}] 차량 및 기사 선등록 시도: {data.car_number}")
 
-    # 1. 차량 번호 중복 조회 예외 처리
-    car_check_query = select(Car).where(Car.car_number == data.car_number)
+    # 1. 차량 번호 중복 조회 예외 처리 (논리 삭제된 차량은 중복 체크에서 제외)
+    car_check_query = select(Car).where(
+        Car.car_number == data.car_number,
+        Car.is_deleted == False
+    )
     car_check_result = await db.execute(car_check_query)
     existing_car = car_check_result.scalars().first()
 
