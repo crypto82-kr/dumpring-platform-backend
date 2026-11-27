@@ -148,76 +148,23 @@ export default function SiteOverviewDashboard({
     const s1 = showcaseSites[0].name;
     const s1Order = dispatchRequestList.find((d) => d.siteName === s1);
 
-    events.push(
-      {
-        id: "emerg-divert-1",
-        siteName: s1,
-        severity: "CRITICAL",
-        categoryLabel: "반입 거부(회차)",
-        title: `[${s1}] 반출 차량 하차지 자재 검수 불합격 — 긴급 회차 발생`,
-        dropoffName: s1Order?.dropoffName || "지정 하차지",
-        orderNo: s1Order ? `오더 #${s1Order.id}` : "오더 #1762",
-        soilType: s1Order?.soilType || "양질토사",
-        truckOrCount: "경기 82바 4519 (25톤) 외 1대",
-        reason:
-          "하차지 도착 후 자재 검수에서 함수율 기준 초과(젖은 토사 및 폐콘크리트 소량 혼입) 판정으로 반입이 거부되어 대체 하차지 전환이 시급합니다.",
-        detectedTime: "실시간 긴급 감지",
-        targetPath: "/site/dispatch",
-        baseX: 66,
-        baseY: 87,
-      },
-      {
-        id: "emerg-match-1",
-        siteName: s1,
-        severity: "CRITICAL",
-        categoryLabel: "배차·매칭 거절",
-        title: `[${s1}] 오후 추가 배차 오더 하차지 반입 거절 발생`,
-        dropoffName: s1Order?.dropoffName || "지정 하차지",
-        orderNo: s1Order ? `오더 #${s1Order.id}` : "오더 #1759",
-        soilType: s1Order?.soilType || "일반토사",
-        truckOrCount: "배차 요청 10대분",
-        reason:
-          "요청한 하차지의 당일 반입 허용 용량 초과로 매칭이 거절되어, 다른 하차지로 재지정하지 않으면 오후 현장 반출이 중단됩니다.",
-        detectedTime: "2분 전 감지",
-        targetPath: "/site/dispatch-request",
-        baseX: 34,
-        baseY: 82,
-      },
-      {
-        id: "emerg-over-volume-1",
-        siteName: s1,
-        severity: "CRITICAL",
-        categoryLabel: "계획 용량 초과 반출",
-        title: `[${s1}] 금일 계획 토사량(320㎥) 대비 초과 반출 감지 (352㎥ / 110%)`,
-        dropoffName: s1Order?.dropoffName || "지정 하차지",
-        orderNo: s1Order ? `오더 #${s1Order.id}` : "오더 #1762",
-        soilType: s1Order?.soilType || "양질토사",
-        truckOrCount: "계획 320㎥(500톤) ➔ 실반출 352㎥(550톤) [+32㎥ 초과]",
-        reason:
-          "당일 계획된 반출 총 용량(25톤×20대 = 500톤, 환산 320㎥)을 초과하여 352㎥(+32㎥, 25톤 2대분 초과)가 반출되었습니다. 추가 반출 승인 또는 상차 중단 확인이 필요합니다.",
-        detectedTime: "실시간 용량 초과 감지",
-        targetPath: "/site/dispatch",
-        baseX: 50,
-        baseY: 85,
-      },
-      {
-        id: "emerg-loading-stop-1",
-        siteName: s1,
-        severity: "CRITICAL",
-        categoryLabel: "현장 상차 중단 감지",
-        title: `[${s1}] 시간당 4~5대 출하 후 65분째 출하 0대 — 상차 작업 중단 감지`,
-        dropoffName: s1Order?.dropoffName || "지정 하차지",
-        orderNo: s1Order ? `오더 #${s1Order.id}` : "오더 #1762",
-        soilType: s1Order?.soilType || "양질토사",
-        truckOrCount: "14시까지 시간당 5대 출하 ➔ 15시 이후 출하 0대 (잔여 4대 대기)",
-        reason:
-          "오전~14시까지 시간당 평균 4.5대씩 정상 출하되던 현장에서 잔여 배차 물량이 남아 있음에도 65분째 신규 상차 출발 송장(departed_at)이 0건입니다. 현장 굴삭기 작업 중단 또는 진출입로 통제 여부 확인이 필요합니다.",
-        detectedTime: "65분째 출하 멈춤",
-        targetPath: "/site/dispatch",
-        baseX: 75,
-        baseY: 90,
-      }
-    );
+    events.push({
+      id: "emerg-divert-1",
+      siteName: s1,
+      severity: "CRITICAL",
+      categoryLabel: "반입 거부(회차)",
+      title: `[${s1}] 반출 차량 하차지 자재 검수 불합격 — 긴급 회차 발생`,
+      dropoffName: s1Order?.dropoffName || "지정 하차지",
+      orderNo: s1Order ? `오더 #${s1Order.id}` : "오더 #1762",
+      soilType: s1Order?.soilType || "양질토사",
+      truckOrCount: "경기 82바 4519 (25톤) 외 1대",
+      reason:
+        "하차지 도착 후 자재 검수에서 함수율 기준 초과(젖은 토사 및 폐콘크리트 소량 혼입) 판정으로 반입이 거부되어 대체 하차지 전환이 시급합니다.",
+      detectedTime: "실시간 긴급 감지",
+      targetPath: "/site/dispatch",
+      baseX: 66,
+      baseY: 87,
+    });
 
     if (showcaseSites.length > 1) {
       const s2 = showcaseSites[1].name;
@@ -249,7 +196,8 @@ export default function SiteOverviewDashboard({
   // 1) 반출 완료 대수와 토사 루베(㎥)는 천천히 차오르고,
   // 2) 반출이 완료되어 운행 종료가 될수록 '현재 운행' 대수는 줄어들며 내려가고,
   // 3) 2번 토사 용량 기둥이 100%를 넘어가면 빨간색(초과 반출)으로 감지되는 자연스러운 흐름!
-  const slowStep = Math.floor(tick / 2); // 2초마다 1단계씩 천천히 진행
+  // 빠르게 지나가지 않고 충분히 눈으로 확인하고 클릭할 수 있도록 4초마다 1단계씩 천천히 진행
+  const slowStep = Math.floor(tick / 4); // 4초마다 1단계씩 천천히 진행
 
   const sitesTelemetry = useMemo(() => {
     return showcaseSites.map((site, idx) => {
@@ -260,45 +208,58 @@ export default function SiteOverviewDashboard({
       const matchRejCnt = siteEvents.filter((e) => e.categoryLabel === "배차·매칭 거절").length;
       const delayCnt = siteEvents.filter((e) => e.categoryLabel === "검수·상하차 지연").length;
 
-      const planned = site.basePlanned; // 예: 20대
+      const planned = site.basePlanned; // 예: 20대 (시스템 배차 오더 대수는 절대 20대를 초과할 수 없음!)
 
-      // 0단계 ~ 10단계까지 천천히 한 대씩 완료 처리됨
-      const stage = (slowStep + idx * 3) % 11; // 0 ~ 10
-      // 배차 부족(하차지 거절 / 기사 미매칭으로 모자란 대수)
+      // 0단계 ~ 11단계까지 천천히 진행 (한 사이클 48초: 36초 동안 이상/주의 표시 유지 -> 12초 동안 해소 표시)
+      const stage = (slowStep + idx * 2) % 12; // 0 ~ 11
+
+      // 1) 배차 부족 대수: stage 0~8(36초 동안)에는 부족/회차가 충분히 유지되어 눈으로 여유 있게 확인 가능 -> stage 9~11(12초 동안)에 해소
       const shortageCount =
         emergencySimMode && idx === 0
-          ? 4 // 1번 현장은 목표 대수 중 4대가 매칭 거절/미배차로 모자람
+          ? stage <= 5
+            ? 4
+            : stage <= 8
+            ? 2
+            : 0
           : emergencySimMode && idx === 1
-          ? 2 // 2번 현장은 2대 매칭 대기/부족
+          ? stage <= 3
+            ? 2
+            : 0
           : 0;
+
       const matchedTotal = Math.max(1, planned - shortageCount);
 
-      // 완료 대수는 천천히 올라감 (매칭된 대수 한도 내)
-      const completed = Math.min(matchedTotal - 1, 9 + stage);
-      // 현재 운행 대수는 초반에 많이 투입되었다가 완료(운행 종료)가 될수록 서서히 떨어짐
-      const activeMoving = Math.max(1, matchedTotal - completed);
+      // 2) 완료 대수(completed): 절대 확보 대수(matchedTotal)나 목표 대수(planned, 20대)를 넘지 않음! (최대 20대 = 100%)
+      const completed = Math.min(matchedTotal, 9 + stage);
+
+      // 현재 운행 대수는 초반에 많이 운행하다가 완료(운행 종료)가 될수록 0대까지 서서히 줄어듦
+      const activeMoving = Math.max(0, matchedTotal - completed);
       const remaining = shortageCount;
 
       const completedRatio = Math.round((completed / planned) * 100);
       const activeRatio = Math.round((activeMoving / planned) * 100);
       const shortageRatio = Math.round((shortageCount / planned) * 100);
 
-      // 2번 그래프: 차량 총 톤수 기반 루베(㎥) 환산 (25톤 1대 = 16루베 표준 환산)
-      // 천천히 차오르다가 1번 현장은 후반 단계(stage >= 6)에서 100% 계획량(320㎥)을 돌파해 초과 반출(빨간색) 감지!
-      const plannedTons = planned * 25;
-      const plannedRube = planned * 16; // 320㎥
-      const outTrucksForVolume =
-        emergencySimMode && idx === 0
-          ? 15 + stage // 15대(240㎥, 75%)부터 천천히 차올라 21대(336㎥), 25대(400㎥, 125% 초과!)까지 상승
-          : completed;
-      const outTons = outTrucksForVolume * 25;
-      const outRube = outTrucksForVolume * 16;
-      const rubeRatio = Math.round((outRube / Math.max(1, plannedRube)) * 100);
-      const isOverVolume = outRube > plannedRube;
-      const overRubeAmount = Math.max(0, outRube - plannedRube);
+      // 2번 그래프: 1번 그래프의 목표 대수(planned) 및 완료 대수(completed) × 15루베(25톤 1대 표준 적재량)로 100% 동일하게 산출!
+      // 현장은 목표량(맥스 100%)을 넘지 않고 계획 총량 대비 현재 나간 반출량(루베 ㎥ · 톤수 · %)을 정직하고 선명하게 표시
+      const tonPerTruck = 25;
+      const rubePerTruck = 15;
+      const plannedTons = planned * tonPerTruck; // 예: 20대 × 25톤 = 500톤
+      const plannedRube = planned * rubePerTruck; // 예: 20대 × 15루베 = 300㎥
 
-      const hasCritical = emergencySimMode && site.role === "CRITICAL";
-      const hasWarning = emergencySimMode && site.role === "WARNING";
+      const outTons = completed * tonPerTruck;
+      const outRube = completed * rubePerTruck;
+      const movingRube = activeMoving * rubePerTruck;
+      const shortageRube = shortageCount * rubePerTruck;
+      const rubeRatio = completedRatio; // 1번 그래프 완료율(%)과 100% 일치 (최대 100%)
+      const isOverVolume = false;
+      const overRubeAmount = 0;
+
+      // 1번 그래프는 배차 부족(shortageCount > 0)이 있을 때 위험(빨간색)이고,
+      // 2번 현장의 검수 지연(hasWarning)도 stage 0~9 동안 충분히 길게 유지되며 외곽선이 노란색으로 표시됨!
+      const hasCritical = emergencySimMode && shortageCount > 0;
+      const hasWarning =
+        emergencySimMode && activeMoving > 0 && site.role === "WARNING" && stage <= 9;
 
       const isLoadingStopped = emergencySimMode && idx === 0;
       const currentHourlyRate = isLoadingStopped ? 0 : 4;
@@ -321,6 +282,9 @@ export default function SiteOverviewDashboard({
         plannedRube,
         outTons,
         outRube,
+        movingRube,
+        shortageRube,
+        rubePerTruck,
         rubeRatio,
         isOverVolume,
         overRubeAmount,
@@ -675,7 +639,7 @@ export default function SiteOverviewDashboard({
                 <span className="whitespace-nowrap">{s.name}</span>
                 {s.hasCritical && (
                   <span className="px-1.5 py-0.2 rounded bg-rose-950 text-rose-200 text-[10px] whitespace-nowrap shrink-0">
-                    긴급 {s.divertCnt + s.matchRejCnt}건
+                    회차 {s.divertCnt} · 미배차 {s.shortageCount}대
                   </span>
                 )}
               </button>
@@ -705,16 +669,6 @@ export default function SiteOverviewDashboard({
             }`}
           >
             <span>회차 {globalCounts.totalDiverts}건</span>
-          </div>
-
-          <div
-            className={`px-2.5 py-1 rounded-lg border text-xs font-black flex items-center gap-1 whitespace-nowrap shrink-0 ${
-              globalCounts.totalMatchRej > 0
-                ? "bg-rose-600 text-white border-rose-300 animate-pulse"
-                : "bg-slate-950 text-slate-500 border-slate-800"
-            }`}
-          >
-            <span>매칭거절 {globalCounts.totalMatchRej}건</span>
           </div>
 
           <div
@@ -786,7 +740,7 @@ export default function SiteOverviewDashboard({
           </div>
         </div>
 
-        {/* 4) 전체 배차 부족(미배차/거절로 모자란 대수) */}
+        {/* 4) 전체 배차 부족(차량 미배차로 모자란 대수) */}
         <div
           className={`rounded-xl px-3.5 py-2 flex items-center justify-between border ${
             globalCounts.totalShortageTrucks > 0
@@ -796,7 +750,7 @@ export default function SiteOverviewDashboard({
         >
           <div>
             <span className="text-[10.5px] font-bold text-slate-300 block">전체 배차 부족(미달) 대수</span>
-            <span className="text-[11px] text-rose-300 font-bold">매칭 거절 · 차량 미배차분</span>
+            <span className="text-[11px] text-rose-300 font-bold">기사 미매칭 · 차량 미배차분</span>
           </div>
           <div className="text-right font-mono">
             <strong
@@ -813,20 +767,20 @@ export default function SiteOverviewDashboard({
         {/* 5) 실시간 이상 감지 통합 건수 */}
         <div
           className={`rounded-xl px-3.5 py-2 flex items-center justify-between border ${
-            globalCounts.totalDiverts + globalCounts.totalMatchRej > 0
+            globalCounts.totalDiverts > 0
               ? "bg-rose-950/60 border-rose-500 shadow-[0_0_18px_rgba(244,63,94,0.35)]"
               : "bg-[#091122] border-slate-800"
           }`}
         >
           <div>
-            <span className="text-[10.5px] font-bold text-slate-300 block">실시간 이상 감지 통합</span>
+            <span className="text-[10.5px] font-bold text-slate-300 block">실시간 운행 이상 감지</span>
             <span className="text-[11px] text-amber-300 font-bold">
-              회차 {globalCounts.totalDiverts} · 거절 {globalCounts.totalMatchRej} · 지연 {globalCounts.totalDelays}
+              반입거부(회차) {globalCounts.totalDiverts}건 · 검수지연 {globalCounts.totalDelays}건
             </span>
           </div>
           <div className="text-right font-mono">
             <strong className="text-xl font-black text-rose-400 animate-pulse">
-              {globalCounts.totalDiverts + globalCounts.totalMatchRej + globalCounts.totalDelays}
+              {globalCounts.totalDiverts + globalCounts.totalDelays}
             </strong>
             <span className="text-xs font-bold text-rose-300 ml-1">건 감지</span>
           </div>
@@ -857,17 +811,20 @@ export default function SiteOverviewDashboard({
                 <span className="w-2.5 h-2.5 rounded-xs bg-emerald-400 shrink-0" /> 중: 최종 완료 대수
               </span>
               <span className="flex items-center gap-1 text-rose-400">
-                <span className="w-2.5 h-2.5 rounded-xs bg-rose-500 animate-pulse shrink-0" /> 우: 모자란 대수(배차 부족/거절)
+                <span className="w-2.5 h-2.5 rounded-xs bg-rose-500 animate-pulse shrink-0" /> 우: 모자란 대수(차량 미배차)
               </span>
             </div>
           </div>
 
           <div className="relative flex-1 my-1 rounded-lg bg-[#040811] border border-slate-800/80 px-6 py-2.5 flex items-end justify-around gap-6 overflow-hidden">
             {sitesTelemetry.map((site) => {
-              const smoothActiveHeight = Math.max(14, Math.min(88, site.activeRatio * 1.6));
-              const smoothCompletedHeight = Math.max(18, Math.min(98, site.completedRatio));
+              // 0대이면 높이를 정확히 0%로 완전히 비움!
+              const smoothActiveHeight =
+                site.activeMoving > 0 ? Math.max(12, Math.min(88, site.activeRatio * 1.6)) : 0;
+              const smoothCompletedHeight =
+                site.completed > 0 ? Math.max(15, Math.min(100, site.completedRatio)) : 0;
               const smoothShortageHeight =
-                site.shortageCount > 0 ? Math.max(24, Math.min(90, site.shortageRatio * 2.2)) : 8;
+                site.shortageCount > 0 ? Math.max(20, Math.min(90, site.shortageRatio * 2.2)) : 0;
 
               return (
                 <button
@@ -890,7 +847,7 @@ export default function SiteOverviewDashboard({
                     <div className="flex items-center gap-1.5">
                       {site.shortageCount > 0 ? (
                         <span className="px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-black animate-pulse shadow-[0_0_12px_#f43f5e] whitespace-nowrap">
-                          {site.shortageCount}대 부족 (회차 {site.divertCnt} · 거절 {site.matchRejCnt})
+                          미배차 {site.shortageCount}대 부족{site.divertCnt > 0 ? ` · 회차 ${site.divertCnt}건` : ""}
                         </span>
                       ) : site.hasWarning ? (
                         <span className="px-2 py-0.5 rounded bg-amber-500/30 border border-amber-400 text-amber-200 text-[10px] font-black animate-pulse whitespace-nowrap">
@@ -906,41 +863,61 @@ export default function SiteOverviewDashboard({
 
                   {/* 2) 중단 3열 막대 그래프 영역 (현재 운행 / 최종 완료 / 배차 부족 모자란 대수) */}
                   <div className="w-full flex-1 my-1.5 flex items-end justify-center gap-3 px-2 min-h-0">
-                    {/* 좌측 기둥: 현재 운행 */}
+                    {/* 좌측 기둥: 현재 운행 (0대 운행중이면 막대가 완전히 비어있고, 1대 이상 운행중일 때만 막대 및 회차/지연 조각 표시) */}
                     <div className="flex-1 h-full flex flex-col items-center justify-end min-w-0">
                       <span
                         className={`text-[10.5px] font-mono font-black mb-0.5 whitespace-nowrap ${
-                          site.hasCritical ? "text-rose-400 animate-pulse" : "text-cyan-300"
+                          site.activeMoving > 0 ? "text-cyan-300" : "text-slate-500"
                         }`}
                       >
                         {site.activeMoving}대 운행중
+                        {site.activeMoving > 0 && site.shortageCount > 0 && site.divertCnt > 0 && (
+                          <span className="text-rose-400 ml-1 text-[9.5px]">(회차 {site.divertCnt})</span>
+                        )}
+                        {site.activeMoving > 0 && site.hasWarning && site.delayCnt > 0 && (
+                          <span className="text-amber-300 ml-1 text-[9.5px] animate-pulse">(지연 {site.delayCnt})</span>
+                        )}
                       </span>
                       <div
-                        className={`w-full flex-1 rounded-t-xl bg-slate-950/90 border-2 p-1 flex flex-col justify-end relative overflow-hidden ${
-                          site.hasCritical
-                            ? "border-rose-500 shadow-[0_0_18px_rgba(244,63,94,0.45)]"
-                            : site.hasWarning
-                            ? "border-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.3)]"
-                            : "border-cyan-500/50"
+                        className={`w-full flex-1 rounded-t-xl bg-slate-950/90 border-2 p-1 flex flex-col justify-end relative overflow-hidden transition-all duration-700 ${
+                          site.activeMoving === 0
+                            ? "border-slate-800"
+                            : site.hasWarning && site.delayCnt > 0
+                            ? "border-amber-400 shadow-[0_0_16px_rgba(251,191,36,0.35)]"
+                            : "border-cyan-500/60"
                         }`}
                       >
-                        {site.hasCritical && (
+                        {site.activeMoving > 0 && site.shortageCount > 0 && site.divertCnt > 0 && (
                           <div
-                            className="w-full rounded-t-xs jennifer-bar-energy-rose animate-pulse shadow-[0_0_14px_#f43f5e] mb-0.5 transition-all duration-1000"
-                            style={{ height: "22%" }}
+                            className="w-full rounded-t-xs jennifer-bar-energy-rose animate-pulse mb-0.5 transition-all duration-1000"
+                            style={{ height: `${Math.max(8, Math.round((site.divertCnt / site.planned) * 100))}%` }}
+                            title={`회차 발생 ${site.divertCnt}대`}
                           />
                         )}
-                        <div
-                          className="w-full rounded-xs jennifer-bar-energy-cyan transition-all duration-1000 ease-in-out"
-                          style={{ height: `${smoothActiveHeight}%` }}
-                        />
+                        {site.activeMoving > 0 && site.hasWarning && site.delayCnt > 0 && (
+                          <div
+                            className="w-full rounded-t-xs bg-amber-400 animate-pulse shadow-[0_0_12px_#fbbf24] mb-0.5 transition-all duration-1000"
+                            style={{ height: `${Math.max(10, Math.round((site.delayCnt / site.planned) * 100))}%` }}
+                            title={`검수 지연 ${site.delayCnt}대`}
+                          />
+                        )}
+                        {site.activeMoving > 0 && (
+                          <div
+                            className="w-full rounded-xs jennifer-bar-energy-cyan transition-all duration-1000 ease-in-out"
+                            style={{ height: `${smoothActiveHeight}%` }}
+                          />
+                        )}
                       </div>
-                      <span className="text-[10px] font-bold text-cyan-300 mt-1 whitespace-nowrap">
+                      <span
+                        className={`text-[10px] font-bold mt-1 whitespace-nowrap ${
+                          site.activeMoving > 0 ? "text-cyan-300" : "text-slate-500"
+                        }`}
+                      >
                         현재 운행
                       </span>
                     </div>
 
-                    {/* 중앙 기둥: 최종 완료 */}
+                    {/* 중앙 기둥: 최종 완료 (목표 20대 = 100% 한도 내에서만 정상 상승) */}
                     <div className="flex-1 h-full flex flex-col items-center justify-end min-w-0">
                       <span className="text-[10.5px] font-mono font-black text-emerald-400 mb-0.5 whitespace-nowrap">
                         {site.completed}대 ({site.completedRatio}%)
@@ -1011,92 +988,79 @@ export default function SiteOverviewDashboard({
 
         {/* ─────────────────────────────────────────────────────────────────────────
             [좌하단 6칸 — 2번 그래프]
-            현장별 계획 총 토사량(루베 ㎥ · 총 톤수) 대비 반출 용량 단일 실린더 그래프
+            현장별 금일 반출 토사량(루베 ㎥ · 톤수) 및 잔여 토사량 확인 (익일 배차량 산정 기준)
            ───────────────────────────────────────────────────────────────────────── */}
         <div className="col-span-12 lg:col-span-6 row-span-1 rounded-xl bg-[#070d19] border border-slate-800/90 p-3 flex flex-col justify-between overflow-hidden relative">
           <div className="flex items-center justify-between gap-2 shrink-0 whitespace-nowrap">
             <div className="flex items-center gap-1.5 min-w-0">
               <Activity className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-xs font-black text-white truncate">
-                현장별 계획 총 토사량(루베 ㎥) 대비 반출 용량
+                현장별 금일 반출 토사량(루베 ㎥) 및 잔여 물량 현황
               </span>
             </div>
             <div className="flex items-center gap-2.5 text-[10px] font-bold shrink-0 whitespace-nowrap">
               <span className="flex items-center gap-1 text-emerald-400">
-                <span className="w-2 h-2 rounded-xs bg-emerald-400 shrink-0" /> 계획 내 정상
+                <span className="w-2 h-2 rounded-xs bg-emerald-400 shrink-0" /> 금일 반출 완료(㎥)
               </span>
-              <span className="flex items-center gap-1 text-rose-400">
-                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> 100% 초과 반출
+              <span className="flex items-center gap-1 text-amber-300">
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" /> 잔여량(익일 배차 참고)
               </span>
             </div>
           </div>
 
-          <div className="relative flex-1 my-1 rounded-lg bg-[#040811] border border-slate-800/80 px-4 py-2 flex items-end justify-around gap-4 overflow-hidden">
+          <div className="relative flex-1 my-1 rounded-lg bg-[#040811] border border-slate-800/80 px-4 py-2 flex items-end justify-around gap-4 overflow-hidden min-h-0">
             {sitesTelemetry.map((site) => {
-              const smoothFillHeight = Math.max(
-                18,
-                Math.min(96, Math.round(site.rubeRatio * 0.78))
-              );
+              const smoothFillHeight = Math.max(18, Math.min(100, site.rubeRatio));
+              const remainRube = Math.max(0, site.plannedRube - site.outRube);
 
               return (
                 <button
                   key={`vol-${site.id}`}
                   type="button"
                   onClick={() => openSiteAnomalyDetail(site.name)}
-                  className="relative z-10 flex-1 max-w-[240px] h-full flex flex-col justify-between items-center group cursor-pointer focus:outline-none"
+                  className="relative z-10 flex-1 max-w-[240px] min-w-0 h-full flex flex-col justify-between items-center group cursor-pointer focus:outline-none overflow-hidden"
                 >
-                  {/* 1) 상단 계획 용량 & 초과 상태 헤더 박스 */}
-                  <div className="w-full flex items-center justify-between gap-1 px-2 py-1 rounded-lg bg-slate-950/90 border border-slate-800/90 shrink-0 whitespace-nowrap">
+                  {/* 1) 상단 금일 계획 루베 & 잔여 루베(내일 배차 산정용) 헤더 박스 */}
+                  <div className="w-full flex items-center justify-between gap-1 px-2.5 py-1 rounded-lg bg-slate-950/90 border border-slate-800/90 shrink-0 whitespace-nowrap overflow-hidden">
                     <span className="text-[10.5px] font-bold text-slate-300 whitespace-nowrap">
                       계획 <strong className="text-white font-mono">{site.plannedRube}㎥</strong>
                     </span>
-                    {site.isOverVolume ? (
-                      <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[9.5px] font-black animate-pulse shadow-[0_0_12px_#f43f5e] whitespace-nowrap">
-                        +{site.overRubeAmount}㎥ 초과({site.rubeRatio}%)
-                      </span>
-                    ) : (
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 text-[9.5px] font-black whitespace-nowrap">
-                        {site.rubeRatio}% 반출
-                      </span>
-                    )}
-                  </div>
-
-                  {/* 2) 중단 단일 총 용량 실린더 기둥 (천천히 차오르다 100% 기준선을 넘으면 빨간색 발광 전환!) */}
-                  <div className="w-full flex-1 my-1 px-3 flex flex-col justify-end min-h-0">
-                    <div
-                      className={`w-full h-full rounded-t-2xl bg-slate-950/90 border-2 p-1.5 flex flex-col justify-end relative overflow-hidden transition-colors duration-700 ${
-                        site.isOverVolume
-                          ? "border-rose-500 shadow-[0_0_22px_rgba(244,63,94,0.45)]"
-                          : "border-emerald-500/70"
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-black whitespace-nowrap ${
+                        remainRube > 0
+                          ? "bg-amber-950/90 text-amber-300 border border-amber-500/40"
+                          : "bg-emerald-950 text-emerald-300 border border-emerald-500/40"
                       }`}
                     >
-                      <div className="absolute inset-x-0 bottom-[78%] border-b-2 border-dashed border-cyan-400/80 z-20 flex justify-end pr-1 pointer-events-none">
-                        <span className="text-[8.5px] font-mono font-black text-cyan-300 bg-slate-950/90 px-1 rounded -mb-2 whitespace-nowrap">
-                          100%({site.plannedRube}㎥)
-                        </span>
+                      {remainRube > 0 ? `잔여 ${remainRube}㎥` : "금일 100% 반출"}
+                    </span>
+                  </div>
+
+                  {/* 2) 중단 단일 총 용량 실린더 기둥 (금일 나간 반출량 + 남은 잔여량 명확히 표시) */}
+                  <div className="w-full flex-1 my-1 px-3 flex flex-col justify-end min-h-0">
+                    <div className="w-full h-full rounded-t-2xl bg-slate-950/90 border-2 border-emerald-500/70 p-1.5 flex flex-col justify-end relative overflow-hidden">
+                      {/* 상단 빈 공간: 오늘 아직 안 나간 잔여량 & 달성률 안내 */}
+                      <div className="absolute top-1.5 inset-x-2 flex items-center justify-between text-[9px] font-mono text-slate-400 z-20 pointer-events-none whitespace-nowrap">
+                        <span>총 {site.plannedTons}t</span>
+                        <span className="text-emerald-300 font-bold">반출 {site.rubeRatio}%</span>
                       </div>
 
                       <div
-                        className={`w-full rounded-t-xl flex flex-col items-center justify-center px-1 text-center whitespace-nowrap transition-all duration-1000 ease-in-out ${
-                          site.isOverVolume
-                            ? "jennifer-bar-energy-rose text-white shadow-[0_0_16px_#f43f5e]"
-                            : "jennifer-bar-energy-emerald text-slate-950"
-                        }`}
+                        className="w-full rounded-t-xl flex flex-col items-center justify-center px-1 text-center whitespace-nowrap transition-all duration-1000 ease-in-out jennifer-bar-energy-emerald text-slate-950 shadow-[0_0_16px_rgba(16,185,129,0.35)]"
                         style={{ height: `${smoothFillHeight}%` }}
                       >
-                        <span className="text-[11px] font-mono font-black whitespace-nowrap">
-                          {site.outRube}㎥ ({site.outTons}t)
+                        <span className="text-xs font-mono font-black whitespace-nowrap">
+                          {site.outRube}㎥ 반출
+                        </span>
+                        <span className="text-[9.5px] font-mono font-extrabold text-slate-900 whitespace-nowrap">
+                          ({site.outTons}t 완료)
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* 3) 하단 현장명 */}
-                  <span
-                    className={`text-xs font-black shrink-0 whitespace-nowrap truncate max-w-full ${
-                      site.isOverVolume ? "text-rose-400 animate-pulse" : "text-slate-100"
-                    }`}
-                  >
+                  <span className="text-xs font-black shrink-0 whitespace-nowrap truncate max-w-full text-slate-100">
                     {site.name}
                   </span>
                 </button>
@@ -1371,7 +1335,7 @@ export default function SiteOverviewDashboard({
                     [{selectedDetailModal.siteName}] 실시간 운행 이상 감지 상세 내역
                   </h3>
                   <p className="text-xs text-slate-400">
-                    해당 현장에서 감지된 반입 거부(회차) · 배차 매칭 거절 · 검수 지연 건의 관련 하차지 및 상세 사유입니다.
+                    해당 현장에서 실시간 감지된 반입 거부(회차) 및 하차지 검수 지연 건의 상세 사유입니다.
                   </p>
                 </div>
               </div>
